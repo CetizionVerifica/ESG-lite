@@ -1,0 +1,91 @@
+import { Router } from "express";
+import { authenticate } from "../middlewares/auth.middleware";
+import { getSiteById } from "../controllers/site.controller";
+import { getColumnConfigsBySiteAndCategory } from "../controllers/columnConfig.controller";
+import {
+  getEmissions,
+  getEmissionsBySiteAndCategory,
+  createEmission,
+  updateEmission,
+  deleteEmission,
+  bulkDeleteEmissions,
+  getPendingEmissions,
+  approveEmission,
+  rejectEmission,
+  bulkApproveEmissions,
+  bulkRejectEmissions,
+} from "../controllers/emission.controller";
+import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
+import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
+import { getProductsBySite } from "../controllers/product.controller";
+import {
+  createProductionData,
+  getProductionDataBySite,
+  updateProductionData,
+  deleteProductionData,
+  getEmissionIntensity,
+  getEmissionIntensityComparison,
+  getProductionDataForManager,
+  approveProductionData,
+  rejectProductionData,
+  bulkApproveProductionData,
+  bulkRejectProductionData,
+} from "../controllers/productionData.controller";
+
+const router = Router();
+
+// All routes require authentication but NOT superadmin
+router.use(authenticate);
+
+// Get site by ID (user can access their own site's data)
+router.get("/sites/:id", getSiteById);
+
+// Get column configs for a site and category
+router.get("/column-configs/site/:siteId/category/:categoryId", getColumnConfigsBySiteAndCategory);
+
+// Emission routes
+router.get("/emissions", getEmissions);
+router.get("/emissions/site/:siteId/category/:categoryId", getEmissionsBySiteAndCategory);
+router.get("/emissions/pending", getPendingEmissions);
+router.post("/emissions", createEmission);
+
+// Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
+router.put("/emissions/bulk-approve", bulkApproveEmissions);
+router.put("/emissions/bulk-reject", bulkRejectEmissions);
+router.delete("/emissions/bulk-delete", bulkDeleteEmissions);
+
+// Routes with :id parameter
+router.put("/emissions/:id/approve", approveEmission);
+router.put("/emissions/:id/reject", rejectEmission);
+router.put("/emissions/:id", updateEmission);
+router.delete("/emissions/:id", deleteEmission);
+
+// Emission factor routes
+router.get("/emission-factors/site/:siteId/category/:categoryId", getEmissionFactorsBySiteAndCategory);
+
+// Unit routes
+router.get("/units/site/:siteId/category/:categoryId", getUnitsBySiteAndCategory);
+
+// Product routes (read-only for users)
+router.get("/products/site/:siteId", getProductsBySite);
+
+// Production data routes
+router.get("/production-data/site/:siteId", getProductionDataBySite);
+router.get("/production-data/manager", getProductionDataForManager);
+router.post("/production-data", createProductionData);
+
+// Bulk routes must come BEFORE :id routes
+router.put("/production-data/bulk-approve", bulkApproveProductionData);
+router.put("/production-data/bulk-reject", bulkRejectProductionData);
+
+// Routes with :id parameter
+router.put("/production-data/:id/approve", approveProductionData);
+router.put("/production-data/:id/reject", rejectProductionData);
+router.put("/production-data/:id", updateProductionData);
+router.delete("/production-data/:id", deleteProductionData);
+
+// Emission intensity routes
+router.get("/emission-intensity/site/:siteId", getEmissionIntensity);
+router.get("/emission-intensity/comparison", getEmissionIntensityComparison);
+
+export default router;
