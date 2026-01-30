@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { DataSource } from "typeorm";
+import { DataSource, DataSourceOptions } from "typeorm";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
 import { User } from "../entities/User";
@@ -16,29 +16,58 @@ import { EmissionDocument } from "../entities/EmissionDocument";
 import dotenv from "dotenv";
 dotenv.config();
 
+const isProduction = process.env.NODE_ENV === "production";
 
-export const AppDataSource = new DataSource({
-  type: "postgres",
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || "5433"),
-  username: process.env.DB_USERNAME,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  synchronize: true, // ❗ turn OFF in production
-  logging: false,
-  entities: [
-    Company,
-    Country,
-    Site,
-    User,
-    Category,
-    EmissionFactor,
-    Emission,
-    ColumnConfig,
-    ColumnEntity,
-    Unit,
-    Product,
-    ProductionData,
-    EmissionDocument,
-  ],
-});
+// Shared entities array
+const entities = [
+  Company,
+  Country,
+  Site,
+  User,
+  Category,
+  EmissionFactor,
+  Emission,
+  ColumnConfig,
+  ColumnEntity,
+  Unit,
+  Product,
+  ProductionData,
+  EmissionDocument,
+];
+
+// Build configuration based on environment
+const getDataSourceConfig = (): DataSourceOptions => {
+  // Production: Use DATABASE_URL connection string
+  if (isProduction && process.env.DATABASE_URL) {
+    return {
+      type: "postgres",
+      url: process.env.DATABASE_URL,
+      synchronize: false, // Never auto-sync in production
+      logging: false,
+      entities,
+      ssl: {
+        rejectUnauthorized: false, // Required for Digital Ocean managed databases
+      },
+      extra: {
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      },
+    };
+  }
+
+  // Development: Use individual connection parameters
+  return {
+    type: "postgres",
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || "5433"),
+    username: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    synchronize: true, // OK for development only
+    logging: false,
+    entities,
+  };
+};
+
+export const AppDataSource = new DataSource(getDataSourceConfig());
