@@ -18,6 +18,11 @@ dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// Allow self-signed certificates for managed database services in production
+if (isProduction) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 // Shared entities array
 const entities = [
   Company,
@@ -60,7 +65,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
     const dbParams = parseDbUrl(process.env.DATABASE_URL);
 
     if (dbParams) {
-      // Use explicit parameters with SSL config for better control
+      // Use explicit parameters for production
       return {
         type: "postgres",
         host: dbParams.host,
@@ -71,9 +76,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
         synchronize: false, // Never auto-sync in production
         logging: ["error"],
         entities,
-        ssl: {
-          rejectUnauthorized: false, // Required for Digital Ocean managed databases
-        },
+        ssl: true, // Enable SSL for managed databases
       };
     }
 
@@ -84,9 +87,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
       synchronize: false,
       logging: ["error"],
       entities,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: true,
     } as DataSourceOptions;
   }
 
