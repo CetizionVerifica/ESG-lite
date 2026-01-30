@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { authenticate } from "../middlewares/auth.middleware";
 import { getSiteById } from "../controllers/site.controller";
 import { getColumnConfigsBySiteAndCategory } from "../controllers/columnConfig.controller";
@@ -31,8 +32,24 @@ import {
   bulkApproveProductionData,
   bulkRejectProductionData,
 } from "../controllers/productionData.controller";
+import {
+  uploadDocument,
+  uploadMultipleDocuments,
+  getDocuments,
+  getDocumentById,
+  getDocumentsByEmission,
+  updateDocument,
+  deleteDocument,
+  bulkDeleteDocuments,
+} from "../controllers/document.controller";
 
 const router = Router();
+
+// Configure multer for document uploads (memory storage)
+const documentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+});
 
 // All routes require authentication but NOT superadmin
 router.use(authenticate);
@@ -87,5 +104,15 @@ router.delete("/production-data/:id", deleteProductionData);
 // Emission intensity routes
 router.get("/emission-intensity/site/:siteId", getEmissionIntensity);
 router.get("/emission-intensity/comparison", getEmissionIntensityComparison);
+
+// Document routes
+router.get("/documents", getDocuments);
+router.get("/documents/:id", getDocumentById);
+router.get("/documents/emission/:emissionId", getDocumentsByEmission);
+router.post("/documents", documentUpload.single("file"), uploadDocument);
+router.post("/documents/multiple", documentUpload.array("files", 10), uploadMultipleDocuments);
+router.put("/documents/:id", updateDocument);
+router.delete("/documents/bulk-delete", bulkDeleteDocuments);
+router.delete("/documents/:id", deleteDocument);
 
 export default router;

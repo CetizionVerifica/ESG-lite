@@ -12,15 +12,18 @@ import { Country } from "../entities/Country";
 import { Unit } from "../entities/Unit";
 import { Product } from "../entities/Product";
 import { ProductionData } from "../entities/ProductionData";
+import { EmissionDocument } from "../entities/EmissionDocument";
+import dotenv from "dotenv";
+dotenv.config();
 
 
 export const AppDataSource = new DataSource({
   type: "postgres",
-  host: "localhost",
-  port: 5433,
-  username: "postgres",
-  password: "root",
-  database: "emissions_db",
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || "5433"),
+  username: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   synchronize: true, // ❗ turn OFF in production
   logging: false,
   entities: [
@@ -36,5 +39,6 @@ export const AppDataSource = new DataSource({
     Unit,
     Product,
     ProductionData,
+    EmissionDocument,
   ],
 });

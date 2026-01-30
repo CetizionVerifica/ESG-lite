@@ -24,6 +24,12 @@ export class User {
   @Column()
   password!: string;
 
+  @Column({ nullable: true })
+  password_reset_token?: string;
+
+  @Column({ type: "timestamp", nullable: true })
+  password_reset_expires?: Date;
+
   @Column()
   role!: UserRole;
 
