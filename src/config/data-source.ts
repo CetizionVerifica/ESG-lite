@@ -18,6 +18,8 @@ dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
 
+const makeSync = process.env.TYPEORM_SYNC === "true";
+
 // Allow self-signed certificates for managed database services in production
 if (isProduction) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -73,7 +75,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
         username: dbParams.username,
         password: dbParams.password,
         database: dbParams.database,
-        synchronize: false, // Never auto-sync in production
+        synchronize: makeSync, // Never auto-sync in production
         logging: ["error"],
         entities,
         ssl: true, // Enable SSL for managed databases
@@ -84,7 +86,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
     return {
       type: "postgres",
       url: process.env.DATABASE_URL,
-      synchronize: false,
+      synchronize: makeSync,
       logging: ["error"],
       entities,
       ssl: true,
