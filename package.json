@@ -16,6 +16,7 @@
   "type": "commonjs",
   "dependencies": {
     "@types/nodemailer": "^7.0.9",
+    "nodemailer": "^6.9.16",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
