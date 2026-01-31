@@ -11,9 +11,9 @@ export class ColumnConfig {
   @Column()
   config_name!: string;
 
-  @ManyToOne(() => Site, site => site.column_configs, { onDelete: "CASCADE" })
+  @ManyToOne(() => Site, site => site.column_configs, { onDelete: "CASCADE", nullable: true })
   @JoinColumn({ name: "site_id" })
-  site!: Site;
+  site!: Site | null;
 
   @ManyToOne(() => Category, category => category.column_configs, { onDelete: "CASCADE" })
   @JoinColumn({ name: "category_id" })

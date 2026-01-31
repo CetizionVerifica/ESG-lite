@@ -11,7 +11,9 @@ export const createCompany = async (req: Request, res: Response) => {
 };
 
 export const getCompanies = async (_: Request, res: Response) => {
-  const companies = await repo.find();
+  const companies = await repo.find({
+    relations: ["sites", "sites.categories"],
+  });
   res.json(companies);
 };
 

@@ -13,6 +13,7 @@ import { Unit } from "../entities/Unit";
 import { Product } from "../entities/Product";
 import { ProductionData } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
+import { MasterData } from "../entities/MasterData";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -40,6 +41,7 @@ const entities = [
   Product,
   ProductionData,
   EmissionDocument,
+  MasterData,
 ];
 
 // Parse DATABASE_URL to extract connection parameters

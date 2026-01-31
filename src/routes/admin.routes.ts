@@ -152,8 +152,26 @@ router.put("/products/:id", updateProduct);
 router.delete("/products/:id", deleteProduct);
 
 // Upload routes
+import {
+  createMasterData,
+  deleteMasterData,
+  getMasterData,
+  updateMasterData,
+  seedDemoData,
+} from "../controllers/masterData.controller";
+
+// ... existing imports ...
+
+// Upload routes
 router.post("/upload/emissions", upload.single("file"), uploadEmissionsExcel);
 router.get("/upload/sites", getSitesForUpload);
 router.get("/upload/categories", getCategoriesForUpload);
+
+// Master Data routes
+router.post("/master-data", createMasterData);
+router.get("/master-data", getMasterData);
+router.put("/master-data/:id", updateMasterData);
+router.delete("/master-data/:id", deleteMasterData);
+router.post("/master-data/seed", seedDemoData);
 
 export default router;
