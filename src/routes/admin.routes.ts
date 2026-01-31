@@ -8,6 +8,7 @@ import {
   updateCompany,
   deleteCompany,
 } from "../controllers/company.controller";
+import { onboardCompany } from "../controllers/onboarding.controller";
 import { createSite, deleteSite, getSites, updateSite } from "../controllers/site.controller";
 import { getUsers, deleteUser, updateUser, createUser } from "../controllers/user.controller";
 import {
@@ -71,6 +72,9 @@ const upload = multer({
 const router = Router();
 
 router.use(authenticate, requireSuperAdmin);
+
+// Onboarding
+router.post("/onboarding/company", onboardCompany);
 
 // Company
 router.post("/companies", createCompany);

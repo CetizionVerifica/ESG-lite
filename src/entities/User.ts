@@ -18,6 +18,12 @@ export class User {
   @Column({ nullable: true })
   name!: string;
 
+  @Column({ nullable: true })
+  last_name!: string;
+
+  @Column({ nullable: true })
+  phone_number!: string;
+
   @Column({ unique: true })
   email!: string;
 
