@@ -16,6 +16,7 @@
   "type": "commonjs",
   "dependencies": {
     "@types/nodemailer": "^7.0.9",
+    "nodemailer": "^6.9.16",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
@@ -25,9 +26,7 @@
     "multer": "^2.0.2",
     "pg": "^8.17.2",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.28"
-  },
-  "devDependencies": {
+    "typeorm": "^0.3.28",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -37,5 +36,8 @@
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+
   }
 }

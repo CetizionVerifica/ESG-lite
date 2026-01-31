@@ -18,6 +18,13 @@ dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
 
+const makeSync = process.env.TYPEORM_SYNC === "true";
+
+// Allow self-signed certificates for managed database services in production
+if (isProduction) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 // Shared entities array
 const entities = [
   Company,
@@ -35,25 +42,55 @@ const entities = [
   EmissionDocument,
 ];
 
+// Parse DATABASE_URL to extract connection parameters
+const parseDbUrl = (url: string) => {
+  const regex = /postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
+  const match = url.match(regex);
+  if (!match) return null;
+
+  // Remove query params from database name
+  const dbName = match[5].split("?")[0];
+
+  return {
+    username: match[1],
+    password: match[2],
+    host: match[3],
+    port: parseInt(match[4]),
+    database: dbName,
+  };
+};
+
 // Build configuration based on environment
 const getDataSourceConfig = (): DataSourceOptions => {
   // Production: Use DATABASE_URL connection string
   if (isProduction && process.env.DATABASE_URL) {
+    const dbParams = parseDbUrl(process.env.DATABASE_URL);
+
+    if (dbParams) {
+      // Use explicit parameters for production
+      return {
+        type: "postgres",
+        host: dbParams.host,
+        port: dbParams.port,
+        username: dbParams.username,
+        password: dbParams.password,
+        database: dbParams.database,
+        synchronize: makeSync, // Never auto-sync in production
+        logging: ["error"],
+        entities,
+        ssl: true, // Enable SSL for managed databases
+      };
+    }
+
+    // Fallback to URL if parsing fails
     return {
       type: "postgres",
       url: process.env.DATABASE_URL,
-      synchronize: false, // Never auto-sync in production
-      logging: false,
+      synchronize: makeSync,
+      logging: ["error"],
       entities,
-      ssl: {
-        rejectUnauthorized: false, // Required for Digital Ocean managed databases
-      },
-      extra: {
-        ssl: {
-          rejectUnauthorized: false,
-        },
-      },
-    };
+      ssl: true,
+    } as DataSourceOptions;
   }
 
   // Development: Use individual connection parameters
