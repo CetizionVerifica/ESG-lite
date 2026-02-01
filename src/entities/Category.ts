@@ -18,8 +18,8 @@ export class Category {
   @Column()
   category_name!: string;
 
-  @Column()
-  scope!: string;
+  @Column({ type: "varchar", nullable: true })
+  scope?: string;
 
   @ManyToMany(() => Site, site => site.categories)
   sites!: Site[];

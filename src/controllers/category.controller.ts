@@ -9,9 +9,9 @@ export const createCategory = async (req: Request, res: Response) => {
     const { category_name, scope } = req.body;
 
     // 1️⃣ Validate input
-    if (!category_name || !scope) {
+    if (!category_name) {
       return res.status(400).json({
-        message: "Category name and scope are required",
+        message: "Category name is required",
       });
     }
 
@@ -29,7 +29,7 @@ export const createCategory = async (req: Request, res: Response) => {
     // 3️⃣ Create category
     const category = repo.create({
       category_name: category_name.trim(),
-      scope: scope.trim(),
+      scope: scope ? scope.trim() : null,
     });
 
     await repo.save(category);
@@ -125,7 +125,8 @@ export const updateCategory = async (req: Request, res: Response) => {
 
     // 4️⃣ Update category
     if (category_name) category.category_name = category_name.trim();
-    if (scope) category.scope = scope.trim();
+    // Allow scope to be set to null or a value
+    if (scope !== undefined) category.scope = scope ? scope.trim() : null;
 
     await repo.save(category);
 
