@@ -198,13 +198,15 @@ export const getEmissionIntensity = async (req: Request, res: Response) => {
       };
     }
 
-    // Get total emissions for the site (approved only)
+    // Get total emissions for the site (approved only, excluding null-scope categories like Renewable Electricity)
     const emissionsQuery = emissionRepo
       .createQueryBuilder("emission")
+      .leftJoin("emission.category", "category")
       .select("SUM(emission.total_emission)", "totalEmissions")
       .where("emission.site_id = :siteId", { siteId: parseInt(siteId) })
       .andWhere("emission.status = :status", { status: EmissionStatus.APPROVED })
-      .andWhere("emission.date_of_reporting BETWEEN :startDate AND :endDate", dateFilter);
+      .andWhere("emission.date_of_reporting BETWEEN :startDate AND :endDate", dateFilter)
+      .andWhere("category.scope IS NOT NULL"); // Exclude null-scope categories
 
     const emissionsResult = await emissionsQuery.getRawOne();
     const totalEmissions = parseFloat(emissionsResult?.totalEmissions || 0);
@@ -267,13 +269,16 @@ async function getMonthlyIntensity(
   endDate: Date,
   productId?: number
 ) {
+  // Exclude null-scope categories (like Renewable Electricity) from monthly emissions
   const monthlyEmissions = await emissionRepo
     .createQueryBuilder("e")
+    .leftJoin("e.category", "category")
     .select("DATE_TRUNC('month', e.date_of_reporting)", "month")
     .addSelect("SUM(e.total_emission)", "emissions")
     .where("e.site_id = :siteId", { siteId })
     .andWhere("e.status = :status", { status: EmissionStatus.APPROVED })
     .andWhere("e.date_of_reporting BETWEEN :startDate AND :endDate", { startDate, endDate })
+    .andWhere("category.scope IS NOT NULL") // Exclude null-scope categories
     .groupBy("DATE_TRUNC('month', e.date_of_reporting)")
     .getRawMany();
 
@@ -350,13 +355,15 @@ export const getEmissionIntensityComparison = async (req: Request, res: Response
 
     const results = await Promise.all(
       siteIdArray.map(async (siteId) => {
-        // Get emissions
+        // Get emissions (excluding null-scope categories like Renewable Electricity)
         const emissionsResult = await emissionRepo
           .createQueryBuilder("e")
+          .leftJoin("e.category", "category")
           .select("SUM(e.total_emission)", "totalEmissions")
           .where("e.site_id = :siteId", { siteId })
           .andWhere("e.status = :status", { status: EmissionStatus.APPROVED })
           .andWhere("e.date_of_reporting BETWEEN :startDate AND :endDate", dateFilter)
+          .andWhere("category.scope IS NOT NULL") // Exclude null-scope categories
           .getRawOne();
 
         // Get production
