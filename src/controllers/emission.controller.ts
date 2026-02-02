@@ -11,10 +11,12 @@ const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
 // Common unit conversions
 const unitConversions: Record<string, Record<string, number>> = {
   // Volume
-  litre: { gallon: 0.264172, ml: 1000, "cubic meter": 0.001 },
-  gallon: { litre: 3.78541, ml: 3785.41, "cubic meter": 0.00378541 },
-  ml: { litre: 0.001, gallon: 0.000264172 },
-  "cubic meter": { litre: 1000, gallon: 264.172 },
+  litre: { gallon: 0.264172, ml: 1000, "cubic meter": 0.001, "kilo litre": 0.001, kl: 0.001 },
+  kl: { litre: 1000, gallon: 264.172, ml: 1000000, "cubic meter": 1 },
+  "kilo litre": { litre: 1000, gallon: 264.172, ml: 1000000, "cubic meter": 1 },
+  gallon: { litre: 3.78541, ml: 3785.41, "cubic meter": 0.00378541, kl: 0.00378541 },
+  ml: { litre: 0.001, gallon: 0.000264172, kl: 0.000001 },
+  "cubic meter": { litre: 1000, gallon: 264.172, kl: 1 },
   // Weight
   kg: { lb: 2.20462, tonne: 0.001, g: 1000 },
   lb: { kg: 0.453592, tonne: 0.000453592, g: 453.592 },
