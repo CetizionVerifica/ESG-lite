@@ -211,12 +211,13 @@ export const getEmissionIntensity = async (req: Request, res: Response) => {
     const emissionsResult = await emissionsQuery.getRawOne();
     const totalEmissions = parseFloat(emissionsResult?.totalEmissions || 0);
 
-    // Get total production for the site (where production period overlaps with filter)
+    // Get total production for the site (where production period overlaps with filter, approved only)
     const productionQuery = repo
       .createQueryBuilder("pd")
       .select("SUM(pd.quantity)", "totalProduction")
       .addSelect("pd.unit", "unit")
       .where("pd.site_id = :siteId", { siteId: parseInt(siteId) })
+      .andWhere("pd.status = :prodStatus", { prodStatus: ProductionDataStatus.APPROVED })
       .andWhere("pd.start_date <= :endDate AND pd.end_date >= :startDate", dateFilter);
 
     if (productId) {
@@ -282,12 +283,13 @@ async function getMonthlyIntensity(
     .groupBy("DATE_TRUNC('month', e.date_of_reporting)")
     .getRawMany();
 
-  // For monthly breakdown, use start_date as the reference month
+  // For monthly breakdown, use start_date as the reference month (approved production only)
   let productionQuery = repo
     .createQueryBuilder("pd")
     .select("DATE_TRUNC('month', pd.start_date)", "month")
     .addSelect("SUM(pd.quantity)", "production")
     .where("pd.site_id = :siteId", { siteId })
+    .andWhere("pd.status = :prodStatus", { prodStatus: ProductionDataStatus.APPROVED })
     .andWhere("pd.start_date <= :endDate AND pd.end_date >= :startDate", { startDate, endDate });
 
   if (productId) {
@@ -366,11 +368,12 @@ export const getEmissionIntensityComparison = async (req: Request, res: Response
           .andWhere("category.scope IS NOT NULL") // Exclude null-scope categories
           .getRawOne();
 
-        // Get production
+        // Get production (approved only)
         const productionResult = await repo
           .createQueryBuilder("pd")
           .select("SUM(pd.quantity)", "totalProduction")
           .where("pd.site_id = :siteId", { siteId })
+          .andWhere("pd.status = :prodStatus", { prodStatus: ProductionDataStatus.APPROVED })
           .andWhere("pd.start_date <= :endDate AND pd.end_date >= :startDate", dateFilter)
           .getRawOne();
 
