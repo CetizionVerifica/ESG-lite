@@ -625,3 +625,127 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+export const getApprovedEmissionsReport = async (req: Request, res: Response) => {
+   try {
+    const { siteIds, categoryIds, frequency, year, month } = req.body as {
+      siteIds: number[];
+      categoryIds?: number[];
+      frequency: "yearly" | "monthly";
+      year: number;
+      month?: number;
+    };
+
+    if (!siteIds?.length || !year || !frequency) {
+      return res.status(400).json({ message: "siteIds, frequency and year are required" });
+    }
+
+     let startDate: Date;
+    let endDate: Date;
+
+     if (frequency === "monthly") {
+      if (!month) {
+        return res.status(400).json({ message: "month is required for monthly frequency" });
+      }
+      startDate = new Date(year, month - 1, 1);
+      endDate = new Date(year, month, 0);
+    } else {
+      startDate = new Date(year, 0, 1);
+      endDate = new Date(year, 11, 31);
+    }
+
+    const repo = AppDataSource.getRepository(Emission);
+
+    const baseQuery = repo
+      .createQueryBuilder("emission")
+      .leftJoin("emission.category", "category")
+      .leftJoin("emission.site", "site")
+      .where("emission.status = :status", { status: EmissionStatus.APPROVED })
+      .andWhere("site.site_id IN (:...siteIds)", { siteIds })
+      .andWhere("emission.date_of_reporting >= :startDate", { startDate })
+      .andWhere("emission.date_of_reporting <= :endDate", { endDate });
+
+    if (categoryIds?.length) {
+      baseQuery.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
+    }
+     const totalsRaw = await baseQuery.clone().select([
+      `SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END) AS "scope1"`,
+      `SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END) AS "scope2"`,
+      `SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END) AS "scope3"`,
+    ]).getRawOne();
+
+    const scope1 = Number(totalsRaw.scope1) || 0;
+    const scope2 = Number(totalsRaw.scope2) || 0;
+    const scope3 = Number(totalsRaw.scope3) || 0;
+    const total = scope1 + scope2 + scope3;
+    
+   const bySiteRaw = await baseQuery
+      .clone()
+      .select([
+        `site.site_id AS "siteId"`,
+        `site.name AS "siteName"`,
+        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
+        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
+        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+      ])
+      .groupBy("site.site_id")
+      .addGroupBy("site.name")
+      .orderBy("site.name", "ASC")
+      .getRawMany();
+
+    const bySite = bySiteRaw.map((r) => {
+      const s1 = Number(r.scope1) || 0;
+      const s2 = Number(r.scope2) || 0;
+      const s3 = Number(r.scope3) || 0;
+      const siteTotal = s1 + s2 + s3;
+
+      return {
+        siteId: Number(r.siteId),
+        siteName: String(r.siteName),
+        scope1: s1,
+        scope2: s2,
+        scope3: s3,
+        total: siteTotal,
+        pctOfTotal: total ? Number(((siteTotal / total) * 100).toFixed(2)) : 0,
+      };
+    });
+
+    const monthlyRaw = await baseQuery
+      .clone()
+      .select([
+        `to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM') AS "month"`,
+        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
+        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
+        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+      ])
+      .groupBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`)
+      .orderBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`, "ASC")
+      .getRawMany();
+
+    const monthly = monthlyRaw.map((m) => {
+      const s1 = Number(m.scope1) || 0;
+      const s2 = Number(m.scope2) || 0;
+      const s3 = Number(m.scope3) || 0;
+      return {
+        month: String(m.month),
+        scope1: s1,
+        scope2: s2,
+        scope3: s3,
+        total: s1 + s2 + s3,
+      };
+    });
+
+    return res.status(200).json({
+      totals: { scope1, scope2, scope3, total },
+      bySite,
+      monthly,
+    });
+
+  }
+  catch (error) {
+    console.error("Get approved emissions report error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}

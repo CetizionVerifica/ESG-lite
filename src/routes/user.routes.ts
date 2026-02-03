@@ -15,6 +15,7 @@ import {
   rejectEmission,
   bulkApproveEmissions,
   bulkRejectEmissions,
+  getApprovedEmissionsReport,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
 import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
@@ -114,5 +115,7 @@ router.post("/documents/multiple", documentUpload.array("files", 10), uploadMult
 router.put("/documents/:id", updateDocument);
 router.delete("/documents/bulk-delete", bulkDeleteDocuments);
 router.delete("/documents/:id", deleteDocument);
+router.post("/emissions/approved", getApprovedEmissionsReport);
+
 
 export default router;
