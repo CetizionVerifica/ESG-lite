@@ -287,7 +287,13 @@ export const updateEmission = async (req: Request, res: Response) => {
       // Recalculate total emission if activity_data has emission_category
       if (activity_data.emission_category && emission.activity_data_unit) {
         // Calculate target year for emission factor (reporting year - 1, matching frontend logic)
-        const targetYear = emission.date_of_reporting.getFullYear() - 1;
+        // const targetYear = emission.date_of_reporting.getFullYear() - 1;
+
+        const reportingDate = emission.date_of_reporting instanceof Date 
+  ? emission.date_of_reporting 
+  : new Date(emission.date_of_reporting);
+
+const targetYear = reportingDate.getFullYear() - 1;
 
         // Find the emission factor for the selected emission category and year
         let emissionFactor = await emissionFactorRepo.findOne({
