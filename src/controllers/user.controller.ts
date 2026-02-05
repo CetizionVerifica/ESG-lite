@@ -79,7 +79,7 @@ export const createUser = async (req: Request, res: Response) => {
 
       const user = repo.create({
         name: name?.trim(),
-        email: email.trim(),
+        email: email.toLowerCase(),
         password: hashedPassword,
         role,
         sites: sites,
@@ -161,7 +161,7 @@ export const updateUser = async (req: Request, res: Response) => {
           message: "User with this email already exists",
         });
       }
-      user.email = email.trim();
+      user.email = email.toLowerCase();
     }
 
     if (password) {
