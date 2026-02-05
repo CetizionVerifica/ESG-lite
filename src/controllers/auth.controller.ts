@@ -13,12 +13,15 @@ const siteRepo = AppDataSource.getRepository(Site);
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
+  const emailLower = email.toLowerCase();
+  //console.log("emailLower", emailLower)
   // Load user with both single site (for regular users) and multiple sites (for managers)
   const user = await userRepo.findOne({
-    where: { email },
+    where: { email : emailLower },
     relations: ["site", "site.categories", "sites", "sites.categories"],
   });
 
+  //console.log("user", user)
   if (!user) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
