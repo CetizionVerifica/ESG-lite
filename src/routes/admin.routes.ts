@@ -155,5 +155,4 @@ router.delete("/products/:id", deleteProduct);
 router.post("/upload/emissions", upload.single("file"), uploadEmissionsExcel);
 router.get("/upload/sites", getSitesForUpload);
 router.get("/upload/categories", getCategoriesForUpload);
-
 export default router;
