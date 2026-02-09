@@ -17,6 +17,8 @@ import {
   bulkRejectEmissions,
   getApprovedEmissionsReport,
   getEdeReport,
+  getGhgReportTables,
+  getGhgReportDetails,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
 import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
@@ -120,6 +122,8 @@ router.delete("/documents/:id", deleteDocument);
 router.post("/emissions/approved", getApprovedEmissionsReport);
 router.post("/reports/ede", getEdeReport)
 router.post("/companies/by-sites", getCompanyNameBySites)
+router.post("/ghg/tables", getGhgReportTables);
+router.post("/ghg/details",getGhgReportDetails)
 
 
 
