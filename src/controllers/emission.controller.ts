@@ -1484,7 +1484,6 @@ export const getGhgReportDetails = async (req: Request, res: Response) => {
         [String(compYear)]: rangeComp,
         [String(selectedYear)]: rangeSelected,
       },
-      // rows are ready for Table 11/12/Scope-wise rendering
       rows,
     });
   } catch (error) {
