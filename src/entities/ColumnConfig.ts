@@ -3,6 +3,38 @@ import { ColumnEntity as DynamicColumn } from "./Column";
 import { Category } from "./Category";
 import { Site } from "./Site";
 
+// Interface for dropdown option values
+export interface DropdownOptionValue {
+  id: string | number;
+  label: string;
+}
+
+// Maps column_id (as string key) to array of dropdown options
+export interface ColumnOptionsMap {
+  [columnId: string]: DropdownOptionValue[];
+}
+
+// Maps child column name to parent column name
+// Example: { "disposal_method": "material" } - disposal_method depends on material
+export interface ColumnDependencies {
+  [childColumnName: string]: string;
+}
+
+// Options for dependent columns based on parent value
+// Example: { "disposal_method": { "paper": [{id: "recycled", label: "Recycled"}] } }
+export interface DependentOptionsMap {
+  [childColumnName: string]: {
+    [parentValue: string]: DropdownOptionValue[];
+  };
+}
+
+// Maps column value combinations to emission_category_name
+// Key format: "parentValue|childValue" or "value1|value2|..." for multiple dependencies
+// Example: { "paper|recycled": "Paper - Recycled" }
+export interface EmissionCategoryMapping {
+  [key: string]: string;
+}
+
 @Entity()
 export class ColumnConfig {
   @PrimaryGeneratedColumn()
@@ -18,6 +50,25 @@ export class ColumnConfig {
   @ManyToOne(() => Category, category => category.column_configs, { onDelete: "CASCADE" })
   @JoinColumn({ name: "category_id" })
   category!: Category;
+
+  // Site-specific dropdown options for each column
+  @Column({ type: "jsonb", nullable: true, default: {} })
+  column_options?: ColumnOptionsMap;
+
+  // Defines which columns depend on other columns
+  // Example: { "disposal_method": "material" }
+  @Column({ type: "jsonb", nullable: true, default: {} })
+  column_dependencies?: ColumnDependencies;
+
+  // Options for dependent columns based on parent column value
+  // Example: { "disposal_method": { "paper": [{id: "recycled", label: "Recycled"}] } }
+  @Column({ type: "jsonb", nullable: true, default: {} })
+  dependent_options?: DependentOptionsMap;
+
+  // Maps column value combinations to emission_category_name
+  // Example: { "paper|recycled": "Paper - Recycled" }
+  @Column({ type: "jsonb", nullable: true, default: {} })
+  emission_category_mapping?: EmissionCategoryMapping;
 
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({

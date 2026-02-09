@@ -92,7 +92,7 @@ router.delete("/sites/:id", deleteSite);
 router.get("/users", getUsers);
 router.delete("/users/:id", deleteUser);
 router.post("/users", createUser);
-router.put("/users/:id", updateUser);
+router.patch("/users/:id", updateUser);
 
 //Country
 router.post("/countries", createCountry);
