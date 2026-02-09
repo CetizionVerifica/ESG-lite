@@ -164,7 +164,8 @@ export const updateUser = async (req: Request, res: Response) => {
       user.email = email.toLowerCase();
     }
 
-    if (password) {
+
+    if (password&& !password.startsWith("$2b$")) {
       user.password = await bcrypt.hash(password, 10);
     }
 
