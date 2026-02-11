@@ -1392,13 +1392,12 @@ export const getGhgReportDetails = async (req: Request, res: Response) => {
     `;
 
      const unitExpr = `
-      COALESCE(
-        NULLIF(emission.activity_data->>'unit', ''),
-        NULLIF(emission.activity_data->>'activityUnit', ''),
-        NULLIF(emission.activity_data->>'emissionFactorUnit', ''),
-        ''
-      )
-    `;
+  COALESCE(
+    NULLIF(emission.activity_data_unit, ''),
+    ''
+  )
+`;
+
 
      const buildAgg = async (range: { startDate: Date; endDate: Date }) => {
       const qb = repo
