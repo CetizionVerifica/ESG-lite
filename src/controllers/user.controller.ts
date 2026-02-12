@@ -133,6 +133,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const { id }: any = req.params;
     const { name, email, password, role, site_id, site_ids } = req.body;
 
+
     if (!name && !email && !password && !role && site_id === undefined && site_ids === undefined) {
       return res.status(400).json({
         message: "At least one field is required for update",
