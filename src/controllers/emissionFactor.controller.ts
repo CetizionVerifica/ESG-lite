@@ -50,7 +50,6 @@ export const getEmissionFactorById = async (req: Request, res: Response) => {
 export const createEmissionFactor = async (req: Request, res: Response) => {
   try {
     const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name } = req.body;
-    console.log(req.body)
 
     if (!site_id || !category_id || !year || factor_value === undefined) {
       return res.status(400).json({
@@ -84,7 +83,6 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
       },
     });
 
-    console.log("existing", existing)
 
     if (existing) {
       return res.status(400).json({
