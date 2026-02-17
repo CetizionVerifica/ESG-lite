@@ -44,6 +44,7 @@ import {
   deleteDocument,
   bulkDeleteDocuments,
 } from "../controllers/document.controller";
+import { getCompanyNameBySites } from "../controllers/company.controller";
 
 const router = Router();
 
@@ -118,6 +119,8 @@ router.delete("/documents/bulk-delete", bulkDeleteDocuments);
 router.delete("/documents/:id", deleteDocument);
 router.post("/emissions/approved", getApprovedEmissionsReport);
 router.post("/reports/ede", getEdeReport)
+router.post("/companies/by-sites", getCompanyNameBySites)
+
 
 
 export default router;

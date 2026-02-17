@@ -172,21 +172,51 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         // Try to find the numeric value from activity_data
         let activityValue = 0;
 
-        // Check common field names first
-        const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption'];
+        // Known dropdown/select column names to skip (these contain IDs, not activity data)
+        const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
+
+        // Check common field names first (case-insensitive)
+        const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
         for (const field of commonFields) {
-          if (activity_data[field] !== undefined && activity_data[field] !== '') {
-            activityValue = parseFloat(activity_data[field]);
-            if (!isNaN(activityValue)) {
+          // Case-insensitive search
+          const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
+          if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
+            activityValue = parseFloat(activity_data[matchingKey]);
+            if (!isNaN(activityValue) && activityValue > 0) {
               break;
             }
           }
         }
 
-        // If not found in common fields, look for any numeric value (excluding emission_category)
+        // If not found in common fields, look for any numeric value
+        // Skip: emission_category, known dropdown columns, and small values that look like IDs
         if (activityValue === 0) {
           for (const [key, value] of Object.entries(activity_data)) {
-            if (key !== 'emission_category' && value !== undefined && value !== '') {
+            const keyLower = key.toLowerCase();
+            // Skip emission_category and known dropdown columns
+            if (key === 'emission_category' || skipColumns.has(keyLower)) {
+              continue;
+            }
+            if (value !== undefined && value !== '') {
+              const numValue = parseFloat(value as string);
+              // Skip small integers (1-99) as they're likely dropdown IDs, not activity data
+              // Real activity data is typically larger (e.g., 10000 kg, 5000 kWh)
+              if (!isNaN(numValue) && numValue >= 100) {
+                activityValue = numValue;
+                break;
+              }
+            }
+          }
+        }
+
+        // Fallback: if still not found, accept any positive number (in case activity data is small)
+        if (activityValue === 0) {
+          for (const [key, value] of Object.entries(activity_data)) {
+            const keyLower = key.toLowerCase();
+            if (key === 'emission_category' || skipColumns.has(keyLower)) {
+              continue;
+            }
+            if (value !== undefined && value !== '') {
               const numValue = parseFloat(value as string);
               if (!isNaN(numValue) && numValue > 0) {
                 activityValue = numValue;
@@ -287,7 +317,13 @@ export const updateEmission = async (req: Request, res: Response) => {
       // Recalculate total emission if activity_data has emission_category
       if (activity_data.emission_category && emission.activity_data_unit) {
         // Calculate target year for emission factor (reporting year - 1, matching frontend logic)
-        const targetYear = emission.date_of_reporting.getFullYear() - 1;
+        // const targetYear = emission.date_of_reporting.getFullYear() - 1;
+
+        const reportingDate = emission.date_of_reporting instanceof Date 
+  ? emission.date_of_reporting 
+  : new Date(emission.date_of_reporting);
+
+const targetYear = reportingDate.getFullYear() - 1;
 
         // Find the emission factor for the selected emission category and year
         let emissionFactor = await emissionFactorRepo.findOne({
@@ -313,18 +349,41 @@ export const updateEmission = async (req: Request, res: Response) => {
         if (emissionFactor) {
           // Find activity value from activity_data
           let activityValue = 0;
-          const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption'];
+
+          // Known dropdown/select column names to skip (these contain IDs, not activity data)
+          const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
+
+          // Check common field names first (case-insensitive)
+          const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
           for (const field of commonFields) {
-            if (activity_data[field] !== undefined && activity_data[field] !== '') {
-              activityValue = parseFloat(activity_data[field]);
-              if (!isNaN(activityValue)) break;
+            const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
+            if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
+              activityValue = parseFloat(activity_data[matchingKey]);
+              if (!isNaN(activityValue) && activityValue > 0) break;
             }
           }
 
-          // If not found, look for any numeric value
+          // If not found in common fields, look for any numeric value >= 100 (skip likely dropdown IDs)
           if (activityValue === 0) {
             for (const [key, value] of Object.entries(activity_data)) {
-              if (key !== 'emission_category' && value !== undefined && value !== '') {
+              const keyLower = key.toLowerCase();
+              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
+              if (value !== undefined && value !== '') {
+                const numValue = parseFloat(value as string);
+                if (!isNaN(numValue) && numValue >= 100) {
+                  activityValue = numValue;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Fallback: accept any positive number
+          if (activityValue === 0) {
+            for (const [key, value] of Object.entries(activity_data)) {
+              const keyLower = key.toLowerCase();
+              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
+              if (value !== undefined && value !== '') {
                 const numValue = parseFloat(value as string);
                 if (!isNaN(numValue) && numValue > 0) {
                   activityValue = numValue;

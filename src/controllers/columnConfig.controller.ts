@@ -1,6 +1,12 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
-import { ColumnConfig } from "../entities/ColumnConfig";
+import {
+  ColumnConfig,
+  ColumnOptionsMap,
+  ColumnDependencies,
+  DependentOptionsMap,
+  EmissionCategoryMapping,
+} from "../entities/ColumnConfig";
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { ColumnEntity } from "../entities/Column";
@@ -113,7 +119,16 @@ export const getColumnConfigsBySiteAndCategory = async (req: Request, res: Respo
 
 export const createColumnConfig = async (req: Request, res: Response) => {
   try {
-    const { config_name, site_id, category_id, column_ids } = req.body;
+    const {
+      config_name,
+      site_id,
+      category_id,
+      column_ids,
+      column_options,
+      column_dependencies,
+      dependent_options,
+      emission_category_mapping,
+    } = req.body;
 
     if (!config_name || !site_id || !category_id) {
       return res.status(400).json({
@@ -172,11 +187,21 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       }
     }
 
+    // Validate and set optional JSONB fields
+    const validatedColumnOptions: ColumnOptionsMap = column_options && typeof column_options === "object" ? column_options : {};
+    const validatedColumnDependencies: ColumnDependencies = column_dependencies && typeof column_dependencies === "object" ? column_dependencies : {};
+    const validatedDependentOptions: DependentOptionsMap = dependent_options && typeof dependent_options === "object" ? dependent_options : {};
+    const validatedEmissionCategoryMapping: EmissionCategoryMapping = emission_category_mapping && typeof emission_category_mapping === "object" ? emission_category_mapping : {};
+
     const columnConfig = repo.create({
       config_name: config_name.trim(),
       site: { site_id },
       category: { category_id },
       columns,
+      column_options: validatedColumnOptions,
+      column_dependencies: validatedColumnDependencies,
+      dependent_options: validatedDependentOptions,
+      emission_category_mapping: validatedEmissionCategoryMapping,
     });
 
     await repo.save(columnConfig);
@@ -202,13 +227,26 @@ export const createColumnConfig = async (req: Request, res: Response) => {
 export const updateColumnConfig = async (req: Request, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { config_name, site_id, category_id, column_ids } = req.body;
+    const {
+      config_name,
+      site_id,
+      category_id,
+      column_ids,
+      column_options,
+      column_dependencies,
+      dependent_options,
+      emission_category_mapping,
+    } = req.body;
 
     if (
       config_name === undefined &&
       site_id === undefined &&
       category_id === undefined &&
-      column_ids === undefined
+      column_ids === undefined &&
+      column_options === undefined &&
+      column_dependencies === undefined &&
+      dependent_options === undefined &&
+      emission_category_mapping === undefined
     ) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -290,6 +328,23 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       } else {
         columnConfig.columns = [];
       }
+    }
+
+    // Update JSONB fields if provided
+    if (column_options !== undefined) {
+      columnConfig.column_options = column_options === null ? {} : column_options;
+    }
+
+    if (column_dependencies !== undefined) {
+      columnConfig.column_dependencies = column_dependencies === null ? {} : column_dependencies;
+    }
+
+    if (dependent_options !== undefined) {
+      columnConfig.dependent_options = dependent_options === null ? {} : dependent_options;
+    }
+
+    if (emission_category_mapping !== undefined) {
+      columnConfig.emission_category_mapping = emission_category_mapping === null ? {} : emission_category_mapping;
     }
 
     await repo.save(columnConfig);

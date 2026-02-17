@@ -79,7 +79,7 @@ export const createUser = async (req: Request, res: Response) => {
 
       const user = repo.create({
         name: name?.trim(),
-        email: email.trim(),
+        email: email.toLowerCase(),
         password: hashedPassword,
         role,
         sites: sites,
@@ -133,6 +133,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const { id }: any = req.params;
     const { name, email, password, role, site_id, site_ids } = req.body;
 
+
     if (!name && !email && !password && !role && site_id === undefined && site_ids === undefined) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -161,10 +162,11 @@ export const updateUser = async (req: Request, res: Response) => {
           message: "User with this email already exists",
         });
       }
-      user.email = email.trim();
+      user.email = email.toLowerCase();
     }
 
-    if (password) {
+
+    if (password&& !password.startsWith("$2b$")) {
       user.password = await bcrypt.hash(password, 10);
     }
 
