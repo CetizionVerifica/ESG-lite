@@ -30,7 +30,8 @@ const unitConversions: Record<string, Record<string, number>> = {
   mj: { kwh: 0.277778, gj: 0.001 },
   // Currency
   inr: { usd: 0.012 },
-  usd: { inr: 83.5 },
+  usd: { inr: 83.5, eur: 0.92 },
+  eur: { usd: 1.09 },
 };
 
 // Get conversion factor between two units
