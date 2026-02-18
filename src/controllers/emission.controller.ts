@@ -1300,6 +1300,7 @@ export const getNearTermTargetTables = async (req: Request, res: Response) => {
   }
 };
 
+
 export const getLongTermTargetChart = async (req: Request, res: Response) => {
   try {
     const { siteIds, baseYear } = req.body as {
@@ -1312,7 +1313,7 @@ export const getLongTermTargetChart = async (req: Request, res: Response) => {
     }
 
     const NET_ZERO_YEAR = 2050;
-    const NET_ZERO_REDUCTION = 0.90;
+    const NET_ZERO_REDUCTION = 0.9;
 
     if (baseYear >= NET_ZERO_YEAR) {
       return res.status(400).json({ message: "Base year must be before 2050." });
@@ -1347,7 +1348,23 @@ export const getLongTermTargetChart = async (req: Request, res: Response) => {
       const scope1 = Number(raw?.scope1) || 0;
       const scope2 = Number(raw?.scope2) || 0;
       const scope3 = Number(raw?.scope3) || 0;
+
       return { scope1, scope2, scope3, total: scope1 + scope2 + scope3 };
+    };
+
+    const getMaxDataYear = async () => {
+      const raw = await repo
+        .createQueryBuilder("emission")
+        .leftJoin("emission.category", "category")
+        .leftJoin("emission.site", "site")
+        .where("emission.status = :status", { status: EmissionStatus.APPROVED })
+        .andWhere("site.site_id IN (:...siteIds)", { siteIds })
+        .andWhere("LOWER(category.category_name) != :ren", { ren: "renewable electricity" })
+        .select(`MAX(EXTRACT(YEAR FROM emission.date_of_reporting))`, "maxYear")
+        .getRawOne();
+
+      const maxYear = Number(raw?.maxYear);
+      return Number.isFinite(maxYear) ? maxYear : baseYear;
     };
 
     const baseTotals = await getTotalsForYear(baseYear);
@@ -1382,21 +1399,18 @@ export const getLongTermTargetChart = async (req: Request, res: Response) => {
 
     for (let year = baseYear; year <= NET_ZERO_YEAR; year++) {
       const n = year - baseYear;
-
       const factor = Math.pow(1 - annualRate, n);
 
       const totalTarget = Number((baselineBoundary * factor).toFixed(3));
       const scope1Target = Number((baseTotals.scope1 * factor).toFixed(3));
       const scope2Target = Number((baseTotals.scope2 * factor).toFixed(3));
-      const scope3Target = scope3TargetRequired
-        ? Number((baseTotals.scope3 * factor).toFixed(3))
-        : null;
+      const scope3Target = scope3TargetRequired ? Number((baseTotals.scope3 * factor).toFixed(3)) : null;
 
-      const prevTotal = n === 0 ? null : Number((baselineBoundary * Math.pow(1 - annualRate, n - 1)).toFixed(3));
+      const prevTotal =
+        n === 0 ? null : Number((baselineBoundary * Math.pow(1 - annualRate, n - 1)).toFixed(3));
       const reducedBy = prevTotal === null ? null : Number((prevTotal - totalTarget).toFixed(3));
-      const reducedByPct = prevTotal === null || prevTotal === 0
-        ? null
-        : Number(((reducedBy! / prevTotal) * 100).toFixed(3));
+      const reducedByPct =
+        prevTotal === null || prevTotal === 0 ? null : Number(((reducedBy! / prevTotal) * 100).toFixed(3));
 
       rows.push({
         year,
@@ -1407,6 +1421,65 @@ export const getLongTermTargetChart = async (req: Request, res: Response) => {
         scope3Target,
         reducedBy,
         reducedByPct,
+      });
+    }
+
+    const targetByYear = new Map(rows.map((r) => [r.year, r]));
+
+    const currentYear = new Date().getFullYear();
+    const maxDataYear = await getMaxDataYear();
+
+    const endYear = Math.min(NET_ZERO_YEAR, Math.max(currentYear, maxDataYear));
+
+    const actualVsTargetRows: Array<{
+      year: number;
+      actualScope1: number | null;
+      actualScope2: number | null;
+      actualScope3: number | null;
+      actualTotal: number | null;
+      targetTotal: number;
+      variance: number | null;
+      variancePct: number | null;
+      status: "Base Year" | "Reached" | "Not Reached" | "No Data";
+    }> = [];
+
+    for (let year = baseYear; year <= endYear; year++) {
+      const targetRow = targetByYear.get(year);
+      if (!targetRow) continue;
+
+      const actualTotals = await getTotalsForYear(year);
+
+      const isBase = year === baseYear;
+      const hasData = actualTotals.total > 0;
+
+      const actualBoundaryTotal = scope3TargetRequired
+        ? actualTotals.scope1 + actualTotals.scope2 + actualTotals.scope3
+        : actualTotals.scope1 + actualTotals.scope2;
+
+      let status: "Base Year" | "Reached" | "Not Reached" | "No Data";
+      if (isBase) status = "Base Year";
+      else if (!hasData) status = "No Data";
+      else status = actualBoundaryTotal <= targetRow.targetEmission ? "Reached" : "Not Reached";
+
+      const variance = hasData || isBase ? Number((actualBoundaryTotal - targetRow.targetEmission).toFixed(3)) : null;
+
+      const variancePct =
+        hasData || isBase
+          ? targetRow.targetEmission > 0
+            ? Number(((variance! / targetRow.targetEmission) * 100).toFixed(2))
+            : null
+          : null;
+
+      actualVsTargetRows.push({
+        year,
+        actualScope1: hasData || isBase ? Number(actualTotals.scope1.toFixed(3)) : null,
+        actualScope2: hasData || isBase ? Number(actualTotals.scope2.toFixed(3)) : null,
+        actualScope3: scope3TargetRequired && (hasData || isBase) ? Number(actualTotals.scope3.toFixed(3)) : null,
+        actualTotal: hasData || isBase ? Number(actualBoundaryTotal.toFixed(3)) : null,
+        targetTotal: targetRow.targetEmission,
+        variance,
+        variancePct,
+        status,
       });
     }
 
@@ -1424,6 +1497,7 @@ export const getLongTermTargetChart = async (req: Request, res: Response) => {
       scope3TargetRequired,
       baseTotals,
       rows,
+      actualVsTarget: actualVsTargetRows,
     });
   } catch (error) {
     console.error("getLongTermTargetChart error:", error);
