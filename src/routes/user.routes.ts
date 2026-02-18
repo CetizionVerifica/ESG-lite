@@ -17,6 +17,8 @@ import {
   bulkRejectEmissions,
   getApprovedEmissionsReport,
   getEdeReport,
+  getNearTermTargetTables,
+  getLongTermTargetChart,
   getGhgReportTables,
   getGhgReportDetails,
 } from "../controllers/emission.controller";
@@ -124,7 +126,7 @@ router.post("/reports/ede", getEdeReport)
 router.post("/companies/by-sites", getCompanyNameBySites)
 router.post("/ghg/tables", getGhgReportTables);
 router.post("/ghg/details",getGhgReportDetails)
-
-
+router.post("/targets/tables",getNearTermTargetTables)
+router.post("/targets/long-term-chart",getLongTermTargetChart)
 
 export default router;
