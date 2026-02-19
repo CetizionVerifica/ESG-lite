@@ -19,8 +19,10 @@ const unitConversions: Record<string, Record<string, number>> = {
   ml: { litre: 0.001, gallon: 0.000264172, kl: 0.000001 },
   "cubic meter": { litre: 1000, gallon: 264.172, kl: 1 },
   // Weight
-  kg: { lb: 2.20462, tonne: 0.001, g: 1000 },
+  //
+  kg: { lb: 2.20462, tonne: 0.001, g: 1000, ton: 0.00110231 },
   lb: { kg: 0.453592, tonne: 0.000453592, g: 453.592 },
+  ton: {kg: 907.185, lb: 2000, g: 907185},
   tonne: { kg: 1000, lb: 2204.62, g: 1000000 },
   g: { kg: 0.001, lb: 0.00220462 },
   // Energy
