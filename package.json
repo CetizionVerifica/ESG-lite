@@ -8,7 +8,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed:superadmin": "ts-node src/seeds/seedSuperAdmin.ts",
-    "seed:emissions": "ts-node src/seeds/seedEmissionsFromExcel.ts"
+    "seed:emissions": "ts-node src/seeds/seedEmissionsFromExcel.ts",
+    "migrate:companies": "ts-node src/scripts/migrateCompanies.ts",
+    "migrate:categories": "ts-node src/scripts/migrateCategories.ts",
+    "migrate:company:specific": "ts-node src/scripts/specificCompanyMigration.ts",
+    "migrate:all:companies": "ts-node src/scripts/allCompanyMigration.ts"
   },
   "keywords": [],
   "author": "",
@@ -37,7 +41,5 @@
     "typescript": "^5.9.3",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {
-
-  }
+  "devDependencies": {}
 }
