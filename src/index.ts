@@ -22,10 +22,42 @@ app.use("/user", userRoutes);
 
 let server: any;
 
-AppDataSource.initialize()
-    .then(() => {
-        console.log("📦 Database connected");
+// Retry DB connection with exponential backoff
+const connectWithRetry = async (
+    maxRetries = 5,
+    baseDelay = 2000,
+): Promise<void> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            await AppDataSource.initialize();
+            console.log("📦 Database connected");
+            return;
+        } catch (err: any) {
+            const isTransient =
+                err.code === "ECONNRESET" ||
+                err.code === "ETIMEDOUT" ||
+                err.code === "ECONNREFUSED" ||
+                err.code === "EPIPE";
 
+            if (isTransient && attempt < maxRetries) {
+                const delay = baseDelay * Math.pow(2, attempt - 1); // 2s, 4s, 8s, 16s, 32s
+                console.warn(
+                    `⚠️  DB connection attempt ${attempt}/${maxRetries} failed (${err.code}). Retrying in ${delay / 1000}s...`,
+                );
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            } else {
+                console.error(
+                    `❌ DB connection failed after ${attempt} attempt(s):`,
+                    err,
+                );
+                process.exit(1);
+            }
+        }
+    }
+};
+
+connectWithRetry()
+    .then(() => {
         server = app.listen(3000, () => {
             console.log("🚀 Server running on http://localhost:3000");
         });
@@ -34,8 +66,7 @@ AppDataSource.initialize()
         server.keepAliveTimeout = 65000; // Slightly higher than ALB idle timeout
         server.headersTimeout = 66000; // Must be higher than keepAliveTimeout
     })
-    .catch((err) => {
-        console.error("DB connection error:", err);
+    .catch(() => {
         process.exit(1);
     });
 
