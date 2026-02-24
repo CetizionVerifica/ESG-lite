@@ -120,9 +120,15 @@ const getDataSourceConfig = (): DataSourceOptions => {
         username: process.env.DB_USERNAME,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
-        synchronize: true, // OK for development only
+        synchronize: false, // Disabled — forked DB already has correct schema
         logging: false,
         entities,
+        // Enable SSL if connecting to a managed DB (host is not localhost)
+        ssl:
+            process.env.DB_HOST &&
+            !["localhost", "127.0.0.1"].includes(process.env.DB_HOST)
+                ? { rejectUnauthorized: false }
+                : false,
         extra: {
             max: 10,
             connectionTimeoutMillis: 5000,
