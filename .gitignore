@@ -8,4 +8,5 @@
 .idea/
 coverage/
 npm-debug.log*
-
+/llm
+backup

@@ -20,11 +20,6 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const makeSync = process.env.TYPEORM_SYNC === "true";
 
-// Allow self-signed certificates for managed database services in production
-if (isProduction) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-}
-
 // Shared entities array
 const entities = [
     Company,
@@ -78,7 +73,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
                 synchronize: makeSync, // Never auto-sync in production
                 logging: ["error"],
                 entities,
-                ssl: true, // Enable SSL for managed databases
+                ssl: { rejectUnauthorized: false }, // Accept managed DB certs (self-signed/internal CA)
                 // Handle pool-level connection errors (e.g. ECONNRESET on idle clients)
                 poolErrorHandler: (err: any) => {
                     console.error("Database pool error:", err.message || err);
@@ -103,7 +98,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
             synchronize: makeSync,
             logging: ["error"],
             entities,
-            ssl: true,
+            ssl: { rejectUnauthorized: false },
             poolErrorHandler: (err: any) => {
                 console.error("Database pool error:", err.message || err);
             },
