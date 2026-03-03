@@ -10,7 +10,7 @@ import {
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { ColumnEntity } from "../entities/Column";
-import { In } from "typeorm";
+import { In, IsNull } from "typeorm";
 
 const repo = AppDataSource.getRepository(ColumnConfig);
 const categoryRepo = AppDataSource.getRepository(Category);
@@ -130,21 +130,24 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       emission_category_mapping,
     } = req.body;
 
-    if (!config_name || !site_id || !category_id) {
+    if (!config_name || !category_id) {
       return res.status(400).json({
-        message: "config_name, site_id and category_id are required",
+        message: "config_name and category_id are required",
       });
     }
 
-    // Validate site exists
-    const site = await siteRepo.findOne({
-      where: { site_id },
-    });
-
-    if (!site) {
-      return res.status(400).json({
-        message: "Site not found",
+    // Validate site exists if provided
+    let site = null;
+    if (site_id) {
+      site = await siteRepo.findOne({
+        where: { site_id },
       });
+
+      if (!site) {
+        return res.status(400).json({
+          message: "Site not found",
+        });
+      }
     }
 
     // Validate category exists
@@ -158,18 +161,23 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       });
     }
 
-    // Check for duplicate config name within the same site and category
-    const existing = await repo.findOne({
-      where: {
-        config_name: config_name.trim(),
-        site: { site_id },
-        category: { category_id },
-      },
-    });
+    // Check for duplicate config name within the same site (or global) and category
+    const where: any = {
+      config_name: config_name.trim(),
+      category: { category_id },
+    };
+
+    if (site) {
+      where.site = { site_id };
+    } else {
+      where.site = IsNull(); // Import IsNull from typeorm
+    }
+
+    const existing = await repo.findOne({ where });
 
     if (existing) {
       return res.status(409).json({
-        message: "Column config with this name already exists for this site and category",
+        message: "Column config with this name already exists for this context",
       });
     }
 
@@ -195,7 +203,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
 
     const columnConfig = repo.create({
       config_name: config_name.trim(),
-      site: { site_id },
+      site: site || undefined, // undefined leads to null in nullable column
       category: { category_id },
       columns,
       column_options: validatedColumnOptions,
@@ -294,15 +302,21 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
 
     // Check for duplicate config name
     if (config_name !== undefined) {
-      const checkSiteId = site_id ?? columnConfig.site.site_id;
+      const checkSiteId = site_id ?? (columnConfig.site ? columnConfig.site.site_id : null);
       const checkCategoryId = category_id ?? columnConfig.category.category_id;
-      const existing = await repo.findOne({
-        where: {
-          config_name: config_name.trim(),
-          site: { site_id: checkSiteId },
-          category: { category_id: checkCategoryId },
-        },
-      });
+
+      const where: any = {
+        config_name: config_name.trim(),
+        category: { category_id: checkCategoryId },
+      };
+
+      if (checkSiteId) {
+        where.site = { site_id: checkSiteId };
+      } else {
+        where.site = IsNull();
+      }
+
+      const existing = await repo.findOne({ where });
 
       if (existing && existing.pk_id !== columnConfig.pk_id) {
         return res.status(409).json({

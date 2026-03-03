@@ -6,13 +6,20 @@ import { Site } from "../entities/Site";
 const repo = AppDataSource.getRepository(Company);
 
 export const createCompany = async (req: Request, res: Response) => {
-  const company = repo.create(req.body);
-  await repo.save(company);
-  res.status(201).json(company);
+  try {
+    const company = repo.create(req.body);
+    await repo.save(company);
+    res.status(201).json(company);
+  } catch (err) {
+    console.error("Create Company Error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 };
 
 export const getCompanies = async (_: Request, res: Response) => {
-  const companies = await repo.find();
+  const companies = await repo.find({
+    relations: ["sites", "sites.categories"],
+  });
   res.json(companies);
 };
 
