@@ -13,6 +13,11 @@ import { Unit } from "../entities/Unit";
 import { Product } from "../entities/Product";
 import { ProductionData } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
+import { MasterData } from "../entities/MasterData";
+import { SiteMasterData } from "../entities/SiteMasterData";
+import { SiteUnit } from "../entities/SiteUnit";
+import { UnitMaster } from "../entities/UnitMaster";
+import { AllDataEntry } from "../entities/AllDataEntry";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -35,6 +40,11 @@ const entities = [
     Product,
     ProductionData,
     EmissionDocument,
+    MasterData,
+    SiteMasterData,
+    SiteUnit,
+    UnitMaster,
+    AllDataEntry,
 ];
 
 // Parse DATABASE_URL to extract connection parameters
@@ -120,13 +130,13 @@ const getDataSourceConfig = (): DataSourceOptions => {
         username: process.env.DB_USERNAME,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
-        synchronize: false, // Disabled — forked DB already has correct schema
+        synchronize: makeSync, // Use makeSync from process.env.TYPEORM_SYNC
         logging: false,
         entities,
         // Enable SSL if connecting to a managed DB (host is not localhost)
         ssl:
             process.env.DB_HOST &&
-            !["localhost", "127.0.0.1"].includes(process.env.DB_HOST)
+                !["localhost", "127.0.0.1"].includes(process.env.DB_HOST)
                 ? { rejectUnauthorized: false }
                 : false,
         extra: {

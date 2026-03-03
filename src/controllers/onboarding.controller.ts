@@ -4,11 +4,16 @@ import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
+import { Category } from "../entities/Category"; // Import Category
+import { ColumnConfig } from "../entities/ColumnConfig"; // Import ColumnConfig
 import { UserRole } from "../types/type";
+import { In, IsNull } from "typeorm";
 
 const userRepo = AppDataSource.getRepository(User);
 const companyRepo = AppDataSource.getRepository(Company);
 const siteRepo = AppDataSource.getRepository(Site);
+const categoryRepo = AppDataSource.getRepository(Category);
+const columnConfigRepo = AppDataSource.getRepository(ColumnConfig);
 
 export const onboardCompany = async (req: Request, res: Response) => {
     try {
@@ -24,6 +29,7 @@ export const onboardCompany = async (req: Request, res: Response) => {
             cinNumber,
             esgMitraAccess,
             address,
+            categoryIds, // Array of category IDs
         } = req.body;
 
         // 1. Check if user already exists
@@ -57,7 +63,41 @@ export const onboardCompany = async (req: Request, res: Response) => {
             // country: undefined, // Optional
             company: savedCompany,
         });
+
+        // 3.1 Assign Categories if provided
+        if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
+            const categories = await categoryRepo.findBy({
+                category_id: In(categoryIds)
+            });
+            site.categories = categories;
+        }
+
         const savedSite = await siteRepo.save(site);
+
+        // 3.2 Assign Default Column Configs for these Categories
+        if (site.categories && site.categories.length > 0) {
+            for (const category of site.categories) {
+                // Find global config (site is null) for this category
+                const globalConfig = await columnConfigRepo.findOne({
+                    where: {
+                        category: { category_id: category.category_id },
+                        site: IsNull()
+                    },
+                    relations: ["columns"]
+                });
+
+                if (globalConfig) {
+                    // Clone it for the new site
+                    const newConfig = columnConfigRepo.create({
+                        config_name: globalConfig.config_name,
+                        category: category,
+                        site: savedSite,
+                        columns: globalConfig.columns
+                    });
+                    await columnConfigRepo.save(newConfig);
+                }
+            }
+        }
 
         // 4. Create Company Admin User
         const hashedPassword = await bcrypt.hash(password, 10);

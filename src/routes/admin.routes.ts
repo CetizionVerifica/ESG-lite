@@ -9,7 +9,7 @@ import {
   deleteCompany,
 } from "../controllers/company.controller";
 import { onboardCompany } from "../controllers/onboarding.controller";
-import { createSite, deleteSite, getSites, updateSite } from "../controllers/site.controller";
+import { createSite, deleteSite, getSites, updateSite, getSiteMasterData, updateSiteMasterData, initializeSiteMasterData, getAssignedSiteMasterData } from "../controllers/site.controller";
 import { getUsers, deleteUser, updateUser, createUser } from "../controllers/user.controller";
 import {
   createCountry,
@@ -41,6 +41,12 @@ import {
   deleteUnit,
 } from "../controllers/unit.controller";
 import {
+  createUnit as createUnitMaster,
+  getUnits as getUnitMasters,
+  updateUnit as updateUnitMaster,
+  deleteUnit as deleteUnitMaster,
+} from "../controllers/unitMaster.controller";
+import {
   createProduct,
   getProducts,
   getProductById,
@@ -52,6 +58,18 @@ import {
   getSitesForUpload,
   getCategoriesForUpload,
 } from "../controllers/upload.controller";
+
+import {
+  createMasterData,
+  deleteMasterData,
+  getMasterData,
+  updateMasterData,
+  seedDemoData,
+  getCategories as getMDCategories,
+  getSubcategories as getMDSubcategories,
+} from "../controllers/masterData.controller";
+
+// ... existing imports ...
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({
@@ -71,6 +89,11 @@ const upload = multer({
 
 const router = Router();
 
+// Public/Authenticated Routes (No SuperAdmin required)
+router.get("/sites/:id/master-data", authenticate, getSiteMasterData);
+router.get("/sites/:id/assigned-master-data", authenticate, getAssignedSiteMasterData);
+
+// Super Admin Protected Routes
 router.use(authenticate, requireSuperAdmin);
 
 // Onboarding
@@ -87,6 +110,9 @@ router.post("/sites", createSite);
 router.get("/sites", getSites);
 router.put("/sites/:id", updateSite);
 router.delete("/sites/:id", deleteSite);
+// router.get("/sites/:id/master-data", getSiteMasterData); // Moved up
+router.put("/sites/:id/master-data", updateSiteMasterData);
+router.post("/sites/:id/master-data/init", initializeSiteMasterData);
 
 // User
 router.get("/users", getUsers);
@@ -144,6 +170,12 @@ router.post("/units", createUnit);
 router.put("/units/:id", updateUnit);
 router.delete("/units/:id", deleteUnit);
 
+// Global Unit Master routes
+router.post("/unit-master", createUnitMaster);
+router.get("/unit-master", getUnitMasters);
+router.put("/unit-master/:id", updateUnitMaster);
+router.delete("/unit-master/:id", deleteUnitMaster);
+
 // Product routes
 router.post("/products", createProduct);
 router.get("/products", getProducts);
@@ -155,4 +187,14 @@ router.delete("/products/:id", deleteProduct);
 router.post("/upload/emissions", upload.single("file"), uploadEmissionsExcel);
 router.get("/upload/sites", getSitesForUpload);
 router.get("/upload/categories", getCategoriesForUpload);
+
+// Master Data routes
+router.post("/master-data", createMasterData);
+router.get("/master-data", getMasterData);
+router.get("/master-data/categories", getMDCategories);
+router.get("/master-data/subcategories", getMDSubcategories);
+router.put("/master-data/:id", updateMasterData);
+router.delete("/master-data/:id", deleteMasterData);
+router.post("/master-data/seed", seedDemoData);
+
 export default router;

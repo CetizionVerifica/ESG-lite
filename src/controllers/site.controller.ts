@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
+import { MasterDataService } from "../services/masterData.service";
 
 const siteRepo = AppDataSource.getRepository(Site);
 const categoryRepo = AppDataSource.getRepository(Category);
@@ -38,7 +39,12 @@ export const createSite = async (req: Request, res: Response) => {
       categories, // Associate categories
     });
 
-    await siteRepo.save(site);
+    const savedSite = await siteRepo.save(site);
+
+    // 4️⃣ Assign Master Data (New Flow) if requested
+    if (req.body.assign_master_data) {
+      await MasterDataService.assignMasterDataToSite(savedSite.site_id);
+    }
 
     // 4️⃣ Respond
     return res.status(201).json({
@@ -148,6 +154,73 @@ export const updateSite = async (req: Request, res: Response) => {
   }
 };
 
+export const getSiteMasterData = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { categoryId, subcategoryIds } = req.query;
+
+    let subIds: number[] | undefined;
+    if (subcategoryIds) {
+      if (Array.isArray(subcategoryIds)) {
+        subIds = subcategoryIds.map(s => parseInt(s as string)).filter(n => !isNaN(n));
+      } else {
+        const parsed = parseInt(subcategoryIds as string);
+        if (!isNaN(parsed)) subIds = [parsed];
+      }
+    }
+
+    const data = await MasterDataService.getSiteMasterData(
+      parseInt(id as string),
+      categoryId ? parseInt(categoryId as string) : undefined,
+      subIds
+    );
+    return res.json(data);
+  } catch (error) {
+    console.error("Get Site MasterData error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getAssignedSiteMasterData = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const data = await MasterDataService.getAssignedSiteMasterData(parseInt(id as string));
+    return res.json(data);
+  } catch (error) {
+    console.error("Get Assigned Site MasterData error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateSiteMasterData = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { items } = req.body; // Array of { master_data_id, is_active, unit }
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ message: "items must be an array" });
+    }
+
+    await MasterDataService.syncMasterDataForSite(parseInt(id as string), items);
+    return res.json({ message: "Site Master Data updated successfully" });
+  } catch (error) {
+    console.error("Update Site MasterData error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const initializeSiteMasterData = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await MasterDataService.assignMasterDataToSite(parseInt(id as string));
+    return res.json({ message: "Site Master Data initialized successfully" });
+  } catch (error) {
+    console.error("Initialize Site MasterData error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ... existing deleteSite ...
 export const deleteSite = async (req: Request, res: Response) => {
   try {
     const { id }: any = req.params;

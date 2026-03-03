@@ -5,6 +5,8 @@ import adminRoutes from "./routes/admin.routes";
 import userRoutes from "./routes/user.routes";
 import cors from "cors";
 import dotenv from "dotenv";
+import allDataEntryRoutes from "./routes/allDataEntry.routes";
+
 dotenv.config();
 
 const app = express();
@@ -19,6 +21,7 @@ app.use(
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
 app.use("/user", userRoutes);
+app.use("/all-data-entry", allDataEntryRoutes);
 
 let server: any;
 
