@@ -12,7 +12,7 @@
     "migrate:companies": "ts-node src/scripts/migrateCompanies.ts",
     "migrate:categories": "ts-node src/scripts/migrateCategories.ts",
     "migrate:company:specific": "ts-node src/scripts/specificCompanyMigration.ts",
-    "migrate:all:companies": "ts-node src/scripts/allCompanyMigration.ts",
+    "migrate:all:companies": "ts-node src/scripts/allCompanyMigration.ts"
   },
   "keywords": [],
   "author": "",
