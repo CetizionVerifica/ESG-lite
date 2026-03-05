@@ -336,7 +336,7 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
     };
 
     for (const factor of factors) {
-      const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name } = factor;
+      const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name } = factor;
 
       // Validate required fields
       if (!site_id || !category_id || !year || factor_value === undefined) {
@@ -386,6 +386,7 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
         denominator_unit: denominator_unit?.trim() || null,
         source: source?.trim() || null,
         emission_category_name: emission_category_name?.trim() || null,
+        global_category_name: global_category_name?.trim() || null,
       });
 
       await repo.save(emissionFactor);
@@ -398,6 +399,42 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
     });
   } catch (error) {
     console.error("Bulk create emission factors error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+// Get distinct emission_category_name values by site and/or category
+export const getEmissionCategoryNames = async (req: Request, res: Response) => {
+  try {
+    const { site_id, category_id } = req.query;
+
+    if (!category_id) {
+      return res.status(400).json({
+        message: "category_id query parameter is required",
+      });
+    }
+
+    const qb = repo
+      .createQueryBuilder("ef")
+      .select("DISTINCT ef.emission_category_name", "emission_category_name")
+      .where("ef.category_id = :categoryId", { categoryId: parseInt(category_id as string) })
+      .andWhere("ef.emission_category_name IS NOT NULL");
+
+    if (site_id) {
+      qb.andWhere("ef.site_id = :siteId", { siteId: parseInt(site_id as string) });
+    }
+
+    const names = await qb
+      .orderBy("ef.emission_category_name", "ASC")
+      .getRawMany();
+
+    return res.status(200).json(
+      names.map((n: any) => n.emission_category_name)
+    );
+  } catch (error) {
+    console.error("Fetch emission category names error:", error);
     return res.status(500).json({
       message: "Internal server error",
     });

@@ -39,6 +39,9 @@ export class EmissionFactor {
   @Column({ nullable: true })
   emission_category_name!: string;
 
+  @Column({ nullable: true })
+  global_category_name!: string;
+
   @CreateDateColumn()
   created_at!: Date;
 }

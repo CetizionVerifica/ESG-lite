@@ -48,7 +48,8 @@ import {
   deleteDocument,
   bulkDeleteDocuments,
 } from "../controllers/document.controller";
-import { getCompanyNameBySites } from "../controllers/company.controller";
+import { getCompanies, getCompanyNameBySites } from "../controllers/company.controller";
+import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
 
 const router = Router();
 
@@ -123,7 +124,9 @@ router.delete("/documents/bulk-delete", bulkDeleteDocuments);
 router.delete("/documents/:id", deleteDocument);
 router.post("/emissions/approved", getApprovedEmissionsReport);
 router.post("/reports/ede", getEdeReport)
+router.get("/companies", getCompanies)
 router.post("/companies/by-sites", getCompanyNameBySites)
+router.get("/category-mappings/company/:companyId", getMappingsByCompany)
 router.post("/ghg/tables", getGhgReportTables);
 router.post("/ghg/details",getGhgReportDetails)
 router.post("/targets/tables",getNearTermTargetTables)

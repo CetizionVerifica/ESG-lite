@@ -18,7 +18,7 @@ export const login = async (req: Request, res: Response) => {
   // Load user with both single site (for regular users) and multiple sites (for managers)
   const user = await userRepo.findOne({
     where: { email : emailLower },
-    relations: ["site", "site.categories", "sites", "sites.categories"],
+    relations: ["site", "site.company", "site.categories", "sites", "sites.company", "sites.categories"],
   });
 
   //console.log("user", user)
