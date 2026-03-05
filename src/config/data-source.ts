@@ -13,6 +13,7 @@ import { Unit } from "../entities/Unit";
 import { Product } from "../entities/Product";
 import { ProductionData } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
+import { EmissionCategoryMapping } from "../entities/EmissionCategoryMapping";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -35,6 +36,7 @@ const entities = [
     Product,
     ProductionData,
     EmissionDocument,
+    EmissionCategoryMapping,
 ];
 
 // Parse DATABASE_URL to extract connection parameters
@@ -120,7 +122,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
         username: process.env.DB_USERNAME,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
-        synchronize: false, // Disabled — forked DB already has correct schema
+        synchronize: true, // Re-enable to sync schema with forked DB
         logging: false,
         entities,
         // Enable SSL if connecting to a managed DB (host is not localhost)

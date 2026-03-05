@@ -10,7 +10,9 @@ import {
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { ColumnEntity } from "../entities/Column";
+import { Unit } from "../entities/Unit";
 import { In } from "typeorm";
+import { generateColumnConfigProposal } from "../services/columnConfigGenerator";
 
 const repo = AppDataSource.getRepository(ColumnConfig);
 const categoryRepo = AppDataSource.getRepository(Category);
@@ -493,6 +495,201 @@ export const removeColumnsFromConfig = async (req: Request, res: Response) => {
     console.error("Remove columns from config error:", error);
     return res.status(500).json({
       message: "Internal server error",
+    });
+  }
+};
+
+// ─── Auto-Generate: Preview ─────────────────────────────────────────────────
+
+export const previewAutoGenerateColumnConfig = async (req: Request, res: Response) => {
+  try {
+    const siteId = parseInt(req.query.site_id as string);
+    const categoryId = parseInt(req.query.category_id as string);
+
+    if (!siteId || !categoryId || isNaN(siteId) || isNaN(categoryId)) {
+      return res.status(400).json({
+        message: "site_id and category_id query params are required",
+      });
+    }
+
+    const proposal = await generateColumnConfigProposal(siteId, categoryId);
+    return res.status(200).json(proposal);
+  } catch (error: any) {
+    console.error("Auto-generate preview error:", error);
+
+    if (error.message?.includes("not found")) {
+      return res.status(404).json({ message: error.message });
+    }
+    if (error.message?.includes("No emission factors")) {
+      return res.status(404).json({ message: error.message });
+    }
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
+// ─── Auto-Generate: Confirm ─────────────────────────────────────────────────
+
+export const confirmAutoGenerateColumnConfig = async (req: Request, res: Response) => {
+  try {
+    const {
+      site_id,
+      category_id,
+      config_name,
+      columns,
+      column_options,
+      column_dependencies,
+      dependent_options,
+      emission_category_mapping,
+      create_units,
+      proposed_units,
+    } = req.body;
+
+    if (!site_id || !category_id || !config_name) {
+      return res.status(400).json({
+        message: "site_id, category_id and config_name are required",
+      });
+    }
+
+    // Validate site and category
+    const site = await siteRepo.findOne({ where: { site_id } });
+    if (!site) {
+      return res.status(400).json({ message: "Site not found" });
+    }
+
+    const category = await categoryRepo.findOne({ where: { category_id } });
+    if (!category) {
+      return res.status(400).json({ message: "Category not found" });
+    }
+
+    // Check for duplicate config name
+    const existing = await repo.findOne({
+      where: {
+        config_name: config_name.trim(),
+        site: { site_id },
+        category: { category_id },
+      },
+    });
+    if (existing) {
+      return res.status(409).json({
+        message: "Column config with this name already exists for this site and category",
+      });
+    }
+
+    // Create new column entities for any is_new columns
+    const columnEntities: ColumnEntity[] = [];
+    if (columns && Array.isArray(columns)) {
+      for (const col of columns) {
+        if (col.existing_id) {
+          // Reuse existing column entity
+          const existingCol = await columnRepo.findOne({
+            where: { pk_id: col.existing_id },
+          });
+          if (existingCol) {
+            columnEntities.push(existingCol);
+          }
+        } else if (col.is_new && col.column_name) {
+          // Check if a column with this name was already created (avoid duplicates)
+          let newCol = await columnRepo.findOne({
+            where: { column_name: col.column_name },
+          });
+          if (!newCol) {
+            newCol = columnRepo.create({
+              column_name: col.column_name,
+              column_type: col.column_type || "select",
+            });
+            await columnRepo.save(newCol);
+          }
+          columnEntities.push(newCol);
+        }
+      }
+    }
+
+    // Remap column_options keys from column names to column pk_ids.
+    // The generator/frontend sends keys like "Waste Type", but the rest of
+    // the app (UserDataEntry, ColumnConfigList) looks up by pk_id string.
+    const remappedColumnOptions: Record<string, any> = {};
+    if (column_options && typeof column_options === "object") {
+      // Build name → pk_id lookup from the columns we just resolved
+      const nameToPkId: Record<string, number> = {};
+      if (columns && Array.isArray(columns)) {
+        for (let i = 0; i < columns.length; i++) {
+          const colDef = columns[i];
+          const entity = columnEntities[i];
+          if (colDef && entity) {
+            nameToPkId[colDef.column_name] = entity.pk_id;
+          }
+        }
+      }
+
+      for (const [key, value] of Object.entries(column_options)) {
+        // If key is a column name, remap to pk_id; otherwise keep as-is
+        const pkId = nameToPkId[key];
+        const newKey = pkId ? pkId.toString() : key;
+        remappedColumnOptions[newKey] = value;
+      }
+    }
+
+    // Create the column config
+    const columnConfig = repo.create({
+      config_name: config_name.trim(),
+      site: { site_id },
+      category: { category_id },
+      columns: columnEntities,
+      column_options: remappedColumnOptions,
+      column_dependencies: column_dependencies || {},
+      dependent_options: dependent_options || {},
+      emission_category_mapping: emission_category_mapping || {},
+    });
+
+    await repo.save(columnConfig);
+
+    // Create units if requested
+    const unitRepo = AppDataSource.getRepository(Unit);
+    const unitsCreated: string[] = [];
+
+    if (create_units && proposed_units && Array.isArray(proposed_units)) {
+      for (const pu of proposed_units) {
+        if (pu.already_exists) continue;
+
+        // Check it doesn't already exist
+        const existingUnit = await unitRepo.findOne({
+          where: {
+            unit_name: pu.unit_name,
+            site: { site_id },
+            category: { category_id },
+          },
+        });
+        if (existingUnit) continue;
+
+        const unit = unitRepo.create({
+          unit_name: pu.unit_name,
+          description: `Auto-generated from emission factor denominator unit`,
+          site: { site_id } as any,
+          category: { category_id } as any,
+        });
+        await unitRepo.save(unit);
+        unitsCreated.push(pu.unit_name);
+      }
+    }
+
+    // Fetch with relations for response
+    const savedConfig = await repo.findOne({
+      where: { pk_id: columnConfig.pk_id },
+      relations: ["site", "category", "columns"],
+    });
+
+    return res.status(201).json({
+      message: "Column config created successfully",
+      columnConfig: savedConfig,
+      units_created: unitsCreated,
+    });
+  } catch (error: any) {
+    console.error("Auto-generate confirm error:", error);
+    return res.status(500).json({
+      message: error.message || "Internal server error",
     });
   }
 };

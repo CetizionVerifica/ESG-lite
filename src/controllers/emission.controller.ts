@@ -162,13 +162,36 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      // Fallback: if no factor found for target year, try without year filter
+      // Fallback 1: try global_category_name with year (for resolved bulk upload names)
+      if (!emissionFactor) {
+        emissionFactor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id },
+            category: { category_id },
+            global_category_name: activity_data.emission_category,
+            year: targetYear,
+          },
+        });
+      }
+
+      // Fallback 2: try emission_category_name without year filter
       if (!emissionFactor) {
         emissionFactor = await emissionFactorRepo.findOne({
           where: {
             site: { site_id },
             category: { category_id },
             emission_category_name: activity_data.emission_category,
+          },
+        });
+      }
+
+      // Fallback 3: try global_category_name without year filter
+      if (!emissionFactor) {
+        emissionFactor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id },
+            category: { category_id },
+            global_category_name: activity_data.emission_category,
           },
         });
       }
@@ -340,13 +363,36 @@ const targetYear = reportingDate.getFullYear() - 1;
           },
         });
 
-        // Fallback: if no factor found for target year, try without year filter
+        // Fallback 1: try global_category_name with year (for resolved bulk upload names)
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              global_category_name: activity_data.emission_category,
+              year: targetYear,
+            },
+          });
+        }
+
+        // Fallback 2: try emission_category_name without year filter
         if (!emissionFactor) {
           emissionFactor = await emissionFactorRepo.findOne({
             where: {
               site: { site_id: emission.site.site_id },
               category: { category_id: emission.category.category_id },
               emission_category_name: activity_data.emission_category,
+            },
+          });
+        }
+
+        // Fallback 3: try global_category_name without year filter
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              global_category_name: activity_data.emission_category,
             },
           });
         }

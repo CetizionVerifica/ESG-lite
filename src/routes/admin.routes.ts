@@ -18,7 +18,7 @@ import {
   updateCountry,
 } from "../controllers/country.controller";
 import { createCategory, deleteCategory, getCategories, updateCategory } from "../controllers/category.controller";
-import { createEmissionFactor, deleteEmissionFactor, getEmissionFactorById, getEmissionFactors, getEmissionFactorsByCategory, getEmissionFactorsBySite, updateEmissionFactor, bulkCreateEmissionFactors, bulkDeleteEmissionFactors } from "../controllers/emissionFactor.controller";
+import { createEmissionFactor, deleteEmissionFactor, getEmissionFactorById, getEmissionFactors, getEmissionFactorsByCategory, getEmissionFactorsBySite, getEmissionCategoryNames, updateEmissionFactor, bulkCreateEmissionFactors, bulkDeleteEmissionFactors } from "../controllers/emissionFactor.controller";
 import { bulkCreateColumns, createColumn, deleteColumn, getColumns, updateColumn } from "../controllers/column.controller";
 import {
   getColumnConfigs,
@@ -31,6 +31,8 @@ import {
   deleteColumnConfig,
   addColumnsToConfig,
   removeColumnsFromConfig,
+  previewAutoGenerateColumnConfig,
+  confirmAutoGenerateColumnConfig,
 } from "../controllers/columnConfig.controller";
 import {
   getUnits,
@@ -52,6 +54,17 @@ import {
   getSitesForUpload,
   getCategoriesForUpload,
 } from "../controllers/upload.controller";
+import {
+  getMappings,
+  getMappingsByCompany,
+  resolveCompanyCategory,
+  bulkResolveCompanyCategories,
+  createMapping,
+  updateMapping,
+  deleteMapping,
+  bulkCreateMappings,
+  bulkDeleteMappings,
+} from "../controllers/emissionCategoryMapping.controller";
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({
@@ -111,6 +124,7 @@ router.post("/emission-factors", createEmissionFactor);
 router.post("/emission-factors/bulk", bulkCreateEmissionFactors);
 router.delete("/emission-factors/bulk", bulkDeleteEmissionFactors);
 router.get("/emission-factors", getEmissionFactors);
+router.get("/emission-factors/category-names", getEmissionCategoryNames);
 router.get("/emission-factors/:id", getEmissionFactorById);
 router.put("/emission-factors/:id", updateEmissionFactor);
 router.delete("/emission-factors/:id", deleteEmissionFactor);
@@ -126,6 +140,8 @@ router.delete("/columns/:id", deleteColumn);
 
 //column config routes
 router.get("/column-configs", getColumnConfigs);
+router.get("/column-configs/auto-generate/preview", previewAutoGenerateColumnConfig);
+router.post("/column-configs/auto-generate/confirm", confirmAutoGenerateColumnConfig);
 router.get("/column-configs/:id", getColumnConfigById);
 router.get("/column-configs/category/:categoryId", getColumnConfigsByCategory);
 router.get("/column-configs/site/:siteId", getColumnConfigsBySite);
@@ -150,6 +166,17 @@ router.get("/products", getProducts);
 router.get("/products/:id", getProductById);
 router.put("/products/:id", updateProduct);
 router.delete("/products/:id", deleteProduct);
+
+// Category mapping routes
+router.post("/category-mappings", createMapping);
+router.post("/category-mappings/bulk", bulkCreateMappings);
+router.post("/category-mappings/resolve-bulk", bulkResolveCompanyCategories);
+router.get("/category-mappings", getMappings);
+router.get("/category-mappings/resolve", resolveCompanyCategory);
+router.get("/category-mappings/company/:companyId", getMappingsByCompany);
+router.put("/category-mappings/:id", updateMapping);
+router.delete("/category-mappings/bulk", bulkDeleteMappings);
+router.delete("/category-mappings/:id", deleteMapping);
 
 // Upload routes
 router.post("/upload/emissions", upload.single("file"), uploadEmissionsExcel);
