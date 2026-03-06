@@ -34,6 +34,10 @@ const unitConversions: Record<string, Record<string, number>> = {
   inr: { usd: 0.012 },
   usd: { inr: 83.5, eur: 0.92 },
   eur: { usd: 1.09 },
+
+  "tonne.km": { "kg.km": 1000, "g.km": 1000000 },
+"kg.km": { "tonne.km": 0.001, "g.km": 1000 },
+"g.km": { "tonne.km": 0.000001, "kg.km": 0.001},
 };
 
 //comment
