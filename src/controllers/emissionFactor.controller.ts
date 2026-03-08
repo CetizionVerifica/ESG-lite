@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { AppDataSource } from "../config/data-source";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
@@ -7,6 +8,52 @@ import { Category } from "../entities/Category";
 const repo = AppDataSource.getRepository(EmissionFactor);
 const siteRepo = AppDataSource.getRepository(Site);
 const categoryRepo = AppDataSource.getRepository(Category);
+
+// Canonical unit normalization — maps common variants to a single lowercase form
+const UNIT_ALIASES: Record<string, string> = {
+  tonnes: "tonne",
+  tons: "ton",
+  litres: "litre",
+  liters: "litre",
+  liter: "litre",
+  gallons: "gallon",
+  "kilo litre": "kl",
+  "kilolitre": "kl",
+  "kiloliter": "kl",
+  "cubic meter": "cubic meter",
+  "cubic metre": "cubic meter",
+  "m3": "cubic meter",
+  "m³": "cubic meter",
+  kilogram: "kg",
+  kilograms: "kg",
+  kgs: "kg",
+  gram: "g",
+  grams: "g",
+  pound: "lb",
+  pounds: "lb",
+  lbs: "lb",
+  meter: "m",
+  meters: "m",
+  metre: "m",
+  metres: "m",
+  kilometer: "km",
+  kilometers: "km",
+  kilometre: "km",
+  kilometres: "km",
+  miles: "mile",
+  mi: "mile",
+};
+
+function normalizeUnit(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  // Strip parentheses and extra whitespace
+  let cleaned = raw.replace(/[()]/g, "").trim().toLowerCase();
+  // Handle full UOM strings like "kg CO2 e/ passenger.km" — extract denominator after "/"
+  if (cleaned.includes("/")) {
+    cleaned = cleaned.split("/").pop()!.trim();
+  }
+  return UNIT_ALIASES[cleaned] || cleaned;
+}
 
 export const getEmissionFactors = async (_: Request, res: Response) => {
   try {
@@ -95,7 +142,7 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
       category: { category_id },
       year,
       factor_value,
-      denominator_unit: denominator_unit?.trim() || null,
+      denominator_unit: normalizeUnit(denominator_unit),
       source: source?.trim() || null,
       emission_category_name: emission_category_name?.trim() || null,
     });
@@ -195,7 +242,7 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
 
     if (year !== undefined) emissionFactor.year = year;
     if (factor_value !== undefined) emissionFactor.factor_value = factor_value;
-    if (denominator_unit !== undefined) emissionFactor.denominator_unit = denominator_unit?.trim() || null;
+    if (denominator_unit !== undefined) emissionFactor.denominator_unit = (normalizeUnit(denominator_unit) ?? null) as any;
     if (source !== undefined) emissionFactor.source = source?.trim() || null;
     if (emission_category_name !== undefined) emissionFactor.emission_category_name = emission_category_name?.trim() || null;
 
@@ -321,13 +368,16 @@ export const getEmissionFactorsBySiteAndCategory = async (req: Request, res: Res
 // Bulk create emission factors
 export const bulkCreateEmissionFactors = async (req: Request, res: Response) => {
   try {
-    const { factors } = req.body;
+    const { factors, upload_batch_id: clientBatchId } = req.body;
 
     if (!factors || !Array.isArray(factors) || factors.length === 0) {
       return res.status(400).json({
         message: "factors array is required and must not be empty",
       });
     }
+
+    // Use client-provided batch ID (for chunked uploads sharing one ID) or generate one
+    const upload_batch_id = clientBatchId || randomUUID();
 
     const results = {
       created: 0,
@@ -383,10 +433,11 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
         category: { category_id },
         year,
         factor_value,
-        denominator_unit: denominator_unit?.trim() || null,
+        denominator_unit: normalizeUnit(denominator_unit),
         source: source?.trim() || null,
         emission_category_name: emission_category_name?.trim() || null,
         global_category_name: global_category_name?.trim() || null,
+        upload_batch_id,
       });
 
       await repo.save(emissionFactor);
@@ -395,6 +446,7 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
 
     return res.status(201).json({
       message: `Bulk upload completed: ${results.created} created, ${results.skipped} skipped`,
+      upload_batch_id: results.created > 0 ? upload_batch_id : undefined,
       ...results,
     });
   } catch (error) {
@@ -463,5 +515,64 @@ export const bulkDeleteEmissionFactors = async (req: Request, res: Response) => 
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+// List upload batches with aggregated info
+export const getEmissionFactorBatches = async (req: Request, res: Response) => {
+  try {
+    const { site_id, category_id } = req.query;
+
+    const qb = repo
+      .createQueryBuilder("ef")
+      .select("ef.upload_batch_id", "upload_batch_id")
+      .addSelect("COUNT(*)::int", "count")
+      .addSelect("MIN(ef.created_at)", "uploaded_at")
+      .addSelect("ef.site_id", "site_id")
+      .addSelect("site.name", "site_name")
+      .addSelect("ef.category_id", "category_id")
+      .addSelect("category.category_name", "category_name")
+      .innerJoin("ef.site", "site")
+      .innerJoin("ef.category", "category")
+      .where("ef.upload_batch_id IS NOT NULL")
+      .groupBy("ef.upload_batch_id")
+      .addGroupBy("ef.site_id")
+      .addGroupBy("site.name")
+      .addGroupBy("ef.category_id")
+      .addGroupBy("category.category_name")
+      .orderBy("MIN(ef.created_at)", "DESC");
+
+    if (site_id) {
+      qb.andWhere("ef.site_id = :siteId", { siteId: parseInt(site_id as string) });
+    }
+    if (category_id) {
+      qb.andWhere("ef.category_id = :categoryId", { categoryId: parseInt(category_id as string) });
+    }
+
+    const batches = await qb.getRawMany();
+    return res.status(200).json(batches);
+  } catch (error) {
+    console.error("Get emission factor batches error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Delete all emission factors for a given upload batch
+export const deleteEmissionFactorsByBatch = async (req: Request, res: Response) => {
+  try {
+    const batchId = req.params.batchId as string;
+    if (!batchId) {
+      return res.status(400).json({ message: "batchId is required" });
+    }
+
+    const result = await repo.delete({ upload_batch_id: batchId });
+
+    return res.status(200).json({
+      message: `Deleted ${result.affected} emission factor(s) from batch`,
+      deleted: result.affected,
+    });
+  } catch (error) {
+    console.error("Delete emission factors by batch error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

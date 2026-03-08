@@ -444,12 +444,12 @@ export async function generateColumnConfigProposal(
     );
     configs.push(group);
 
-    // Collect suggested units
+    // Always include the denominator_unit from emission factors
+    allSuggestedUnits.push(unit);
+    // Also include any additional units suggested by the LLM
     const suggestedUnits = llmAllResult?.suggested_units || llmFallback?.suggested_units;
     if (suggestedUnits?.length) {
       allSuggestedUnits.push(...suggestedUnits);
-    } else {
-      allSuggestedUnits.push(unit);
     }
   }
 

@@ -2,12 +2,14 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { EmissionFactor } from "../entities/EmissionFactor";
+import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { In } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
+const siteRepo = AppDataSource.getRepository(Site);
 
 // Common unit conversions
 const unitConversions: Record<string, Record<string, number>> = {
@@ -55,39 +57,102 @@ const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null 
   return unit1.toLowerCase().trim() === unit2.toLowerCase().trim();
 };
 
-// Get emissions by site, category, and date
+// Get emissions by site, category, and date (with optional pagination)
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { siteId, categoryId, date } = req.query;
+    const { siteId, categoryId, date, year, month, page, limit } = req.query;
 
-    const whereClause: any = {};
+    const qb = repo
+      .createQueryBuilder("emission")
+      .leftJoinAndSelect("emission.site", "site")
+      .leftJoinAndSelect("emission.category", "category")
+      .leftJoinAndSelect("emission.reviewed_by", "reviewed_by")
+      .leftJoinAndSelect("emission.created_by", "created_by");
 
     if (siteId) {
-      whereClause.site = { site_id: parseInt(siteId as string) };
+      qb.andWhere("site.site_id = :siteId", { siteId: parseInt(siteId as string) });
     }
 
     if (categoryId) {
-      whereClause.category = { category_id: parseInt(categoryId as string) };
+      qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
     }
 
     if (date) {
       // Date format: YYYY-MM (e.g., 2024-01)
-      const [year, month] = (date as string).split("-");
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      const endDate = new Date(parseInt(year), parseInt(month), 0);
-
-      whereClause.date_of_reporting = {
-        $gte: startDate,
-        $lte: endDate,
-      };
+      const [y, m] = (date as string).split("-");
+      const startDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+      const endDate = new Date(parseInt(y), parseInt(m), 0);
+      qb.andWhere("emission.date_of_reporting >= :startDate", { startDate });
+      qb.andWhere("emission.date_of_reporting <= :endDate", { endDate });
+    } else {
+      // Support separate year/month filters
+      if (year) {
+        const y = parseInt(year as string);
+        qb.andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", { year: y });
+      }
+      if (month) {
+        const m = parseInt(month as string);
+        qb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", { month: m });
+      }
     }
 
-    const emissions = await repo.find({
-      where: whereClause,
-      relations: ["site", "category", "reviewed_by", "created_by"],
-      order: { pk_id: "DESC" },
-    });
+    qb.orderBy("emission.pk_id", "DESC");
 
+    // If page & limit are provided, return paginated result with total count + summary
+    if (page && limit) {
+      const pageNum = Math.max(1, parseInt(page as string));
+      const limitNum = Math.max(1, parseInt(limit as string));
+
+      // Build a separate summary query with the same filters
+      const summaryQb = repo
+        .createQueryBuilder("emission")
+        .select("COALESCE(SUM(emission.total_emission), 0)", "total_emission")
+        .addSelect("COUNT(*) FILTER (WHERE emission.status = 'pending')", "pending_count")
+        .addSelect("COUNT(*) FILTER (WHERE emission.status = 'approved')", "approved_count")
+        .addSelect("COUNT(*) FILTER (WHERE emission.status = 'rejected')", "rejected_count")
+        .leftJoin("emission.site", "s")
+        .leftJoin("emission.category", "c");
+
+      if (siteId) {
+        summaryQb.andWhere("s.site_id = :siteId", { siteId: parseInt(siteId as string) });
+      }
+      if (categoryId) {
+        summaryQb.andWhere("c.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+      }
+      if (date) {
+        const [y, m] = (date as string).split("-");
+        const startDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        const endDate = new Date(parseInt(y), parseInt(m), 0);
+        summaryQb.andWhere("emission.date_of_reporting >= :startDate", { startDate });
+        summaryQb.andWhere("emission.date_of_reporting <= :endDate", { endDate });
+      } else {
+        if (year) {
+          summaryQb.andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", { year: parseInt(year as string) });
+        }
+        if (month) {
+          summaryQb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", { month: parseInt(month as string) });
+        }
+      }
+
+      const [[data, total], summaryRow] = await Promise.all([
+        qb.skip((pageNum - 1) * limitNum).take(limitNum).getManyAndCount(),
+        summaryQb.getRawOne(),
+      ]);
+
+      return res.status(200).json({
+        data,
+        total,
+        summary: {
+          total_emission: parseFloat(summaryRow?.total_emission) || 0,
+          pending_count: parseInt(summaryRow?.pending_count) || 0,
+          approved_count: parseInt(summaryRow?.approved_count) || 0,
+          rejected_count: parseInt(summaryRow?.rejected_count) || 0,
+        },
+      });
+    }
+
+    // Backwards compatible: return plain array when no pagination params
+    const emissions = await qb.getMany();
     return res.status(200).json(emissions);
   } catch (error) {
     console.error("Fetch emissions error:", error);
@@ -303,14 +368,122 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
+    // Auto-create FERA entry if the site has a FERA category with a matching emission factor
+    let feraEmission: Emission | null = null;
+    if (activity_data.emission_category) {
+      try {
+        const site = await siteRepo.findOne({
+          where: { site_id },
+          relations: ["categories"],
+        });
+        const feraCategory = site?.categories?.find(
+          (c) => c.category_name.toLowerCase() === "fera"
+        );
+
+        if (feraCategory) {
+          // Calculate target year same as above
+          const reportingYearStr = typeof date_of_reporting === 'string'
+            ? date_of_reporting.substring(0, 4)
+            : new Date(date_of_reporting).getFullYear().toString();
+          const feraTargetYear = parseInt(reportingYearStr) - 1;
+
+          // Find FERA emission factor for this emission category
+          const feraFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id },
+              category: { category_id: feraCategory.category_id },
+              emission_category_name: activity_data.emission_category,
+              year: feraTargetYear,
+            },
+          }) || await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id },
+              category: { category_id: feraCategory.category_id },
+              global_category_name: activity_data.emission_category,
+              year: feraTargetYear,
+            },
+          });
+
+          if (feraFactor) {
+            // Find the activity value (same logic as above)
+            let feraActivityValue = 0;
+            const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
+            const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
+            for (const field of commonFlds) {
+              const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
+              if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
+                feraActivityValue = parseFloat(activity_data[matchingKey]);
+                if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
+              }
+            }
+            if (feraActivityValue === 0) {
+              for (const [key, value] of Object.entries(activity_data)) {
+                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
+                if (value !== undefined && value !== '') {
+                  const numValue = parseFloat(value as string);
+                  if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
+                }
+              }
+            }
+
+            if (feraActivityValue > 0) {
+              // Calculate FERA emission (use fallback-to-raw like frontend)
+              let feraCalculated = 0;
+              const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, activity_data_unit);
+              if (feraUnitsMatch) {
+                feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
+              } else {
+                const conv = getConversionFactor(activity_data_unit, feraFactor.denominator_unit);
+                if (conv) {
+                  feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
+                } else {
+                  // Fallback to raw (FERA factors account for fuel energy content)
+                  feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
+                }
+              }
+
+              feraEmission = repo.create({
+                site: { site_id },
+                category: { category_id: feraCategory.category_id },
+                activity_data,
+                total_emission: feraCalculated,
+                unit: "tCO2e",
+                date_of_reporting: new Date(date_of_reporting),
+                activity_data_unit: activity_data_unit || null,
+                created_by: userId ? { user_id: userId } as any : null,
+                fera_linked_id: emission.pk_id,
+              });
+              await repo.save(feraEmission);
+
+              // Link back: set fera_linked_id on the regular emission
+              emission.fera_linked_id = feraEmission.pk_id;
+              await repo.save(emission);
+            }
+          }
+        }
+      } catch (feraErr) {
+        console.error("FERA auto-create warning (non-fatal):", feraErr);
+      }
+    }
+
     const savedEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
       relations: ["site", "category", "created_by"],
     });
 
+    // Also fetch FERA emission if created
+    let savedFera: Emission | null = null;
+    if (feraEmission) {
+      savedFera = await repo.findOne({
+        where: { pk_id: feraEmission.pk_id },
+        relations: ["site", "category", "created_by"],
+      });
+    }
+
     return res.status(201).json({
       message: "Emission created successfully",
       emission: savedEmission,
+      fera_emission: savedFera,
     });
   } catch (error) {
     console.error("Create emission error:", error);
@@ -470,6 +643,7 @@ const targetYear = reportingDate.getFullYear() - 1;
 
     await repo.save(emission);
 
+
     return res.status(200).json({
       message: "Emission updated successfully",
       emission,
@@ -497,10 +671,24 @@ export const deleteEmission = async (req: Request, res: Response) => {
       });
     }
 
-    await repo.delete({ pk_id: parseInt(id) });
+    // Also delete the linked FERA entry (bi-directional)
+    const idsToDelete = [emission.pk_id];
+    if (emission.fera_linked_id) {
+      idsToDelete.push(emission.fera_linked_id);
+    }
+    // Check if any other emission links back to this one
+    const linkedBack = await repo.findOne({
+      where: { fera_linked_id: emission.pk_id },
+    });
+    if (linkedBack) {
+      idsToDelete.push(linkedBack.pk_id);
+    }
+
+    await repo.delete(idsToDelete);
 
     return res.status(200).json({
       message: "Emission deleted successfully",
+      deleted_ids: idsToDelete,
     });
   } catch (error) {
     console.error("Delete emission error:", error);
@@ -532,6 +720,65 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+// List upload batches with aggregated info
+export const getEmissionBatches = async (req: Request, res: Response) => {
+  try {
+    const { siteId, categoryId } = req.query;
+
+    const qb = repo
+      .createQueryBuilder("e")
+      .select("e.upload_batch_id", "upload_batch_id")
+      .addSelect("COUNT(*)::int", "count")
+      .addSelect("MIN(e.created_at)", "uploaded_at")
+      .addSelect("e.site_id", "site_id")
+      .addSelect("site.name", "site_name")
+      .addSelect("e.category_id", "category_id")
+      .addSelect("category.category_name", "category_name")
+      .innerJoin("e.site", "site")
+      .innerJoin("e.category", "category")
+      .where("e.upload_batch_id IS NOT NULL")
+      .groupBy("e.upload_batch_id")
+      .addGroupBy("e.site_id")
+      .addGroupBy("site.name")
+      .addGroupBy("e.category_id")
+      .addGroupBy("category.category_name")
+      .orderBy("MIN(e.created_at)", "DESC");
+
+    if (siteId) {
+      qb.andWhere("e.site_id = :siteId", { siteId: parseInt(siteId as string) });
+    }
+    if (categoryId) {
+      qb.andWhere("e.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    }
+
+    const batches = await qb.getRawMany();
+    return res.status(200).json(batches);
+  } catch (error) {
+    console.error("Get emission batches error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Delete all emissions for a given upload batch
+export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
+  try {
+    const batchId = req.params.batchId as string;
+    if (!batchId) {
+      return res.status(400).json({ message: "batchId is required" });
+    }
+
+    const result = await repo.delete({ upload_batch_id: batchId });
+
+    return res.status(200).json({
+      message: `Deleted ${result.affected} emission(s) from batch`,
+      deleted: result.affected,
+    });
+  } catch (error) {
+    console.error("Delete emissions by batch error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 

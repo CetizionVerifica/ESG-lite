@@ -583,12 +583,27 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
     if (columns && Array.isArray(columns)) {
       for (const col of columns) {
         if (col.existing_id) {
-          // Reuse existing column entity
+          // Reuse existing column entity, or create new if renamed
           const existingCol = await columnRepo.findOne({
             where: { pk_id: col.existing_id },
           });
           if (existingCol) {
-            columnEntities.push(existingCol);
+            if (col.column_name && col.column_name !== existingCol.column_name) {
+              // User renamed — find or create a column with the new name
+              let renamedCol = await columnRepo.findOne({
+                where: { column_name: col.column_name },
+              });
+              if (!renamedCol) {
+                renamedCol = columnRepo.create({
+                  column_name: col.column_name,
+                  column_type: col.column_type || existingCol.column_type,
+                });
+                await columnRepo.save(renamedCol);
+              }
+              columnEntities.push(renamedCol);
+            } else {
+              columnEntities.push(existingCol);
+            }
           }
         } else if (col.is_new && col.column_name) {
           // Check if a column with this name was already created (avoid duplicates)

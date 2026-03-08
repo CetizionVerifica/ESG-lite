@@ -44,4 +44,7 @@ export class EmissionFactor {
 
   @CreateDateColumn()
   created_at!: Date;
+
+  @Column({ nullable: true })
+  upload_batch_id!: string;
 }

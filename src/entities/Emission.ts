@@ -71,4 +71,10 @@ export class Emission {
   @ManyToOne(() => Site, site => site.emissions, { onDelete: "CASCADE" })
   @JoinColumn({ name: "site_id" })
   site!: Site;
+
+  @Column({ nullable: true })
+  fera_linked_id!: number;
+
+  @Column({ nullable: true })
+  upload_batch_id!: string;
 }

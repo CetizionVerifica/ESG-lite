@@ -18,7 +18,7 @@ import {
   updateCountry,
 } from "../controllers/country.controller";
 import { createCategory, deleteCategory, getCategories, updateCategory } from "../controllers/category.controller";
-import { createEmissionFactor, deleteEmissionFactor, getEmissionFactorById, getEmissionFactors, getEmissionFactorsByCategory, getEmissionFactorsBySite, getEmissionCategoryNames, updateEmissionFactor, bulkCreateEmissionFactors, bulkDeleteEmissionFactors } from "../controllers/emissionFactor.controller";
+import { createEmissionFactor, deleteEmissionFactor, deleteEmissionFactorsByBatch, getEmissionFactorBatches, getEmissionFactorById, getEmissionFactors, getEmissionFactorsByCategory, getEmissionFactorsBySite, getEmissionCategoryNames, updateEmissionFactor, bulkCreateEmissionFactors, bulkDeleteEmissionFactors } from "../controllers/emissionFactor.controller";
 import { bulkCreateColumns, createColumn, deleteColumn, getColumns, updateColumn } from "../controllers/column.controller";
 import {
   getColumnConfigs,
@@ -123,6 +123,8 @@ router.delete("/categories/:id", deleteCategory);
 router.post("/emission-factors", createEmissionFactor);
 router.post("/emission-factors/bulk", bulkCreateEmissionFactors);
 router.delete("/emission-factors/bulk", bulkDeleteEmissionFactors);
+router.delete("/emission-factors/batch/:batchId", deleteEmissionFactorsByBatch);
+router.get("/emission-factors/batches", getEmissionFactorBatches);
 router.get("/emission-factors", getEmissionFactors);
 router.get("/emission-factors/category-names", getEmissionCategoryNames);
 router.get("/emission-factors/:id", getEmissionFactorById);
