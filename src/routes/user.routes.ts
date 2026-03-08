@@ -10,6 +10,8 @@ import {
   updateEmission,
   deleteEmission,
   bulkDeleteEmissions,
+  deleteEmissionsByBatch,
+  getEmissionBatches,
   getPendingEmissions,
   approveEmission,
   rejectEmission,
@@ -78,6 +80,8 @@ router.post("/emissions", createEmission);
 router.put("/emissions/bulk-approve", bulkApproveEmissions);
 router.put("/emissions/bulk-reject", bulkRejectEmissions);
 router.delete("/emissions/bulk-delete", bulkDeleteEmissions);
+router.delete("/emissions/batch/:batchId", deleteEmissionsByBatch);
+router.get("/emissions/batches", getEmissionBatches);
 
 // Routes with :id parameter
 router.put("/emissions/:id/approve", approveEmission);
