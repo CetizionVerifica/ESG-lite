@@ -274,7 +274,7 @@ export async function generateColumnConfigProposal(
     if (ecmResults.length > 0) {
       usingECM = true;
       for (const row of ecmResults) {
-        const unit = (row.denominator_unit || "unknown").trim();
+        const unit = (row.denominator_unit || "unknown").trim().toLowerCase();
         if (!unitGroups.has(unit)) {
           unitGroups.set(unit, []);
           efNamePairsMap.set(unit, []);
@@ -313,7 +313,7 @@ export async function generateColumnConfigProposal(
     }
 
     for (const row of efData) {
-      const unit = (row.denominator_unit || "unknown").trim();
+      const unit = (row.denominator_unit || "unknown").trim().toLowerCase();
       if (!unitGroups.has(unit)) unitGroups.set(unit, []);
       unitGroups.get(unit)!.push({
         original: row.emission_category_name,
@@ -346,7 +346,9 @@ export async function generateColumnConfigProposal(
 
     // Filter to only entries matching the dominant dimension count exactly
     const expectedDimCount = pattern === "THREE_DIM" ? 3 : pattern === "TWO_DIM" ? 2 : 1;
-    const filteredParsed = parsed.filter((p) => p.parts.length === expectedDimCount);
+    const filteredParsed = pattern === "THREE_DIM"
+      ? promoteToThreeDim(parsed)
+      : parsed.filter((p) => p.parts.length === expectedDimCount);
     const dimensions = extractDimensions(filteredParsed, pattern);
 
     // Detect ALL available dimension counts for this unit group
@@ -489,19 +491,125 @@ function detectPattern(parsed: ParsedEntry[]): PatternType {
     countFrequency.set(count, (countFrequency.get(count) || 0) + 1);
   }
 
-  // Find the dominant part count (most frequent)
-  let dominantCount = 1;
-  let maxFreq = 0;
+  const total = parsed.length;
+  // A dimension count is "significant" if it has at least 25% of entries (min 2).
+  const minSignificant = Math.max(2, Math.ceil(total * 0.25));
+
+  // Prefer the HIGHEST dimension count with significant representation.
+  // Rationale: 2-part names like "Van - CNG" are often abbreviated forms of
+  // 3-part names like "Road - Van - CNG". The higher count reflects the true
+  // structure of the data.
+  let bestCount = 0;
   for (const [count, freq] of countFrequency) {
-    if (freq > maxFreq) {
-      maxFreq = freq;
-      dominantCount = count;
+    if (count >= 1 && count <= 4 && freq >= minSignificant && count > bestCount) {
+      bestCount = count;
     }
   }
 
-  if (dominantCount >= 3) return "THREE_DIM";
-  if (dominantCount === 2) return "TWO_DIM";
+  // Fallback: if no count meets the threshold, use the most frequent
+  if (bestCount === 0) {
+    let maxFreq = 0;
+    for (const [count, freq] of countFrequency) {
+      if (freq > maxFreq) {
+        maxFreq = freq;
+        bestCount = count;
+      }
+    }
+  }
+
+  if (bestCount >= 3) return "THREE_DIM";
+  if (bestCount === 2) return "TWO_DIM";
   return "FLAT";
+}
+
+/**
+ * When THREE_DIM is the dominant pattern, promote 2-dim entries to 3-dim
+ * by inferring their missing dimension from the 3-dim entries.
+ *
+ * This preserves entries like "Rail" that only exist in 2-part names
+ * (e.g., "Road - Rail" or "Rail - Rail Fuel") by figuring out which
+ * mode (dim0) they belong to.
+ *
+ * Deduplication: 2-dim entries that already have a 3-dim equivalent
+ * (e.g., "Van - CNG" duplicating "Road - Van - CNG [tonne.km]") are skipped.
+ */
+function promoteToThreeDim(parsed: ParsedEntry[]): ParsedEntry[] {
+  const threeDim = parsed.filter((p) => p.parts.length === 3);
+  const twoDim = parsed.filter((p) => p.parts.length === 2);
+
+  if (twoDim.length === 0) return threeDim;
+
+  // Extract known dim0 (mode) values from 3-dim entries
+  const knownModes = new Set(threeDim.map((e) => e.parts[0]));
+
+  // Build case-insensitive vehicle→mode map from 3-dim entries
+  const vehicleToMode = new Map<string, string>();
+  for (const entry of threeDim) {
+    const key = entry.parts[1].toLowerCase();
+    if (!vehicleToMode.has(key)) {
+      vehicleToMode.set(key, entry.parts[0]);
+    }
+  }
+
+  // Also learn vehicle→mode from 2-dim entries where first part IS a known mode.
+  // e.g., "Road - Rail" tells us Rail belongs under Road.
+  for (const entry of twoDim) {
+    if (knownModes.has(entry.parts[0])) {
+      const key = entry.parts[1].toLowerCase();
+      if (!vehicleToMode.has(key)) {
+        vehicleToMode.set(key, entry.parts[0]);
+      }
+    }
+  }
+
+  const result = [...threeDim];
+
+  // Normalize key for dedup: lowercase + strip unit suffix like [tonne.km] from last part
+  const normalizeKey = (parts: string[]) =>
+    parts
+      .map((p, i) => {
+        let val = p.toLowerCase().trim();
+        if (i === parts.length - 1) val = val.replace(/\s*\[.*?\]\s*$/, "");
+        return val;
+      })
+      .join("|");
+
+  const existingKeys = new Set(threeDim.map((e) => normalizeKey(e.parts)));
+  const existingModeVehicle = new Set(
+    threeDim.map((e) => `${e.parts[0].toLowerCase()}|${e.parts[1].toLowerCase()}`)
+  );
+
+  for (const entry of twoDim) {
+    const [first, second] = entry.parts;
+    let promoted: string[] | null = null;
+
+    if (knownModes.has(first)) {
+      // e.g., "Road - Rail" → mode=Road, vehicle=Rail, fuel missing
+      const mvKey = `${first.toLowerCase()}|${second.toLowerCase()}`;
+      if (!existingModeVehicle.has(mvKey)) {
+        promoted = [first, second, "-"];
+      }
+    } else {
+      // e.g., "Van - CNG" or "Rail - Rail Fuel" → look up mode for first part
+      const mode = vehicleToMode.get(first.toLowerCase());
+      if (mode) {
+        promoted = [mode, first, second];
+      }
+    }
+
+    if (promoted) {
+      const key = normalizeKey(promoted);
+      if (!existingKeys.has(key)) {
+        existingKeys.add(key);
+        existingModeVehicle.add(
+          `${promoted[0].toLowerCase()}|${promoted[1].toLowerCase()}`
+        );
+        result.push({ original: entry.original, parts: promoted });
+      }
+    }
+  }
+
+  return result;
 }
 
 // ─── Dimension Extraction ───────────────────────────────────────────────────
