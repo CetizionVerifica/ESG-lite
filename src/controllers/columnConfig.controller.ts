@@ -622,11 +622,32 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
       }
     }
 
+    // Expand compressed options: strings → {id, label} objects.
+    // The frontend compresses {id: "X", label: "X"} to just "X" to reduce payload size.
+    const expandOptions = (opts: Record<string, any>): Record<string, any> => {
+      const expanded: Record<string, any> = {};
+      for (const [key, value] of Object.entries(opts)) {
+        if (Array.isArray(value)) {
+          expanded[key] = value.map((item: any) =>
+            typeof item === "string" ? { id: item, label: item } : item
+          );
+        } else if (typeof value === "object" && value !== null) {
+          expanded[key] = expandOptions(value);
+        } else {
+          expanded[key] = value;
+        }
+      }
+      return expanded;
+    };
+
+    const expandedColumnOptions = column_options ? expandOptions(column_options) : {};
+    const expandedDependentOptions = dependent_options ? expandOptions(dependent_options) : {};
+
     // Remap column_options keys from column names to column pk_ids.
     // The generator/frontend sends keys like "Waste Type", but the rest of
     // the app (UserDataEntry, ColumnConfigList) looks up by pk_id string.
     const remappedColumnOptions: Record<string, any> = {};
-    if (column_options && typeof column_options === "object") {
+    if (expandedColumnOptions && typeof expandedColumnOptions === "object") {
       // Build name → pk_id lookup from the columns we just resolved
       const nameToPkId: Record<string, number> = {};
       if (columns && Array.isArray(columns)) {
@@ -639,7 +660,7 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
         }
       }
 
-      for (const [key, value] of Object.entries(column_options)) {
+      for (const [key, value] of Object.entries(expandedColumnOptions)) {
         // If key is a column name, remap to pk_id; otherwise keep as-is
         const pkId = nameToPkId[key];
         const newKey = pkId ? pkId.toString() : key;
@@ -655,7 +676,7 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
       columns: columnEntities,
       column_options: remappedColumnOptions,
       column_dependencies: column_dependencies || {},
-      dependent_options: dependent_options || {},
+      dependent_options: expandedDependentOptions || {},
       emission_category_mapping: emission_category_mapping || {},
     });
 
