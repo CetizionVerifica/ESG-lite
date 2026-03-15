@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 import { ColumnConfig } from "../entities/ColumnConfig";
-import { getDefaultExtraFields } from "../utils/defaultExtraFields";
+import { getDefaultExtraFieldsByName } from "../utils/defaultExtraFields";
 
 async function seedExtraFields() {
   await AppDataSource.initialize();
@@ -14,29 +14,30 @@ async function seedExtraFields() {
   let skipped = 0;
 
   for (const config of configs) {
-    const categoryId = config.category?.category_id;
-    if (!categoryId) {
+    const categoryName = config.category?.category_name;
+    if (!categoryName) {
+      console.log(`  Skipped: config ${config.pk_id} — no category linked`);
       skipped++;
       continue;
     }
 
     // Skip configs that already have extra_fields populated
     if (config.extra_fields && Array.isArray(config.extra_fields) && config.extra_fields.length > 0) {
-      console.log(`  Skipped: config ${config.pk_id} (category ${categoryId}) — already has ${config.extra_fields.length} fields`);
+      console.log(`  Skipped: config ${config.pk_id} (${categoryName}) — already has ${config.extra_fields.length} fields`);
       skipped++;
       continue;
     }
 
-    const defaults = getDefaultExtraFields(categoryId);
+    const defaults = getDefaultExtraFieldsByName(categoryName);
     if (defaults.length === 0) {
-      console.log(`  Skipped: config ${config.pk_id} (category ${categoryId}) — no defaults defined`);
+      console.log(`  Skipped: config ${config.pk_id} (${categoryName}) — no defaults defined`);
       skipped++;
       continue;
     }
 
     config.extra_fields = defaults;
     await repo.save(config);
-    console.log(`  Updated: config ${config.pk_id} (category ${categoryId}) — ${defaults.length} fields`);
+    console.log(`  Updated: config ${config.pk_id} (${categoryName}) — ${defaults.length} fields`);
     updated++;
   }
 
