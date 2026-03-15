@@ -10,8 +10,10 @@ import {
   updateEmission,
   deleteEmission,
   bulkDeleteEmissions,
+  approveEmissionsByBatch,
   deleteEmissionsByBatch,
   getEmissionBatches,
+  getEmissionFactorForEmission,
   getPendingEmissions,
   approveEmission,
   rejectEmission,
@@ -23,6 +25,7 @@ import {
   getLongTermTargetChart,
   getGhgReportTables,
   getGhgReportDetails,
+  downloadEmissions,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
 import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
@@ -76,14 +79,19 @@ router.get("/emissions/site/:siteId/category/:categoryId", getEmissionsBySiteAnd
 router.get("/emissions/pending", getPendingEmissions);
 router.post("/emissions", createEmission);
 
+// Download emissions as Excel (must come before :id routes)
+router.get("/emissions/download", downloadEmissions);
+
 // Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
 router.put("/emissions/bulk-approve", bulkApproveEmissions);
 router.put("/emissions/bulk-reject", bulkRejectEmissions);
 router.delete("/emissions/bulk-delete", bulkDeleteEmissions);
+router.put("/emissions/batch/:batchId/approve", approveEmissionsByBatch);
 router.delete("/emissions/batch/:batchId", deleteEmissionsByBatch);
 router.get("/emissions/batches", getEmissionBatches);
 
 // Routes with :id parameter
+router.get("/emissions/:id/factor", getEmissionFactorForEmission);
 router.put("/emissions/:id/approve", approveEmission);
 router.put("/emissions/:id/reject", rejectEmission);
 router.put("/emissions/:id", updateEmission);
@@ -119,8 +127,8 @@ router.get("/emission-intensity/comparison", getEmissionIntensityComparison);
 
 // Document routes
 router.get("/documents", getDocuments);
-router.get("/documents/:id", getDocumentById);
 router.get("/documents/emission/:emissionId", getDocumentsByEmission);
+router.get("/documents/:id", getDocumentById);
 router.post("/documents", documentUpload.single("file"), uploadDocument);
 router.post("/documents/multiple", documentUpload.array("files", 10), uploadMultipleDocuments);
 router.put("/documents/:id", updateDocument);

@@ -33,6 +33,7 @@ import {
   removeColumnsFromConfig,
   previewAutoGenerateColumnConfig,
   confirmAutoGenerateColumnConfig,
+  seedExtraFields,
 } from "../controllers/columnConfig.controller";
 import {
   getUnits,
@@ -144,6 +145,7 @@ router.delete("/columns/:id", deleteColumn);
 router.get("/column-configs", getColumnConfigs);
 router.get("/column-configs/auto-generate/preview", previewAutoGenerateColumnConfig);
 router.post("/column-configs/auto-generate/confirm", confirmAutoGenerateColumnConfig);
+router.post("/column-configs/seed-extra-fields", seedExtraFields);
 router.get("/column-configs/:id", getColumnConfigById);
 router.get("/column-configs/category/:categoryId", getColumnConfigsByCategory);
 router.get("/column-configs/site/:siteId", getColumnConfigsBySite);

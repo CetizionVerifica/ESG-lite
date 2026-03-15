@@ -35,6 +35,17 @@ export interface EmissionCategoryMapping {
   [key: string]: string;
 }
 
+// Definition for supplementary (extra) fields per category
+// These fields don't affect emission calculation — stored separately in emission.extra_data
+export interface ExtraFieldDefinition {
+  key: string;          // e.g., "equipment", "po_number"
+  label: string;        // e.g., "Equipment", "PO Number"
+  type: "text" | "number" | "date" | "select" | "textarea";
+  required: boolean;
+  options?: string[];   // For type="select" only
+  show_for?: string[];  // If set, only show when emission_category contains one of these strings
+}
+
 @Entity()
 export class ColumnConfig {
   @PrimaryGeneratedColumn()
@@ -69,6 +80,11 @@ export class ColumnConfig {
   // Example: { "paper|recycled": "Paper - Recycled" }
   @Column({ type: "jsonb", nullable: true, default: {} })
   emission_category_mapping?: EmissionCategoryMapping;
+
+  // Supplementary field definitions for this site+category
+  // These define extra form fields that don't affect emission calculation
+  @Column({ type: "jsonb", nullable: true, default: [] })
+  extra_fields?: ExtraFieldDefinition[];
 
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({

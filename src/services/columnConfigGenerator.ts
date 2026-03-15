@@ -409,7 +409,7 @@ export async function generateColumnConfigProposal(
       const llmForDominant = llmFallback;
       columnNamesByDim[expectedDimCount] = buildColumnsFromLLM(
         llmForDominant?.columns || [],
-        llmForDominant?.activity_column_name || "Activity Data",
+        "Activity Data",
         expectedDimCount,
         existingColumns
       );
@@ -704,10 +704,12 @@ async function callLLMInferAllColumns(
 
 function buildColumnsFromLLM(
   llmColumns: LLMInferredColumn[],
-  activityColumnName: string,
+  _activityColumnName: string,
   dimCount: number,
   existingColumns: ColumnEntity[]
 ): DimColumnNames {
+  // Always use "Activity Data" — LLM-inferred names like "Volume"/"Weight" confuse admins
+  const activityColumnName = "Activity Data";
   const columns: ProposedColumn[] = [];
 
   for (let i = 0; i < dimCount; i++) {
