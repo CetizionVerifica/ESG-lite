@@ -26,6 +26,7 @@ import {
   getGhgReportTables,
   getGhgReportDetails,
   downloadEmissions,
+  managerUpdateEmission,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
 import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
@@ -42,6 +43,7 @@ import {
   rejectProductionData,
   bulkApproveProductionData,
   bulkRejectProductionData,
+  managerUpdateProductionData,
 } from "../controllers/productionData.controller";
 import {
   uploadDocument,
@@ -90,6 +92,9 @@ router.put("/emissions/batch/:batchId/approve", approveEmissionsByBatch);
 router.delete("/emissions/batch/:batchId", deleteEmissionsByBatch);
 router.get("/emissions/batches", getEmissionBatches);
 
+// Manager edit routes (must come BEFORE :id routes)
+router.put("/emissions/manager-edit/:id", managerUpdateEmission);
+
 // Routes with :id parameter
 router.get("/emissions/:id/factor", getEmissionFactorForEmission);
 router.put("/emissions/:id/approve", approveEmission);
@@ -114,6 +119,9 @@ router.post("/production-data", createProductionData);
 // Bulk routes must come BEFORE :id routes
 router.put("/production-data/bulk-approve", bulkApproveProductionData);
 router.put("/production-data/bulk-reject", bulkRejectProductionData);
+
+// Manager edit routes (must come BEFORE :id routes)
+router.put("/production-data/manager-edit/:id", managerUpdateProductionData);
 
 // Routes with :id parameter
 router.put("/production-data/:id/approve", approveProductionData);

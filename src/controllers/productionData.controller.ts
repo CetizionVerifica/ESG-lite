@@ -4,6 +4,9 @@ import { AppDataSource } from "../config/data-source";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { Product } from "../entities/Product";
 import { Emission, EmissionStatus } from "../entities/Emission";
+import { AuditLog } from "../entities/AuditLog";
+import { User } from "../entities/User";
+import { UserRole } from "../types/type";
 import { AuthRequest } from "../middlewares/auth.middleware";
 
 const repo = AppDataSource.getRepository(ProductionData);
@@ -122,6 +125,11 @@ export const updateProductionData = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Production data not found" });
     }
 
+    // Block edits on approved entries (users must not edit approved data)
+    if (data.status === ProductionDataStatus.APPROVED) {
+      return res.status(403).json({ message: "Cannot edit approved production data" });
+    }
+
     // Validate date range if both dates are provided
     const newStartDate = start_date ? new Date(start_date) : data.start_date;
     const newEndDate = end_date ? new Date(end_date) : data.end_date;
@@ -136,6 +144,14 @@ export const updateProductionData = async (req: AuthRequest, res: Response) => {
     if (start_date) data.start_date = new Date(start_date);
     if (end_date) data.end_date = new Date(end_date);
     if (notes !== undefined) data.notes = notes?.trim() || null;
+
+    // Reset rejected entries to pending so manager can re-review
+    if (data.status === ProductionDataStatus.REJECTED) {
+      data.status = ProductionDataStatus.PENDING;
+      data.reviewed_by = null as any;
+      data.review_comment = null as any;
+      data.reviewed_at = null as any;
+    }
 
     await repo.save(data);
 
@@ -165,6 +181,11 @@ export const deleteProductionData = async (req: Request, res: Response) => {
 
     if (!data) {
       return res.status(404).json({ message: "Production data not found" });
+    }
+
+    // Block deletes on approved entries
+    if (data.status === ProductionDataStatus.APPROVED) {
+      return res.status(403).json({ message: "Cannot delete approved production data" });
     }
 
     await repo.delete({ production_id: parseInt(id) });
@@ -488,6 +509,10 @@ export const rejectProductionData = async (req: AuthRequest, res: Response) => {
     const { comment } = req.body;
     const userId = req.user?.userId;
 
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ message: "Comment is required when rejecting production data" });
+    }
+
     const data = await repo.findOne({
       where: { production_id: parseInt(id) },
       relations: ["product", "site"],
@@ -500,7 +525,7 @@ export const rejectProductionData = async (req: AuthRequest, res: Response) => {
     data.status = ProductionDataStatus.REJECTED;
     data.reviewed_by = { user_id: userId } as any;
     data.reviewed_at = new Date();
-    data.review_comment = comment || null;
+    data.review_comment = comment.trim();
 
     await repo.save(data);
 
@@ -558,13 +583,17 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
       return res.status(400).json({ message: "ids array is required" });
     }
 
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ message: "Comment is required when rejecting production data" });
+    }
+
     await repo.update(
       { production_id: In(ids) },
       {
         status: ProductionDataStatus.REJECTED,
         reviewed_by: { user_id: userId } as any,
         reviewed_at: new Date(),
-        review_comment: comment || null,
+        review_comment: comment.trim(),
       }
     );
 
@@ -573,6 +602,94 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
     });
   } catch (error) {
     console.error("Bulk reject production data error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Manager edit production data (with audit trail, allows editing approved entries)
+export const managerUpdateProductionData = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = req.user?.userId;
+    const { quantity, unit, start_date, end_date, notes } = req.body;
+
+    // Verify the user is a manager
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { user_id: userId } });
+    if (!user || user.role !== UserRole.MANAGER) {
+      return res.status(403).json({ message: "Only managers can use this endpoint" });
+    }
+
+    const data = await repo.findOne({
+      where: { production_id: parseInt(id) },
+      relations: ["product", "site"],
+    });
+
+    if (!data) {
+      return res.status(404).json({ message: "Production data not found" });
+    }
+
+    // Validate date range if both dates are provided
+    const newStartDate = start_date ? new Date(start_date) : data.start_date;
+    const newEndDate = end_date ? new Date(end_date) : data.end_date;
+    if (newStartDate > newEndDate) {
+      return res.status(400).json({ message: "start_date cannot be after end_date" });
+    }
+
+    // Capture changes for audit trail
+    const changedFields: Record<string, { old: any; new: any }> = {};
+    if (quantity !== undefined && parseFloat(quantity) !== Number(data.quantity)) {
+      changedFields.quantity = { old: data.quantity, new: parseFloat(quantity) };
+    }
+    if (unit && unit.trim() !== data.unit) {
+      changedFields.unit = { old: data.unit, new: unit.trim() };
+    }
+    if (start_date && new Date(start_date).toISOString() !== new Date(data.start_date).toISOString()) {
+      changedFields.start_date = { old: data.start_date, new: start_date };
+    }
+    if (end_date && new Date(end_date).toISOString() !== new Date(data.end_date).toISOString()) {
+      changedFields.end_date = { old: data.end_date, new: end_date };
+    }
+    if (notes !== undefined && (notes?.trim() || null) !== (data.notes || null)) {
+      changedFields.notes = { old: data.notes, new: notes?.trim() || null };
+    }
+
+    // Only proceed if there are actual changes
+    if (Object.keys(changedFields).length === 0) {
+      return res.status(200).json({ message: "No changes detected", productionData: data });
+    }
+
+    // Apply changes
+    if (quantity !== undefined) data.quantity = parseFloat(quantity);
+    if (unit) data.unit = unit.trim();
+    if (start_date) data.start_date = new Date(start_date);
+    if (end_date) data.end_date = new Date(end_date);
+    if (notes !== undefined) data.notes = notes?.trim() || null;
+
+    await repo.save(data);
+
+    // Write audit log
+    const auditRepo = AppDataSource.getRepository(AuditLog);
+    const auditEntry = auditRepo.create({
+      entity_type: "production_data",
+      entity_id: data.production_id,
+      action: "manager_edit",
+      changed_fields: changedFields,
+      changed_by: { user_id: userId } as any,
+    });
+    await auditRepo.save(auditEntry);
+
+    const updated = await repo.findOne({
+      where: { production_id: data.production_id },
+      relations: ["product", "site", "created_by"],
+    });
+
+    return res.status(200).json({
+      message: "Production data updated by manager",
+      productionData: updated,
+    });
+  } catch (error) {
+    console.error("Manager update production data error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

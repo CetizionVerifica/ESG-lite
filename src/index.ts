@@ -3,6 +3,7 @@ import { AppDataSource } from "./config/data-source";
 import authRoutes from "./routes/auth.routes";
 import adminRoutes from "./routes/admin.routes";
 import userRoutes from "./routes/user.routes";
+import managerRoutes from "./routes/manager.routes";
 import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
@@ -19,6 +20,7 @@ app.use(
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
 app.use("/user", userRoutes);
+app.use("/manager", managerRoutes);
 
 let server: any;
 

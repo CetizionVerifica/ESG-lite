@@ -12,3 +12,14 @@ export const requireSuperAdmin = (
   }
   next();
 };
+
+export const requireManager = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.user?.role !== UserRole.MANAGER) {
+    return res.status(403).json({ message: "Manager access required" });
+  }
+  next();
+};

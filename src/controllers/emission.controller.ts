@@ -7,6 +7,9 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import { In } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import * as XLSX from "xlsx";
+import { AuditLog } from "../entities/AuditLog";
+import { User } from "../entities/User";
+import { UserRole } from "../types/type";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -63,7 +66,7 @@ const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null 
 // Get emissions by site, category, and date (with optional pagination)
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { siteId, categoryId, date, year, month, page, limit } = req.query;
+    const { siteId, categoryId, date, year, month, page, limit, status } = req.query;
 
     const qb = repo
       .createQueryBuilder("emission")
@@ -78,6 +81,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     if (categoryId) {
       qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    }
+
+    if (status) {
+      qb.andWhere("emission.status = :status", { status: status as string });
     }
 
     if (date) {
@@ -121,6 +128,9 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       }
       if (categoryId) {
         summaryQb.andWhere("c.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+      }
+      if (status) {
+        summaryQb.andWhere("emission.status = :status", { status: status as string });
       }
       if (date) {
         const [y, m] = (date as string).split("-");
@@ -545,6 +555,11 @@ export const updateEmission = async (req: Request, res: Response) => {
       });
     }
 
+    // Block edits on approved entries
+    if (emission.status === EmissionStatus.APPROVED) {
+      return res.status(403).json({ message: "Cannot edit approved emission data" });
+    }
+
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
 
@@ -733,6 +748,11 @@ export const deleteEmission = async (req: Request, res: Response) => {
       return res.status(404).json({
         message: "Emission not found",
       });
+    }
+
+    // Block deletes on approved entries
+    if (emission.status === EmissionStatus.APPROVED) {
+      return res.status(403).json({ message: "Cannot delete approved emission data" });
     }
 
     // Also delete the linked FERA entry (bi-directional)
@@ -2631,6 +2651,161 @@ export const downloadEmissions = async (req: AuthRequest, res: Response) => {
     return res.send(buffer);
   } catch (error) {
     console.error("Download emissions error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Manager edit emission (with audit trail, allows editing approved entries)
+export const managerUpdateEmission = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id }: any = req.params;
+    const userId = req.user?.userId;
+    const { activity_data, date_of_reporting } = req.body;
+
+    // Verify the user is a manager
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { user_id: userId } });
+    if (!user || user.role !== UserRole.MANAGER) {
+      return res.status(403).json({ message: "Only managers can use this endpoint" });
+    }
+
+    const emission = await repo.findOne({
+      where: { pk_id: parseInt(id) },
+      relations: ["site", "category"],
+    });
+
+    if (!emission) {
+      return res.status(404).json({ message: "Emission not found" });
+    }
+
+    // Capture changes for audit trail
+    const changedFields: Record<string, { old: any; new: any }> = {};
+    if (activity_data !== undefined) {
+      changedFields.activity_data = { old: emission.activity_data, new: activity_data };
+    }
+    if (date_of_reporting !== undefined) {
+      changedFields.date_of_reporting = { old: emission.date_of_reporting, new: date_of_reporting };
+    }
+
+    if (Object.keys(changedFields).length === 0) {
+      return res.status(200).json({ message: "No changes detected", emission });
+    }
+
+    // Apply changes (do NOT change approval status)
+    if (activity_data !== undefined) {
+      emission.activity_data = activity_data;
+
+      // Recalculate total emission if activity_data has emission_category
+      if (activity_data.emission_category && emission.activity_data_unit) {
+        const reportingDate = emission.date_of_reporting instanceof Date
+          ? emission.date_of_reporting
+          : new Date(emission.date_of_reporting);
+        const targetYear = reportingDate.getFullYear() - 1;
+
+        let emissionFactor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id: emission.site.site_id },
+            category: { category_id: emission.category.category_id },
+            emission_category_name: activity_data.emission_category,
+            year: targetYear,
+          },
+        });
+
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              global_category_name: activity_data.emission_category,
+              year: targetYear,
+            },
+          });
+        }
+
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              emission_category_name: activity_data.emission_category,
+            },
+          });
+        }
+
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              global_category_name: activity_data.emission_category,
+            },
+          });
+        }
+
+        if (emissionFactor) {
+          const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
+          const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
+          let activityValue = 0;
+
+          for (const field of commonFields) {
+            const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
+            if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
+              activityValue = parseFloat(activity_data[matchingKey]);
+              if (!isNaN(activityValue) && activityValue > 0) break;
+            }
+          }
+
+          if (activityValue === 0) {
+            for (const [key, value] of Object.entries(activity_data)) {
+              const keyLower = key.toLowerCase();
+              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
+              if (value !== undefined && value !== '') {
+                const numValue = parseFloat(value as string);
+                if (!isNaN(numValue) && numValue > 0) {
+                  activityValue = numValue;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (activityValue > 0) {
+            const unitsMatch = unitsMatchExact(emissionFactor.denominator_unit, emission.activity_data_unit);
+            if (unitsMatch) {
+              emission.total_emission = Math.round((activityValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+            } else {
+              const conversionFactor = getConversionFactor(emission.activity_data_unit, emissionFactor.denominator_unit);
+              if (conversionFactor) {
+                const convertedValue = activityValue * conversionFactor;
+                emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
+
+    await repo.save(emission);
+
+    // Write audit log
+    const auditRepo = AppDataSource.getRepository(AuditLog);
+    const auditEntry = auditRepo.create({
+      entity_type: "emission",
+      entity_id: emission.pk_id,
+      action: "manager_edit",
+      changed_fields: changedFields,
+      changed_by: { user_id: userId } as any,
+    });
+    await auditRepo.save(auditEntry);
+
+    return res.status(200).json({
+      message: "Emission updated by manager",
+      emission,
+    });
+  } catch (error) {
+    console.error("Manager update emission error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
