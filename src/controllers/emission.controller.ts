@@ -2755,6 +2755,22 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
             }
           }
 
+          // Tier 2: try numeric fields >= 100 (skip likely dropdown IDs)
+          if (activityValue === 0) {
+            for (const [key, value] of Object.entries(activity_data)) {
+              const keyLower = key.toLowerCase();
+              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
+              if (value !== undefined && value !== '') {
+                const numValue = parseFloat(value as string);
+                if (!isNaN(numValue) && numValue >= 100) {
+                  activityValue = numValue;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Tier 3: any positive number as last resort
           if (activityValue === 0) {
             for (const [key, value] of Object.entries(activity_data)) {
               const keyLower = key.toLowerCase();
@@ -2778,6 +2794,10 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
               if (conversionFactor) {
                 const convertedValue = activityValue * conversionFactor;
                 emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+              } else {
+                return res.status(400).json({
+                  message: `Cannot convert unit "${emission.activity_data_unit}" to expected unit "${emissionFactor.denominator_unit}"`,
+                });
               }
             }
           }
