@@ -65,7 +65,7 @@ const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null 
 // Get emissions by site, category, and date (with optional pagination)
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { siteId, categoryId, date, year, month, page, limit } = req.query;
+    const { siteId, categoryId, date, year, month, page, limit, status } = req.query;
 
     const qb = repo
       .createQueryBuilder("emission")
@@ -80,6 +80,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     if (categoryId) {
       qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    }
+
+    if (status) {
+      qb.andWhere("emission.status = :status", { status: status as string });
     }
 
     if (date) {
@@ -123,6 +127,9 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       }
       if (categoryId) {
         summaryQb.andWhere("c.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+      }
+      if (status) {
+        summaryQb.andWhere("emission.status = :status", { status: status as string });
       }
       if (date) {
         const [y, m] = (date as string).split("-");
