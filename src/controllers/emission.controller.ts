@@ -1102,6 +1102,30 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "batchId is required" });
     }
 
+    // Get all emission IDs in this batch
+    const batchEmissions = await repo.find({
+      where: { upload_batch_id: batchId },
+      select: ["pk_id"],
+    });
+
+    if (batchEmissions.length === 0) {
+      return res.status(404).json({ message: "No emissions found for this batch" });
+    }
+
+    const idsToDelete = batchEmissions.map((e) => e.pk_id);
+
+    // Delete related documents first (in case DB cascade is not set)
+    const docRepo = AppDataSource.getRepository(EmissionDocument);
+    const CHUNK_SIZE = 5000;
+    for (let i = 0; i < idsToDelete.length; i += CHUNK_SIZE) {
+      const chunk = idsToDelete.slice(i, i + CHUNK_SIZE);
+      await docRepo
+        .createQueryBuilder()
+        .delete()
+        .where("emission_id IN (:...ids)", { ids: chunk })
+        .execute();
+    }
+
     const result = await repo.delete({ upload_batch_id: batchId });
 
     return res.status(200).json({
