@@ -842,14 +842,21 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
       .addSelect("site.name", "site_name")
       .addSelect("e.category_id", "category_id")
       .addSelect("category.category_name", "category_name")
+      .addSelect("uploader.name", "uploaded_by")
       .innerJoin("e.site", "site")
       .innerJoin("e.category", "category")
+      .leftJoin(
+        User,
+        "uploader",
+        "uploader.user_id = (SELECT MIN(e2.created_by) FROM emission e2 WHERE e2.upload_batch_id = e.upload_batch_id)"
+      )
       .where("e.upload_batch_id IS NOT NULL")
       .groupBy("e.upload_batch_id")
       .addGroupBy("e.site_id")
       .addGroupBy("site.name")
       .addGroupBy("e.category_id")
       .addGroupBy("category.category_name")
+      .addGroupBy("uploader.name")
       .orderBy("MIN(e.created_at)", "DESC");
 
     if (siteId) {
@@ -900,6 +907,43 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
     });
   } catch (error) {
     console.error("Approve emissions by batch error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Reject all pending emissions for a given upload batch
+export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) => {
+  try {
+    const batchId = req.params.batchId as string;
+    const userId = req.user?.userId;
+    const { comment } = req.body || {};
+
+    if (!batchId) {
+      return res.status(400).json({ message: "batchId is required" });
+    }
+
+    const result = await repo.update(
+      { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+      {
+        status: EmissionStatus.REJECTED,
+        review_comment: comment || null,
+        reviewed_by: userId ? { user_id: userId } as any : null,
+        reviewed_at: new Date(),
+      }
+    );
+
+    if (result.affected === 0) {
+      return res.status(404).json({
+        message: "No pending emissions found for this batch",
+      });
+    }
+
+    return res.status(200).json({
+      message: `Rejected ${result.affected} emission(s) from batch`,
+      rejected: result.affected,
+    });
+  } catch (error) {
+    console.error("Reject emissions by batch error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

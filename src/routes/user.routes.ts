@@ -11,6 +11,7 @@ import {
   deleteEmission,
   bulkDeleteEmissions,
   approveEmissionsByBatch,
+  rejectEmissionsByBatch,
   deleteEmissionsByBatch,
   getEmissionBatches,
   getEmissionFactorForEmission,
@@ -89,6 +90,7 @@ router.put("/emissions/bulk-approve", bulkApproveEmissions);
 router.put("/emissions/bulk-reject", bulkRejectEmissions);
 router.delete("/emissions/bulk-delete", bulkDeleteEmissions);
 router.put("/emissions/batch/:batchId/approve", approveEmissionsByBatch);
+router.put("/emissions/batch/:batchId/reject", rejectEmissionsByBatch);
 router.delete("/emissions/batch/:batchId", deleteEmissionsByBatch);
 router.get("/emissions/batches", getEmissionBatches);
 
