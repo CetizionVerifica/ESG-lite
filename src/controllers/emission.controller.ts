@@ -6,6 +6,7 @@ import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { In } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
+import { EmissionDocument } from "../entities/EmissionDocument";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
@@ -750,11 +751,6 @@ export const deleteEmission = async (req: Request, res: Response) => {
       });
     }
 
-    // Block deletes on approved entries
-    if (emission.status === EmissionStatus.APPROVED) {
-      return res.status(403).json({ message: "Cannot delete approved emission data" });
-    }
-
     // Also delete the linked FERA entry (bi-directional)
     const idsToDelete = [emission.pk_id];
     if (emission.fera_linked_id) {
@@ -767,6 +763,14 @@ export const deleteEmission = async (req: Request, res: Response) => {
     if (linkedBack) {
       idsToDelete.push(linkedBack.pk_id);
     }
+
+    // Delete related documents first (in case DB cascade is not set)
+    const docRepo = AppDataSource.getRepository(EmissionDocument);
+    await docRepo
+      .createQueryBuilder()
+      .delete()
+      .where("emission_id IN (:...ids)", { ids: idsToDelete })
+      .execute();
 
     await repo.delete(idsToDelete);
 
@@ -794,6 +798,9 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
     }
 
     const numericIds = ids.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+    if (numericIds.length === 0) {
+      return res.status(400).json({ message: "No valid IDs provided" });
+    }
 
     // Also collect FERA-linked emissions (bi-directional)
     const emissions = await repo.find({
@@ -813,17 +820,27 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
       allIds.add(e.pk_id);
     }
 
-    const result = await repo.delete(Array.from(allIds));
+    const idsArray = Array.from(allIds);
+
+    // Delete related documents first (in case DB cascade is not set)
+    const docRepo = AppDataSource.getRepository(EmissionDocument);
+    await docRepo
+      .createQueryBuilder()
+      .delete()
+      .where("emission_id IN (:...ids)", { ids: idsArray })
+      .execute();
+
+    const result = await repo.delete(idsArray);
 
     return res.status(200).json({
       message: `Successfully deleted ${result.affected} emission(s)`,
       deleted: result.affected,
-      deleted_ids: Array.from(allIds),
+      deleted_ids: idsArray,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Bulk delete emissions error:", error);
     return res.status(500).json({
-      message: "Internal server error",
+      message: error?.message || "Internal server error",
     });
   }
 };
