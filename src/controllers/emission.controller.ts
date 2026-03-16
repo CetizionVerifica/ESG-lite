@@ -802,39 +802,61 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "No valid IDs provided" });
     }
 
-    // Also collect FERA-linked emissions (bi-directional)
-    const emissions = await repo.find({
-      where: { pk_id: In(numericIds) },
-      select: ["pk_id", "fera_linked_id"],
-    });
+    // Helper to chunk arrays for queries (Postgres max ~32K params)
+    const CHUNK_SIZE = 5000;
+    const chunk = <T>(arr: T[], size: number): T[][] => {
+      const chunks: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) {
+        chunks.push(arr.slice(i, i + size));
+      }
+      return chunks;
+    };
+
+    // Collect FERA-linked emissions (bi-directional) in chunks
     const allIds = new Set(numericIds);
-    for (const e of emissions) {
-      if (e.fera_linked_id) allIds.add(e.fera_linked_id);
-    }
-    // Check reverse links: emissions that link back to any of the selected IDs
-    const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(numericIds) },
-      select: ["pk_id"],
-    });
-    for (const e of reverseLinked) {
-      allIds.add(e.pk_id);
+
+    for (const batch of chunk(numericIds, CHUNK_SIZE)) {
+      const emissions = await repo.find({
+        where: { pk_id: In(batch) },
+        select: ["pk_id", "fera_linked_id"],
+      });
+      for (const e of emissions) {
+        if (e.fera_linked_id) allIds.add(e.fera_linked_id);
+      }
+
+      const reverseLinked = await repo.find({
+        where: { fera_linked_id: In(batch) },
+        select: ["pk_id"],
+      });
+      for (const e of reverseLinked) {
+        allIds.add(e.pk_id);
+      }
     }
 
     const idsArray = Array.from(allIds);
+    let totalDeleted = 0;
 
-    // Delete related documents first (in case DB cascade is not set)
-    const docRepo = AppDataSource.getRepository(EmissionDocument);
-    await docRepo
-      .createQueryBuilder()
-      .delete()
-      .where("emission_id IN (:...ids)", { ids: idsArray })
-      .execute();
+    // Delete in chunks within a transaction
+    await AppDataSource.transaction(async (manager) => {
+      const docRepo = manager.getRepository(EmissionDocument);
+      const emRepo = manager.getRepository(Emission);
 
-    const result = await repo.delete(idsArray);
+      for (const batch of chunk(idsArray, CHUNK_SIZE)) {
+        // Delete related documents first
+        await docRepo
+          .createQueryBuilder()
+          .delete()
+          .where("emission_id IN (:...ids)", { ids: batch })
+          .execute();
+
+        const result = await emRepo.delete(batch);
+        totalDeleted += result.affected || 0;
+      }
+    });
 
     return res.status(200).json({
-      message: `Successfully deleted ${result.affected} emission(s)`,
-      deleted: result.affected,
+      message: `Successfully deleted ${totalDeleted} emission(s)`,
+      deleted: totalDeleted,
       deleted_ids: idsArray,
     });
   } catch (error: any) {
