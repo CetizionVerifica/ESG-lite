@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
@@ -75,6 +76,7 @@ export class Emission {
   @Column({ nullable: true })
   fera_linked_id!: number;
 
+  @Index()
   @Column({ nullable: true })
   upload_batch_id!: string;
 

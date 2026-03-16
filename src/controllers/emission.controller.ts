@@ -884,21 +884,15 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
       .addSelect("site.name", "site_name")
       .addSelect("e.category_id", "category_id")
       .addSelect("category.category_name", "category_name")
-      .addSelect("uploader.name", "uploaded_by")
+      .addSelect(`(SELECT u.name FROM "user" u WHERE u.user_id = MIN(e.created_by) LIMIT 1)`, "uploaded_by")
       .innerJoin("e.site", "site")
       .innerJoin("e.category", "category")
-      .leftJoin(
-        User,
-        "uploader",
-        "uploader.user_id = (SELECT MIN(e2.created_by) FROM emission e2 WHERE e2.upload_batch_id = e.upload_batch_id)"
-      )
       .where("e.upload_batch_id IS NOT NULL")
       .groupBy("e.upload_batch_id")
       .addGroupBy("e.site_id")
       .addGroupBy("site.name")
       .addGroupBy("e.category_id")
       .addGroupBy("category.category_name")
-      .addGroupBy("uploader.name")
       .orderBy("MIN(e.created_at)", "DESC");
 
     if (siteId) {
