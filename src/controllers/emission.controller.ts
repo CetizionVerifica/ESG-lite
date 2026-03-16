@@ -837,6 +837,9 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
       .createQueryBuilder("e")
       .select("e.upload_batch_id", "upload_batch_id")
       .addSelect("COUNT(*)::int", "count")
+      .addSelect("SUM(CASE WHEN e.status = 'pending' THEN 1 ELSE 0 END)::int", "pending_count")
+      .addSelect("SUM(CASE WHEN e.status = 'approved' THEN 1 ELSE 0 END)::int", "approved_count")
+      .addSelect("SUM(CASE WHEN e.status = 'rejected' THEN 1 ELSE 0 END)::int", "rejected_count")
       .addSelect("MIN(e.created_at)", "uploaded_at")
       .addSelect("e.site_id", "site_id")
       .addSelect("site.name", "site_name")
@@ -911,7 +914,7 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
   }
 };
 
-// Reject all pending emissions for a given upload batch
+// Reject all emissions for a given upload batch (including approved)
 export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) => {
   try {
     const batchId = req.params.batchId as string;
@@ -922,19 +925,23 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    const result = await repo.update(
-      { upload_batch_id: batchId, status: EmissionStatus.PENDING },
-      {
+    // Reject all non-rejected emissions in the batch (pending + approved)
+    const result = await repo
+      .createQueryBuilder()
+      .update(Emission)
+      .set({
         status: EmissionStatus.REJECTED,
         review_comment: comment || null,
         reviewed_by: userId ? { user_id: userId } as any : null,
         reviewed_at: new Date(),
-      }
-    );
+      })
+      .where("upload_batch_id = :batchId", { batchId })
+      .andWhere("status != :rejected", { rejected: EmissionStatus.REJECTED })
+      .execute();
 
     if (result.affected === 0) {
       return res.status(404).json({
-        message: "No pending emissions found for this batch",
+        message: "No emissions to reject in this batch",
       });
     }
 
