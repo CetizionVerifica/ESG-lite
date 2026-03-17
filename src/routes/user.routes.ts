@@ -60,6 +60,7 @@ import {
 } from "../controllers/document.controller";
 import { getCompanies, getCompanyNameBySites } from "../controllers/company.controller";
 import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
+import { getAuditLogs } from "../controllers/auditLog.controller";
 
 const router = Router();
 
@@ -157,5 +158,8 @@ router.post("/targets/tables",getNearTermTargetTables)
 router.post("/targets/long-term-chart",getLongTermTargetChart)
 router.post("/emissions/calculate-distance", calculateDistance);
 router.post("/emissions/geocode-location", geocodeLocation);
+
+// Audit trail
+router.get("/audit-logs", getAuditLogs);
 
 export default router;
