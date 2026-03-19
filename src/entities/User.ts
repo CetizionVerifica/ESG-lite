@@ -8,6 +8,7 @@ import {
   JoinTable,
 } from "typeorm";
 import { Site } from "./Site";
+import { Category } from "./Category";
 import { UserRole } from "../types/type";
 
 @Entity()
@@ -58,4 +59,19 @@ export class User {
     },
   })
   sites!: Site[];
+
+  // Per-user category access control (managed by Manager role)
+  @ManyToMany(() => Category)
+  @JoinTable({
+    name: "user_categories",
+    joinColumn: {
+      name: "user_id",
+      referencedColumnName: "user_id",
+    },
+    inverseJoinColumn: {
+      name: "category_id",
+      referencedColumnName: "category_id",
+    },
+  })
+  categories!: Category[];
 }

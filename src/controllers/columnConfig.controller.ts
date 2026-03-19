@@ -6,6 +6,7 @@ import {
   ColumnDependencies,
   DependentOptionsMap,
   EmissionCategoryMapping,
+  ExtraFieldDefinition,
 } from "../entities/ColumnConfig";
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
@@ -13,6 +14,7 @@ import { ColumnEntity } from "../entities/Column";
 import { Unit } from "../entities/Unit";
 import { In } from "typeorm";
 import { generateColumnConfigProposal } from "../services/columnConfigGenerator";
+import { getDefaultExtraFieldsByName } from "../utils/defaultExtraFields";
 
 const repo = AppDataSource.getRepository(ColumnConfig);
 const categoryRepo = AppDataSource.getRepository(Category);
@@ -130,6 +132,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       column_dependencies,
       dependent_options,
       emission_category_mapping,
+      extra_fields,
     } = req.body;
 
     if (!config_name || !site_id || !category_id) {
@@ -194,6 +197,9 @@ export const createColumnConfig = async (req: Request, res: Response) => {
     const validatedColumnDependencies: ColumnDependencies = column_dependencies && typeof column_dependencies === "object" ? column_dependencies : {};
     const validatedDependentOptions: DependentOptionsMap = dependent_options && typeof dependent_options === "object" ? dependent_options : {};
     const validatedEmissionCategoryMapping: EmissionCategoryMapping = emission_category_mapping && typeof emission_category_mapping === "object" ? emission_category_mapping : {};
+    const validatedExtraFields: ExtraFieldDefinition[] = extra_fields && Array.isArray(extra_fields) && extra_fields.length > 0
+      ? extra_fields
+      : getDefaultExtraFieldsByName(category.category_name);
 
     const columnConfig = repo.create({
       config_name: config_name.trim(),
@@ -204,6 +210,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       column_dependencies: validatedColumnDependencies,
       dependent_options: validatedDependentOptions,
       emission_category_mapping: validatedEmissionCategoryMapping,
+      extra_fields: validatedExtraFields,
     });
 
     await repo.save(columnConfig);
@@ -238,6 +245,7 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       column_dependencies,
       dependent_options,
       emission_category_mapping,
+      extra_fields,
     } = req.body;
 
     if (
@@ -248,7 +256,8 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       column_options === undefined &&
       column_dependencies === undefined &&
       dependent_options === undefined &&
-      emission_category_mapping === undefined
+      emission_category_mapping === undefined &&
+      extra_fields === undefined
     ) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -347,6 +356,10 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
 
     if (emission_category_mapping !== undefined) {
       columnConfig.emission_category_mapping = emission_category_mapping === null ? {} : emission_category_mapping;
+    }
+
+    if (extra_fields !== undefined) {
+      columnConfig.extra_fields = extra_fields === null ? [] : extra_fields;
     }
 
     await repo.save(columnConfig);
@@ -668,7 +681,7 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
       }
     }
 
-    // Create the column config
+    // Create the column config (auto-populate extra_fields from defaults)
     const columnConfig = repo.create({
       config_name: config_name.trim(),
       site: { site_id },
@@ -678,6 +691,7 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
       column_dependencies: column_dependencies || {},
       dependent_options: expandedDependentOptions || {},
       emission_category_mapping: emission_category_mapping || {},
+      extra_fields: getDefaultExtraFieldsByName(category.category_name),
     });
 
     await repo.save(columnConfig);
@@ -724,6 +738,55 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
     });
   } catch (error: any) {
     console.error("Auto-generate confirm error:", error);
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
+// ─── Seed Extra Fields: Backfill all existing configs ───────────────────────
+
+export const seedExtraFields = async (_req: Request, res: Response) => {
+  try {
+    const configs = await repo.find({
+      relations: ["category"],
+    });
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const config of configs) {
+      const categoryId = config.category?.category_id;
+      if (!categoryId) {
+        skipped++;
+        continue;
+      }
+
+      // Skip configs that already have extra_fields populated
+      if (config.extra_fields && Array.isArray(config.extra_fields) && config.extra_fields.length > 0) {
+        skipped++;
+        continue;
+      }
+
+      const defaults = getDefaultExtraFieldsByName(config.category.category_name);
+      if (defaults.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      config.extra_fields = defaults;
+      await repo.save(config);
+      updated++;
+    }
+
+    return res.status(200).json({
+      message: `Seeded extra_fields for ${updated} configs, skipped ${skipped}`,
+      updated,
+      skipped,
+      total: configs.length,
+    });
+  } catch (error: any) {
+    console.error("Seed extra fields error:", error);
     return res.status(500).json({
       message: error.message || "Internal server error",
     });

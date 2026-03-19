@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
@@ -75,6 +76,23 @@ export class Emission {
   @Column({ nullable: true })
   fera_linked_id!: number;
 
+  @Index()
   @Column({ nullable: true })
   upload_batch_id!: string;
+
+  @Column({ type: "jsonb", nullable: true, default: {} })
+  extra_data!: Record<string, any>;
+
+  // Snapshot of the emission factor used at creation time
+  // Ensures factor details are always available even if the factor is later deleted/renamed
+  @Column({ type: "jsonb", nullable: true })
+  emission_factor_snapshot!: {
+    emission_factor_id: number;
+    emission_category_name: string;
+    global_category_name?: string;
+    factor_value: number;
+    denominator_unit: string;
+    source: string;
+    year: number;
+  } | null;
 }

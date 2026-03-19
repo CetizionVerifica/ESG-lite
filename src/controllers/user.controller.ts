@@ -4,10 +4,26 @@ import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Site } from "../entities/Site";
+import { Category } from "../entities/Category";
 import { UserRole } from "../types/type";
 
 const repo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
+
+/** Collect all unique categories from a list of sites (loaded with categories relation). */
+const collectSiteCategories = (sites: Site[]): Category[] => {
+  const seen = new Set<number>();
+  const result: Category[] = [];
+  for (const site of sites) {
+    for (const cat of site.categories || []) {
+      if (!seen.has(cat.category_id)) {
+        seen.add(cat.category_id);
+        result.push(cat);
+      }
+    }
+  }
+  return result;
+};
 
 export const getUsers = async (_: Request, res: Response) => {
   try {
@@ -75,7 +91,10 @@ export const createUser = async (req: Request, res: Response) => {
 
     // For managers and users with multiple sites
     if ((role === UserRole.MANAGER || role === UserRole.USER) && site_ids && Array.isArray(site_ids) && site_ids.length > 0) {
-      const sites = await siteRepo.findBy({ site_id: In(site_ids) });
+      const sites = await siteRepo.find({
+        where: { site_id: In(site_ids) },
+        relations: ["categories"],
+      });
 
       const user = repo.create({
         name: name?.trim(),
@@ -83,6 +102,7 @@ export const createUser = async (req: Request, res: Response) => {
         password: hashedPassword,
         role,
         sites: sites,
+        categories: collectSiteCategories(sites),
       });
 
       await repo.save(user);
@@ -100,12 +120,22 @@ export const createUser = async (req: Request, res: Response) => {
     }
 
     // For users with single site (Admin, Superadmin, or single-site assignment)
+    let siteCategories: Category[] = [];
+    if (site_id) {
+      const siteWithCats = await siteRepo.findOne({
+        where: { site_id },
+        relations: ["categories"],
+      });
+      siteCategories = siteWithCats?.categories || [];
+    }
+
     const user = repo.create({
       name: name?.trim(),
       email: email.trim(),
       password: hashedPassword,
       role,
       site: site_id ? { site_id } : undefined,
+      categories: siteCategories,
     });
 
     await repo.save(user);
@@ -142,7 +172,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
     const user = await repo.findOne({
       where: { user_id: parseInt(id) },
-      relations: ["site", "sites"],
+      relations: ["site", "sites", "categories"],
     });
 
     if (!user) {
@@ -182,10 +212,16 @@ export const updateUser = async (req: Request, res: Response) => {
     // Handle multiple sites for managers
     if (site_ids !== undefined && Array.isArray(site_ids)) {
       if (site_ids.length > 0) {
-        const sites = await siteRepo.findBy({ site_id: In(site_ids) });
+        const sites = await siteRepo.find({
+          where: { site_id: In(site_ids) },
+          relations: ["categories"],
+        });
         user.sites = sites;
+        // Re-seed categories: grant all categories from new sites
+        user.categories = collectSiteCategories(sites);
       } else {
         user.sites = [];
+        user.categories = [];
       }
       // Clear single site when using multiple sites
       user.site = null as any;
@@ -194,6 +230,16 @@ export const updateUser = async (req: Request, res: Response) => {
       user.site = site_id ? ({ site_id } as any) : null;
       // Clear multiple sites when using single site
       user.sites = [];
+      // Re-seed categories from the new single site
+      if (site_id) {
+        const siteWithCats = await siteRepo.findOne({
+          where: { site_id },
+          relations: ["categories"],
+        });
+        user.categories = siteWithCats?.categories || [];
+      } else {
+        user.categories = [];
+      }
     }
 
     await repo.save(user);

@@ -16,12 +16,12 @@ export const login = async (req: Request, res: Response) => {
   const emailLower = email.toLowerCase();
   //console.log("emailLower", emailLower)
   // Load user with both single site (for regular users) and multiple sites (for managers)
+  // Also load user.categories for per-user category access control
   const user = await userRepo.findOne({
     where: { email : emailLower },
-    relations: ["site", "site.company", "site.categories", "sites", "sites.company", "sites.categories"],
+    relations: ["site", "site.company", "site.categories", "sites", "sites.company", "sites.categories", "categories"],
   });
 
-  //console.log("user", user)
   if (!user) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
@@ -31,6 +31,25 @@ export const login = async (req: Request, res: Response) => {
   if (!valid) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
+
+  // Filter each site's categories to only include ones the user has access to.
+  // If user has no user_categories rows yet (legacy user), show all site categories.
+  const userCategories = user.categories || [];
+  if (userCategories.length > 0) {
+    const allowedIds = new Set(userCategories.map((c) => c.category_id));
+
+    if (user.sites?.length > 0) {
+      user.sites.forEach((site) => {
+        site.categories = (site.categories || []).filter((c) => allowedIds.has(c.category_id));
+      });
+    }
+    if (user.site?.categories) {
+      user.site.categories = user.site.categories.filter((c) => allowedIds.has(c.category_id));
+    }
+  }
+
+  // Remove raw categories array from response (frontend doesn't need it)
+  delete (user as any).categories;
 
   // For managers and users with multiple sites, use the first site from sites array for backward compatibility
   const primarySiteId =
