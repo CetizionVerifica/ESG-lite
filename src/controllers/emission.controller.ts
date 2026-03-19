@@ -11,6 +11,7 @@ import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
+import axios from "axios";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -2935,5 +2936,308 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   } catch (error) {
     console.error("Manager update emission error:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+type DistanceMode = "road" | "sea";
+
+interface DistanceLocationInput {
+  address?: string;
+  lat: number;
+  lng: number;
+  placeId?: string;
+}
+
+interface CalculateDistanceBody {
+  origin: DistanceLocationInput;
+  destination: DistanceLocationInput;
+  mode: DistanceMode;
+}
+
+const routeAPI = "https://routes.googleapis.com/directions/v2:computeRoutes";
+const geocodeAPI = "https://maps.googleapis.com/maps/api/geocode/json";
+
+function formatGoogleDuration(duration?: string | null): string | null {
+  if (!duration) return null;
+
+  // Google returns strings like "2200s"
+  const totalSeconds = parseInt(duration.replace("s", ""), 10);
+  if (Number.isNaN(totalSeconds)) return duration;
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.round((totalSeconds % 3600) / 60);
+
+  if (hours > 0 && minutes > 0) return `${hours} hr ${minutes} min`;
+  if (hours > 0) return `${hours} hr`;
+  return `${minutes} min`;
+}
+
+
+
+export const calculateDistance = async (req: AuthRequest, res: Response) => {
+  try {
+    const { origin, destination, mode } = req.body as CalculateDistanceBody;
+
+    if (!origin || !destination) {
+      return res.status(400).json({
+        message: "origin and destination are required",
+      });
+    }
+
+    if (
+      typeof origin.lat !== "number" ||
+      typeof origin.lng !== "number" ||
+      typeof destination.lat !== "number" ||
+      typeof destination.lng !== "number"
+    ) {
+      return res.status(400).json({
+        message:
+          "origin.lat, origin.lng, destination.lat, destination.lng must be numbers",
+      });
+    }
+
+    // Validate coordinate ranges
+    if (
+      origin.lat < -90 || origin.lat > 90 ||
+      destination.lat < -90 || destination.lat > 90 ||
+      origin.lng < -180 || origin.lng > 180 ||
+      destination.lng < -180 || destination.lng > 180
+    ) {
+      return res.status(400).json({
+        message: "Invalid coordinates: lat must be -90 to 90, lng must be -180 to 180",
+      });
+    }
+
+    if (mode !== "road" && mode !== "sea") {
+      return res.status(400).json({
+        message: "Only road and sea modes are supported in this endpoint",
+      });
+    }
+
+    if (mode === "sea") {
+      const seaRouteApiUrl = process.env.SEA_ROUTE_API_URL;
+
+      if (!seaRouteApiUrl) {
+        return res.status(500).json({
+          message: "SEA_ROUTE_API_URL is not configured",
+        });
+      }
+
+      const response = await axios.post(
+        `${seaRouteApiUrl}/v1/sea-route`,
+        {
+          origin: {
+            lat: origin.lat,
+            lng: origin.lng,
+            address: origin.address || null,
+          },
+          destination: {
+            lat: destination.lat,
+            lng: destination.lng,
+            address: destination.address || null,
+          },
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const data = response.data?.data;
+
+      if (!data || typeof data.distanceMeters !== "number") {
+        return res.status(400).json({
+          message: "Invalid sea route response returned by Python service",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          mode: "sea",
+          distanceMeters: data.distanceMeters,
+          duration: data.duration || null,
+          durationText: data.durationText || null,
+          encodedPolyline: null,
+          seaGeometry: data.seaGeometry || null,
+          origin: data.origin || origin.address || `${origin.lat},${origin.lng}`,
+          destination:
+            data.destination ||
+            destination.address ||
+            `${destination.lat},${destination.lng}`,
+        },
+      });
+    }
+
+    // road mode continues below exactly as before
+    const apiKey = process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_DISTANCE_MATRIX_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({
+        message: "GOOGLE_ROUTES_API_KEY is not configured",
+      });
+    }
+
+    const requestBody = {
+      origin: {
+        location: {
+          latLng: {
+            latitude: origin.lat,
+            longitude: origin.lng,
+          },
+        },
+      },
+      destination: {
+        location: {
+          latLng: {
+            latitude: destination.lat,
+            longitude: destination.lng,
+          },
+        },
+      },
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE",
+      polylineQuality: "OVERVIEW",
+    };
+
+    const response = await axios.post(routeAPI, requestBody, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask":
+          "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
+      },
+    });
+
+    const route = response.data?.routes?.[0];
+
+    if (!route) {
+      return res.status(400).json({
+        message: "No route returned by Google Routes API",
+      });
+    }
+
+    const distanceMeters = route.distanceMeters;
+    const rawDuration = route.duration || null;
+    const encodedPolyline = route.polyline?.encodedPolyline || null;
+
+    if (typeof distanceMeters !== "number") {
+      return res.status(400).json({
+        message: "Invalid distance returned by Google Routes API",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        mode: "road",
+        distanceMeters,
+        duration: rawDuration,
+        durationText: formatGoogleDuration(rawDuration),
+        encodedPolyline,
+        seaGeometry: null,
+        origin: origin.address || `${origin.lat},${origin.lng}`,
+        destination: destination.address || `${destination.lat},${destination.lng}`,
+      },
+    });
+  } catch (error: any) {
+    console.error("Calculate distance error:", error?.response?.data || error);
+
+    return res.status(500).json({
+      message:
+        error?.response?.data?.detail ||
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        "Failed to calculate route",
+    });
+  }
+};
+
+
+interface GeocodeLocationBody {
+  query: string;
+}
+
+export const geocodeLocation = async (req: AuthRequest, res: Response) => {
+  try {
+    const { query } = req.body as GeocodeLocationBody;
+
+
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res.status(400).json({
+        message: "query is required",
+      });
+    }
+
+    if (query.length > 500) {
+      return res.status(400).json({
+        message: "query must be 500 characters or less",
+      });
+    }
+
+    const apiKey =
+      process.env.GOOGLE_GEOCODING_API_KEY || process.env.GOOGLE_ROUTES_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({
+        message: "GOOGLE_GEOCODING_API_KEY is not configured",
+      });
+    }
+
+    // Clean pasted excel-style input a bit
+    const normalizedQuery = query
+      .replace(/\r?\n/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\s*,\s*/g, ", ")
+      .trim();
+
+    const response = await axios.get(
+      geocodeAPI,
+      {
+        params: {
+          address: normalizedQuery,
+          key: apiKey,
+        },
+      },
+    );
+
+    const data = response.data;
+
+    if (data.status !== "OK" || !data.results?.length) {
+      return res.status(404).json({
+        message: data.error_message || "Location not found",
+        googleStatus: data.status,
+      });
+    }
+
+    const best = data.results[0];
+    const location = best.geometry?.location;
+
+    if (!location) {
+      return res.status(404).json({
+        message: "Location coordinates not found",
+      });
+    }
+
+   
+    return res.status(200).json({
+      success: true,
+      data: {
+        display_name: best.formatted_address,
+        lat: location.lat,
+        lon: location.lng,
+        place_id: best.place_id || null,
+        raw_query: normalizedQuery,
+      },
+    });
+  } catch (error: any) {
+    console.error("Geocode location error:", error?.response?.data || error);
+
+    return res.status(500).json({
+      message:
+        error?.response?.data?.error_message ||
+        error?.message ||
+        "Failed to geocode location",
+    });
   }
 };
