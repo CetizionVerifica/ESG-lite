@@ -2994,16 +2994,28 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Validate coordinate ranges
+    if (
+      origin.lat < -90 || origin.lat > 90 ||
+      destination.lat < -90 || destination.lat > 90 ||
+      origin.lng < -180 || origin.lng > 180 ||
+      destination.lng < -180 || destination.lng > 180
+    ) {
+      return res.status(400).json({
+        message: "Invalid coordinates: lat must be -90 to 90, lng must be -180 to 180",
+      });
+    }
+
     if (mode !== "road") {
       return res.status(400).json({
         message: "Only road mode is supported in this endpoint",
       });
     }
 
-    const apiKey = process.env.GOOGLE_DISTANCE_MATRIX_API_KEY;
+    const apiKey = process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_DISTANCE_MATRIX_API_KEY;
     if (!apiKey) {
       return res.status(500).json({
-        message: "GOOGLE_DISTANCE_MATRIX_API_KEY is not configured",
+        message: "GOOGLE_ROUTES_API_KEY is not configured",
       });
     }
 
@@ -3060,8 +3072,6 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    //console.log("road distance", distanceMeters, "duration", rawDuration, "encodedPolyline", encodedPolyline, "origin", origin, "destination", destination);
-
     return res.status(200).json({
       success: true,
       data: {
@@ -3100,6 +3110,12 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
     if (!query || typeof query !== "string" || !query.trim()) {
       return res.status(400).json({
         message: "query is required",
+      });
+    }
+
+    if (query.length > 500) {
+      return res.status(400).json({
+        message: "query must be 500 characters or less",
       });
     }
 
