@@ -14,7 +14,7 @@ import { ColumnEntity } from "../entities/Column";
 import { Unit } from "../entities/Unit";
 import { In } from "typeorm";
 import { generateColumnConfigProposal } from "../services/columnConfigGenerator";
-import { getDefaultExtraFields } from "../utils/defaultExtraFields";
+import { getDefaultExtraFieldsByName } from "../utils/defaultExtraFields";
 
 const repo = AppDataSource.getRepository(ColumnConfig);
 const categoryRepo = AppDataSource.getRepository(Category);
@@ -199,7 +199,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
     const validatedEmissionCategoryMapping: EmissionCategoryMapping = emission_category_mapping && typeof emission_category_mapping === "object" ? emission_category_mapping : {};
     const validatedExtraFields: ExtraFieldDefinition[] = extra_fields && Array.isArray(extra_fields) && extra_fields.length > 0
       ? extra_fields
-      : getDefaultExtraFields(category_id);
+      : getDefaultExtraFieldsByName(category.category_name);
 
     const columnConfig = repo.create({
       config_name: config_name.trim(),
@@ -691,7 +691,7 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
       column_dependencies: column_dependencies || {},
       dependent_options: expandedDependentOptions || {},
       emission_category_mapping: emission_category_mapping || {},
-      extra_fields: getDefaultExtraFields(category_id),
+      extra_fields: getDefaultExtraFieldsByName(category.category_name),
     });
 
     await repo.save(columnConfig);
@@ -768,7 +768,7 @@ export const seedExtraFields = async (_req: Request, res: Response) => {
         continue;
       }
 
-      const defaults = getDefaultExtraFields(categoryId);
+      const defaults = getDefaultExtraFieldsByName(config.category.category_name);
       if (defaults.length === 0) {
         skipped++;
         continue;
