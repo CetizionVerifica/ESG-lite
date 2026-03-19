@@ -2268,7 +2268,7 @@ export const getGhgReportDetails = async (req: Request, res: Response) => {
 };
 
 
-type DistanceMode = "road";
+type DistanceMode = "road" | "sea";
 
 interface DistanceLocationInput {
   address?: string;
@@ -2301,6 +2301,8 @@ function formatGoogleDuration(duration?: string | null): string | null {
   return `${minutes} min`;
 }
 
+
+
 export const calculateDistance = async (req: AuthRequest, res: Response) => {
   try {
     const { origin, destination, mode } = req.body as CalculateDistanceBody;
@@ -2323,12 +2325,69 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (mode !== "road") {
+    if (mode !== "road" && mode !== "sea") {
       return res.status(400).json({
-        message: "Only road mode is supported in this endpoint",
+        message: "Only road and sea modes are supported in this endpoint",
       });
     }
 
+    if (mode === "sea") {
+      const seaRouteApiUrl = process.env.SEA_ROUTE_API_URL;
+
+      if (!seaRouteApiUrl) {
+        return res.status(500).json({
+          message: "SEA_ROUTE_API_URL is not configured",
+        });
+      }
+
+      const response = await axios.post(
+        `${seaRouteApiUrl}/v1/sea-route`,
+        {
+          origin: {
+            lat: origin.lat,
+            lng: origin.lng,
+            address: origin.address || null,
+          },
+          destination: {
+            lat: destination.lat,
+            lng: destination.lng,
+            address: destination.address || null,
+          },
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const data = response.data?.data;
+
+      if (!data || typeof data.distanceMeters !== "number") {
+        return res.status(400).json({
+          message: "Invalid sea route response returned by Python service",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          mode: "sea",
+          distanceMeters: data.distanceMeters,
+          duration: data.duration || null,
+          durationText: data.durationText || null,
+          encodedPolyline: null,
+          seaGeometry: data.seaGeometry || null,
+          origin: data.origin || origin.address || `${origin.lat},${origin.lng}`,
+          destination:
+            data.destination ||
+            destination.address ||
+            `${destination.lat},${destination.lng}`,
+        },
+      });
+    }
+
+    // road mode continues below exactly as before
     const apiKey = process.env.GOOGLE_DISTANCE_MATRIX_API_KEY;
     if (!apiKey) {
       return res.status(500).json({
@@ -2358,18 +2417,14 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
       polylineQuality: "OVERVIEW",
     };
 
-    const response = await axios.post(
-      routeAPI,
-      requestBody,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": apiKey,
-          "X-Goog-FieldMask":
-            "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
-        },
+    const response = await axios.post(routeAPI, requestBody, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask":
+          "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
       },
-    );
+    });
 
     const route = response.data?.routes?.[0];
 
@@ -2389,8 +2444,6 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    //console.log("road distance", distanceMeters, "duration", rawDuration, "encodedPolyline", encodedPolyline, "origin", origin, "destination", destination);
-
     return res.status(200).json({
       success: true,
       data: {
@@ -2399,6 +2452,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
         duration: rawDuration,
         durationText: formatGoogleDuration(rawDuration),
         encodedPolyline,
+        seaGeometry: null,
         origin: origin.address || `${origin.lat},${origin.lng}`,
         destination: destination.address || `${destination.lat},${destination.lng}`,
       },
@@ -2408,13 +2462,13 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
 
     return res.status(500).json({
       message:
+        error?.response?.data?.detail ||
         error?.response?.data?.error?.message ||
         error?.message ||
         "Failed to calculate route",
     });
   }
 };
-
 
 
 interface GeocodeLocationBody {
