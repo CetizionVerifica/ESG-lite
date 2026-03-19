@@ -71,6 +71,70 @@ export const createProductionData = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Bulk create production data entries
+export const bulkCreateProductionData = async (req: AuthRequest, res: Response) => {
+  try {
+    const { entries } = req.body;
+    const userId = req.user?.userId;
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ message: "entries array is required and must not be empty" });
+    }
+
+    const errors: { row: number; message: string }[] = [];
+    const toSave: ProductionData[] = [];
+
+    for (let i = 0; i < entries.length; i++) {
+      const { product_id, site_id, quantity, unit, start_date, end_date, notes } = entries[i];
+
+      if (!product_id || !site_id || !quantity || !unit || !start_date || !end_date) {
+        errors.push({ row: i + 1, message: "Missing required fields (product_id, site_id, quantity, unit, start_date, end_date)" });
+        continue;
+      }
+
+      if (new Date(start_date) > new Date(end_date)) {
+        errors.push({ row: i + 1, message: "start_date cannot be after end_date" });
+        continue;
+      }
+
+      const product = await productRepo.findOne({
+        where: { product_id, site: { site_id } },
+      });
+
+      if (!product) {
+        errors.push({ row: i + 1, message: "Product not found or does not belong to this site" });
+        continue;
+      }
+
+      const entry = repo.create({
+        product: { product_id },
+        site: { site_id },
+        quantity: parseFloat(quantity),
+        unit: unit.trim(),
+        start_date: new Date(start_date),
+        end_date: new Date(end_date),
+        notes: notes?.trim() || null,
+        created_by: userId ? { user_id: userId } : (null as any),
+      });
+
+      toSave.push(entry);
+    }
+
+    if (toSave.length > 0) {
+      await repo.save(toSave);
+    }
+
+    return res.status(201).json({
+      message: `${toSave.length} production data entries created successfully`,
+      created: toSave.length,
+      errors,
+    });
+  } catch (error) {
+    console.error("Bulk create production data error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // Get production data by site
 export const getProductionDataBySite = async (req: Request, res: Response) => {
   try {
