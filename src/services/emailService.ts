@@ -112,3 +112,20 @@ export const sendPasswordResetEmail = async (
         html,
     });
 };
+
+import { mg, MAILGUN_DOMAIN } from "../config/mailer";
+
+interface EmailPayload {
+    to: string;
+    subject: string;
+    html: string;
+}
+
+export const sendEmailForApprove = async ({ to, subject, html }: EmailPayload) => {
+    return mg.messages.create(MAILGUN_DOMAIN, {
+        from: `Your App <mail@${MAILGUN_DOMAIN}>`,
+        to: [to],
+        subject,
+        html,
+    });
+};
