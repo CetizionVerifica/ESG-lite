@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
+    "audit": "npm audit",
     "start": "node dist/index.js",
     "seed:superadmin": "ts-node src/seeds/seedSuperAdmin.ts",
     "seed:emissions": "ts-node src/seeds/seedEmissionsFromExcel.ts"
@@ -37,5 +38,6 @@
     "typeorm": "^0.3.28",
     "typescript": "^5.9.3",
     "xlsx": "^0.18.5"
-  }
+  },
+  "devDependencies": {}
 }
