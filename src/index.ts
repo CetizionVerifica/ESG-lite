@@ -3,12 +3,13 @@ import { AppDataSource } from "./config/data-source";
 import authRoutes from "./routes/auth.routes";
 import adminRoutes from "./routes/admin.routes";
 import userRoutes from "./routes/user.routes";
+import managerRoutes from "./routes/manager.routes";
 import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(
     cors({
         origin: process.env.CORS_ORIGIN,
@@ -19,6 +20,7 @@ app.use(
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
 app.use("/user", userRoutes);
+app.use("/manager", managerRoutes);
 
 let server: any;
 

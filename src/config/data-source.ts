@@ -14,6 +14,7 @@ import { Product } from "../entities/Product";
 import { ProductionData } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { EmissionCategoryMapping } from "../entities/EmissionCategoryMapping";
+import { AuditLog } from "../entities/AuditLog";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -37,6 +38,7 @@ const entities = [
     ProductionData,
     EmissionDocument,
     EmissionCategoryMapping,
+    AuditLog,
 ];
 
 // Parse DATABASE_URL to extract connection parameters

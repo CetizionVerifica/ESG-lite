@@ -6,6 +6,11 @@ import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { In } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
+import { EmissionDocument } from "../entities/EmissionDocument";
+import * as XLSX from "xlsx";
+import { AuditLog } from "../entities/AuditLog";
+import { User } from "../entities/User";
+import { UserRole } from "../types/type";
 import axios from "axios";
 
 const repo = AppDataSource.getRepository(Emission);
@@ -63,7 +68,7 @@ const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null 
 // Get emissions by site, category, and date (with optional pagination)
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { siteId, categoryId, date, year, month, page, limit } = req.query;
+    const { siteId, categoryId, date, year, month, page, limit, status } = req.query;
 
     const qb = repo
       .createQueryBuilder("emission")
@@ -78,6 +83,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     if (categoryId) {
       qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    }
+
+    if (status) {
+      qb.andWhere("emission.status = :status", { status: status as string });
     }
 
     if (date) {
@@ -121,6 +130,9 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       }
       if (categoryId) {
         summaryQb.andWhere("c.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+      }
+      if (status) {
+        summaryQb.andWhere("emission.status = :status", { status: status as string });
       }
       if (date) {
         const [y, m] = (date as string).split("-");
@@ -204,7 +216,7 @@ export const getEmissionsBySiteAndCategory = async (req: Request, res: Response)
 // Create a new emission entry
 export const createEmission = async (req: AuthRequest, res: Response) => {
   try {
-    const { site_id, category_id, activity_data, total_emission, unit, date_of_reporting, activity_data_unit } = req.body;
+    const { site_id, category_id, activity_data, total_emission, unit, date_of_reporting, activity_data_unit, extra_data } = req.body;
     const userId = req.user?.userId;
 
     if (!site_id || !category_id || !activity_data || !date_of_reporting) {
@@ -214,6 +226,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     }
 
     let calculatedEmission = total_emission || 0;
+    let matchedEmissionFactor: import("../entities/EmissionFactor").EmissionFactor | null = null;
 
     // Calculate total emission if emission_category is provided in activity_data
     if (activity_data.emission_category && activity_data_unit) {
@@ -269,6 +282,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       }
 
       if (emissionFactor) {
+        matchedEmissionFactor = emissionFactor;
         // Try to find the numeric value from activity_data
         let activityValue = 0;
 
@@ -362,11 +376,21 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       site: { site_id },
       category: { category_id },
       activity_data,
+      extra_data: extra_data || {},
       total_emission: calculatedEmission,
       unit: "tCO2e",
       date_of_reporting: new Date(date_of_reporting),
       activity_data_unit: activity_data_unit || null,
       created_by: userId ? { user_id: userId } as any : null,
+      emission_factor_snapshot: matchedEmissionFactor ? {
+        emission_factor_id: matchedEmissionFactor.emission_factor_id,
+        emission_category_name: matchedEmissionFactor.emission_category_name,
+        global_category_name: matchedEmissionFactor.global_category_name || undefined,
+        factor_value: matchedEmissionFactor.factor_value,
+        denominator_unit: matchedEmissionFactor.denominator_unit,
+        source: matchedEmissionFactor.source,
+        year: matchedEmissionFactor.year,
+      } : null,
     });
 
     await repo.save(emission);
@@ -419,6 +443,17 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
                 if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
               }
             }
+            // Look for any numeric value >= 100 (skip likely dropdown IDs)
+            if (feraActivityValue === 0) {
+              for (const [key, value] of Object.entries(activity_data)) {
+                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
+                if (value !== undefined && value !== '') {
+                  const numValue = parseFloat(value as string);
+                  if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
+                }
+              }
+            }
+            // Fallback: accept any positive number
             if (feraActivityValue === 0) {
               for (const [key, value] of Object.entries(activity_data)) {
                 if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
@@ -455,6 +490,15 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
                 activity_data_unit: activity_data_unit || null,
                 created_by: userId ? { user_id: userId } as any : null,
                 fera_linked_id: emission.pk_id,
+                emission_factor_snapshot: {
+                  emission_factor_id: feraFactor.emission_factor_id,
+                  emission_category_name: feraFactor.emission_category_name,
+                  global_category_name: feraFactor.global_category_name || undefined,
+                  factor_value: feraFactor.factor_value,
+                  denominator_unit: feraFactor.denominator_unit,
+                  source: feraFactor.source,
+                  year: feraFactor.year,
+                },
               });
               await repo.save(feraEmission);
 
@@ -500,7 +544,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 export const updateEmission = async (req: Request, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { activity_data, date_of_reporting } = req.body;
+    const { activity_data, activity_data_unit, date_of_reporting, extra_data } = req.body;
 
     const emission = await repo.findOne({
       where: { pk_id: parseInt(id) },
@@ -513,8 +557,18 @@ export const updateEmission = async (req: Request, res: Response) => {
       });
     }
 
+    // Block edits on approved entries
+    if (emission.status === EmissionStatus.APPROVED) {
+      return res.status(403).json({ message: "Cannot edit approved emission data" });
+    }
+
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
+
+      // Update unit if provided
+      if (activity_data_unit !== undefined) {
+        emission.activity_data_unit = activity_data_unit;
+      }
 
       // Reset status to pending when user edits the emission
       emission.status = EmissionStatus.PENDING;
@@ -578,6 +632,17 @@ const targetYear = reportingDate.getFullYear() - 1;
         }
 
         if (emissionFactor) {
+          // Update emission factor snapshot
+          emission.emission_factor_snapshot = {
+            emission_factor_id: emissionFactor.emission_factor_id,
+            emission_category_name: emissionFactor.emission_category_name,
+            global_category_name: emissionFactor.global_category_name || undefined,
+            factor_value: emissionFactor.factor_value,
+            denominator_unit: emissionFactor.denominator_unit,
+            source: emissionFactor.source,
+            year: emissionFactor.year,
+          } as any;
+
           // Find activity value from activity_data
           let activityValue = 0;
 
@@ -635,14 +700,27 @@ const targetYear = reportingDate.getFullYear() - 1;
               if (conversionFactor) {
                 const convertedValue = activityValue * conversionFactor;
                 emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+              } else {
+                return res.status(400).json({
+                  message: `Cannot convert unit "${emission.activity_data_unit}" to expected unit "${emissionFactor.denominator_unit}"`,
+                });
               }
             }
+          } else {
+            return res.status(400).json({
+              message: "No valid activity value found in the provided data",
+            });
           }
+        } else {
+          return res.status(400).json({
+            message: `No emission factor found for category "${activity_data.emission_category}"`,
+          });
         }
       }
     }
 
     if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
+    if (extra_data !== undefined) emission.extra_data = extra_data;
 
     await repo.save(emission);
 
@@ -687,6 +765,14 @@ export const deleteEmission = async (req: Request, res: Response) => {
       idsToDelete.push(linkedBack.pk_id);
     }
 
+    // Delete related documents first (in case DB cascade is not set)
+    const docRepo = AppDataSource.getRepository(EmissionDocument);
+    await docRepo
+      .createQueryBuilder()
+      .delete()
+      .where("emission_id IN (:...ids)", { ids: idsToDelete })
+      .execute();
+
     await repo.delete(idsToDelete);
 
     return res.status(200).json({
@@ -712,16 +798,72 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await repo.delete(ids);
+    const numericIds = ids.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+    if (numericIds.length === 0) {
+      return res.status(400).json({ message: "No valid IDs provided" });
+    }
+
+    // Helper to chunk arrays for queries (Postgres max ~32K params)
+    const CHUNK_SIZE = 5000;
+    const chunk = <T>(arr: T[], size: number): T[][] => {
+      const chunks: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) {
+        chunks.push(arr.slice(i, i + size));
+      }
+      return chunks;
+    };
+
+    // Collect FERA-linked emissions (bi-directional) in chunks
+    const allIds = new Set(numericIds);
+
+    for (const batch of chunk(numericIds, CHUNK_SIZE)) {
+      const emissions = await repo.find({
+        where: { pk_id: In(batch) },
+        select: ["pk_id", "fera_linked_id"],
+      });
+      for (const e of emissions) {
+        if (e.fera_linked_id) allIds.add(e.fera_linked_id);
+      }
+
+      const reverseLinked = await repo.find({
+        where: { fera_linked_id: In(batch) },
+        select: ["pk_id"],
+      });
+      for (const e of reverseLinked) {
+        allIds.add(e.pk_id);
+      }
+    }
+
+    const idsArray = Array.from(allIds);
+    let totalDeleted = 0;
+
+    // Delete in chunks within a transaction
+    await AppDataSource.transaction(async (manager) => {
+      const docRepo = manager.getRepository(EmissionDocument);
+      const emRepo = manager.getRepository(Emission);
+
+      for (const batch of chunk(idsArray, CHUNK_SIZE)) {
+        // Delete related documents first
+        await docRepo
+          .createQueryBuilder()
+          .delete()
+          .where("emission_id IN (:...ids)", { ids: batch })
+          .execute();
+
+        const result = await emRepo.delete(batch);
+        totalDeleted += result.affected || 0;
+      }
+    });
 
     return res.status(200).json({
-      message: `Successfully deleted ${result.affected} emission(s)`,
-      deleted: result.affected,
+      message: `Successfully deleted ${totalDeleted} emission(s)`,
+      deleted: totalDeleted,
+      deleted_ids: idsArray,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Bulk delete emissions error:", error);
     return res.status(500).json({
-      message: "Internal server error",
+      message: error?.message || "Internal server error",
     });
   }
 };
@@ -735,11 +877,15 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
       .createQueryBuilder("e")
       .select("e.upload_batch_id", "upload_batch_id")
       .addSelect("COUNT(*)::int", "count")
+      .addSelect("SUM(CASE WHEN e.status = 'pending' THEN 1 ELSE 0 END)::int", "pending_count")
+      .addSelect("SUM(CASE WHEN e.status = 'approved' THEN 1 ELSE 0 END)::int", "approved_count")
+      .addSelect("SUM(CASE WHEN e.status = 'rejected' THEN 1 ELSE 0 END)::int", "rejected_count")
       .addSelect("MIN(e.created_at)", "uploaded_at")
       .addSelect("e.site_id", "site_id")
       .addSelect("site.name", "site_name")
       .addSelect("e.category_id", "category_id")
       .addSelect("category.category_name", "category_name")
+      .addSelect(`(SELECT u.name FROM "user" u WHERE u.user_id = MIN(e.created_by) LIMIT 1)`, "uploaded_by")
       .innerJoin("e.site", "site")
       .innerJoin("e.category", "category")
       .where("e.upload_batch_id IS NOT NULL")
@@ -765,12 +911,214 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
   }
 };
 
+// Approve all pending emissions for a given upload batch
+export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) => {
+  try {
+    const batchId = req.params.batchId as string;
+    const userId = req.user?.userId;
+    const { comment } = req.body || {};
+
+    if (!batchId) {
+      return res.status(400).json({ message: "batchId is required" });
+    }
+
+    const result = await repo.update(
+      { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+      {
+        status: EmissionStatus.APPROVED,
+        review_comment: comment || null,
+        reviewed_by: userId ? { user_id: userId } as any : null,
+        reviewed_at: new Date(),
+      }
+    );
+
+    if (result.affected === 0) {
+      return res.status(404).json({
+        message: "No pending emissions found for this batch",
+      });
+    }
+
+    return res.status(200).json({
+      message: `Approved ${result.affected} emission(s) from batch`,
+      approved: result.affected,
+    });
+  } catch (error) {
+    console.error("Approve emissions by batch error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Reject all emissions for a given upload batch (including approved)
+export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) => {
+  try {
+    const batchId = req.params.batchId as string;
+    const userId = req.user?.userId;
+    const { comment } = req.body || {};
+
+    if (!batchId) {
+      return res.status(400).json({ message: "batchId is required" });
+    }
+
+    // Reject all non-rejected emissions in the batch (pending + approved)
+    const result = await repo
+      .createQueryBuilder()
+      .update(Emission)
+      .set({
+        status: EmissionStatus.REJECTED,
+        review_comment: comment || null,
+        reviewed_by: userId ? { user_id: userId } as any : null,
+        reviewed_at: new Date(),
+      })
+      .where("upload_batch_id = :batchId", { batchId })
+      .andWhere("status != :rejected", { rejected: EmissionStatus.REJECTED })
+      .execute();
+
+    if (result.affected === 0) {
+      return res.status(404).json({
+        message: "No emissions to reject in this batch",
+      });
+    }
+
+    return res.status(200).json({
+      message: `Rejected ${result.affected} emission(s) from batch`,
+      rejected: result.affected,
+    });
+  } catch (error) {
+    console.error("Reject emissions by batch error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get matched emission factor details for a given emission
+// Priority: 1) stored snapshot (always accurate), 2) live DB lookup (fallback for old records)
+export const getEmissionFactorForEmission = async (req: Request, res: Response) => {
+  try {
+    const emissionId = parseInt(req.params.id as string);
+    if (isNaN(emissionId)) {
+      return res.status(400).json({ message: "Valid emission id is required" });
+    }
+
+    const emission = await repo.findOne({
+      where: { pk_id: emissionId },
+      relations: ["site", "category"],
+    });
+
+    if (!emission) {
+      return res.status(404).json({ message: "Emission not found" });
+    }
+
+    // 1) Prefer snapshot — it was captured at creation time and is always accurate
+    if (emission.emission_factor_snapshot) {
+      return res.status(200).json({
+        emission_factor: emission.emission_factor_snapshot,
+        source: "snapshot",
+      });
+    }
+
+    // 2) Fallback: live lookup for emissions created before snapshots were introduced
+    const siteId = emission.site.site_id;
+    const categoryId = emission.category.category_id;
+    const emissionCategory = emission.activity_data?.emission_category;
+
+    if (!emissionCategory) {
+      return res.status(200).json({ emission_factor: null, message: "No emission category on this record" });
+    }
+
+    // Calculate target year (same logic as createEmission)
+    const reportingYearStr = typeof emission.date_of_reporting === "string"
+      ? (emission.date_of_reporting as string).substring(0, 4)
+      : new Date(emission.date_of_reporting).getFullYear().toString();
+    const targetYear = parseInt(reportingYearStr) - 1;
+
+    // 4-fallback lookup: exact name+year → global name+year → exact name any year → global name any year
+    let emissionFactor = await emissionFactorRepo.findOne({
+      where: { site: { site_id: siteId }, category: { category_id: categoryId }, emission_category_name: emissionCategory, year: targetYear },
+    });
+    if (!emissionFactor) {
+      emissionFactor = await emissionFactorRepo.findOne({
+        where: { site: { site_id: siteId }, category: { category_id: categoryId }, global_category_name: emissionCategory, year: targetYear },
+      });
+    }
+    if (!emissionFactor) {
+      emissionFactor = await emissionFactorRepo.findOne({
+        where: { site: { site_id: siteId }, category: { category_id: categoryId }, emission_category_name: emissionCategory },
+      });
+    }
+    if (!emissionFactor) {
+      emissionFactor = await emissionFactorRepo.findOne({
+        where: { site: { site_id: siteId }, category: { category_id: categoryId }, global_category_name: emissionCategory },
+      });
+    }
+
+    // 5th fallback: case-insensitive ILIKE search
+    if (!emissionFactor) {
+      emissionFactor = await emissionFactorRepo
+        .createQueryBuilder("ef")
+        .where("ef.site_id = :siteId", { siteId })
+        .andWhere("ef.category_id = :categoryId", { categoryId })
+        .andWhere("LOWER(ef.emission_category_name) = LOWER(:name)", { name: emissionCategory })
+        .orderBy("ABS(ef.year - :targetYear)", "ASC")
+        .setParameter("targetYear", targetYear)
+        .getOne();
+    }
+
+    if (!emissionFactor) {
+      return res.status(200).json({ emission_factor: null, message: "No matching emission factor found" });
+    }
+
+    const factorData = {
+      emission_factor_id: emissionFactor.emission_factor_id,
+      emission_category_name: emissionFactor.emission_category_name,
+      global_category_name: emissionFactor.global_category_name,
+      factor_value: emissionFactor.factor_value,
+      denominator_unit: emissionFactor.denominator_unit,
+      source: emissionFactor.source,
+      year: emissionFactor.year,
+    };
+
+    // Backfill: save snapshot on older records so future lookups are instant
+    await repo.update(emissionId, { emission_factor_snapshot: factorData });
+
+    return res.status(200).json({
+      emission_factor: factorData,
+      source: "lookup",
+    });
+  } catch (error) {
+    console.error("Get emission factor for emission error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // Delete all emissions for a given upload batch
 export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
   try {
     const batchId = req.params.batchId as string;
     if (!batchId) {
       return res.status(400).json({ message: "batchId is required" });
+    }
+
+    // Get all emission IDs in this batch
+    const batchEmissions = await repo.find({
+      where: { upload_batch_id: batchId },
+      select: ["pk_id"],
+    });
+
+    if (batchEmissions.length === 0) {
+      return res.status(404).json({ message: "No emissions found for this batch" });
+    }
+
+    const idsToDelete = batchEmissions.map((e) => e.pk_id);
+
+    // Delete related documents first (in case DB cascade is not set)
+    const docRepo = AppDataSource.getRepository(EmissionDocument);
+    const CHUNK_SIZE = 5000;
+    for (let i = 0; i < idsToDelete.length; i += CHUNK_SIZE) {
+      const chunk = idsToDelete.slice(i, i + CHUNK_SIZE);
+      await docRepo
+        .createQueryBuilder()
+        .delete()
+        .where("emission_id IN (:...ids)", { ids: chunk })
+        .execute();
     }
 
     const result = await repo.delete({ upload_batch_id: batchId });
@@ -2266,6 +2614,332 @@ export const getGhgReportDetails = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// Download emissions as Excel with emission factor details
+export const downloadEmissions = async (req: AuthRequest, res: Response) => {
+  try {
+    const { siteId, categoryId, date, year, month } = req.query;
+
+    if (!siteId) {
+      return res.status(400).json({ message: "siteId is required" });
+    }
+
+    const qb = repo
+      .createQueryBuilder("emission")
+      .leftJoinAndSelect("emission.site", "site")
+      .leftJoinAndSelect("emission.category", "category")
+      .leftJoinAndSelect("emission.created_by", "created_by")
+      .where("site.site_id = :siteId", { siteId: parseInt(siteId as string) });
+
+    if (categoryId) {
+      qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    }
+
+    if (date) {
+      const [y, m] = (date as string).split("-");
+      const startDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+      const endDate = new Date(parseInt(y), parseInt(m), 0);
+      qb.andWhere("emission.date_of_reporting >= :startDate", { startDate });
+      qb.andWhere("emission.date_of_reporting <= :endDate", { endDate });
+    } else {
+      if (year) {
+        qb.andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", { year: parseInt(year as string) });
+      }
+      if (month) {
+        qb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", { month: parseInt(month as string) });
+      }
+    }
+
+    qb.orderBy("emission.pk_id", "DESC");
+
+    const emissions = await qb.getMany();
+
+    // Collect all unique keys from activity_data and extra_data across all emissions
+    const activityDataKeys = new Set<string>();
+    const extraDataKeys = new Set<string>();
+
+    for (const em of emissions) {
+      if (em.activity_data && typeof em.activity_data === "object") {
+        Object.keys(em.activity_data).forEach((k) => activityDataKeys.add(k));
+      }
+      if (em.extra_data && typeof em.extra_data === "object") {
+        Object.keys(em.extra_data).forEach((k) => extraDataKeys.add(k));
+      }
+    }
+
+    // Remove emission_category from activity_data keys (it gets its own column)
+    activityDataKeys.delete("emission_category");
+
+    // For each emission, look up the matching emission factor
+    const emissionFactorCache = new Map<string, EmissionFactor | null>();
+
+    const getFactorForEmission = async (em: Emission): Promise<{ factor_value: number; denominator_unit: string; source: string; year: number } | null> => {
+      // Prefer stored snapshot (always accurate, fast)
+      if (em.emission_factor_snapshot) {
+        return em.emission_factor_snapshot;
+      }
+
+      const emCategory = em.activity_data?.emission_category;
+      if (!emCategory) return null;
+
+      const cacheKey = `${em.site.site_id}-${em.category.category_id}-${emCategory}`;
+      if (emissionFactorCache.has(cacheKey)) return emissionFactorCache.get(cacheKey)!;
+
+      let factor = await emissionFactorRepo.findOne({
+        where: {
+          site: { site_id: em.site.site_id },
+          category: { category_id: em.category.category_id },
+          emission_category_name: emCategory,
+        },
+      });
+
+      if (!factor) {
+        factor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id: em.site.site_id },
+            category: { category_id: em.category.category_id },
+            global_category_name: emCategory,
+          },
+        });
+      }
+
+      emissionFactorCache.set(cacheKey, factor);
+      return factor;
+    };
+
+    // Build flat rows
+    const rows: Record<string, any>[] = [];
+
+    for (const em of emissions) {
+      const factor = await getFactorForEmission(em);
+      const row: Record<string, any> = {};
+
+      row["Date of Reporting"] = em.date_of_reporting;
+      row["Site"] = em.site?.name || "";
+      row["Category"] = em.category?.category_name || "";
+      row["Emission Category"] = em.activity_data?.emission_category || "";
+
+      // Flatten activity_data columns
+      for (const key of activityDataKeys) {
+        const colTitle = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        row[colTitle] = em.activity_data?.[key] ?? "";
+      }
+
+      row["Activity Data Unit"] = em.activity_data_unit || "";
+
+      // Flatten extra_data columns
+      for (const key of extraDataKeys) {
+        const colTitle = `[Extra] ${key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}`;
+        row[colTitle] = em.extra_data?.[key] ?? "";
+      }
+
+      row["Total Emission (tCO2e)"] = em.total_emission;
+      row["Status"] = em.status;
+
+      // Emission factor details
+      row["EF Value"] = factor?.factor_value ?? "";
+      row["EF Unit"] = factor?.denominator_unit ?? "";
+      row["EF Source"] = factor?.source ?? "";
+      row["EF Year"] = factor?.year ?? "";
+
+      row["Created By"] = em.created_by?.name || em.created_by?.email || "";
+      row["Created At"] = em.created_at;
+
+      rows.push(row);
+    }
+
+    // Build Excel workbook
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Emissions");
+
+    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=emissions_export.xlsx");
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Download emissions error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Manager edit emission (with audit trail, allows editing approved entries)
+export const managerUpdateEmission = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id }: any = req.params;
+    const userId = req.user?.userId;
+    const { activity_data, date_of_reporting } = req.body;
+
+    // Verify the user is a manager
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { user_id: userId } });
+    if (!user || user.role !== UserRole.MANAGER) {
+      return res.status(403).json({ message: "Only managers can use this endpoint" });
+    }
+
+    const emission = await repo.findOne({
+      where: { pk_id: parseInt(id) },
+      relations: ["site", "category"],
+    });
+
+    if (!emission) {
+      return res.status(404).json({ message: "Emission not found" });
+    }
+
+    // Capture changes for audit trail
+    const changedFields: Record<string, { old: any; new: any }> = {};
+    if (activity_data !== undefined) {
+      changedFields.activity_data = { old: emission.activity_data, new: activity_data };
+    }
+    if (date_of_reporting !== undefined) {
+      changedFields.date_of_reporting = { old: emission.date_of_reporting, new: date_of_reporting };
+    }
+
+    if (Object.keys(changedFields).length === 0) {
+      return res.status(200).json({ message: "No changes detected", emission });
+    }
+
+    // Apply changes (do NOT change approval status)
+    if (activity_data !== undefined) {
+      emission.activity_data = activity_data;
+
+      // Recalculate total emission if activity_data has emission_category
+      if (activity_data.emission_category && emission.activity_data_unit) {
+        const reportingDate = emission.date_of_reporting instanceof Date
+          ? emission.date_of_reporting
+          : new Date(emission.date_of_reporting);
+        const targetYear = reportingDate.getFullYear() - 1;
+
+        let emissionFactor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id: emission.site.site_id },
+            category: { category_id: emission.category.category_id },
+            emission_category_name: activity_data.emission_category,
+            year: targetYear,
+          },
+        });
+
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              global_category_name: activity_data.emission_category,
+              year: targetYear,
+            },
+          });
+        }
+
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              emission_category_name: activity_data.emission_category,
+            },
+          });
+        }
+
+        if (!emissionFactor) {
+          emissionFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: emission.category.category_id },
+              global_category_name: activity_data.emission_category,
+            },
+          });
+        }
+
+        if (emissionFactor) {
+          const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
+          const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
+          let activityValue = 0;
+
+          for (const field of commonFields) {
+            const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
+            if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
+              activityValue = parseFloat(activity_data[matchingKey]);
+              if (!isNaN(activityValue) && activityValue > 0) break;
+            }
+          }
+
+          // Tier 2: try numeric fields >= 100 (skip likely dropdown IDs)
+          if (activityValue === 0) {
+            for (const [key, value] of Object.entries(activity_data)) {
+              const keyLower = key.toLowerCase();
+              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
+              if (value !== undefined && value !== '') {
+                const numValue = parseFloat(value as string);
+                if (!isNaN(numValue) && numValue >= 100) {
+                  activityValue = numValue;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Tier 3: any positive number as last resort
+          if (activityValue === 0) {
+            for (const [key, value] of Object.entries(activity_data)) {
+              const keyLower = key.toLowerCase();
+              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
+              if (value !== undefined && value !== '') {
+                const numValue = parseFloat(value as string);
+                if (!isNaN(numValue) && numValue > 0) {
+                  activityValue = numValue;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (activityValue > 0) {
+            const unitsMatch = unitsMatchExact(emissionFactor.denominator_unit, emission.activity_data_unit);
+            if (unitsMatch) {
+              emission.total_emission = Math.round((activityValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+            } else {
+              const conversionFactor = getConversionFactor(emission.activity_data_unit, emissionFactor.denominator_unit);
+              if (conversionFactor) {
+                const convertedValue = activityValue * conversionFactor;
+                emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+              } else {
+                return res.status(400).json({
+                  message: `Cannot convert unit "${emission.activity_data_unit}" to expected unit "${emissionFactor.denominator_unit}"`,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
+
+    await repo.save(emission);
+
+    // Write audit log
+    const auditRepo = AppDataSource.getRepository(AuditLog);
+    const auditEntry = auditRepo.create({
+      entity_type: "emission",
+      entity_id: emission.pk_id,
+      action: "manager_edit",
+      changed_fields: changedFields,
+      changed_by: { user_id: userId } as any,
+    });
+    await auditRepo.save(auditEntry);
+
+    return res.status(200).json({
+      message: "Emission updated by manager",
+      emission,
+    });
+  } catch (error) {
+    console.error("Manager update emission error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
 
 
 type DistanceMode = "road" | "sea";
