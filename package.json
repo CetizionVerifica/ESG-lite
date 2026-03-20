@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
+    "audit": "npm audit",
     "start": "node dist/index.js",
     "seed:superadmin": "ts-node src/seeds/seedSuperAdmin.ts",
     "seed:emissions": "ts-node src/seeds/seedEmissionsFromExcel.ts"
@@ -22,13 +23,16 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^25.0.10",
     "@types/nodemailer": "^7.0.9",
+    "amqplib": "^0.10.9",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "form-data": "^4.0.5",
     "jsonwebtoken": "^9.0.3",
+    "mailgun.js": "^12.7.1",
     "multer": "^2.0.2",
     "nodemailer": "^6.9.16",
     "pg": "^8.17.2",
@@ -37,5 +41,8 @@
     "typeorm": "^0.3.28",
     "typescript": "^5.9.3",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.8"
   }
 }

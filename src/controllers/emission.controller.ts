@@ -12,6 +12,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
+import { sendToQueue } from "../queues/emailProducer";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -1196,14 +1197,25 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-    const updatedEmission = await repo.findOne({
-      where: { pk_id: emission.pk_id },
-      relations: ["site", "category", "reviewed_by", "created_by"],
-    });
+ const fullEmission = await repo.findOne({
+    where: { pk_id: emission.pk_id },
+    relations: ["created_by"],
+});
 
+if (fullEmission?.created_by?.email) {
+ 
+    await sendToQueue({
+        type: "APPROVED",
+        email: fullEmission.created_by.email,
+        name: fullEmission.created_by.name || "User",
+        retryCount: 0,
+    });
+}
+ 
+     
     return res.status(200).json({
       message: "Emission approved successfully",
-      emission: updatedEmission,
+      emission: fullEmission,
     });
   } catch (error) {
     console.error("Approve emission error:", error);
@@ -1250,14 +1262,22 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-    const updatedEmission = await repo.findOne({
-      where: { pk_id: emission.pk_id },
-      relations: ["site", "category", "reviewed_by", "created_by"],
-    });
+  const fullEmission = await repo.findOne({
+    where: { pk_id: emission.pk_id },
+    relations: ["created_by"],
+});
 
+if (fullEmission?.created_by?.email) {
+    await sendToQueue({
+        type: "REJECTED",
+        email: fullEmission.created_by.email,
+        name: fullEmission.created_by.name || "User",
+        retryCount: 0,
+    });
+}
     return res.status(200).json({
       message: "Emission rejected",
-      emission: updatedEmission,
+      emission: fullEmission,
     });
   } catch (error) {
     console.error("Reject emission error:", error);
