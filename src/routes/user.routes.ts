@@ -36,6 +36,7 @@ import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
 import { getProductsBySite } from "../controllers/product.controller";
 import {
   createProductionData,
+  bulkCreateProductionData,
   getProductionDataBySite,
   updateProductionData,
   deleteProductionData,
@@ -120,6 +121,7 @@ router.get("/products/site/:siteId", getProductsBySite);
 router.get("/production-data/site/:siteId", getProductionDataBySite);
 router.get("/production-data/manager", getProductionDataForManager);
 router.post("/production-data", createProductionData);
+router.post("/production-data/bulk-create", bulkCreateProductionData);
 
 // Bulk routes must come BEFORE :id routes
 router.put("/production-data/bulk-approve", bulkApproveProductionData);
@@ -158,6 +160,9 @@ router.post("/targets/tables",getNearTermTargetTables)
 router.post("/targets/long-term-chart",getLongTermTargetChart)
 router.post("/emissions/calculate-distance", calculateDistance);
 router.post("/emissions/geocode-location", geocodeLocation);
+
+// Audit trail
+router.get("/audit-logs", getAuditLogs);
 
 // Audit trail
 router.get("/audit-logs", getAuditLogs);
