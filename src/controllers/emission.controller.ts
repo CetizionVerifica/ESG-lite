@@ -1166,7 +1166,8 @@ export const getPendingEmissions = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Approve an emission entry
+
+
 export const approveEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
@@ -1197,22 +1198,22 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
- const fullEmission = await repo.findOne({
-    where: { pk_id: emission.pk_id },
-    relations: ["created_by"],
-});
+    const fullEmission = await repo.findOne({
+      where: { pk_id: emission.pk_id },
+      relations: ["created_by", "site", "category"],
+    });
 
-if (fullEmission?.created_by?.email) {
- 
-    await sendToQueue({
+    if (fullEmission?.created_by?.email) {
+      await sendToQueue({
         type: "APPROVED",
         email: fullEmission.created_by.email,
         name: fullEmission.created_by.name || "User",
         retryCount: 0,
-    });
-}
- 
-     
+        categoryName: (fullEmission.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission.site as any)?.site_name || "",
+      });
+    }
+
     return res.status(200).json({
       message: "Emission approved successfully",
       emission: fullEmission,
@@ -1225,7 +1226,8 @@ if (fullEmission?.created_by?.email) {
   }
 };
 
-// Reject an emission entry
+
+
 export const rejectEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
@@ -1262,19 +1264,23 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-  const fullEmission = await repo.findOne({
-    where: { pk_id: emission.pk_id },
-    relations: ["created_by"],
-});
+    const fullEmission = await repo.findOne({
+      where: { pk_id: emission.pk_id },
+      relations: ["created_by", "site", "category"],
+    });
 
-if (fullEmission?.created_by?.email) {
-    await sendToQueue({
+    if (fullEmission?.created_by?.email) {
+      await sendToQueue({
         type: "REJECTED",
         email: fullEmission.created_by.email,
         name: fullEmission.created_by.name || "User",
         retryCount: 0,
-    });
-}
+        categoryName: (fullEmission.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission.site as any)?.site_name || "",
+        comment: fullEmission.review_comment || "",
+      });
+    }
+
     return res.status(200).json({
       message: "Emission rejected",
       emission: fullEmission,
@@ -1299,8 +1305,25 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
+     const emissionsToApprove = await repo.find({
+      where: {
+        pk_id: In(ids),
+        status: EmissionStatus.PENDING,
+      },
+      relations: ["created_by", "category"],
+    });
+
+    if (emissionsToApprove.length === 0) {
+      return res.status(400).json({
+        message: "No pending emissions found to approve",
+      });
+    }
+
+
+    const eligibleIds = emissionsToApprove.map((e) => e.pk_id);
+
     await repo.update(
-      { pk_id: In(ids), status: EmissionStatus.PENDING },
+      { pk_id: In(eligibleIds), status: EmissionStatus.PENDING },
       {
         status: EmissionStatus.APPROVED,
         review_comment: comment || null,
@@ -1309,8 +1332,60 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    const groupedByUser: Record<
+      string,
+      {
+        email: string;
+        name: string;
+        totalCount: number;
+        categories: Record<string, number>;
+      }
+    > = {};
+
+    for (const emission of emissionsToApprove) {
+      const creator = emission.created_by;
+
+      if (!creator?.email) continue;
+
+      const userKey = String(creator.user_id);
+        if (!groupedByUser[userKey]) {
+        groupedByUser[userKey] = {
+          email: creator.email,
+          name: creator.name || "User",
+          totalCount: 0,
+          categories: {},
+        };
+      }
+
+      groupedByUser[userKey].totalCount += 1;
+      //const categoryName = (emission.category as any)?.name || "Uncategorized";
+
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+
+      groupedByUser[userKey].categories[categoryName] =
+        (groupedByUser[userKey].categories[categoryName] || 0) + 1;
+    }
+     for (const userData of Object.values(groupedByUser)) {
+      const categories = Object.entries(userData.categories).map(
+        ([categoryName, count]) => ({
+          categoryName,
+          count,
+        })
+      );
+
+      await sendToQueue({
+        type: "BULK_APPROVED",
+        email: userData.email,
+        name: userData.name,
+        retryCount: 0,
+        totalCount: userData.totalCount,
+        categories,
+      });
+    }
+
+
     return res.status(200).json({
-      message: `${ids.length} emissions approved successfully`,
+      message: `${eligibleIds.length} emissions approved successfully`,
     });
   } catch (error) {
     console.error("Bulk approve emissions error:", error);
@@ -1320,7 +1395,7 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Bulk reject emissions
+
 export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { ids, comment } = req.body;
@@ -1338,8 +1413,24 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const emissionsToReject = await repo.find({
+      where: {
+        pk_id: In(ids),
+        status: EmissionStatus.PENDING,
+      },
+      relations: ["created_by", "category"],
+    });
+
+    if (emissionsToReject.length === 0) {
+      return res.status(400).json({
+        message: "No pending emissions found to reject",
+      });
+    }
+
+    const eligibleIds = emissionsToReject.map((e) => e.pk_id);
+
     await repo.update(
-      { pk_id: In(ids), status: EmissionStatus.PENDING },
+      { pk_id: In(eligibleIds), status: EmissionStatus.PENDING },
       {
         status: EmissionStatus.REJECTED,
         review_comment: comment,
@@ -1348,8 +1439,62 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    const groupedByUser: Record<
+      string,
+      {
+        email: string;
+        name: string;
+        totalCount: number;
+        categories: Record<string, number>;
+      }
+    > = {};
+
+    for (const emission of emissionsToReject) {
+      const creator = emission.created_by;
+
+      if (!creator?.email) continue;
+
+      const userKey = String(creator.user_id);
+
+      if (!groupedByUser[userKey]) {
+        groupedByUser[userKey] = {
+          email: creator.email,
+          name: creator.name || "User",
+          totalCount: 0,
+          categories: {},
+        };
+      }
+
+      groupedByUser[userKey].totalCount += 1;
+
+      const categoryName =
+        (emission.category as any)?.category_name || "Uncategorized";
+
+      groupedByUser[userKey].categories[categoryName] =
+        (groupedByUser[userKey].categories[categoryName] || 0) + 1;
+    }
+
+    for (const userData of Object.values(groupedByUser)) {
+      const categories = Object.entries(userData.categories).map(
+        ([categoryName, count]) => ({
+          categoryName,
+          count,
+        })
+      );
+
+      await sendToQueue({
+        type: "BULK_REJECTED",
+        email: userData.email,
+        name: userData.name,
+        retryCount: 0,
+        totalCount: userData.totalCount,
+        categories,
+        comment,
+      });
+    }
+
     return res.status(200).json({
-      message: `${ids.length} emissions rejected`,
+      message: `${eligibleIds.length} emissions rejected successfully`,
     });
   } catch (error) {
     console.error("Bulk reject emissions error:", error);

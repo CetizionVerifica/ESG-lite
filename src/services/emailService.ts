@@ -1,32 +1,9 @@
-import nodemailer from "nodemailer";
+// import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { mg, MAILGUN_DOMAIN } from "../config/mailer";
 
 dotenv.config();
 
-// Create a single reusable transporter (connection pooling)
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-    },
-    pool: true, // Use pooled connections
-    maxConnections: 5, // Max simultaneous connections
-    maxMessages: 100, // Max messages per connection
-    rateDelta: 1000, // Time between rate limit measurements
-    rateLimit: 5, // Max messages per rateDelta
-});
-
-// Verify transporter on startup
-transporter.verify((error) => {
-    if (error) {
-        console.error("❌ SMTP configuration error:", error);
-    } else {
-        console.log("✅ SMTP server ready");
-    }
-});
 
 interface EmailOptions {
     to: string;
@@ -35,24 +12,20 @@ interface EmailOptions {
     text?: string;
 }
 
-export const sendEmail = async (options: EmailOptions): Promise<void> => {
-    const mailOptions = {
-        from:
-            process.env.SMTP_FROM ||
-            `"Emission Tracker" <${process.env.SMTP_USER}>`,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text || options.html.replace(/<[^>]*>/g, ""), // Strip HTML for plain text
-    };
 
+export const sendEmail = async (options: EmailOptions): Promise<void> => {
     try {
-        await transporter.sendMail(mailOptions);
+        await sendEmailForApprove({
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+        });
     } catch (error) {
         console.error("Error sending email:", error);
         throw new Error("Failed to send email");
     }
 };
+
 
 export const sendPasswordResetEmail = async (
     email: string,
@@ -113,7 +86,7 @@ export const sendPasswordResetEmail = async (
     });
 };
 
-import { mg, MAILGUN_DOMAIN } from "../config/mailer";
+
 
 interface EmailPayload {
     to: string;
