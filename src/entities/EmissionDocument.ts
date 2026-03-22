@@ -58,7 +58,7 @@ export class EmissionDocument {
   @JoinColumn({ name: "emission_id" })
   emission!: Emission;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: "SET NULL" })
   @JoinColumn({ name: "uploaded_by" })
   uploaded_by!: User;
 

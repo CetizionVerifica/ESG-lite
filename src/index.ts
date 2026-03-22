@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
 import { startEmailConsumer } from "./workers/emailConsumer";
 import { startDLQConsumer } from "./config/dlqConsumer";
+import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 dotenv.config();
 
 const app = express();
@@ -65,7 +66,8 @@ connectWithRetry()
     .then(async() => {
            await connectRabbitMQ();   // 🔥 REQUIRED
       await startEmailConsumer();
-      await startDLQConsumer()
+      await startDLQConsumer();
+      startDeadlineScheduler();
         server = app.listen(3000, () => {
             console.log("🚀 Server running on http://localhost:3000");
         });

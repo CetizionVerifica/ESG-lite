@@ -1,5 +1,6 @@
 import { getChannel } from "../config/rabbitmq";
 import {EmailJob} from "../types/email";
+
 export const sendToQueue = async (data: EmailJob) => {
     const channel = getChannel();
 

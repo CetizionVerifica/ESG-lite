@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { authenticate } from "../middlewares/auth.middleware";
+import { requireManager } from "../middlewares/role.middleware";
 import { getSiteById } from "../controllers/site.controller";
 import { getColumnConfigsBySiteAndCategory } from "../controllers/columnConfig.controller";
 import {
@@ -90,21 +91,21 @@ router.post("/emissions", createEmission);
 router.get("/emissions/download", downloadEmissions);
 
 // Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
-router.put("/emissions/bulk-approve", bulkApproveEmissions);
-router.put("/emissions/bulk-reject", bulkRejectEmissions);
+router.put("/emissions/bulk-approve", requireManager, bulkApproveEmissions);
+router.put("/emissions/bulk-reject", requireManager, bulkRejectEmissions);
 router.delete("/emissions/bulk-delete", bulkDeleteEmissions);
-router.put("/emissions/batch/:batchId/approve", approveEmissionsByBatch);
-router.put("/emissions/batch/:batchId/reject", rejectEmissionsByBatch);
+router.put("/emissions/batch/:batchId/approve", requireManager, approveEmissionsByBatch);
+router.put("/emissions/batch/:batchId/reject", requireManager, rejectEmissionsByBatch);
 router.delete("/emissions/batch/:batchId", deleteEmissionsByBatch);
 router.get("/emissions/batches", getEmissionBatches);
 
 // Manager edit routes (must come BEFORE :id routes)
-router.put("/emissions/manager-edit/:id", managerUpdateEmission);
+router.put("/emissions/manager-edit/:id", requireManager, managerUpdateEmission);
 
 // Routes with :id parameter
 router.get("/emissions/:id/factor", getEmissionFactorForEmission);
-router.put("/emissions/:id/approve", approveEmission);
-router.put("/emissions/:id/reject", rejectEmission);
+router.put("/emissions/:id/approve", requireManager, approveEmission);
+router.put("/emissions/:id/reject", requireManager, rejectEmission);
 router.put("/emissions/:id", updateEmission);
 router.delete("/emissions/:id", deleteEmission);
 
@@ -124,15 +125,15 @@ router.post("/production-data", createProductionData);
 router.post("/production-data/bulk-create", bulkCreateProductionData);
 
 // Bulk routes must come BEFORE :id routes
-router.put("/production-data/bulk-approve", bulkApproveProductionData);
-router.put("/production-data/bulk-reject", bulkRejectProductionData);
+router.put("/production-data/bulk-approve", requireManager, bulkApproveProductionData);
+router.put("/production-data/bulk-reject", requireManager, bulkRejectProductionData);
 
 // Manager edit routes (must come BEFORE :id routes)
-router.put("/production-data/manager-edit/:id", managerUpdateProductionData);
+router.put("/production-data/manager-edit/:id", requireManager, managerUpdateProductionData);
 
 // Routes with :id parameter
-router.put("/production-data/:id/approve", approveProductionData);
-router.put("/production-data/:id/reject", rejectProductionData);
+router.put("/production-data/:id/approve", requireManager, approveProductionData);
+router.put("/production-data/:id/reject", requireManager, rejectProductionData);
 router.put("/production-data/:id", updateProductionData);
 router.delete("/production-data/:id", deleteProductionData);
 

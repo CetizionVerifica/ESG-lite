@@ -96,7 +96,7 @@ interface EmailPayload {
 
 export const sendEmailForApprove = async ({ to, subject, html }: EmailPayload) => {
     return mg.messages.create(MAILGUN_DOMAIN, {
-        from: `Your App <mail@${MAILGUN_DOMAIN}>`,
+        from: `Carbon Lens <mail@mail.carbon-lens.com>`,
         to: [to],
         subject,
         html,

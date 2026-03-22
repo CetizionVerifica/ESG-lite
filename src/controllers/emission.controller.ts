@@ -925,13 +925,28 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
     const batchId = req.params.batchId as string;
     const userId = req.user?.userId;
     const { comment } = req.body || {};
+    console.log(`[Emission] BATCH APPROVE batch=${batchId} by manager ${userId}`);
 
     if (!batchId) {
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    const result = await repo.update(
-      { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+    // Fetch emissions before updating for email notifications
+    const emissionsToApprove = await repo.find({
+      where: { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
+
+    if (emissionsToApprove.length === 0) {
+      return res.status(404).json({
+        message: "No pending emissions found for this batch",
+      });
+    }
+
+    const eligibleIds = emissionsToApprove.map((e) => e.pk_id);
+
+    await repo.update(
+      { pk_id: In(eligibleIds) },
       {
         status: EmissionStatus.APPROVED,
         review_comment: comment || null,
@@ -940,15 +955,57 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       }
     );
 
-    if (result.affected === 0) {
-      return res.status(404).json({
-        message: "No pending emissions found for this batch",
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    // Build summary of what was approved (for email content)
+    const totalCount = emissionsToApprove.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToApprove) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Collect unique creators and send email to each
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToApprove) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_APPROVED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        ...actionInfo,
       });
     }
 
     return res.status(200).json({
-      message: `Approved ${result.affected} emission(s) from batch`,
-      approved: result.affected,
+      message: `Approved ${eligibleIds.length} emission(s) from batch`,
+      approved: eligibleIds.length,
     });
   } catch (error) {
     console.error("Approve emissions by batch error:", error);
@@ -962,34 +1019,87 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
     const batchId = req.params.batchId as string;
     const userId = req.user?.userId;
     const { comment } = req.body || {};
+    console.log(`[Emission] BATCH REJECT batch=${batchId} by manager ${userId}`);
 
     if (!batchId) {
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    // Reject all non-rejected emissions in the batch (pending + approved)
-    const result = await repo
-      .createQueryBuilder()
-      .update(Emission)
-      .set({
-        status: EmissionStatus.REJECTED,
-        review_comment: comment || null,
-        reviewed_by: userId ? { user_id: userId } as any : null,
-        reviewed_at: new Date(),
-      })
-      .where("upload_batch_id = :batchId", { batchId })
-      .andWhere("status != :rejected", { rejected: EmissionStatus.REJECTED })
-      .execute();
+    // Fetch emissions before updating for email notifications
+    const emissionsToReject = await repo.find({
+      where: { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
 
-    if (result.affected === 0) {
+    if (emissionsToReject.length === 0) {
       return res.status(404).json({
         message: "No emissions to reject in this batch",
       });
     }
 
+    const eligibleIds = emissionsToReject.map((e) => e.pk_id);
+
+    await repo.update(
+      { pk_id: In(eligibleIds) },
+      {
+        status: EmissionStatus.REJECTED,
+        review_comment: comment || null,
+        reviewed_by: userId ? { user_id: userId } as any : null,
+        reviewed_at: new Date(),
+      }
+    );
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = emissionsToReject.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToReject) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Collect unique creators and send email to each
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToReject) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_REJECTED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        comment: comment || "",
+        ...actionInfo,
+      });
+    }
+
     return res.status(200).json({
-      message: `Rejected ${result.affected} emission(s) from batch`,
-      rejected: result.affected,
+      message: `Rejected ${eligibleIds.length} emission(s) from batch`,
+      rejected: eligibleIds.length,
     });
   } catch (error) {
     console.error("Reject emissions by batch error:", error);
@@ -1180,6 +1290,7 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
     const { id }: any = req.params;
     const { comment } = req.body;
     const userId = req.user?.userId;
+    console.log(`[Emission] APPROVE id=${id} by manager ${userId}`);
 
     const emission = await repo.findOne({
       where: { pk_id: parseInt(id) },
@@ -1210,14 +1321,29 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
       relations: ["created_by", "site", "category"],
     });
 
-    if (fullEmission?.created_by?.email) {
+    // Fetch manager details for transparency info
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = fullEmission?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Send email to creator only
+    if (creator?.email) {
       await sendToQueue({
         type: "APPROVED",
-        email: fullEmission.created_by.email,
-        name: fullEmission.created_by.name || "User",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        categoryName: (fullEmission.category as any)?.category_name || "Uncategorized",
-        siteName: (fullEmission.site as any)?.site_name || "",
+        categoryName: (fullEmission?.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission?.site as any)?.name || "",
+        ...actionInfo,
       });
     }
 
@@ -1240,6 +1366,7 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
     const { id }: any = req.params;
     const { comment } = req.body;
     const userId = req.user?.userId;
+    console.log(`[Emission] REJECT id=${id} by manager ${userId}`);
 
     if (!comment) {
       return res.status(400).json({
@@ -1276,15 +1403,30 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
       relations: ["created_by", "site", "category"],
     });
 
-    if (fullEmission?.created_by?.email) {
+    // Fetch manager details for transparency info
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = fullEmission?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Send email to creator only
+    if (creator?.email) {
       await sendToQueue({
         type: "REJECTED",
-        email: fullEmission.created_by.email,
-        name: fullEmission.created_by.name || "User",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        categoryName: (fullEmission.category as any)?.category_name || "Uncategorized",
-        siteName: (fullEmission.site as any)?.site_name || "",
-        comment: fullEmission.review_comment || "",
+        categoryName: (fullEmission?.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission?.site as any)?.name || "",
+        comment: fullEmission?.review_comment || "",
+        ...actionInfo,
       });
     }
 
@@ -1305,6 +1447,7 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { ids, comment } = req.body;
     const userId = req.user?.userId;
+    console.log(`[Emission] BULK APPROVE ${ids?.length || 0} ids by manager ${userId}`);
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({
@@ -1317,7 +1460,7 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         pk_id: In(ids),
         status: EmissionStatus.PENDING,
       },
-      relations: ["created_by", "category"],
+      relations: ["created_by", "category", "site"],
     });
 
     if (emissionsToApprove.length === 0) {
@@ -1339,57 +1482,52 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
-    const groupedByUser: Record<
-      string,
-      {
-        email: string;
-        name: string;
-        totalCount: number;
-        categories: Record<string, number>;
-      }
-    > = {};
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
 
+    const totalCount = emissionsToApprove.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToApprove) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Collect unique creators and send email to each
+    const creatorMap = new Map<number, User>();
     for (const emission of emissionsToApprove) {
       const creator = emission.created_by;
-
-      if (!creator?.email) continue;
-
-      const userKey = String(creator.user_id);
-        if (!groupedByUser[userKey]) {
-        groupedByUser[userKey] = {
-          email: creator.email,
-          name: creator.name || "User",
-          totalCount: 0,
-          categories: {},
-        };
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
       }
-
-      groupedByUser[userKey].totalCount += 1;
-      //const categoryName = (emission.category as any)?.name || "Uncategorized";
-
-      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
-
-      groupedByUser[userKey].categories[categoryName] =
-        (groupedByUser[userKey].categories[categoryName] || 0) + 1;
     }
-     for (const userData of Object.values(groupedByUser)) {
-      const categories = Object.entries(userData.categories).map(
-        ([categoryName, count]) => ({
-          categoryName,
-          count,
-        })
-      );
 
+    for (const creator of creatorMap.values()) {
       await sendToQueue({
         type: "BULK_APPROVED",
-        email: userData.email,
-        name: userData.name,
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount: userData.totalCount,
+        totalCount,
         categories,
+        ...actionInfo,
       });
     }
-
 
     return res.status(200).json({
       message: `${eligibleIds.length} emissions approved successfully`,
@@ -1407,6 +1545,7 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { ids, comment } = req.body;
     const userId = req.user?.userId;
+    console.log(`[Emission] BULK REJECT ${ids?.length || 0} ids by manager ${userId}`);
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({
@@ -1425,7 +1564,7 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
         pk_id: In(ids),
         status: EmissionStatus.PENDING,
       },
-      relations: ["created_by", "category"],
+      relations: ["created_by", "category", "site"],
     });
 
     if (emissionsToReject.length === 0) {
@@ -1446,57 +1585,52 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
-    const groupedByUser: Record<
-      string,
-      {
-        email: string;
-        name: string;
-        totalCount: number;
-        categories: Record<string, number>;
-      }
-    > = {};
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
 
+    const totalCount = emissionsToReject.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
     for (const emission of emissionsToReject) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
       const creator = emission.created_by;
-
-      if (!creator?.email) continue;
-
-      const userKey = String(creator.user_id);
-
-      if (!groupedByUser[userKey]) {
-        groupedByUser[userKey] = {
-          email: creator.email,
-          name: creator.name || "User",
-          totalCount: 0,
-          categories: {},
-        };
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
       }
-
-      groupedByUser[userKey].totalCount += 1;
-
-      const categoryName =
-        (emission.category as any)?.category_name || "Uncategorized";
-
-      groupedByUser[userKey].categories[categoryName] =
-        (groupedByUser[userKey].categories[categoryName] || 0) + 1;
     }
 
-    for (const userData of Object.values(groupedByUser)) {
-      const categories = Object.entries(userData.categories).map(
-        ([categoryName, count]) => ({
-          categoryName,
-          count,
-        })
-      );
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
 
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Collect unique creators and send email to each
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToReject) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
       await sendToQueue({
         type: "BULK_REJECTED",
-        email: userData.email,
-        name: userData.name,
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount: userData.totalCount,
+        totalCount,
         categories,
         comment,
+        ...actionInfo,
       });
     }
 

@@ -265,9 +265,11 @@ export const updateUser = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id }: any = req.params;
+    const userId = parseInt(id);
 
     const user = await repo.findOne({
-      where: { user_id: parseInt(id) },
+      where: { user_id: userId },
+      relations: ["sites", "categories"],
     });
 
     if (!user) {
@@ -276,10 +278,16 @@ export const deleteUser = async (req: Request, res: Response) => {
       });
     }
 
-    await repo.delete({ user_id: parseInt(id) });
+    // Clear ManyToMany junction tables (user_sites, user_categories)
+    user.sites = [];
+    user.categories = [];
+    await repo.save(user);
+
+    // Now delete the user — related emissions/production data will have created_by set to NULL
+    await repo.delete({ user_id: userId });
 
     return res.status(200).json({
-      message: "User deleted successfully",
+      message: `User "${user.name || user.email}" has been deleted by SuperAdmin`,
     });
   } catch (error) {
     console.error("Delete user error:", error);

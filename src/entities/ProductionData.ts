@@ -55,14 +55,14 @@ export class ProductionData {
   @Column({ nullable: true })
   review_comment!: string;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: "SET NULL" })
   @JoinColumn({ name: "reviewed_by" })
   reviewed_by!: User;
 
   @Column({ type: "timestamp", nullable: true })
   reviewed_at!: Date;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: "SET NULL" })
   @JoinColumn({ name: "created_by" })
   created_by!: User;
 
