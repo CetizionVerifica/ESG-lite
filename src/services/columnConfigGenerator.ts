@@ -191,8 +191,11 @@ async function fetchFromECM(
     }
   }
 
-  // Build results, resolving missing EF data via secondary lookup
+  // Build results, resolving missing EF data via secondary lookup.
+  // Two-pass: first resolve what we can, then backfill missing units
+  // with the most common unit so all ECM rows land in the same config group.
   const results: ECMFetchResult[] = [];
+  const pendingIndices: number[] = []; // indices of rows with no unit
 
   for (const entry of resolved.values()) {
     let emissionCategoryName = entry.ef_emission_category_name;
@@ -221,21 +224,40 @@ async function fetchFromECM(
       }
     }
 
-    // If no denominator_unit, use a fallback so the row isn't silently dropped.
-    // The admin uploaded this mapping — it should appear in the column config proposal.
     if (!denominatorUnit) {
-      console.warn(
-        `ECM row "${entry.company_category_name}" has no matching emission factor — using fallback unit`
-      );
-      denominatorUnit = "unknown";
+      pendingIndices.push(results.length);
     }
 
     results.push({
       company_category_name: entry.company_category_name,
       global_category_name: entry.global_category_name,
       emission_category_name: emissionCategoryName || entry.global_category_name,
-      denominator_unit: denominatorUnit,
+      denominator_unit: denominatorUnit || "",
     });
+  }
+
+  // Backfill: assign the most common unit from resolved rows so all ECM
+  // entries land in the same config group instead of a separate "unknown" group.
+  if (pendingIndices.length > 0) {
+    const unitFreq = new Map<string, number>();
+    for (const r of results) {
+      if (r.denominator_unit) {
+        const u = r.denominator_unit.trim().toLowerCase();
+        unitFreq.set(u, (unitFreq.get(u) || 0) + 1);
+      }
+    }
+    let mostCommonUnit = "unknown";
+    let maxFreq = 0;
+    for (const [u, freq] of unitFreq) {
+      if (freq > maxFreq) { maxFreq = freq; mostCommonUnit = u; }
+    }
+
+    for (const idx of pendingIndices) {
+      console.warn(
+        `ECM row "${results[idx].company_category_name}" has no matching emission factor — using fallback unit "${mostCommonUnit}"`
+      );
+      results[idx].denominator_unit = mostCommonUnit;
+    }
   }
 
   return results;
