@@ -164,7 +164,4 @@ router.post("/emissions/geocode-location", geocodeLocation);
 // Audit trail
 router.get("/audit-logs", getAuditLogs);
 
-// Audit trail
-router.get("/audit-logs", getAuditLogs);
-
 export default router;

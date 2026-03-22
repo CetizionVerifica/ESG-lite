@@ -19,7 +19,7 @@ export const createProductionData = async (req: AuthRequest, res: Response) => {
     const { product_id, site_id, quantity, unit, start_date, end_date, notes } = req.body;
     const userId = req.user?.userId;
 
-    if (!product_id || !site_id || !quantity || !unit || !start_date || !end_date) {
+    if (!product_id || !site_id || quantity === undefined || quantity === null || !unit || !start_date || !end_date) {
       return res.status(400).json({
         message: "product_id, site_id, quantity, unit, start_date, and end_date are required",
       });
@@ -87,7 +87,7 @@ export const bulkCreateProductionData = async (req: AuthRequest, res: Response) 
     for (let i = 0; i < entries.length; i++) {
       const { product_id, site_id, quantity, unit, start_date, end_date, notes } = entries[i];
 
-      if (!product_id || !site_id || !quantity || !unit || !start_date || !end_date) {
+      if (!product_id || !site_id || (quantity === undefined || quantity === null) || !unit || !start_date || !end_date) {
         errors.push({ row: i + 1, message: "Missing required fields (product_id, site_id, quantity, unit, start_date, end_date)" });
         continue;
       }
@@ -619,7 +619,7 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
     }
 
     await repo.update(
-      { production_id: In(ids) },
+      { production_id: In(ids), status: ProductionDataStatus.PENDING },
       {
         status: ProductionDataStatus.APPROVED,
         reviewed_by: { user_id: userId } as any,

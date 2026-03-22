@@ -221,12 +221,13 @@ async function fetchFromECM(
       }
     }
 
-    // Skip rows where we can't determine denominator_unit
+    // If no denominator_unit, use a fallback so the row isn't silently dropped.
+    // The admin uploaded this mapping — it should appear in the column config proposal.
     if (!denominatorUnit) {
       console.warn(
-        `ECM row "${entry.company_category_name}" has no matching emission factor — skipping`
+        `ECM row "${entry.company_category_name}" has no matching emission factor — using fallback unit`
       );
-      continue;
+      denominatorUnit = "unknown";
     }
 
     results.push({
@@ -597,15 +598,19 @@ function promoteToThreeDim(parsed: ParsedEntry[]): ParsedEntry[] {
       }
     }
 
-    if (promoted) {
-      const key = normalizeKey(promoted);
-      if (!existingKeys.has(key)) {
-        existingKeys.add(key);
-        existingModeVehicle.add(
-          `${promoted[0].toLowerCase()}|${promoted[1].toLowerCase()}`
-        );
-        result.push({ original: entry.original, parts: promoted });
-      }
+    // If we couldn't determine the mode, use "Other" as a catch-all
+    // so the entry isn't silently dropped from the config
+    if (!promoted) {
+      promoted = ["Other", first, second];
+    }
+
+    const key = normalizeKey(promoted);
+    if (!existingKeys.has(key)) {
+      existingKeys.add(key);
+      existingModeVehicle.add(
+        `${promoted[0].toLowerCase()}|${promoted[1].toLowerCase()}`
+      );
+      result.push({ original: entry.original, parts: promoted });
     }
   }
 
@@ -910,19 +915,21 @@ function buildThreeDimConfig(
     depOptions[col2Name][parentVal] = [...childVals].sort().map(makeOption);
   }
 
-  // Dependent options: col3 values per col2 value
-  const dim2ByDim1 = new Map<string, Set<string>>();
+  // Dependent options: col3 values per dim0+dim1 combination
+  // Key by "dim0|dim1" to avoid merging fuel types across different modes
+  // e.g., "Road|Van" → [Diesel, Petrol], "Off-Road|Van" → [Diesel, LPG]
+  const dim2ByDim0Dim1 = new Map<string, Set<string>>();
   for (const entry of parsed) {
     if (entry.parts.length >= 3) {
-      const d1 = entry.parts[1];
+      const compositeKey = `${entry.parts[0]}|${entry.parts[1]}`;
       const d2 = entry.parts[2];
-      if (!dim2ByDim1.has(d1)) dim2ByDim1.set(d1, new Set());
-      dim2ByDim1.get(d1)!.add(d2);
+      if (!dim2ByDim0Dim1.has(compositeKey)) dim2ByDim0Dim1.set(compositeKey, new Set());
+      dim2ByDim0Dim1.get(compositeKey)!.add(d2);
     }
   }
   depOptions[col3Name] = {};
-  for (const [parentVal, childVals] of dim2ByDim1) {
-    depOptions[col3Name][parentVal] = [...childVals].sort().map(makeOption);
+  for (const [compositeKey, childVals] of dim2ByDim0Dim1) {
+    depOptions[col3Name][compositeKey] = [...childVals].sort().map(makeOption);
   }
 
   // Emission category mapping: "dim0|dim1|dim2" → original name
