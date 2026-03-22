@@ -4,6 +4,17 @@ import { mg, MAILGUN_DOMAIN } from "../config/mailer";
 
 dotenv.config();
 
+// Whitelist: only these emails receive emails in non-production environments
+// Uncomment to enable email whitelist for local testing
+// const EMAIL_WHITELIST = [
+//     "yashsukantnayak@gmail.com",
+//     "nayakyash10@gmail.com",
+// ];
+//
+// const isEmailAllowed = (email: string): boolean => {
+//     if (process.env.NODE_ENV === "production") return true;
+//     return EMAIL_WHITELIST.includes(email.toLowerCase());
+// };
 
 interface EmailOptions {
     to: string;
@@ -95,6 +106,12 @@ interface EmailPayload {
 }
 
 export const sendEmailForApprove = async ({ to, subject, html }: EmailPayload) => {
+    // Uncomment to enable email whitelist for local testing
+    // if (!isEmailAllowed(to)) {
+    //     console.log(`Email blocked (not whitelisted): ${to}`);
+    //     return;
+    // }
+
     return mg.messages.create(MAILGUN_DOMAIN, {
         from: `Carbon Lens <mail@mail.carbon-lens.com>`,
         to: [to],

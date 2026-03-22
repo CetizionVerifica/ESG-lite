@@ -111,8 +111,10 @@ const getManagersForSite = async (siteId: number) => {
 export const sendDeadlineReminders = async () => {
   try {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    // Remind for PREVIOUS month (e.g., on March 10th, remind for February)
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const year = prevDate.getFullYear();
+    const month = prevDate.getMonth() + 1;
     const monthName = MONTHS[month - 1];
 
     console.log(`Running deadline reminder check for ${monthName} ${year}...`);
@@ -159,8 +161,10 @@ export const sendDeadlineReminders = async () => {
 export const sendEscalationEmails = async () => {
   try {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    // Escalate for PREVIOUS month (e.g., on March 15th, escalate for February)
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const year = prevDate.getFullYear();
+    const month = prevDate.getMonth() + 1;
     const monthName = MONTHS[month - 1];
 
     console.log(`Running escalation check for ${monthName} ${year}...`);
