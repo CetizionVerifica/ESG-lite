@@ -19,10 +19,15 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "Invalid entity_type" });
     }
 
+    const parsedEntityId = parseInt(entity_id as string, 10);
+    if (isNaN(parsedEntityId)) {
+      return res.status(400).json({ message: "entity_id must be a valid number" });
+    }
+
     const logs = await auditRepo.find({
       where: {
         entity_type: entity_type as "emission" | "production_data",
-        entity_id: parseInt(entity_id as string),
+        entity_id: parsedEntityId,
       },
       relations: ["changed_by"],
       order: { changed_at: "DESC" },
