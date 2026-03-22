@@ -30,18 +30,18 @@ workers/emailConsumer.ts
 ### Emission Notifications
 | Trigger | Email Type | Recipients |
 |---|---|---|
-| Manager approves emission | `APPROVED` | All users at the site |
-| Manager rejects emission | `REJECTED` | All users at the site |
-| Manager bulk approves | `BULK_APPROVED` | All users at the site (grouped by submitter) |
-| Manager bulk rejects | `BULK_REJECTED` | All users at the site (grouped by submitter) |
+| Manager approves emission | `APPROVED` | Entry submitter |
+| Manager rejects emission | `REJECTED` | Entry submitter |
+| Manager bulk approves | `BULK_APPROVED` | Each unique entry submitter (one email per submitter) |
+| Manager bulk rejects | `BULK_REJECTED` | Each unique entry submitter (one email per submitter) |
 
 ### Production Data Notifications
 | Trigger | Email Type | Recipients |
 |---|---|---|
-| Manager approves production data | `PRODUCTION_APPROVED` | All users at the site |
-| Manager rejects production data | `PRODUCTION_REJECTED` | All users at the site |
-| Manager bulk approves | `BULK_PRODUCTION_APPROVED` | All users at the site |
-| Manager bulk rejects | `BULK_PRODUCTION_REJECTED` | All users at the site |
+| Manager approves production data | `PRODUCTION_APPROVED` | Entry submitter |
+| Manager rejects production data | `PRODUCTION_REJECTED` | Entry submitter |
+| Manager bulk approves | `BULK_PRODUCTION_APPROVED` | Each unique entry submitter (one email per submitter) |
+| Manager bulk rejects | `BULK_PRODUCTION_REJECTED` | Each unique entry submitter (one email per submitter) |
 
 ### Deadline Notifications (Cron-based)
 | Schedule | Email Type | Recipients |
