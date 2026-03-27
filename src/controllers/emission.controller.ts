@@ -233,6 +233,58 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Check for duplicate emission (same site + category + date + emission_category)
+    const duplicateWhere: any = {
+      site: { site_id },
+      category: { category_id },
+      date_of_reporting: new Date(date_of_reporting),
+    };
+
+    const existingEmissions = await repo.find({
+      where: duplicateWhere,
+      relations: ["site", "category", "created_by"],
+    });
+
+    // If emission_category is provided, match on it too; otherwise match any entry for that date
+    const duplicate = activity_data.emission_category
+      ? existingEmissions.find(
+          (e) => e.activity_data?.emission_category === activity_data.emission_category
+        )
+      : existingEmissions.length > 0
+        ? existingEmissions[0]
+        : null;
+
+    if (duplicate) {
+      const replace = req.query.replace === "true";
+      if (!replace) {
+        return res.status(409).json({
+          message: "Duplicate emission entry already exists for this site, category, date, and emission subcategory.",
+          existing_emission: duplicate,
+          duplicate: true,
+        });
+      }
+      // Replace mode: delete the existing entry (and its FERA links) before creating new one
+      const idsToDelete = [duplicate.pk_id];
+      if (duplicate.fera_linked_id) {
+        idsToDelete.push(duplicate.fera_linked_id);
+      }
+      // Check if any other emission links back to this one (reverse FERA link)
+      const linkedBack = await repo.findOne({
+        where: { fera_linked_id: duplicate.pk_id },
+      });
+      if (linkedBack) {
+        idsToDelete.push(linkedBack.pk_id);
+      }
+      // Delete related documents first
+      const docRepo = AppDataSource.getRepository(EmissionDocument);
+      await docRepo
+        .createQueryBuilder()
+        .delete()
+        .where("emission_id IN (:...ids)", { ids: idsToDelete })
+        .execute();
+      await repo.delete(idsToDelete);
+    }
+
     let calculatedEmission = total_emission || 0;
     let matchedEmissionFactor: import("../entities/EmissionFactor").EmissionFactor | null = null;
 
@@ -3056,7 +3108,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   try {
     const { id }: any = req.params;
     const userId = req.user?.userId;
-    const { activity_data, date_of_reporting } = req.body;
+    const { activity_data, date_of_reporting, reason } = req.body;
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -3212,6 +3264,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       entity_id: emission.pk_id,
       action: "manager_edit",
       changed_fields: changedFields,
+      reason: reason || null,
       changed_by: { user_id: userId } as any,
     });
     await auditRepo.save(auditEntry);

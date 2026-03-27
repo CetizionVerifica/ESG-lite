@@ -850,7 +850,7 @@ export const managerUpdateProductionData = async (req: AuthRequest, res: Respons
   try {
     const id = req.params.id as string;
     const userId = req.user?.userId;
-    const { quantity, unit, start_date, end_date, notes } = req.body;
+    const { quantity, unit, start_date, end_date, notes, reason } = req.body;
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -914,6 +914,7 @@ export const managerUpdateProductionData = async (req: AuthRequest, res: Respons
       entity_id: data.production_id,
       action: "manager_edit",
       changed_fields: changedFields,
+      reason: reason || null,
       changed_by: { user_id: userId } as any,
     });
     await auditRepo.save(auditEntry);
