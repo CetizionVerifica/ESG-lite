@@ -12,6 +12,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
+import { sendToQueue } from "../queues/emailProducer";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -929,8 +930,22 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    const result = await repo.update(
-      { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+    // Fetch emissions before updating for email notifications
+    const emissionsToApprove = await repo.find({
+      where: { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
+
+    if (emissionsToApprove.length === 0) {
+      return res.status(404).json({
+        message: "No pending emissions found for this batch",
+      });
+    }
+
+    const eligibleIds = emissionsToApprove.map((e) => e.pk_id);
+
+    await repo.update(
+      { pk_id: In(eligibleIds) },
       {
         status: EmissionStatus.APPROVED,
         review_comment: comment || null,
@@ -939,15 +954,57 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       }
     );
 
-    if (result.affected === 0) {
-      return res.status(404).json({
-        message: "No pending emissions found for this batch",
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    // Build summary for email content
+    const totalCount = emissionsToApprove.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToApprove) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Send email to each unique creator
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToApprove) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_APPROVED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        ...actionInfo,
       });
     }
 
     return res.status(200).json({
-      message: `Approved ${result.affected} emission(s) from batch`,
-      approved: result.affected,
+      message: `Approved ${eligibleIds.length} emission(s) from batch`,
+      approved: eligibleIds.length,
     });
   } catch (error) {
     console.error("Approve emissions by batch error:", error);
@@ -966,29 +1023,82 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    // Reject all non-rejected emissions in the batch (pending + approved)
-    const result = await repo
-      .createQueryBuilder()
-      .update(Emission)
-      .set({
-        status: EmissionStatus.REJECTED,
-        review_comment: comment || null,
-        reviewed_by: userId ? { user_id: userId } as any : null,
-        reviewed_at: new Date(),
-      })
-      .where("upload_batch_id = :batchId", { batchId })
-      .andWhere("status != :rejected", { rejected: EmissionStatus.REJECTED })
-      .execute();
+    // Fetch emissions before updating for email notifications
+    const emissionsToReject = await repo.find({
+      where: { upload_batch_id: batchId, status: In([EmissionStatus.PENDING, EmissionStatus.APPROVED]) },
+      relations: ["created_by", "category", "site"],
+    });
 
-    if (result.affected === 0) {
+    if (emissionsToReject.length === 0) {
       return res.status(404).json({
         message: "No emissions to reject in this batch",
       });
     }
 
+    const eligibleIds = emissionsToReject.map((e) => e.pk_id);
+
+    // Reject all non-rejected emissions in the batch (pending + approved)
+    await repo.update(
+      { pk_id: In(eligibleIds) },
+      {
+        status: EmissionStatus.REJECTED,
+        review_comment: comment || null,
+        reviewed_by: userId ? { user_id: userId } as any : null,
+        reviewed_at: new Date(),
+      }
+    );
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = emissionsToReject.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToReject) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Send email to each unique creator
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToReject) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_REJECTED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        comment: comment || "",
+        ...actionInfo,
+      });
+    }
+
     return res.status(200).json({
-      message: `Rejected ${result.affected} emission(s) from batch`,
-      rejected: result.affected,
+      message: `Rejected ${eligibleIds.length} emission(s) from batch`,
+      rejected: eligibleIds.length,
     });
   } catch (error) {
     console.error("Reject emissions by batch error:", error);
@@ -1203,14 +1313,39 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-    const updatedEmission = await repo.findOne({
+    const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
-      relations: ["site", "category", "reviewed_by", "created_by"],
+      relations: ["created_by", "site", "category"],
     });
+
+    // Fetch manager details for email
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = fullEmission?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    if (creator?.email) {
+      await sendToQueue({
+        type: "APPROVED",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        categoryName: (fullEmission?.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission?.site as any)?.name || "",
+        ...actionInfo,
+      });
+    }
 
     return res.status(200).json({
       message: "Emission approved successfully",
-      emission: updatedEmission,
+      emission: fullEmission,
     });
   } catch (error) {
     console.error("Approve emission error:", error);
@@ -1257,14 +1392,40 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-    const updatedEmission = await repo.findOne({
+    const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
-      relations: ["site", "category", "reviewed_by", "created_by"],
+      relations: ["created_by", "site", "category"],
     });
+
+    // Fetch manager details for email
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = fullEmission?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    if (creator?.email) {
+      await sendToQueue({
+        type: "REJECTED",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        categoryName: (fullEmission?.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission?.site as any)?.name || "",
+        comment: fullEmission?.review_comment || "",
+        ...actionInfo,
+      });
+    }
 
     return res.status(200).json({
       message: "Emission rejected",
-      emission: updatedEmission,
+      emission: fullEmission,
     });
   } catch (error) {
     console.error("Reject emission error:", error);
@@ -1286,8 +1447,21 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const emissionsToApprove = await repo.find({
+      where: { pk_id: In(ids), status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
+
+    if (emissionsToApprove.length === 0) {
+      return res.status(400).json({
+        message: "No pending emissions found to approve",
+      });
+    }
+
+    const eligibleIds = emissionsToApprove.map((e) => e.pk_id);
+
     await repo.update(
-      { pk_id: In(ids), status: EmissionStatus.PENDING },
+      { pk_id: In(eligibleIds), status: EmissionStatus.PENDING },
       {
         status: EmissionStatus.APPROVED,
         review_comment: comment || null,
@@ -1296,8 +1470,54 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = emissionsToApprove.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToApprove) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToApprove) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_APPROVED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        ...actionInfo,
+      });
+    }
+
     return res.status(200).json({
-      message: `${ids.length} emissions approved successfully`,
+      message: `${eligibleIds.length} emissions approved successfully`,
     });
   } catch (error) {
     console.error("Bulk approve emissions error:", error);
@@ -1325,8 +1545,21 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const emissionsToReject = await repo.find({
+      where: { pk_id: In(ids), status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
+
+    if (emissionsToReject.length === 0) {
+      return res.status(400).json({
+        message: "No pending emissions found to reject",
+      });
+    }
+
+    const eligibleIds = emissionsToReject.map((e) => e.pk_id);
+
     await repo.update(
-      { pk_id: In(ids), status: EmissionStatus.PENDING },
+      { pk_id: In(eligibleIds), status: EmissionStatus.PENDING },
       {
         status: EmissionStatus.REJECTED,
         review_comment: comment,
@@ -1335,8 +1568,55 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = emissionsToReject.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToReject) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToReject) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_REJECTED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        comment,
+        ...actionInfo,
+      });
+    }
+
     return res.status(200).json({
-      message: `${ids.length} emissions rejected`,
+      message: `${eligibleIds.length} emissions rejected`,
     });
   } catch (error) {
     console.error("Bulk reject emissions error:", error);

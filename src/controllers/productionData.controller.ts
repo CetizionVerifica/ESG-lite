@@ -8,6 +8,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { sendToQueue } from "../queues/emailProducer";
 
 const repo = AppDataSource.getRepository(ProductionData);
 const productRepo = AppDataSource.getRepository(Product);
@@ -544,6 +545,10 @@ export const approveProductionData = async (req: AuthRequest, res: Response) => 
       return res.status(404).json({ message: "Production data not found" });
     }
 
+    if (data.status !== ProductionDataStatus.PENDING) {
+      return res.status(400).json({ message: `Production data is already ${data.status}` });
+    }
+
     data.status = ProductionDataStatus.APPROVED;
     data.reviewed_by = { user_id: userId } as any;
     data.reviewed_at = new Date();
@@ -555,6 +560,31 @@ export const approveProductionData = async (req: AuthRequest, res: Response) => 
       where: { production_id: data.production_id },
       relations: ["product", "site", "created_by", "reviewed_by"],
     });
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = updated?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    if (creator?.email) {
+      await sendToQueue({
+        type: "PRODUCTION_APPROVED",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        productName: (updated?.product as any)?.name || "N/A",
+        siteName: (updated?.site as any)?.name || "",
+        ...actionInfo,
+      });
+    }
 
     return res.status(200).json({
       message: "Production data approved successfully",
@@ -586,6 +616,10 @@ export const rejectProductionData = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Production data not found" });
     }
 
+    if (data.status !== ProductionDataStatus.PENDING) {
+      return res.status(400).json({ message: `Production data is already ${data.status}` });
+    }
+
     data.status = ProductionDataStatus.REJECTED;
     data.reviewed_by = { user_id: userId } as any;
     data.reviewed_at = new Date();
@@ -597,6 +631,32 @@ export const rejectProductionData = async (req: AuthRequest, res: Response) => {
       where: { production_id: data.production_id },
       relations: ["product", "site", "created_by", "reviewed_by"],
     });
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = updated?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    if (creator?.email) {
+      await sendToQueue({
+        type: "PRODUCTION_REJECTED",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        productName: (updated?.product as any)?.name || "N/A",
+        siteName: (updated?.site as any)?.name || "",
+        comment: updated?.review_comment || "",
+        ...actionInfo,
+      });
+    }
 
     return res.status(200).json({
       message: "Production data rejected",
@@ -618,8 +678,19 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
       return res.status(400).json({ message: "ids array is required" });
     }
 
+    const dataToApprove = await repo.find({
+      where: { production_id: In(ids), status: ProductionDataStatus.PENDING },
+      relations: ["created_by", "product", "site"],
+    });
+
+    if (dataToApprove.length === 0) {
+      return res.status(400).json({ message: "No pending production data found to approve" });
+    }
+
+    const eligibleIds = dataToApprove.map((d) => d.production_id);
+
     await repo.update(
-      { production_id: In(ids), status: ProductionDataStatus.PENDING },
+      { production_id: In(eligibleIds) },
       {
         status: ProductionDataStatus.APPROVED,
         reviewed_by: { user_id: userId } as any,
@@ -628,8 +699,54 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
       }
     );
 
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = dataToApprove.length;
+    const productSummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const item of dataToApprove) {
+      const productName = (item.product as any)?.name || "N/A";
+      productSummary[productName] = (productSummary[productName] || 0) + 1;
+      const creator = item.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(productSummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    const creatorMap = new Map<number, User>();
+    for (const item of dataToApprove) {
+      const creator = item.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_PRODUCTION_APPROVED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        products: categories,
+        ...actionInfo,
+      });
+    }
+
     return res.status(200).json({
-      message: `${ids.length} production data entries approved successfully`,
+      message: `${eligibleIds.length} production data entries approved successfully`,
     });
   } catch (error) {
     console.error("Bulk approve production data error:", error);
@@ -651,8 +768,19 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
       return res.status(400).json({ message: "Comment is required when rejecting production data" });
     }
 
+    const dataToReject = await repo.find({
+      where: { production_id: In(ids), status: ProductionDataStatus.PENDING },
+      relations: ["created_by", "product", "site"],
+    });
+
+    if (dataToReject.length === 0) {
+      return res.status(400).json({ message: "No pending production data found to reject" });
+    }
+
+    const eligibleIds = dataToReject.map((d) => d.production_id);
+
     await repo.update(
-      { production_id: In(ids) },
+      { production_id: In(eligibleIds) },
       {
         status: ProductionDataStatus.REJECTED,
         reviewed_by: { user_id: userId } as any,
@@ -661,8 +789,55 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
       }
     );
 
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = dataToReject.length;
+    const productSummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const item of dataToReject) {
+      const productName = (item.product as any)?.name || "N/A";
+      productSummary[productName] = (productSummary[productName] || 0) + 1;
+      const creator = item.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(productSummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    const creatorMap = new Map<number, User>();
+    for (const item of dataToReject) {
+      const creator = item.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_PRODUCTION_REJECTED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        products: categories,
+        comment: comment.trim(),
+        ...actionInfo,
+      });
+    }
+
     return res.status(200).json({
-      message: `${ids.length} production data entries rejected`,
+      message: `${eligibleIds.length} production data entries rejected`,
     });
   } catch (error) {
     console.error("Bulk reject production data error:", error);

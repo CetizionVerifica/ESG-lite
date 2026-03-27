@@ -6,6 +6,10 @@ import userRoutes from "./routes/user.routes";
 import managerRoutes from "./routes/manager.routes";
 import cors from "cors";
 import dotenv from "dotenv";
+import { connectRabbitMQ } from "./config/rabbitmq";
+import { startEmailConsumer } from "./workers/emailConsumer";
+import { startDLQConsumer } from "./config/dlqConsumer";
+import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 dotenv.config();
 
 const app = express();
@@ -59,7 +63,11 @@ const connectWithRetry = async (
 };
 
 connectWithRetry()
-    .then(() => {
+    .then(async () => {
+        await connectRabbitMQ();
+        await startEmailConsumer();
+        await startDLQConsumer();
+        startDeadlineScheduler();
         server = app.listen(3000, () => {
             console.log("🚀 Server running on http://localhost:3000");
         });
