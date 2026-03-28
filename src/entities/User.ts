@@ -60,6 +60,14 @@ export class User {
   })
   sites!: Site[];
 
+  // Notification preferences (which email types to receive)
+  @Column({ type: "jsonb", nullable: true, default: () => "'{}'" })
+  notification_preferences!: Record<string, boolean>;
+
+  // User timezone (IANA format, e.g. "Asia/Dubai")
+  @Column({ type: "varchar", nullable: true })
+  timezone!: string | null;
+
   // Per-user category access control (managed by Manager role)
   @ManyToMany(() => Category)
   @JoinTable({

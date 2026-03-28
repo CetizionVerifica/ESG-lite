@@ -9,6 +9,7 @@ import { Company } from "../entities/Company";
 import { Country } from "../entities/Country";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
+import { log } from "../utils/logger";
 
 const DEFAULT_PASSWORD = "Welcome@123";
 
@@ -246,6 +247,15 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
       }
     }
 
+    log.info("Upload", "Excel upload complete", {
+      totalRows: rows.length,
+      emissionsCreated,
+      emissionsSkipped,
+      usersCreated,
+      site: site.name,
+      category: category.category_name,
+    });
+
     return res.status(200).json({
       message: "Upload successful",
       summary: {
@@ -260,7 +270,7 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Upload error:", error);
+    log.error("Upload", "Excel upload failed", { error: (error as Error).message });
     return res.status(500).json({ message: "Internal server error" });
   }
 };

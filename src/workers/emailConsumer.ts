@@ -1,6 +1,7 @@
-
 import { getChannel } from "../config/rabbitmq";
 import { sendEmailForApprove } from "../services/emailService";
+import { AppDataSource } from "../config/data-source";
+import { User } from "../entities/User";
 import {
   successTemplate,
   rejectTemplate,
@@ -48,6 +49,35 @@ export const startEmailConsumer = async () => {
     const data = JSON.parse(msg.content.toString());
 
     try {
+      // Check user email preferences before sending
+      const prefMap: Record<string, string> = {
+        APPROVED: "email_approvals",
+        REJECTED: "email_rejections",
+        BULK_APPROVED: "email_approvals",
+        BULK_REJECTED: "email_rejections",
+        PRODUCTION_APPROVED: "email_approvals",
+        PRODUCTION_REJECTED: "email_rejections",
+        BULK_PRODUCTION_APPROVED: "email_approvals",
+        BULK_PRODUCTION_REJECTED: "email_rejections",
+        DEADLINE_REMINDER: "email_reminders",
+        DEADLINE_ESCALATION: "email_escalations",
+      };
+
+      const prefKey = prefMap[data.type];
+      if (prefKey && data.email) {
+        try {
+          const userRepo = AppDataSource.getRepository(User);
+          const user = await userRepo.findOne({ where: { email: data.email } });
+          if (user?.notification_preferences?.[prefKey] === false) {
+            console.log(`Email skipped (opted out: ${prefKey}): ${data.email} — ${data.type}`);
+            channel.ack(msg);
+            return;
+          }
+        } catch {
+          // If preference check fails, send email anyway (fail-open)
+        }
+      }
+
       let template;
       const actionInfo = getActionInfo(data);
 

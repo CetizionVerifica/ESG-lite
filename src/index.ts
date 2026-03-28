@@ -4,12 +4,15 @@ import authRoutes from "./routes/auth.routes";
 import adminRoutes from "./routes/admin.routes";
 import userRoutes from "./routes/user.routes";
 import managerRoutes from "./routes/manager.routes";
+import notificationRoutes from "./routes/notification.routes";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
 import { startEmailConsumer } from "./workers/emailConsumer";
 import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
+import { requestLogger } from "./middlewares/requestLogger";
+import { startHeartbeat } from "./services/sseManager";
 dotenv.config();
 
 const app = express();
@@ -20,11 +23,13 @@ app.use(
         credentials: true,
     }),
 );
+app.use(requestLogger);
 
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
 app.use("/user", userRoutes);
 app.use("/manager", managerRoutes);
+app.use("/notifications", notificationRoutes);
 
 let server: any;
 
@@ -64,13 +69,22 @@ const connectWithRetry = async (
 
 connectWithRetry()
     .then(async () => {
-        await connectRabbitMQ();
-        await startEmailConsumer();
-        await startDLQConsumer();
-        startDeadlineScheduler();
+        // Start server immediately — don't block on RabbitMQ
+        startHeartbeat();
         server = app.listen(3000, () => {
             console.log("🚀 Server running on http://localhost:3000");
         });
+
+        // Connect RabbitMQ in background (non-blocking)
+        connectRabbitMQ()
+            .then(async () => {
+                await startEmailConsumer();
+                await startDLQConsumer();
+                startDeadlineScheduler();
+            })
+            .catch((err) => {
+                console.warn("⚠️ RabbitMQ not available — email notifications disabled.", err?.message || "");
+            });
 
         // Set server timeouts
         server.keepAliveTimeout = 65000; // Slightly higher than ALB idle timeout

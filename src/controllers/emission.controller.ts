@@ -13,6 +13,8 @@ import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
 import { sendToQueue } from "../queues/emailProducer";
+import { log } from "../utils/logger";
+import { createNotification } from "../services/notificationService";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -587,6 +589,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    log.info("Emission", "Created", { id: savedEmission?.pk_id, userId, siteId: site_id, categoryId: category_id });
+
     return res.status(201).json({
       message: "Emission created successfully",
       emission: savedEmission,
@@ -835,6 +839,8 @@ export const deleteEmission = async (req: Request, res: Response) => {
 
     await repo.delete(idsToDelete);
 
+    log.info("Emission", "Deleted", { ids: idsToDelete, userId: (req as AuthRequest).user?.userId });
+
     return res.status(200).json({
       message: "Emission deleted successfully",
       deleted_ids: idsToDelete,
@@ -1052,6 +1058,13 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
         categories,
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "BULK_APPROVED",
+        "Emissions Approved",
+        `${totalCount} emission(s) have been approved`,
+        `/my-emissions`
+      );
     }
 
     return res.status(200).json({
@@ -1146,6 +1159,13 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
         comment: comment || "",
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "BULK_REJECTED",
+        "Emissions Rejected",
+        `${totalCount} emission(s) have been rejected${comment ? `: ${comment}` : ""}`,
+        `/my-emissions`
+      );
     }
 
     return res.status(200).json({
@@ -1381,6 +1401,7 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
       managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
       managerEmail: manager?.email || "",
       managerRole: manager?.role || "",
+      deepLink: `/my-emissions`,
     };
 
     if (creator?.email) {
@@ -1394,6 +1415,21 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
         ...actionInfo,
       });
     }
+
+    // In-app notification
+    if (creator?.user_id) {
+      const catName = (fullEmission?.category as any)?.category_name || "Uncategorized";
+      const siteName = (fullEmission?.site as any)?.name || "";
+      await createNotification(
+        creator.user_id,
+        "APPROVED",
+        "Emission Approved",
+        `Your ${catName} emission for ${siteName} was approved`,
+        `/my-emissions`
+      );
+    }
+
+    log.info("Emission", "Approved", { id: emission.pk_id, managerId: req.user?.userId });
 
     return res.status(200).json({
       message: "Emission approved successfully",
@@ -1460,6 +1496,7 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
       managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
       managerEmail: manager?.email || "",
       managerRole: manager?.role || "",
+      deepLink: `/my-emissions`,
     };
 
     if (creator?.email) {
@@ -1474,6 +1511,21 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
         ...actionInfo,
       });
     }
+
+    // In-app notification
+    if (creator?.user_id) {
+      const catName = (fullEmission?.category as any)?.category_name || "Uncategorized";
+      const siteName = (fullEmission?.site as any)?.name || "";
+      await createNotification(
+        creator.user_id,
+        "REJECTED",
+        "Emission Rejected",
+        `Your ${catName} emission for ${siteName} was rejected${comment ? `: ${comment}` : ""}`,
+        `/my-emissions`
+      );
+    }
+
+    log.info("Emission", "Rejected", { id: emission.pk_id, managerId: req.user?.userId, comment: comment || "" });
 
     return res.status(200).json({
       message: "Emission rejected",
@@ -1566,13 +1618,22 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         categories,
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "BULK_APPROVED",
+        "Emissions Approved",
+        `${totalCount} emission(s) have been approved`,
+        `/my-emissions`
+      );
     }
+
+    log.info("Emission", "Bulk approved", { count: eligibleIds.length, managerId: req.user?.userId });
 
     return res.status(200).json({
       message: `${eligibleIds.length} emissions approved successfully`,
     });
   } catch (error) {
-    console.error("Bulk approve emissions error:", error);
+    log.error("Emission", "Bulk approve failed", { error: (error as Error).message });
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -1665,13 +1726,22 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
         comment,
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "BULK_REJECTED",
+        "Emissions Rejected",
+        `${totalCount} emission(s) have been rejected${comment ? `: ${comment}` : ""}`,
+        `/my-emissions`
+      );
     }
+
+    log.info("Emission", "Bulk rejected", { count: eligibleIds.length, managerId: req.user?.userId, comment });
 
     return res.status(200).json({
       message: `${eligibleIds.length} emissions rejected`,
     });
   } catch (error) {
-    console.error("Bulk reject emissions error:", error);
+    log.error("Emission", "Bulk reject failed", { error: (error as Error).message });
     return res.status(500).json({
       message: "Internal server error",
     });

@@ -29,6 +29,8 @@ const colors = {
   gray100: "#f3f4f6",
   gray50: "#f9fafb",
   white: "#ffffff",
+  // Accent
+  blue600: "#2563eb",
   // Status colors
   red700: "#b91c1c",
   red600: "#dc2626",
@@ -407,6 +409,23 @@ const summaryTable = (
     </table>`;
 };
 
+/** "View Details" CTA button linking back to the frontend */
+const viewDetailsButton = (deepLink?: string) => {
+  if (!deepLink) return "";
+  const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
+  const url = `${frontendUrl}${deepLink}`;
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0;">
+      <tr>
+        <td align="center">
+          <a href="${url}" target="_blank" style="display: inline-block; padding: 12px 32px; background-color: ${colors.blue600}; color: ${colors.white}; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px;">
+            View Details &rarr;
+          </a>
+        </td>
+      </tr>
+    </table>`;
+};
+
 // ============================================================================
 // EMISSION TEMPLATES
 // ============================================================================
@@ -415,7 +434,7 @@ export const successTemplate = (
   name: string,
   categoryName?: string,
   siteName?: string,
-  actionInfo?: { submitterName?: string; submitterEmail?: string; managerName?: string; managerEmail?: string; managerRole?: string }
+  actionInfo?: { submitterName?: string; submitterEmail?: string; managerName?: string; managerEmail?: string; managerRole?: string; deepLink?: string }
 ) => ({
   subject: "Emission Data Approved - Carbon Lens",
   html: baseLayout(
@@ -431,7 +450,7 @@ export const successTemplate = (
       : ""
     }
     ${actionInfo ? actionTrail("Approved", actionInfo) : ""}
-    ${bodyText("Log in to the platform to view the complete details and updated reports.")}
+    ${viewDetailsButton(actionInfo?.deepLink)}
     ${signOff()}`,
     colors.emerald600
   ),
@@ -442,7 +461,7 @@ export const rejectTemplate = (
   categoryName?: string,
   siteName?: string,
   comment?: string,
-  actionInfo?: { submitterName?: string; submitterEmail?: string; managerName?: string; managerEmail?: string; managerRole?: string }
+  actionInfo?: { submitterName?: string; submitterEmail?: string; managerName?: string; managerEmail?: string; managerRole?: string; deepLink?: string }
 ) => ({
   subject: "Emission Data Rejected - Carbon Lens",
   html: baseLayout(
@@ -459,7 +478,7 @@ export const rejectTemplate = (
     }
     ${comment ? rejectionCallout(comment) : ""}
     ${actionInfo ? actionTrail("Rejected", actionInfo) : ""}
-    ${bodyText("Please review the feedback, make the necessary corrections, and resubmit your data through the platform.")}
+    ${viewDetailsButton(actionInfo?.deepLink)}
     ${signOff()}`,
     colors.red600
   ),

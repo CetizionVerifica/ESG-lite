@@ -9,6 +9,8 @@ import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { sendToQueue } from "../queues/emailProducer";
+import { log } from "../utils/logger";
+import { createNotification } from "../services/notificationService";
 
 const repo = AppDataSource.getRepository(ProductionData);
 const productRepo = AppDataSource.getRepository(Product);
@@ -62,12 +64,14 @@ export const createProductionData = async (req: AuthRequest, res: Response) => {
       relations: ["product", "site", "created_by"],
     });
 
+    log.info("Production", "Created", { id: saved?.production_id, userId: (req as any).user?.userId });
+
     return res.status(201).json({
       message: "Production data created successfully",
       productionData: saved,
     });
   } catch (error) {
-    console.error("Create production data error:", error);
+    log.error("Production", "Create failed", { error: (error as Error).message });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -255,9 +259,11 @@ export const deleteProductionData = async (req: Request, res: Response) => {
 
     await repo.delete({ production_id: parseInt(id) });
 
+    log.info("Production", "Deleted", { productionId: id, userId: (req as any).user?.userId });
+
     return res.status(200).json({ message: "Production data deleted successfully" });
   } catch (error) {
-    console.error("Delete production data error:", error);
+    log.error("Production", "Delete failed", { productionId: req.params.id, error: (error as Error).message });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -584,14 +590,23 @@ export const approveProductionData = async (req: AuthRequest, res: Response) => 
         siteName: (updated?.site as any)?.name || "",
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "PRODUCTION_APPROVED",
+        "Production Data Approved",
+        `Your ${(updated?.product as any)?.name || ""} production data was approved`,
+        `/production-data`
+      );
     }
+
+    log.info("Production", "Approved", { id: data.production_id, managerId: req.user?.userId });
 
     return res.status(200).json({
       message: "Production data approved successfully",
       productionData: updated,
     });
   } catch (error) {
-    console.error("Approve production data error:", error);
+    log.error("Production", "Approve failed", { error: (error as Error).message });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -656,7 +671,16 @@ export const rejectProductionData = async (req: AuthRequest, res: Response) => {
         comment: updated?.review_comment || "",
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "PRODUCTION_REJECTED",
+        "Production Data Rejected",
+        `Your ${(updated?.product as any)?.name || ""} production data was rejected${updated?.review_comment ? `: ${updated.review_comment}` : ""}`,
+        `/production-data`
+      );
     }
+
+    log.info("Production", "Rejected", { id: data.production_id, managerId: req.user?.userId });
 
     return res.status(200).json({
       message: "Production data rejected",
@@ -743,7 +767,16 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
         products: categories,
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "BULK_PRODUCTION_APPROVED",
+        "Production Data Approved",
+        `${totalCount} production data entries have been approved`,
+        `/production-data`
+      );
     }
+
+    log.info("Production", "Bulk approved", { count: eligibleIds.length, managerId: req.user?.userId });
 
     return res.status(200).json({
       message: `${eligibleIds.length} production data entries approved successfully`,
@@ -834,13 +867,22 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
         comment: comment.trim(),
         ...actionInfo,
       });
+      await createNotification(
+        creator.user_id,
+        "BULK_PRODUCTION_REJECTED",
+        "Production Data Rejected",
+        `${totalCount} production data entries have been rejected${comment ? `: ${comment}` : ""}`,
+        `/production-data`
+      );
     }
+
+    log.info("Production", "Bulk rejected", { count: eligibleIds.length, managerId: req.user?.userId });
 
     return res.status(200).json({
       message: `${eligibleIds.length} production data entries rejected`,
     });
   } catch (error) {
-    console.error("Bulk reject production data error:", error);
+    log.error("Production", "Bulk reject failed", { error: (error as Error).message });
     return res.status(500).json({ message: "Internal server error" });
   }
 };

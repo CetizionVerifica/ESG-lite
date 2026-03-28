@@ -1,6 +1,6 @@
 // import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import { mg, MAILGUN_DOMAIN } from "../config/mailer";
+import { getMg, MAILGUN_DOMAIN } from "../config/mailer";
 
 dotenv.config();
 
@@ -112,7 +112,12 @@ export const sendEmailForApprove = async ({ to, subject, html }: EmailPayload) =
     //     return;
     // }
 
-    return mg.messages.create(MAILGUN_DOMAIN, {
+    const client = getMg();
+    if (!client) {
+        console.warn(`Email skipped (Mailgun not configured): ${to} — ${subject}`);
+        return;
+    }
+    return client.messages.create(MAILGUN_DOMAIN, {
         from: `Carbon Lens <mail@mail.carbon-lens.com>`,
         to: [to],
         subject,

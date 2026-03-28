@@ -11,6 +11,7 @@ export type EmailActionInfo = {
   managerRole?: string;
   submitterName?: string;
   submitterEmail?: string;
+  deepLink?: string; // Frontend path, e.g. "/my-emissions"
 };
 
 export type EmailJob =

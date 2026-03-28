@@ -1,14 +1,31 @@
 import cron from "node-cron";
+import { MoreThanOrEqual } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Emission } from "../entities/Emission";
+import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/type";
 import { sendToQueue } from "../queues/emailProducer";
+import { createNotification } from "../services/notificationService";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+/** Check if it's currently the target hour in a given timezone */
+const isLocalHour = (timezone: string | null, targetHour: number): boolean => {
+  try {
+    const tz = timezone || "UTC";
+    const localHour = parseInt(
+      new Date().toLocaleString("en-US", { timeZone: tz, hour: "numeric", hour12: false })
+    );
+    return localHour === targetHour;
+  } catch {
+    // Invalid timezone — fallback to UTC
+    return new Date().getUTCHours() === targetHour;
+  }
+};
 
 
 /**
@@ -27,7 +44,7 @@ const getUsersWithNoSubmissions = async (year: number, month: number) => {
 
   console.log(`Found ${users.length} user(s) with role USER`);
 
-  const pendingUsers: { user_id: number; name: string; email: string; role: string; siteName: string; siteId: number }[] = [];
+  const pendingUsers: { user_id: number; name: string; email: string; role: string; siteName: string; siteId: number; timezone: string | null }[] = [];
 
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0); // Last day of month
@@ -79,6 +96,7 @@ const getUsersWithNoSubmissions = async (year: number, month: number) => {
           role: user.role || "User",
           siteName: site.name,
           siteId: site.site_id,
+          timezone: user.timezone || null,
         });
       }
     }
@@ -130,8 +148,25 @@ export const sendDeadlineReminders = async () => {
     const sentEmails = new Set<string>();
     let sentCount = 0;
 
+    // Track sent reminders to prevent duplicates across hourly runs
+    const notificationRepo = AppDataSource.getRepository(Notification);
+
     for (const user of pendingUsers) {
       if (sentEmails.has(user.email)) continue;
+
+      // Check if it's 8 AM in the user's timezone (uses timezone from initial query — no N+1)
+      if (!isLocalHour(user.timezone, 8)) continue;
+
+      // Idempotency: skip if reminder already sent this month
+      const alreadySent = await notificationRepo.count({
+        where: {
+          user: { user_id: user.user_id },
+          type: "DEADLINE_REMINDER",
+          created_at: MoreThanOrEqual(new Date(now.getFullYear(), now.getMonth(), 1)),
+        },
+      });
+      if (alreadySent > 0) continue;
+
       sentEmails.add(user.email);
 
       console.log(`Queuing deadline reminder for: ${user.email} (${user.name}, site: ${user.siteName})`);
@@ -145,6 +180,16 @@ export const sendDeadlineReminders = async () => {
         year,
         siteName: user.siteName,
       });
+
+      // In-app notification
+      await createNotification(
+        user.user_id,
+        "DEADLINE_REMINDER",
+        "Submission Reminder",
+        `You haven't submitted data for ${monthName} ${year} (${user.siteName})`,
+        `/data-entry`
+      );
+
       sentCount++;
     }
 
@@ -170,6 +215,7 @@ export const sendEscalationEmails = async () => {
     console.log(`Running escalation check for ${monthName} ${year}...`);
 
     const pendingUsers = await getUsersWithNoSubmissions(year, month);
+    const notificationRepo = AppDataSource.getRepository(Notification);
 
     if (pendingUsers.length === 0) {
       console.log("All users have submitted data. No escalation needed.");
@@ -198,6 +244,19 @@ export const sendEscalationEmails = async () => {
       for (const manager of managers) {
         if (!manager.email) continue;
 
+        // Check if it's 8 AM in the manager's timezone
+        if (!isLocalHour(manager.timezone || null, 8)) continue;
+
+        // Idempotency: skip if escalation already sent this month
+        const alreadySent = await notificationRepo.count({
+          where: {
+            user: { user_id: manager.user_id },
+            type: "DEADLINE_ESCALATION",
+            created_at: MoreThanOrEqual(new Date(now.getFullYear(), now.getMonth(), 1)),
+          },
+        });
+        if (alreadySent > 0) continue;
+
         console.log(`Queuing escalation for manager: ${manager.email}`);
 
         await sendToQueue({
@@ -214,6 +273,15 @@ export const sendEscalationEmails = async () => {
             siteName: u.siteName,
           })),
         });
+
+        // In-app notification for manager
+        await createNotification(
+          manager.user_id,
+          "DEADLINE_ESCALATION",
+          "Pending Submissions",
+          `${siteUsers.length} user(s) haven't submitted data for ${monthName} ${year}`,
+          `/data-manage`
+        );
       }
     }
 
@@ -229,15 +297,15 @@ export const sendEscalationEmails = async () => {
  * - 15th of every month at 8:00 AM: escalation to managers
  */
 export const startDeadlineScheduler = () => {
-  // Run at 8:00 AM on the 10th of every month
-  cron.schedule("0 8 10 * *", () => {
+  // Run every hour on the 10th — sends only when it's 8 AM in each user's timezone
+  cron.schedule("0 * 10 * *", () => {
     sendDeadlineReminders();
   });
 
-  // Run at 8:00 AM on the 15th of every month
-  cron.schedule("0 8 15 * *", () => {
+  // Run every hour on the 15th — sends only when it's 8 AM in each manager's timezone
+  cron.schedule("0 * 15 * *", () => {
     sendEscalationEmails();
   });
 
-  console.log("Deadline scheduler started (10th reminder, 15th escalation).");
+  console.log("Deadline scheduler started (10th reminder, 15th escalation — timezone-aware).");
 };
