@@ -3,7 +3,7 @@ import { getChannel } from "../config/rabbitmq";
 export const startDLQConsumer = async () => {
     const channel = getChannel();
 
- channel.consume("dlq_queue", async (msg) => {
+ channel.consume("dlq_queue", async (msg: any) => {
     if (!msg) return;
 
     const data = JSON.parse(msg.content.toString());
