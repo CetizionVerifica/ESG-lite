@@ -8,7 +8,7 @@ export const connectRabbitMQ = async () => {
     );
 
     // Handle connection drops gracefully (CloudAMQP closes idle connections)
-    connection.on("error", (err) => {
+    connection.on("error", (err: Error) => {
         console.error("RabbitMQ connection error:", err.message);
     });
     connection.on("close", () => {
@@ -18,7 +18,7 @@ export const connectRabbitMQ = async () => {
 
     channel = await connection.createChannel();
 
-    channel.on("error", (err) => {
+    channel.on("error", (err: Error) => {
         console.error("RabbitMQ channel error:", err.message);
     });
     channel.on("close", () => {

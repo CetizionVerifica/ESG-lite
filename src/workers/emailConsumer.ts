@@ -43,7 +43,7 @@ export const startEmailConsumer = async () => {
   // Process 1 at a time to avoid Mailgun rate limits
   channel.prefetch(1);
 
-  channel.consume("email_queue", async (msg) => {
+  channel.consume("email_queue", async (msg: any) => {
     if (!msg) return;
 
     const data = JSON.parse(msg.content.toString());
