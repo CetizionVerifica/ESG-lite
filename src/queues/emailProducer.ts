@@ -9,7 +9,8 @@ export const sendToQueue = async (data: EmailJob) => {
             Buffer.from(JSON.stringify({ ...data, retryCount: 0 })),
             { persistent: true }
         );
-    } catch {
-        console.warn(`Email skipped (RabbitMQ not available): ${data.type} → ${data.email}`);
+        console.log(`[INFO] [Email] Queued: ${data.type} → ${data.email}`);
+    } catch (err: any) {
+        console.warn(`[WARN] [Email] Skipped (RabbitMQ not available): ${data.type} → ${data.email} — ${err?.message || ""}`);
     }
 };
