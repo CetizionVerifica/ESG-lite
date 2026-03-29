@@ -25,6 +25,9 @@ export class AuditLog {
   @Column("jsonb")
   changed_fields!: Record<string, { old: any; new: any }>;
 
+  @Column({ type: "text", nullable: true })
+  reason!: string | null;
+
   @ManyToOne(() => User)
   @JoinColumn({ name: "changed_by" })
   changed_by!: User;

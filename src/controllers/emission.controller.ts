@@ -12,6 +12,9 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
+import { sendToQueue } from "../queues/emailProducer";
+import { log } from "../utils/logger";
+import { createNotification } from "../services/notificationService";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -230,6 +233,58 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({
         message: "site_id, category_id, activity_data, and date_of_reporting are required",
       });
+    }
+
+    // Check for duplicate emission (same site + category + date + emission_category)
+    const duplicateWhere: any = {
+      site: { site_id },
+      category: { category_id },
+      date_of_reporting: new Date(date_of_reporting),
+    };
+
+    const existingEmissions = await repo.find({
+      where: duplicateWhere,
+      relations: ["site", "category", "created_by"],
+    });
+
+    // If emission_category is provided, match on it too; otherwise match any entry for that date
+    const duplicate = activity_data.emission_category
+      ? existingEmissions.find(
+          (e) => e.activity_data?.emission_category === activity_data.emission_category
+        )
+      : existingEmissions.length > 0
+        ? existingEmissions[0]
+        : null;
+
+    if (duplicate) {
+      const replace = req.query.replace === "true";
+      if (!replace) {
+        return res.status(409).json({
+          message: "Duplicate emission entry already exists for this site, category, date, and emission subcategory.",
+          existing_emission: duplicate,
+          duplicate: true,
+        });
+      }
+      // Replace mode: delete the existing entry (and its FERA links) before creating new one
+      const idsToDelete = [duplicate.pk_id];
+      if (duplicate.fera_linked_id) {
+        idsToDelete.push(duplicate.fera_linked_id);
+      }
+      // Check if any other emission links back to this one (reverse FERA link)
+      const linkedBack = await repo.findOne({
+        where: { fera_linked_id: duplicate.pk_id },
+      });
+      if (linkedBack) {
+        idsToDelete.push(linkedBack.pk_id);
+      }
+      // Delete related documents first
+      const docRepo = AppDataSource.getRepository(EmissionDocument);
+      await docRepo
+        .createQueryBuilder()
+        .delete()
+        .where("emission_id IN (:...ids)", { ids: idsToDelete })
+        .execute();
+      await repo.delete(idsToDelete);
     }
 
     let calculatedEmission = total_emission || 0;
@@ -534,6 +589,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    log.info("Emission", "Created", { id: savedEmission?.pk_id, userId, siteId: site_id, categoryId: category_id });
+
     return res.status(201).json({
       message: "Emission created successfully",
       emission: savedEmission,
@@ -782,6 +839,8 @@ export const deleteEmission = async (req: Request, res: Response) => {
 
     await repo.delete(idsToDelete);
 
+    log.info("Emission", "Deleted", { ids: idsToDelete, userId: (req as AuthRequest).user?.userId });
+
     return res.status(200).json({
       message: "Emission deleted successfully",
       deleted_ids: idsToDelete,
@@ -929,8 +988,22 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    const result = await repo.update(
-      { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+    // Fetch emissions before updating for email notifications
+    const emissionsToApprove = await repo.find({
+      where: { upload_batch_id: batchId, status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
+
+    if (emissionsToApprove.length === 0) {
+      return res.status(404).json({
+        message: "No pending emissions found for this batch",
+      });
+    }
+
+    const eligibleIds = emissionsToApprove.map((e) => e.pk_id);
+
+    await repo.update(
+      { pk_id: In(eligibleIds) },
       {
         status: EmissionStatus.APPROVED,
         review_comment: comment || null,
@@ -939,15 +1012,85 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       }
     );
 
-    if (result.affected === 0) {
-      return res.status(404).json({
-        message: "No pending emissions found for this batch",
+    // Auto-approve linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToApprove) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      select: ["pk_id"],
+    });
+    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.APPROVED, review_comment: comment || null, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids) AND status = :status", { ids: feraIds, status: EmissionStatus.PENDING })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    // Build summary for email content
+    const totalCount = emissionsToApprove.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToApprove) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Send email to each unique creator
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToApprove) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_APPROVED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
+      await createNotification(
+        creator.user_id,
+        "BULK_APPROVED",
+        "Emissions Approved",
+        `${totalCount} emission(s) approved by ${mgrName}`,
+        `/my-emissions`
+      );
     }
 
     return res.status(200).json({
-      message: `Approved ${result.affected} emission(s) from batch`,
-      approved: result.affected,
+      message: `Approved ${eligibleIds.length} emission(s) from batch`,
+      approved: eligibleIds.length,
     });
   } catch (error) {
     console.error("Approve emissions by batch error:", error);
@@ -966,29 +1109,112 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    // Reject all non-rejected emissions in the batch (pending + approved)
-    const result = await repo
-      .createQueryBuilder()
-      .update(Emission)
-      .set({
-        status: EmissionStatus.REJECTED,
-        review_comment: comment || null,
-        reviewed_by: userId ? { user_id: userId } as any : null,
-        reviewed_at: new Date(),
-      })
-      .where("upload_batch_id = :batchId", { batchId })
-      .andWhere("status != :rejected", { rejected: EmissionStatus.REJECTED })
-      .execute();
+    // Fetch emissions before updating for email notifications
+    const emissionsToReject = await repo.find({
+      where: { upload_batch_id: batchId, status: In([EmissionStatus.PENDING, EmissionStatus.APPROVED]) },
+      relations: ["created_by", "category", "site"],
+    });
 
-    if (result.affected === 0) {
+    if (emissionsToReject.length === 0) {
       return res.status(404).json({
         message: "No emissions to reject in this batch",
       });
     }
 
+    const eligibleIds = emissionsToReject.map((e) => e.pk_id);
+
+    // Reject all non-rejected emissions in the batch (pending + approved)
+    await repo.update(
+      { pk_id: In(eligibleIds) },
+      {
+        status: EmissionStatus.REJECTED,
+        review_comment: comment || null,
+        reviewed_by: userId ? { user_id: userId } as any : null,
+        reviewed_at: new Date(),
+      }
+    );
+
+    // Auto-reject linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToReject) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds) },
+      select: ["pk_id", "status"],
+    });
+    for (const e of reverseLinked) {
+      if (e.status !== EmissionStatus.REJECTED) feraIds.push(e.pk_id);
+    }
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.REJECTED, review_comment: comment || null, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids)", { ids: feraIds })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = emissionsToReject.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToReject) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    // Send email to each unique creator
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToReject) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_REJECTED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        comment: comment || "",
+        ...actionInfo,
+      });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
+      await createNotification(
+        creator.user_id,
+        "BULK_REJECTED",
+        "Emissions Rejected",
+        `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
+        `/my-emissions`
+      );
+    }
+
     return res.status(200).json({
-      message: `Rejected ${result.affected} emission(s) from batch`,
-      rejected: result.affected,
+      message: `Rejected ${eligibleIds.length} emission(s) from batch`,
+      rejected: eligibleIds.length,
     });
   } catch (error) {
     console.error("Reject emissions by batch error:", error);
@@ -1203,14 +1429,72 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-    const updatedEmission = await repo.findOne({
+    // Auto-approve linked FERA entries (bidirectional)
+    const feraLinkedIds: number[] = [];
+    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
+    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
+    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    for (const fId of feraLinkedIds) {
+      const feraEmission = await repo.findOne({ where: { pk_id: fId } });
+      if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
+        feraEmission.status = EmissionStatus.APPROVED;
+        feraEmission.review_comment = comment || null;
+        feraEmission.reviewed_by = { user_id: userId } as any;
+        feraEmission.reviewed_at = new Date();
+        await repo.save(feraEmission);
+      }
+    }
+
+    const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
-      relations: ["site", "category", "reviewed_by", "created_by"],
+      relations: ["created_by", "site", "category"],
     });
+
+    // Fetch manager details for email
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = fullEmission?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+      deepLink: `/my-emissions`,
+    };
+
+    if (creator?.email) {
+      await sendToQueue({
+        type: "APPROVED",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        categoryName: (fullEmission?.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission?.site as any)?.name || "",
+        ...actionInfo,
+      });
+    }
+
+    // In-app notification
+    if (creator?.user_id) {
+      const catName = (fullEmission?.category as any)?.category_name || "Uncategorized";
+      const siteName = (fullEmission?.site as any)?.name || "";
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
+      await createNotification(
+        creator.user_id,
+        "APPROVED",
+        "Emission Approved",
+        `Your ${catName} emission for ${siteName} was approved by ${mgrName}`,
+        `/my-emissions`
+      );
+    }
+
+    log.info("Emission", "Approved", { id: emission.pk_id, managerId: req.user?.userId });
 
     return res.status(200).json({
       message: "Emission approved successfully",
-      emission: updatedEmission,
+      emission: fullEmission,
     });
   } catch (error) {
     console.error("Approve emission error:", error);
@@ -1257,14 +1541,73 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-    const updatedEmission = await repo.findOne({
+    // Auto-reject linked FERA entries (bidirectional)
+    const feraLinkedIds: number[] = [];
+    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
+    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
+    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    for (const fId of feraLinkedIds) {
+      const feraEmission = await repo.findOne({ where: { pk_id: fId } });
+      if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
+        feraEmission.status = EmissionStatus.REJECTED;
+        feraEmission.review_comment = comment;
+        feraEmission.reviewed_by = { user_id: userId } as any;
+        feraEmission.reviewed_at = new Date();
+        await repo.save(feraEmission);
+      }
+    }
+
+    const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
-      relations: ["site", "category", "reviewed_by", "created_by"],
+      relations: ["created_by", "site", "category"],
     });
+
+    // Fetch manager details for email
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const creator = fullEmission?.created_by;
+    const actionInfo = {
+      submitterName: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+      submitterEmail: creator?.email || "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+      deepLink: `/my-emissions`,
+    };
+
+    if (creator?.email) {
+      await sendToQueue({
+        type: "REJECTED",
+        email: creator.email,
+        name: `${creator?.name || ""} ${creator?.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        categoryName: (fullEmission?.category as any)?.category_name || "Uncategorized",
+        siteName: (fullEmission?.site as any)?.name || "",
+        comment: fullEmission?.review_comment || "",
+        ...actionInfo,
+      });
+    }
+
+    // In-app notification
+    if (creator?.user_id) {
+      const catName = (fullEmission?.category as any)?.category_name || "Uncategorized";
+      const siteName = (fullEmission?.site as any)?.name || "";
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
+      await createNotification(
+        creator.user_id,
+        "REJECTED",
+        "Emission Rejected",
+        `Your ${catName} emission for ${siteName} was rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
+        `/my-emissions`
+      );
+    }
+
+    log.info("Emission", "Rejected", { id: emission.pk_id, managerId: req.user?.userId, comment: comment || "" });
 
     return res.status(200).json({
       message: "Emission rejected",
-      emission: updatedEmission,
+      emission: fullEmission,
     });
   } catch (error) {
     console.error("Reject emission error:", error);
@@ -1286,8 +1629,21 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const emissionsToApprove = await repo.find({
+      where: { pk_id: In(ids), status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
+
+    if (emissionsToApprove.length === 0) {
+      return res.status(400).json({
+        message: "No pending emissions found to approve",
+      });
+    }
+
+    const eligibleIds = emissionsToApprove.map((e) => e.pk_id);
+
     await repo.update(
-      { pk_id: In(ids), status: EmissionStatus.PENDING },
+      { pk_id: In(eligibleIds), status: EmissionStatus.PENDING },
       {
         status: EmissionStatus.APPROVED,
         review_comment: comment || null,
@@ -1296,11 +1652,88 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    // Auto-approve linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToApprove) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      select: ["pk_id"],
+    });
+    for (const e of reverseLinked) feraIds.push(e.pk_id);
+
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.APPROVED, review_comment: comment || null, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids) AND status = :status", { ids: feraIds, status: EmissionStatus.PENDING })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = emissionsToApprove.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToApprove) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToApprove) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_APPROVED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        ...actionInfo,
+      });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
+      await createNotification(
+        creator.user_id,
+        "BULK_APPROVED",
+        "Emissions Approved",
+        `${totalCount} emission(s) approved by ${mgrName}`,
+        `/my-emissions`
+      );
+    }
+
+    log.info("Emission", "Bulk approved", { count: eligibleIds.length, managerId: req.user?.userId });
+
     return res.status(200).json({
-      message: `${ids.length} emissions approved successfully`,
+      message: `${eligibleIds.length} emissions approved successfully`,
     });
   } catch (error) {
-    console.error("Bulk approve emissions error:", error);
+    log.error("Emission", "Bulk approve failed", { error: (error as Error).message });
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -1325,8 +1758,21 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const emissionsToReject = await repo.find({
+      where: { pk_id: In(ids), status: EmissionStatus.PENDING },
+      relations: ["created_by", "category", "site"],
+    });
+
+    if (emissionsToReject.length === 0) {
+      return res.status(400).json({
+        message: "No pending emissions found to reject",
+      });
+    }
+
+    const eligibleIds = emissionsToReject.map((e) => e.pk_id);
+
     await repo.update(
-      { pk_id: In(ids), status: EmissionStatus.PENDING },
+      { pk_id: In(eligibleIds), status: EmissionStatus.PENDING },
       {
         status: EmissionStatus.REJECTED,
         review_comment: comment,
@@ -1335,11 +1781,89 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    // Auto-reject linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToReject) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      select: ["pk_id"],
+    });
+    for (const e of reverseLinked) feraIds.push(e.pk_id);
+
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.REJECTED, review_comment: comment, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids) AND status = :status", { ids: feraIds, status: EmissionStatus.PENDING })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
+    // Fetch manager details
+    const userRepo = AppDataSource.getRepository(User);
+    const manager = await userRepo.findOne({ where: { user_id: userId } });
+
+    const totalCount = emissionsToReject.length;
+    const categorySummary: Record<string, number> = {};
+    const creatorNames: string[] = [];
+    for (const emission of emissionsToReject) {
+      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
+      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
+      const creator = emission.created_by;
+      if (creator?.name) {
+        const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
+        if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
+      }
+    }
+    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
+
+    const actionInfo = {
+      submitterName: creatorNames.join(", ") || "User",
+      submitterEmail: "",
+      managerName: `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager",
+      managerEmail: manager?.email || "",
+      managerRole: manager?.role || "",
+    };
+
+    const creatorMap = new Map<number, User>();
+    for (const emission of emissionsToReject) {
+      const creator = emission.created_by;
+      if (creator?.email && !creatorMap.has(creator.user_id)) {
+        creatorMap.set(creator.user_id, creator);
+      }
+    }
+
+    for (const creator of creatorMap.values()) {
+      await sendToQueue({
+        type: "BULK_REJECTED",
+        email: creator.email,
+        name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
+        retryCount: 0,
+        totalCount,
+        categories,
+        comment,
+        ...actionInfo,
+      });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
+      await createNotification(
+        creator.user_id,
+        "BULK_REJECTED",
+        "Emissions Rejected",
+        `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
+        `/my-emissions`
+      );
+    }
+
+    log.info("Emission", "Bulk rejected", { count: eligibleIds.length, managerId: req.user?.userId, comment });
+
     return res.status(200).json({
-      message: `${ids.length} emissions rejected`,
+      message: `${eligibleIds.length} emissions rejected`,
     });
   } catch (error) {
-    console.error("Bulk reject emissions error:", error);
+    log.error("Emission", "Bulk reject failed", { error: (error as Error).message });
     return res.status(500).json({
       message: "Internal server error",
     });
@@ -2776,7 +3300,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   try {
     const { id }: any = req.params;
     const userId = req.user?.userId;
-    const { activity_data, date_of_reporting } = req.body;
+    const { activity_data, date_of_reporting, reason } = req.body;
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -2932,6 +3456,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       entity_id: emission.pk_id,
       action: "manager_edit",
       changed_fields: changedFields,
+      reason: reason || null,
       changed_by: { user_id: userId } as any,
     });
     await auditRepo.save(auditEntry);

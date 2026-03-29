@@ -62,6 +62,7 @@ import {
 import { getCompanies, getCompanyNameBySites } from "../controllers/company.controller";
 import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
 import { getAuditLogs } from "../controllers/auditLog.controller";
+import { exportEmissions } from "../controllers/emissionExport.controller";
 
 const router = Router();
 
@@ -88,6 +89,7 @@ router.post("/emissions", createEmission);
 
 // Download emissions as Excel (must come before :id routes)
 router.get("/emissions/download", downloadEmissions);
+router.get("/emissions/export", exportEmissions);
 
 // Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
 router.put("/emissions/bulk-approve", bulkApproveEmissions);

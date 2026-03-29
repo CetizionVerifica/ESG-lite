@@ -6,6 +6,7 @@ import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { signToken } from "../utils/jwt";
 import { UserRole } from "../types/type";
+import { log } from "../utils/logger";
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -23,12 +24,14 @@ export const login = async (req: Request, res: Response) => {
   });
 
   if (!user) {
+    log.warn("Auth", "Login failed — user not found", { email: emailLower });
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
   const valid = await bcrypt.compare(password, user.password);
 
   if (!valid) {
+    log.warn("Auth", "Login failed — wrong password", { email: emailLower, userId: user.user_id });
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
@@ -63,6 +66,7 @@ export const login = async (req: Request, res: Response) => {
     siteId: primarySiteId,
   });
 
+  log.info("Auth", "Login success", { email: emailLower, userId: user.user_id, role: user.role });
   res.json({ token, role: user.role, user: user });
 };
 
@@ -76,6 +80,7 @@ export const register = async (req: Request, res: Response) => {
 
   const exists = await userRepo.findOne({ where: { email } });
   if (exists) {
+    log.warn("Auth", "Register failed — email exists", { email });
     return res.status(409).json({ message: "User already exists" });
   }
 
