@@ -11,8 +11,9 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const unreadOnly = req.query.unread === "true";
 
-    const result = await notificationService.getNotifications(userId, page, limit);
+    const result = await notificationService.getNotifications(userId, page, limit, unreadOnly);
     return res.json(result);
   } catch (error) {
     console.error("Get notifications error:", error);

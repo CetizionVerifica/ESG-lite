@@ -590,11 +590,12 @@ export const approveProductionData = async (req: AuthRequest, res: Response) => 
         siteName: (updated?.site as any)?.name || "",
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "PRODUCTION_APPROVED",
         "Production Data Approved",
-        `Your ${(updated?.product as any)?.name || ""} production data was approved`,
+        `Your ${(updated?.product as any)?.name || ""} production data was approved by ${mgrName}`,
         `/production-data`
       );
     }
@@ -671,11 +672,12 @@ export const rejectProductionData = async (req: AuthRequest, res: Response) => {
         comment: updated?.review_comment || "",
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "PRODUCTION_REJECTED",
         "Production Data Rejected",
-        `Your ${(updated?.product as any)?.name || ""} production data was rejected${updated?.review_comment ? `: ${updated.review_comment}` : ""}`,
+        `Your ${(updated?.product as any)?.name || ""} production data was rejected by ${mgrName}${updated?.review_comment ? `. Reason: ${updated.review_comment}` : ""}`,
         `/production-data`
       );
     }
@@ -767,11 +769,12 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
         products: categories,
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "BULK_PRODUCTION_APPROVED",
         "Production Data Approved",
-        `${totalCount} production data entries have been approved`,
+        `${totalCount} production data entries approved by ${mgrName}`,
         `/production-data`
       );
     }
@@ -867,11 +870,12 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
         comment: comment.trim(),
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "BULK_PRODUCTION_REJECTED",
         "Production Data Rejected",
-        `${totalCount} production data entries have been rejected${comment ? `: ${comment}` : ""}`,
+        `${totalCount} production data entries rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
         `/production-data`
       );
     }

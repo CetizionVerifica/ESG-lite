@@ -1012,6 +1012,26 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       }
     );
 
+    // Auto-approve linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToApprove) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      select: ["pk_id"],
+    });
+    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.APPROVED, review_comment: comment || null, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids) AND status = :status", { ids: feraIds, status: EmissionStatus.PENDING })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
@@ -1058,11 +1078,12 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
         categories,
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "BULK_APPROVED",
         "Emissions Approved",
-        `${totalCount} emission(s) have been approved`,
+        `${totalCount} emission(s) approved by ${mgrName}`,
         `/my-emissions`
       );
     }
@@ -1113,6 +1134,28 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
       }
     );
 
+    // Auto-reject linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToReject) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds) },
+      select: ["pk_id", "status"],
+    });
+    for (const e of reverseLinked) {
+      if (e.status !== EmissionStatus.REJECTED) feraIds.push(e.pk_id);
+    }
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.REJECTED, review_comment: comment || null, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids)", { ids: feraIds })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
@@ -1159,11 +1202,12 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
         comment: comment || "",
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "BULK_REJECTED",
         "Emissions Rejected",
-        `${totalCount} emission(s) have been rejected${comment ? `: ${comment}` : ""}`,
+        `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
         `/my-emissions`
       );
     }
@@ -1385,6 +1429,22 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
+    // Auto-approve linked FERA entries (bidirectional)
+    const feraLinkedIds: number[] = [];
+    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
+    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
+    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    for (const fId of feraLinkedIds) {
+      const feraEmission = await repo.findOne({ where: { pk_id: fId } });
+      if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
+        feraEmission.status = EmissionStatus.APPROVED;
+        feraEmission.review_comment = comment || null;
+        feraEmission.reviewed_by = { user_id: userId } as any;
+        feraEmission.reviewed_at = new Date();
+        await repo.save(feraEmission);
+      }
+    }
+
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
       relations: ["created_by", "site", "category"],
@@ -1420,11 +1480,12 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
     if (creator?.user_id) {
       const catName = (fullEmission?.category as any)?.category_name || "Uncategorized";
       const siteName = (fullEmission?.site as any)?.name || "";
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "APPROVED",
         "Emission Approved",
-        `Your ${catName} emission for ${siteName} was approved`,
+        `Your ${catName} emission for ${siteName} was approved by ${mgrName}`,
         `/my-emissions`
       );
     }
@@ -1480,6 +1541,22 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
+    // Auto-reject linked FERA entries (bidirectional)
+    const feraLinkedIds: number[] = [];
+    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
+    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
+    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    for (const fId of feraLinkedIds) {
+      const feraEmission = await repo.findOne({ where: { pk_id: fId } });
+      if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
+        feraEmission.status = EmissionStatus.REJECTED;
+        feraEmission.review_comment = comment;
+        feraEmission.reviewed_by = { user_id: userId } as any;
+        feraEmission.reviewed_at = new Date();
+        await repo.save(feraEmission);
+      }
+    }
+
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
       relations: ["created_by", "site", "category"],
@@ -1516,11 +1593,12 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
     if (creator?.user_id) {
       const catName = (fullEmission?.category as any)?.category_name || "Uncategorized";
       const siteName = (fullEmission?.site as any)?.name || "";
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "REJECTED",
         "Emission Rejected",
-        `Your ${catName} emission for ${siteName} was rejected${comment ? `: ${comment}` : ""}`,
+        `Your ${catName} emission for ${siteName} was rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
         `/my-emissions`
       );
     }
@@ -1574,6 +1652,27 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    // Auto-approve linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToApprove) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      select: ["pk_id"],
+    });
+    for (const e of reverseLinked) feraIds.push(e.pk_id);
+
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.APPROVED, review_comment: comment || null, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids) AND status = :status", { ids: feraIds, status: EmissionStatus.PENDING })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
@@ -1618,11 +1717,12 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         categories,
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "BULK_APPROVED",
         "Emissions Approved",
-        `${totalCount} emission(s) have been approved`,
+        `${totalCount} emission(s) approved by ${mgrName}`,
         `/my-emissions`
       );
     }
@@ -1681,6 +1781,27 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       }
     );
 
+    // Auto-reject linked FERA entries
+    const feraIds: number[] = [];
+    for (const e of emissionsToReject) {
+      if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
+    }
+    const reverseLinked = await repo.find({
+      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      select: ["pk_id"],
+    });
+    for (const e of reverseLinked) feraIds.push(e.pk_id);
+
+    if (feraIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: EmissionStatus.REJECTED, review_comment: comment, reviewed_at: new Date() })
+        .where("pk_id IN (:...ids) AND status = :status", { ids: feraIds, status: EmissionStatus.PENDING })
+        .execute();
+      if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
+    }
+
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
@@ -1726,11 +1847,12 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
         comment,
         ...actionInfo,
       });
+      const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
       await createNotification(
         creator.user_id,
         "BULK_REJECTED",
         "Emissions Rejected",
-        `${totalCount} emission(s) have been rejected${comment ? `: ${comment}` : ""}`,
+        `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
         `/my-emissions`
       );
     }

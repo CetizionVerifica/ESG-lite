@@ -53,14 +53,18 @@ export const createNotification = async (
 
 /**
  * Get paginated notifications for a user (newest first).
+ * Pass unreadOnly=true to get only unread notifications.
  */
 export const getNotifications = async (
   userId: number,
   page = 1,
-  limit = 20
+  limit = 20,
+  unreadOnly = false
 ): Promise<{ notifications: Notification[]; total: number }> => {
+  const where: any = { user: { user_id: userId } };
+  if (unreadOnly) where.read = false;
   const [notifications, total] = await notificationRepo.findAndCount({
-    where: { user: { user_id: userId } },
+    where,
     order: { created_at: "DESC" },
     skip: (page - 1) * limit,
     take: limit,
