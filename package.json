@@ -40,9 +40,7 @@
     "ts-node-dev": "^2.0.0",
     "typeorm": "^0.3.28",
     "typescript": "^5.9.3",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
+    "xlsx": "^0.18.5",
     "@types/amqplib": "^0.10.8",
     "@types/node-cron": "^3.0.11"
   }
