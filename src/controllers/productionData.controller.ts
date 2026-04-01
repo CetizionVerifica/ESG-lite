@@ -208,6 +208,14 @@ export const updateProductionData = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Capture old values for audit trail
+    const oldQuantity = data.quantity;
+    const oldUnit = data.unit;
+    const oldStartDate = data.start_date;
+    const oldEndDate = data.end_date;
+    const oldNotes = data.notes;
+    const oldStatus = data.status;
+
     if (quantity !== undefined) data.quantity = parseFloat(quantity);
     if (unit) data.unit = unit.trim();
     if (start_date) data.start_date = new Date(start_date);
@@ -223,6 +231,48 @@ export const updateProductionData = async (req: AuthRequest, res: Response) => {
     }
 
     await repo.save(data);
+
+    // Create audit log for user edit
+    try {
+      const changedFields: Record<string, { old: any; new: any }> = {};
+
+      if (quantity !== undefined && Number(oldQuantity) !== Number(data.quantity)) {
+        changedFields["quantity"] = { old: oldQuantity, new: data.quantity };
+      }
+      if (unit && oldUnit !== data.unit) {
+        changedFields["unit"] = { old: oldUnit, new: data.unit };
+      }
+      if (start_date && String(oldStartDate) !== String(data.start_date)) {
+        changedFields["start_date"] = { old: oldStartDate, new: data.start_date };
+      }
+      if (end_date && String(oldEndDate) !== String(data.end_date)) {
+        changedFields["end_date"] = { old: oldEndDate, new: data.end_date };
+      }
+      if (notes !== undefined && oldNotes !== data.notes) {
+        changedFields["notes"] = { old: oldNotes, new: data.notes };
+      }
+      if (oldStatus !== data.status) {
+        changedFields["status"] = { old: oldStatus, new: data.status };
+      }
+
+      if (Object.keys(changedFields).length > 0) {
+        const auditLogRepo = AppDataSource.getRepository(AuditLog);
+        const userRepo = AppDataSource.getRepository(User);
+        const changedByUser = await userRepo.findOne({ where: { user_id: req.user?.userId } });
+
+        const auditLog = auditLogRepo.create({
+          entity_type: "production_data",
+          entity_id: data.production_id,
+          action: "user_edit",
+          changed_fields: changedFields,
+          reason: null,
+          changed_by: changedByUser || undefined,
+        });
+        await auditLogRepo.save(auditLog);
+      }
+    } catch (auditError) {
+      console.error("Failed to create audit log for user edit:", auditError);
+    }
 
     const updated = await repo.findOne({
       where: { production_id: data.production_id },

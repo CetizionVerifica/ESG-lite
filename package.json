@@ -23,7 +23,7 @@
     "@types/node": "^25.0.10",
     "@types/nodemailer": "^7.0.9",
     "amqplib": "^0.10.9",
-    "axios": "^1.13.6",
+    "axios": "1.13.6",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
