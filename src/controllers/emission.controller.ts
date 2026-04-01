@@ -605,10 +605,10 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 };
 
 // Update an emission entry
-export const updateEmission = async (req: Request, res: Response) => {
+export const updateEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { activity_data, activity_data_unit, date_of_reporting, extra_data } = req.body;
+    const { activity_data, activity_data_unit, date_of_reporting, extra_data, reason } = req.body;
 
     const emission = await repo.findOne({
       where: { pk_id: parseInt(id) },
@@ -625,6 +625,12 @@ export const updateEmission = async (req: Request, res: Response) => {
     if (emission.status === EmissionStatus.APPROVED) {
       return res.status(403).json({ message: "Cannot edit approved emission data" });
     }
+
+    // Capture old values for audit trail
+    const oldActivityData = emission.activity_data ? JSON.parse(JSON.stringify(emission.activity_data)) : null;
+    const oldDateOfReporting = emission.date_of_reporting;
+    const oldActivityDataUnit = emission.activity_data_unit;
+    const oldStatus = emission.status;
 
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
@@ -788,6 +794,41 @@ const targetYear = reportingDate.getFullYear() - 1;
 
     await repo.save(emission);
 
+    // Create audit log for user edit
+    try {
+      const changedFields: Record<string, { old: any; new: any }> = {};
+
+      if (activity_data !== undefined && JSON.stringify(oldActivityData) !== JSON.stringify(emission.activity_data)) {
+        changedFields["activity_data"] = { old: oldActivityData, new: emission.activity_data };
+      }
+      if (date_of_reporting !== undefined && String(oldDateOfReporting) !== String(emission.date_of_reporting)) {
+        changedFields["date_of_reporting"] = { old: oldDateOfReporting, new: emission.date_of_reporting };
+      }
+      if (activity_data_unit !== undefined && oldActivityDataUnit !== emission.activity_data_unit) {
+        changedFields["activity_data_unit"] = { old: oldActivityDataUnit, new: emission.activity_data_unit };
+      }
+      if (oldStatus !== emission.status) {
+        changedFields["status"] = { old: oldStatus, new: emission.status };
+      }
+
+      if (Object.keys(changedFields).length > 0) {
+        const auditLogRepo = AppDataSource.getRepository(AuditLog);
+        const userRepo = AppDataSource.getRepository(User);
+        const changedByUser = await userRepo.findOne({ where: { user_id: req.user?.userId } });
+
+        const auditLog = auditLogRepo.create({
+          entity_type: "emission",
+          entity_id: emission.pk_id,
+          action: "user_edit",
+          changed_fields: changedFields,
+          reason: reason || null,
+          changed_by: changedByUser || undefined,
+        });
+        await auditLogRepo.save(auditLog);
+      }
+    } catch (auditError) {
+      console.error("Failed to create audit log for user edit:", auditError);
+    }
 
     return res.status(200).json({
       message: "Emission updated successfully",
@@ -3300,7 +3341,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   try {
     const { id }: any = req.params;
     const userId = req.user?.userId;
-    const { activity_data, date_of_reporting, reason } = req.body;
+    const { activity_data, date_of_reporting, activity_data_unit, reason } = req.body;
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -3326,12 +3367,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (date_of_reporting !== undefined) {
       changedFields.date_of_reporting = { old: emission.date_of_reporting, new: date_of_reporting };
     }
+    if (activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit) {
+      changedFields.activity_data_unit = { old: emission.activity_data_unit, new: activity_data_unit };
+    }
 
     if (Object.keys(changedFields).length === 0) {
       return res.status(200).json({ message: "No changes detected", emission });
     }
 
     // Apply changes (do NOT change approval status)
+    if (activity_data_unit !== undefined) {
+      emission.activity_data_unit = activity_data_unit;
+    }
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
 
