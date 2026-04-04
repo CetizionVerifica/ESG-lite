@@ -11,6 +11,7 @@ import {
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { ColumnEntity } from "../entities/Column";
+import { Emission } from "../entities/Emission";
 import { Unit } from "../entities/Unit";
 import { In } from "typeorm";
 import { generateColumnConfigProposal } from "../services/columnConfigGenerator";
@@ -246,6 +247,7 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       dependent_options,
       emission_category_mapping,
       extra_fields,
+      rename_map,
     } = req.body;
 
     if (
@@ -362,7 +364,139 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       columnConfig.extra_fields = extra_fields === null ? [] : extra_fields;
     }
 
+    // Handle column renames: rename if exclusive to this config, create new if shared
+    // Track which renames were actually applied (column entity found)
+    const appliedRenames: Record<string, string> = {};
+
+    if (rename_map && typeof rename_map === "object" && Object.keys(rename_map).length > 0) {
+      for (const [oldName, newName] of Object.entries(rename_map)) {
+        // Always match against the ORIGINAL column name (before any renames in this batch)
+        // by checking appliedRenames to avoid chained rename issues (A→B, B→C)
+        if (appliedRenames[oldName]) continue; // This name was already a target of a prior rename
+        const col = columnConfig.columns.find(
+          (c: ColumnEntity) => c.column_name === oldName
+        );
+        if (!col) continue;
+
+        // Check how many configs use this column
+        const usageCount = await repo
+          .createQueryBuilder("cc")
+          .innerJoin("cc.columns", "col")
+          .where("col.pk_id = :colId", { colId: col.pk_id })
+          .getCount();
+
+        if (usageCount <= 1) {
+          // Exclusive to this config — safe to rename in place
+          col.column_name = newName as string;
+          await columnRepo.save(col);
+        } else {
+          // Shared column — create a new one (or find existing with same name+type)
+          let newCol = await columnRepo.findOne({
+            where: { column_name: (newName as string).trim() },
+          });
+          if (!newCol) {
+            newCol = columnRepo.create({
+              column_name: (newName as string).trim(),
+              column_type: col.column_type,
+            });
+            await columnRepo.save(newCol);
+          }
+          // Swap the column reference in this config
+          columnConfig.columns = columnConfig.columns.map((c: ColumnEntity) =>
+            c.pk_id === col.pk_id ? newCol! : c
+          );
+
+          // Also update column_options keys: old pk_id → new pk_id
+          if (columnConfig.column_options) {
+            const oldKey = col.pk_id.toString();
+            const newKey = newCol.pk_id.toString();
+            if (columnConfig.column_options[oldKey]) {
+              columnConfig.column_options[newKey] = columnConfig.column_options[oldKey];
+              delete columnConfig.column_options[oldKey];
+            }
+          }
+        }
+
+        appliedRenames[oldName] = newName as string;
+      }
+
+      // Apply all renames to column_dependencies in a single pass (avoids chained rename corruption)
+      if (Object.keys(appliedRenames).length > 0 && columnConfig.column_dependencies && typeof columnConfig.column_dependencies === "object") {
+        const updatedDeps: Record<string, string> = {};
+        for (const [childName, parentName] of Object.entries(columnConfig.column_dependencies)) {
+          const newChildName = appliedRenames[childName] || childName;
+          const newParentName = appliedRenames[parentName] || parentName;
+          updatedDeps[newChildName] = newParentName;
+        }
+        columnConfig.column_dependencies = updatedDeps;
+      }
+
+      // Apply all renames to dependent_options keys in a single pass
+      if (Object.keys(appliedRenames).length > 0 && columnConfig.dependent_options && typeof columnConfig.dependent_options === "object") {
+        for (const [oldName, newName] of Object.entries(appliedRenames)) {
+          if (columnConfig.dependent_options[oldName]) {
+            columnConfig.dependent_options[newName] = columnConfig.dependent_options[oldName];
+            delete columnConfig.dependent_options[oldName];
+          }
+        }
+      }
+    }
+
     await repo.save(columnConfig);
+
+    // Migrate existing emission activity_data keys if columns were renamed
+    if (Object.keys(appliedRenames).length > 0) {
+      try {
+        const emissionRepo = AppDataSource.getRepository(Emission);
+        const siteId = columnConfig.site.site_id;
+        const categoryId = columnConfig.category.category_id;
+
+        // Find all emissions for this site+category
+        const emissions = await emissionRepo
+          .createQueryBuilder("e")
+          .where("e.site = :siteId", { siteId })
+          .andWhere("e.category = :categoryId", { categoryId })
+          .getMany();
+
+        let migratedCount = 0;
+        for (const emission of emissions) {
+          if (!emission.activity_data || typeof emission.activity_data !== "object") continue;
+
+          let changed = false;
+          const newData: Record<string, any> = {};
+          for (const [key, value] of Object.entries(emission.activity_data)) {
+            if (appliedRenames[key]) {
+              newData[appliedRenames[key]] = value;
+              changed = true;
+            } else {
+              newData[key] = value;
+            }
+          }
+
+          if (changed) {
+            emission.activity_data = newData;
+            await emissionRepo.save(emission);
+            migratedCount++;
+          }
+        }
+
+        if (migratedCount > 0) {
+          console.log(`[ColumnConfig] Migrated activity_data keys in ${migratedCount} emissions for site=${siteId}, category=${categoryId}`);
+        }
+      } catch (migrationError) {
+        console.error("Failed to migrate emission activity_data keys:", migrationError);
+        // Config saved but emissions not migrated — return warning
+        const updatedConfig = await repo.findOne({
+          where: { pk_id: columnConfig.pk_id },
+          relations: ["site", "category", "columns"],
+        });
+        return res.status(200).json({
+          message: "Column config updated but emission data migration failed. Some existing data may use old field names.",
+          columnConfig: updatedConfig,
+          migrationWarning: true,
+        });
+      }
+    }
 
     // Fetch with relations for response
     const updatedConfig = await repo.findOne({
