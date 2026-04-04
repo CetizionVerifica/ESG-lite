@@ -164,6 +164,23 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         summaryQb.getRawOne(),
       ]);
 
+      // Enrich FERA rows with parent category name
+      const feraRows = data.filter(
+        (e: any) => e.category?.category_name?.toLowerCase() === "fera" && e.fera_linked_id
+      );
+      if (feraRows.length > 0) {
+        const parentIds = feraRows.map((e: any) => e.fera_linked_id);
+        const parents = await repo
+          .createQueryBuilder("e")
+          .leftJoinAndSelect("e.category", "c")
+          .where("e.pk_id IN (:...parentIds)", { parentIds })
+          .getMany();
+        const parentMap = new Map(parents.map((p: any) => [p.pk_id, p.category?.category_name]));
+        for (const row of feraRows) {
+          (row as any).parent_category_name = parentMap.get(row.fera_linked_id) || null;
+        }
+      }
+
       return res.status(200).json({
         data,
         total,
@@ -178,6 +195,24 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     // Backwards compatible: return plain array when no pagination params
     const emissions = await qb.getMany();
+
+    // Enrich FERA rows with parent category name
+    const feraEmissions = emissions.filter(
+      (e: any) => e.category?.category_name?.toLowerCase() === "fera" && e.fera_linked_id
+    );
+    if (feraEmissions.length > 0) {
+      const parentIds = feraEmissions.map((e: any) => e.fera_linked_id);
+      const parents = await repo
+        .createQueryBuilder("e")
+        .leftJoinAndSelect("e.category", "c")
+        .where("e.pk_id IN (:...parentIds)", { parentIds })
+        .getMany();
+      const parentMap = new Map(parents.map((p: any) => [p.pk_id, p.category?.category_name]));
+      for (const row of feraEmissions) {
+        (row as any).parent_category_name = parentMap.get(row.fera_linked_id) || null;
+      }
+    }
+
     return res.status(200).json(emissions);
   } catch (error) {
     console.error("Fetch emissions error:", error);
@@ -605,10 +640,10 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 };
 
 // Update an emission entry
-export const updateEmission = async (req: Request, res: Response) => {
+export const updateEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { activity_data, activity_data_unit, date_of_reporting, extra_data } = req.body;
+    const { activity_data, activity_data_unit, date_of_reporting, extra_data, reason } = req.body;
 
     const emission = await repo.findOne({
       where: { pk_id: parseInt(id) },
@@ -625,6 +660,12 @@ export const updateEmission = async (req: Request, res: Response) => {
     if (emission.status === EmissionStatus.APPROVED) {
       return res.status(403).json({ message: "Cannot edit approved emission data" });
     }
+
+    // Capture old values for audit trail
+    const oldActivityData = emission.activity_data ? JSON.parse(JSON.stringify(emission.activity_data)) : null;
+    const oldDateOfReporting = emission.date_of_reporting;
+    const oldActivityDataUnit = emission.activity_data_unit;
+    const oldStatus = emission.status;
 
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
@@ -788,10 +829,177 @@ const targetYear = reportingDate.getFullYear() - 1;
 
     await repo.save(emission);
 
+    // Recalculate linked FERA emission if activity data changed
+    let updatedFeraEmission: Emission | null = null;
+    if (activity_data !== undefined && emission.fera_linked_id) {
+      try {
+        const feraEmission = await repo.findOne({
+          where: { pk_id: emission.fera_linked_id },
+          relations: ["site", "category"],
+        });
+        // Also check reverse link
+        const reverseFeraEmission = !feraEmission
+          ? await repo.findOne({ where: { fera_linked_id: emission.pk_id }, relations: ["site", "category"] })
+          : null;
+        const linkedFera = feraEmission || reverseFeraEmission;
+
+        if (linkedFera && linkedFera.category?.category_name?.toLowerCase() === "fera") {
+          const reportingDate = emission.date_of_reporting instanceof Date
+            ? emission.date_of_reporting
+            : new Date(emission.date_of_reporting);
+          const feraTargetYear = reportingDate.getFullYear() - 1;
+
+          // Find FERA emission factor (same 4-level fallback as parent)
+          let feraFactor = await emissionFactorRepo.findOne({
+            where: {
+              site: { site_id: emission.site.site_id },
+              category: { category_id: linkedFera.category.category_id },
+              emission_category_name: activity_data.emission_category,
+              year: feraTargetYear,
+            },
+          });
+          if (!feraFactor) {
+            feraFactor = await emissionFactorRepo.findOne({
+              where: {
+                site: { site_id: emission.site.site_id },
+                category: { category_id: linkedFera.category.category_id },
+                global_category_name: activity_data.emission_category,
+                year: feraTargetYear,
+              },
+            });
+          }
+          if (!feraFactor) {
+            feraFactor = await emissionFactorRepo.findOne({
+              where: {
+                site: { site_id: emission.site.site_id },
+                category: { category_id: linkedFera.category.category_id },
+                emission_category_name: activity_data.emission_category,
+              },
+            });
+          }
+          if (!feraFactor) {
+            feraFactor = await emissionFactorRepo.findOne({
+              where: {
+                site: { site_id: emission.site.site_id },
+                category: { category_id: linkedFera.category.category_id },
+                global_category_name: activity_data.emission_category,
+              },
+            });
+          }
+
+          if (feraFactor) {
+            // Extract activity value (same logic as create)
+            let feraActivityValue = 0;
+            const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
+            const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
+            for (const field of commonFlds) {
+              const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
+              if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
+                feraActivityValue = parseFloat(activity_data[matchingKey]);
+                if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
+              }
+            }
+            if (feraActivityValue === 0) {
+              for (const [key, value] of Object.entries(activity_data)) {
+                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
+                if (value !== undefined && value !== '') {
+                  const numValue = parseFloat(value as string);
+                  if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
+                }
+              }
+            }
+            if (feraActivityValue === 0) {
+              for (const [key, value] of Object.entries(activity_data)) {
+                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
+                if (value !== undefined && value !== '') {
+                  const numValue = parseFloat(value as string);
+                  if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
+                }
+              }
+            }
+
+            if (feraActivityValue > 0) {
+              const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, emission.activity_data_unit);
+              let feraCalculated = 0;
+              if (feraUnitsMatch) {
+                feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
+              } else {
+                const conv = getConversionFactor(emission.activity_data_unit, feraFactor.denominator_unit);
+                if (conv) {
+                  feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
+                } else {
+                  feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
+                }
+              }
+
+              linkedFera.activity_data = activity_data;
+              linkedFera.total_emission = feraCalculated;
+              linkedFera.date_of_reporting = emission.date_of_reporting;
+              linkedFera.activity_data_unit = emission.activity_data_unit;
+              linkedFera.status = EmissionStatus.PENDING;
+              linkedFera.reviewed_by = null as any;
+              linkedFera.review_comment = null as any;
+              linkedFera.reviewed_at = null as any;
+              linkedFera.emission_factor_snapshot = {
+                emission_factor_id: feraFactor.emission_factor_id,
+                emission_category_name: feraFactor.emission_category_name,
+                global_category_name: feraFactor.global_category_name || undefined,
+                factor_value: feraFactor.factor_value,
+                denominator_unit: feraFactor.denominator_unit,
+                source: feraFactor.source,
+                year: feraFactor.year,
+              };
+              await repo.save(linkedFera);
+              updatedFeraEmission = linkedFera;
+            }
+          }
+        }
+      } catch (feraError) {
+        console.error("Failed to update linked FERA emission:", feraError);
+        // Non-fatal: parent emission was updated successfully
+      }
+    }
+
+    // Create audit log for user edit
+    try {
+      const changedFields: Record<string, { old: any; new: any }> = {};
+
+      if (activity_data !== undefined && JSON.stringify(oldActivityData) !== JSON.stringify(emission.activity_data)) {
+        changedFields["activity_data"] = { old: oldActivityData, new: emission.activity_data };
+      }
+      if (date_of_reporting !== undefined && String(oldDateOfReporting) !== String(emission.date_of_reporting)) {
+        changedFields["date_of_reporting"] = { old: oldDateOfReporting, new: emission.date_of_reporting };
+      }
+      if (activity_data_unit !== undefined && oldActivityDataUnit !== emission.activity_data_unit) {
+        changedFields["activity_data_unit"] = { old: oldActivityDataUnit, new: emission.activity_data_unit };
+      }
+      if (oldStatus !== emission.status) {
+        changedFields["status"] = { old: oldStatus, new: emission.status };
+      }
+
+      if (Object.keys(changedFields).length > 0) {
+        const auditLogRepo = AppDataSource.getRepository(AuditLog);
+        const userRepo = AppDataSource.getRepository(User);
+        const changedByUser = await userRepo.findOne({ where: { user_id: req.user?.userId } });
+
+        const auditLog = auditLogRepo.create({
+          entity_type: "emission",
+          entity_id: emission.pk_id,
+          action: "user_edit",
+          changed_fields: changedFields,
+          reason: reason || null,
+          changed_by: changedByUser || undefined,
+        });
+        await auditLogRepo.save(auditLog);
+      }
+    } catch (auditError) {
+      console.error("Failed to create audit log for user edit:", auditError);
+    }
 
     return res.status(200).json({
       message: "Emission updated successfully",
       emission,
+      fera_emission: updatedFeraEmission || undefined,
     });
   } catch (error) {
     console.error("Update emission error:", error);
@@ -3300,7 +3508,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   try {
     const { id }: any = req.params;
     const userId = req.user?.userId;
-    const { activity_data, date_of_reporting, reason } = req.body;
+    const { activity_data, date_of_reporting, activity_data_unit, reason } = req.body;
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -3326,12 +3534,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (date_of_reporting !== undefined) {
       changedFields.date_of_reporting = { old: emission.date_of_reporting, new: date_of_reporting };
     }
+    if (activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit) {
+      changedFields.activity_data_unit = { old: emission.activity_data_unit, new: activity_data_unit };
+    }
 
     if (Object.keys(changedFields).length === 0) {
       return res.status(200).json({ message: "No changes detected", emission });
     }
 
     // Apply changes (do NOT change approval status)
+    if (activity_data_unit !== undefined) {
+      emission.activity_data_unit = activity_data_unit;
+    }
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
 
