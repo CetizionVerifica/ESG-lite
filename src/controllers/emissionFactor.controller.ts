@@ -55,13 +55,42 @@ function normalizeUnit(raw: string | null | undefined): string | undefined {
   return UNIT_ALIASES[cleaned] || cleaned;
 }
 
-export const getEmissionFactors = async (_: Request, res: Response) => {
+export const getEmissionFactors = async (req: Request, res: Response) => {
   try {
-    const emissionFactors = await repo.find({
-      relations: ["site", "category"],
-      order: { year: "DESC", emission_factor_id: "ASC" },
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const siteId = req.query.site_id ? parseInt(req.query.site_id as string) : undefined;
+    const categoryId = req.query.category_id ? parseInt(req.query.category_id as string) : undefined;
+    const search = (req.query.search as string)?.trim() || undefined;
+
+    const qb = repo
+      .createQueryBuilder("ef")
+      .leftJoinAndSelect("ef.site", "site")
+      .leftJoinAndSelect("ef.category", "category");
+
+    if (siteId) qb.andWhere("ef.site_id = :siteId", { siteId });
+    if (categoryId) qb.andWhere("ef.category_id = :categoryId", { categoryId });
+    if (search) {
+      qb.andWhere(
+        "(ef.emission_category_name ILIKE :search OR ef.source ILIKE :search OR site.name ILIKE :search OR category.category_name ILIKE :search)",
+        { search: `%${search}%` }
+      );
+    }
+
+    qb.orderBy("ef.year", "DESC")
+      .addOrderBy("ef.emission_factor_id", "ASC")
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [emissionFactors, total] = await qb.getManyAndCount();
+
+    return res.status(200).json({
+      data: emissionFactors,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     });
-    return res.status(200).json(emissionFactors);
   } catch (error) {
     console.error("Fetch emission factors error:", error);
     return res.status(500).json({
