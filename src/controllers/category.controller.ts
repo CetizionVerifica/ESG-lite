@@ -191,11 +191,22 @@ export const deleteCategory = async (req: Request, res: Response) => {
       });
     }
 
-    // 2️⃣ Delete category. The site_categories join FK does not cascade, so it
-    // blocks deletion of any category assigned to a site — unlink it first.
-    // The remaining references (emission_factors, emissions, column_config,
-    // unit, user_categories) cascade via their own FKs.
+    // 2️⃣ Delete category. Several FKs do not cascade and would block the delete
+    // (or the emission cascade), so unlink them first inside a transaction:
+    //   - site_categories.category_id  (NO ACTION)
+    //   - invoice.category_id          (NO ACTION)
+    //   - invoice.emission_id          (NO ACTION) — points at emissions that
+    //     get cascade-deleted with the category
+    // Uploaded invoices are preserved (only unlinked). Everything else
+    // (emission_factors, emissions, emission_document, column_config, unit,
+    // user_categories) cascades via its own FK.
     await AppDataSource.transaction(async (manager) => {
+      await manager.query(
+        `UPDATE invoice SET emission_id = NULL
+           WHERE emission_id IN (SELECT pk_id FROM emission WHERE category_id = $1)`,
+        [categoryId]
+      );
+      await manager.query(`UPDATE invoice SET category_id = NULL WHERE category_id = $1`, [categoryId]);
       await manager.query(`DELETE FROM site_categories WHERE category_id = $1`, [categoryId]);
       await manager.delete(Category, { category_id: categoryId });
     });
