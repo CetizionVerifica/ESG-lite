@@ -178,11 +178,11 @@ export const updateCategory = async (req: Request, res: Response) => {
 
 export const deleteCategory = async (req: Request, res: Response) => {
   try {
-    const { id }: any = req.params;
+    const categoryId = parseInt(req.params.id as string);
 
     // 1️⃣ Check if category exists
     const category = await repo.findOne({
-      where: { category_id: parseInt(id) },
+      where: { category_id: categoryId },
     });
 
     if (!category) {
@@ -191,14 +191,27 @@ export const deleteCategory = async (req: Request, res: Response) => {
       });
     }
 
-    // 2️⃣ Delete category
-    await repo.delete({ category_id: parseInt(id) });
+    // 2️⃣ Delete category. The site_categories join FK does not cascade, so it
+    // blocks deletion of any category assigned to a site — unlink it first.
+    // The remaining references (emission_factors, emissions, column_config,
+    // unit, user_categories) cascade via their own FKs.
+    await AppDataSource.transaction(async (manager) => {
+      await manager.query(`DELETE FROM site_categories WHERE category_id = $1`, [categoryId]);
+      await manager.delete(Category, { category_id: categoryId });
+    });
 
     return res.status(200).json({
       message: "Category deleted successfully",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Delete category error:", error);
+    // A remaining non-cascading reference (e.g. invoices) blocks the delete.
+    if (error?.code === "23503") {
+      return res.status(409).json({
+        message:
+          "Cannot delete category: it is still referenced by other records (e.g. invoices). Remove those first.",
+      });
+    }
     return res.status(500).json({
       message: "Internal server error",
     });
