@@ -7,6 +7,19 @@ import { Site } from "../entities/Site";
 import { signToken } from "../utils/jwt";
 import { UserRole } from "../types/type";
 import { log } from "../utils/logger";
+import { AuthRequest } from "../middlewares/auth.middleware";
+import { filterUserSiteCategories } from "../utils/filterUserCategories";
+
+// Relations needed to build the session user (sites + their categories + grants).
+const SESSION_USER_RELATIONS = [
+  "site",
+  "site.company",
+  "site.categories",
+  "sites",
+  "sites.company",
+  "sites.categories",
+  "categories",
+];
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -20,7 +33,7 @@ export const login = async (req: Request, res: Response) => {
   // Also load user.categories for per-user category access control
   const user = await userRepo.findOne({
     where: { email : emailLower },
-    relations: ["site", "site.company", "site.categories", "sites", "sites.company", "sites.categories", "categories"],
+    relations: SESSION_USER_RELATIONS,
   });
 
   if (!user) {
@@ -36,23 +49,7 @@ export const login = async (req: Request, res: Response) => {
   }
 
   // Filter each site's categories to only include ones the user has access to.
-  // If user has no user_categories rows yet (legacy user), show all site categories.
-  const userCategories = user.categories || [];
-  if (userCategories.length > 0) {
-    const allowedIds = new Set(userCategories.map((c) => c.category_id));
-
-    if (user.sites?.length > 0) {
-      user.sites.forEach((site) => {
-        site.categories = (site.categories || []).filter((c) => allowedIds.has(c.category_id));
-      });
-    }
-    if (user.site?.categories) {
-      user.site.categories = user.site.categories.filter((c) => allowedIds.has(c.category_id));
-    }
-  }
-
-  // Remove raw categories array from response (frontend doesn't need it)
-  delete (user as any).categories;
+  filterUserSiteCategories(user);
 
   // For managers and users with multiple sites, use the first site from sites array for backward compatibility
   const primarySiteId =
@@ -68,6 +65,28 @@ export const login = async (req: Request, res: Response) => {
 
   log.info("Auth", "Login success", { email: emailLower, userId: user.user_id, role: user.role });
   res.json({ token, role: user.role, user: user });
+};
+
+// 🔄 Return the current session user with fresh site/category access.
+// Lets the frontend refresh category assignments without forcing a re-login.
+export const getMe = async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const user = await userRepo.findOne({
+    where: { user_id: userId },
+    relations: SESSION_USER_RELATIONS,
+  });
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  filterUserSiteCategories(user);
+
+  return res.json({ role: user.role, user });
 };
 
 // 🔒 Only Superadmin can register users
