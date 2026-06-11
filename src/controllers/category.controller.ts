@@ -1,12 +1,16 @@
 import { Request, Response } from "express";
+import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Category } from "../entities/Category";
+import { Site } from "../entities/Site";
+import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
 
 const repo = AppDataSource.getRepository(Category);
+const siteRepo = AppDataSource.getRepository(Site);
 
 export const createCategory = async (req: Request, res: Response) => {
   try {
-    const { category_name, scope } = req.body;
+    const { category_name, scope, site_ids, assign_all_sites } = req.body;
 
     // 1️⃣ Validate input
     if (!category_name) {
@@ -26,7 +30,22 @@ export const createCategory = async (req: Request, res: Response) => {
       });
     }
 
-    // 3️⃣ Create category
+    // 3️⃣ Resolve which sites to assign this category to.
+    let targetSiteIds: number[] = [];
+    if (assign_all_sites) {
+      const allSites = await siteRepo.find({ select: ["site_id"] });
+      targetSiteIds = allSites.map((s) => s.site_id);
+    } else if (Array.isArray(site_ids) && site_ids.length > 0) {
+      const sites = await siteRepo.findBy({ site_id: In(site_ids) });
+      if (sites.length !== site_ids.length) {
+        return res.status(400).json({
+          message: "One or more sites not found",
+        });
+      }
+      targetSiteIds = sites.map((s) => s.site_id);
+    }
+
+    // 4️⃣ Create category
     const category = repo.create({
       category_name: category_name.trim(),
       scope: scope ? scope.trim() : null,
@@ -34,10 +53,25 @@ export const createCategory = async (req: Request, res: Response) => {
 
     await repo.save(category);
 
-    // 4️⃣ Respond
+    // 5️⃣ Assign to the selected sites and propagate to their users so the
+    // category appears in the data-entry tab without a separate site edit.
+    if (targetSiteIds.length > 0) {
+      await repo
+        .createQueryBuilder()
+        .relation(Category, "sites")
+        .of(category.category_id)
+        .add(targetSiteIds);
+
+      for (const siteId of targetSiteIds) {
+        await grantCategoriesToSiteUsers(siteId, [category]);
+      }
+    }
+
+    // 6️⃣ Respond
     return res.status(201).json({
       message: "Category created successfully",
       category,
+      assigned_site_ids: targetSiteIds,
     });
   } catch (error) {
     console.error("Create category error:", error);

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
+import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
 
 const siteRepo = AppDataSource.getRepository(Site);
 const categoryRepo = AppDataSource.getRepository(Category);
@@ -124,6 +125,7 @@ export const updateSite = async (req: Request, res: Response) => {
     if (country_id) site.country = { country_id } as any;
 
     // 4️⃣ Update categories if provided
+    let newlyAddedCategories: Category[] = [];
     if (category_ids && Array.isArray(category_ids)) {
       const categories = await categoryRepo.findByIds(category_ids);
       if (categories.length !== category_ids.length) {
@@ -131,10 +133,17 @@ export const updateSite = async (req: Request, res: Response) => {
           message: "One or more categories not found",
         });
       }
+      // Categories present in the new set but not previously on the site.
+      const oldCategoryIds = new Set((site.categories || []).map((c) => c.category_id));
+      newlyAddedCategories = categories.filter((c) => !oldCategoryIds.has(c.category_id));
       site.categories = categories;
     }
 
     await siteRepo.save(site);
+
+    // Make newly assigned categories visible to existing users on this site,
+    // otherwise login filtering hides them from the data-entry tab.
+    await grantCategoriesToSiteUsers(parseInt(id), newlyAddedCategories);
 
     return res.status(200).json({
       message: "Site updated successfully",

@@ -71,8 +71,9 @@ connectWithRetry()
     .then(async () => {
         // Start server immediately — don't block on RabbitMQ
         startHeartbeat();
-        server = app.listen(3000, () => {
-            console.log("🚀 Server running on http://localhost:3000");
+        const port = Number(process.env.PORT) || 3000;
+        server = app.listen(port, () => {
+            console.log(`🚀 Server running on http://localhost:${port}`);
         });
 
         // Connect RabbitMQ in background (non-blocking)

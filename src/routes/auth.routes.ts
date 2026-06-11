@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, register } from "../controllers/auth.controller";
+import { login, register, getMe } from "../controllers/auth.controller";
 import { authenticate } from "../middlewares/auth.middleware";
 import { requireSuperAdmin } from "../middlewares/role.middleware";
 import {
@@ -12,6 +12,7 @@ const router = Router();
 
 // Authentication routes
 router.post("/login", login);
+router.get("/me", authenticate, getMe);
 router.post("/register", authenticate, requireSuperAdmin, register);
 
 // Password reset routes (no authentication required)
