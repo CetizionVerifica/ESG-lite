@@ -1,10 +1,16 @@
-// One-time migration: import local brand-assets/<companyId>/ into the `brand`
-// table + Cloudinary. Run once when moving from local files to production.
+// Sets up per-client branding on ANY database in ONE run:
+//   1. Creates the `brand` table if it doesn't exist (safe, idempotent DDL in a
+//      transaction — touches ONLY this table; required in production, where
+//      TypeORM auto-sync is off).
+//   2. Imports local brand-assets/<companyId>/ into the table and uploads each
+//      logo to Cloudflare R2.
 //
-//   npx ts-node src/scripts/seed-brands.ts
+//   npx ts-node src/scripts/seed-brands.ts                # table + data (default)
+//   npx ts-node src/scripts/seed-brands.ts --schema-only  # just create the table
+//   npx ts-node src/scripts/seed-brands.ts --seed-only     # skip table creation
 //
-// Idempotent: re-running updates existing rows and overwrites the Cloudinary
-// logo (fixed public_id company_<id>). Safe to run repeatedly.
+// Idempotent and safe to re-run: rows are upserted and logos overwritten at a
+// fixed key. It never drops or alters existing data or other tables.
 import "reflect-metadata";
 import { readdirSync, existsSync, readFileSync, statSync } from "fs";
 import { join } from "path";
@@ -27,12 +33,64 @@ function findLogo(dir: string): { buf: Buffer; ext: string } | null {
   return null;
 }
 
+// Exact schema for the Brand entity. IF NOT EXISTS + a transaction makes this
+// safe to run against production: it never touches another table or existing
+// rows. `primary` is a reserved word, so it is quoted (as TypeORM does).
+const CREATE_BRAND_TABLE = `
+CREATE TABLE IF NOT EXISTS brand (
+  company_id      integer PRIMARY KEY,
+  name            varchar NOT NULL,
+  "primary"       varchar NOT NULL DEFAULT '#1f2a44',
+  accent          varchar NOT NULL DEFAULT '#3b82f6',
+  cover_from      varchar NOT NULL DEFAULT '#0d1526',
+  cover_to        varchar NOT NULL DEFAULT '#1f2a44',
+  logo_url        varchar,
+  logo_public_id  varchar,
+  updated_at      timestamp NOT NULL DEFAULT now()
+)`;
+
+async function ensureBrandTable() {
+  const qr = AppDataSource.createQueryRunner();
+  await qr.connect();
+  try {
+    await qr.startTransaction();
+    await qr.query(CREATE_BRAND_TABLE);
+    await qr.commitTransaction();
+    console.log("✓ brand table ready (created if it did not exist)");
+  } catch (e) {
+    await qr.rollbackTransaction();
+    throw e;
+  } finally {
+    await qr.release();
+  }
+}
+
 async function main() {
+  const schemaOnly = process.argv.includes("--schema-only");
+  const seedOnly = process.argv.includes("--seed-only");
+
   await AppDataSource.initialize();
+
+  if (process.env.NODE_ENV === "production" && (AppDataSource.options as any).synchronize) {
+    console.warn(
+      "⚠ TYPEORM_SYNC is ON in production — connecting may alter other tables. Set TYPEORM_SYNC=false and re-run."
+    );
+  }
+
+  if (!seedOnly) await ensureBrandTable();
+  if (schemaOnly) {
+    console.log("Schema-only mode — table is ready; skipping data seed.");
+    await AppDataSource.destroy();
+    return;
+  }
+
   const repo = AppDataSource.getRepository(Brand);
 
   if (!existsSync(DIR)) {
-    console.log("No brand-assets/ directory — nothing to migrate.");
+    console.log(
+      "No brand-assets/ directory — table is ready. Populate via the Brand Settings UI, or re-run where brand-assets/ exists."
+    );
+    await AppDataSource.destroy();
     return;
   }
 
