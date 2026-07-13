@@ -5,6 +5,8 @@ import adminRoutes from "./routes/admin.routes";
 import userRoutes from "./routes/user.routes";
 import managerRoutes from "./routes/manager.routes";
 import notificationRoutes from "./routes/notification.routes";
+import reportRoutes from "./routes/report.routes";
+import brandRoutes from "./routes/brand.routes";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
@@ -30,6 +32,8 @@ app.use("/admin", adminRoutes);
 app.use("/user", userRoutes);
 app.use("/manager", managerRoutes);
 app.use("/notifications", notificationRoutes);
+app.use("/reports", reportRoutes);
+app.use("/brands", brandRoutes);
 
 let server: any;
 
