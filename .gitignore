@@ -10,3 +10,5 @@ coverage/
 npm-debug.log*
 /llm
 backup
+# Generated report artifacts (PDF/HTML)
+/generated-reports
