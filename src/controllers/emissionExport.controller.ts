@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { log } from "../utils/logger";
+import { parseSiteIds } from "../utils/parseSiteIds";
 
 const repo = AppDataSource.getRepository(Emission);
 
@@ -14,10 +15,11 @@ const repo = AppDataSource.getRepository(Emission);
  */
 export const exportEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { siteId, categoryId, year, month, status } = req.query;
+    const { categoryId, year, month, status } = req.query;
+    const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
 
-    if (!siteId || !year || !month) {
-      return res.status(400).json({ message: "siteId, year, and month are required" });
+    if (siteIds.length === 0 || !year || !month) {
+      return res.status(400).json({ message: "siteIds, year, and month are required" });
     }
 
     const y = parseInt(year as string);
@@ -33,7 +35,7 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       .leftJoinAndSelect("emission.category", "category")
       .leftJoinAndSelect("emission.reviewed_by", "reviewed_by")
       .leftJoinAndSelect("emission.created_by", "created_by")
-      .where("site.site_id = :siteId", { siteId: parseInt(siteId as string) })
+      .where("site.site_id IN (:...siteIds)", { siteIds })
       .andWhere("emission.date_of_reporting >= :startDate", { startDate })
       .andWhere("emission.date_of_reporting <= :endDate", { endDate })
       .andWhere("LOWER(category.category_name) != :fera", { fera: "fera" });
@@ -61,7 +63,7 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       .leftJoin("e.category", "category")
       .where("LOWER(category.category_name) = :fera", { fera: "fera" })
       .andWhere("e.date_of_reporting >= :startDate AND e.date_of_reporting <= :endDate", { startDate, endDate })
-      .andWhere("e.site = :siteId", { siteId: parseInt(siteId as string) })
+      .andWhere("e.site_id IN (:...siteIds)", { siteIds })
       .getMany();
 
     const feraMap = new Map<number, Emission>();
@@ -191,7 +193,7 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
     const fileName = `${siteName.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_")}_${monthName}_${y}${statusSuffix}.xlsx`;
 
     log.info("Export", "Monthly data download", {
-      siteId, year: y, month: m, status: status || "all",
+      siteIds, year: y, month: m, status: status || "all",
       rows: emissions.length, userId: req.user?.userId,
     });
 

@@ -16,6 +16,7 @@ import axios from "axios";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
+import { parseSiteIds } from "../utils/parseSiteIds";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -72,7 +73,8 @@ const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null 
 // Get emissions by site, category, and date (with optional pagination)
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { siteId, categoryId, date, year, month, page, limit, status, scope } = req.query;
+    const { categoryId, date, year, month, page, limit, status, scope } = req.query;
+    const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
 
     const qb = repo
       .createQueryBuilder("emission")
@@ -81,8 +83,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       .leftJoinAndSelect("emission.reviewed_by", "reviewed_by")
       .leftJoinAndSelect("emission.created_by", "created_by");
 
-    if (siteId) {
-      qb.andWhere("site.site_id = :siteId", { siteId: parseInt(siteId as string) });
+    if (siteIds.length > 0) {
+      qb.andWhere("site.site_id IN (:...siteIds)", { siteIds });
     }
 
     if (categoryId) {
@@ -133,8 +135,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         .leftJoin("emission.site", "s")
         .leftJoin("emission.category", "c");
 
-      if (siteId) {
-        summaryQb.andWhere("s.site_id = :siteId", { siteId: parseInt(siteId as string) });
+      if (siteIds.length > 0) {
+        summaryQb.andWhere("s.site_id IN (:...siteIds)", { siteIds });
       }
       if (categoryId) {
         summaryQb.andWhere("c.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
@@ -1076,7 +1078,8 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
 // List upload batches with aggregated info
 export const getEmissionBatches = async (req: Request, res: Response) => {
   try {
-    const { siteId, categoryId } = req.query;
+    const { categoryId } = req.query;
+    const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
 
     const qb = repo
       .createQueryBuilder("e")
@@ -1101,8 +1104,8 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
       .addGroupBy("category.category_name")
       .orderBy("MIN(e.created_at)", "DESC");
 
-    if (siteId) {
-      qb.andWhere("e.site_id = :siteId", { siteId: parseInt(siteId as string) });
+    if (siteIds.length > 0) {
+      qb.andWhere("e.site_id IN (:...siteIds)", { siteIds });
     }
     if (categoryId) {
       qb.andWhere("e.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
