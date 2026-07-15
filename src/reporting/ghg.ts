@@ -1,83 +1,174 @@
 // GHG report generator for ESG-Lite — formal, board-ready structure
 // (Introduction + Scope Definitions + Data Notes -> Executive Summary ->
 // Overview by location -> detailed per-Scope analysis -> Results & Key Findings
-// -> Conclusion) rendered in the client's brand. Every number comes from
-// final_emission (exact, no LLM); OpenRouter writes only prose + a relevant
-// cover image.
+// -> Conclusion) rendered in the client's brand.
+//
+// Every number comes from the SAME computation the on-screen tables / plain
+// "Download PDF" use (computeGhgTables in ./ghg-data — the `Emission` entity,
+// status=APPROVED, filtered by site/category/date range), so the branded PDF
+// matches the screen exactly. OpenRouter writes only prose + a cover image.
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { AppDataSource } from "../config/data-source";
+import { Company } from "../entities/Company";
+import { Emission, EmissionStatus } from "../entities/Emission";
 import { getBrandTheme } from "./brands";
 import { renderDocument } from "./render";
 import { htmlToPdf } from "./print";
 import { buildVariety } from "./variety";
 import { generateImage, brandImagePrompt } from "./imagery";
 import { writeNarrative } from "./ai-narrative";
+import { computeGhgTables, getDateRange, type GhgFilters } from "./ghg-data";
 import type { Block, Report } from "./types";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const fmt1 = (n: number) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 });
 const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : "—");
-type Freq = "monthly" | "quarterly" | "yearly";
 
 export interface GhgResult { path: string; filename: string; pages: number; companyName: string; total: number; year: number; }
 
-export async function generateGhgReport(companyId: number, year: number, frequency: Freq = "yearly"): Promise<GhgResult> {
-  const q = <T = any>(sql: string, p: any[]) => AppDataSource.query(sql, p) as Promise<T[]>;
-  const W = "WHERE company_id=$1 AND reporting_year=$2";
+const RENEW_RE = /renew|solar|wind|hydro|geotherm/i;
 
-  const co = await q(`SELECT DISTINCT company_name FROM final_emission WHERE company_id=$1`, [companyId]);
-  const companyName = co[0]?.company_name ?? `Company ${companyId}`;
+/**
+ * Build the branded GHG PDF for a set of on-screen filters. `companyId` is used
+ * only for the brand theme / company name; every emissions figure comes from
+ * computeGhgTables(filters).
+ */
+export async function generateGhgReport(filters: GhgFilters, companyId: number): Promise<GhgResult> {
+  const selectedYear = filters.year;
+  const yearType = filters.yearType;
 
-  const scopes = await q(`SELECT scope, SUM(total_emission)::float t FROM final_emission ${W} GROUP BY scope ORDER BY scope`, [companyId, year]);
-  const bySite = await q(`SELECT site_name, SUM(total_emission)::float t FROM final_emission ${W} GROUP BY site_name ORDER BY t DESC`, [companyId, year]);
-  const siteScope = await q(`SELECT site_name, scope, SUM(total_emission)::float t FROM final_emission ${W} GROUP BY site_name, scope`, [companyId, year]);
-  const cats = await q(`SELECT emission_category, SUM(total_emission)::float t FROM final_emission ${W} GROUP BY emission_category ORDER BY t DESC`, [companyId, year]);
-  const scopeCat = await q(`SELECT scope, emission_category, SUM(total_emission)::float t FROM final_emission ${W} GROUP BY scope, emission_category`, [companyId, year]);
-  const months = await q(`SELECT reporting_month::int m, MAX(month_name) mn, SUM(total_emission)::float t FROM final_emission ${W} GROUP BY reporting_month ORDER BY reporting_month`, [companyId, year]);
-  const renew = await q(`SELECT SUM(total_emission)::float t FROM final_emission ${W} AND (emission_category ILIKE '%renew%' OR emission_category ILIKE '%solar%' OR emission_category ILIKE '%wind%')`, [companyId, year]);
-  const allSites = await q(`SELECT name FROM site WHERE company_id=$1 ORDER BY name`, [companyId]);
-  const prev = await q(`SELECT SUM(total_emission)::float t FROM final_emission WHERE company_id=$1 AND reporting_year=$2`, [companyId, year - 1]);
+  // Exact same figures as the on-screen tables / plain Download PDF.
+  const data = await computeGhgTables(filters);
+  const compYear = data.filters.compareYear;
 
-  const sitesWithData = new Set(bySite.map((r) => r.site_name));
-  const total = scopes.reduce((s, r) => s + r.t, 0);
-  const scopeVal = (n: string) => scopes.find((s) => (s.scope || "").toLowerCase() === n)?.t ?? 0;
-  const s1 = scopeVal("scope 1"), s2 = scopeVal("scope 2");
-  const siteNames = bySite.map((r) => r.site_name);
-  const scopeNames = [...new Set(siteScope.map((r) => r.scope))].filter(Boolean).sort();
-  const renewable = renew[0]?.t ?? 0;
-  const missingSites = allSites.map((s) => s.name).filter((n) => !sitesWithData.has(n));
-  const coverage = allSites.length ? Math.round((sitesWithData.size / allSites.length) * 100) : 100;
-  const prevTotal = prev[0]?.t ?? 0;
+  const totalsSel = data.totals[String(selectedYear)];
+  const totalsComp = data.totals[String(compYear)];
+  const overviewRows = data.tables.table_overviewByLocations_selectedYear.rows;
+
+  const total = totalsSel.total;
+  const s1 = totalsSel.scope1, s2 = totalsSel.scope2, s3 = totalsSel.scope3;
+  const prevTotal = totalsComp.total;
   const yoy = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
-  const freqLabel = frequency[0].toUpperCase() + frequency.slice(1);
+
+  // Company name (brand row may still override inside getBrandTheme).
+  const company = await AppDataSource.getRepository(Company)
+    .findOne({ where: { company_id: companyId } })
+    .catch(() => null);
+  const companyName = company?.name ?? `Company ${companyId}`;
+
+  // Period labels reflect the CY/FY filter.
+  const yearLabel = `${yearType}${selectedYear}`;
+  const compLabel = `${yearType}${compYear}`;
+  const periodName = yearType === "FY"
+    ? `Financial Year (FY) ${selectedYear}`
+    : `Calendar Year (CY) ${selectedYear}`;
+
+  // Aggregate the overview rows into the shapes the branded blocks expect.
+  const siteTotals = new Map<string, number>();      // siteName -> total
+  const siteScopeMap = new Map<string, number>();    // `${siteName}||${scope}` -> total
+  const catTotals = new Map<string, number>();       // category -> total
+  const scopeSet = new Set<string>();
+
+  for (const row of overviewRows) {
+    if (row.scope) scopeSet.add(row.scope);
+    catTotals.set(row.category, (catTotals.get(row.category) ?? 0) + row.total);
+    for (const bs of row.bySite) {
+      siteTotals.set(bs.siteName, (siteTotals.get(bs.siteName) ?? 0) + bs.value);
+      const k = `${bs.siteName}||${row.scope}`;
+      siteScopeMap.set(k, (siteScopeMap.get(k) ?? 0) + bs.value);
+    }
+  }
+
+  const scopeNames = [...scopeSet].filter(Boolean).sort();
+  const bySite = [...siteTotals.entries()]
+    .map(([site_name, t]) => ({ site_name, t }))
+    .sort((a, b) => b.t - a.t);
+  const siteNames = bySite.map((r) => r.site_name);
+  const cats = [...catTotals.entries()]
+    .map(([emission_category, t]) => ({ emission_category, t }))
+    .sort((a, b) => b.t - a.t);
+  const scopeCat = overviewRows
+    .map((r) => ({ scope: r.scope, emission_category: r.category, t: r.total }));
+
+  // Scopes for the pie / split (fixed order, only non-zero shown).
+  const scopes = [
+    { scope: "Scope 1", t: s1 },
+    { scope: "Scope 2", t: s2 },
+    { scope: "Scope 3", t: s3 },
+  ].filter((x) => x.t > 0);
+
+  const renewable = cats.filter((c) => RENEW_RE.test(c.emission_category)).reduce((a, b) => a + b.t, 0);
+
+  // Coverage is measured against the SELECTED sites.
+  const selSites = await AppDataSource.query(
+    `SELECT site_id, name FROM site WHERE site_id = ANY($1) ORDER BY name`,
+    [filters.siteIds],
+  ).catch(() => [] as { site_id: number; name: string }[]);
+  const allSiteNames: string[] = selSites.length
+    ? selSites.map((s: any) => s.name)
+    : siteNames;
+  const sitesWithData = new Set(siteNames);
+  const missingSites = allSiteNames.filter((n) => !sitesWithData.has(n));
+  const coverage = allSiteNames.length ? Math.round((sitesWithData.size / allSiteNames.length) * 100) : 100;
+
+  // Months with data (qualitative — feeds the narrative only, never rendered as a figure).
+  const rangeSel = getDateRange(yearType, selectedYear);
+  let monthsWithData = 0;
+  try {
+    const monthQb = AppDataSource.getRepository(Emission)
+      .createQueryBuilder("emission")
+      .leftJoin("emission.site", "site")
+      .leftJoin("emission.category", "category")
+      .where("emission.status = :status", { status: EmissionStatus.APPROVED })
+      .andWhere("site.site_id IN (:...siteIds)", { siteIds: filters.siteIds })
+      .andWhere("emission.date_of_reporting >= :startDate", { startDate: rangeSel.startDate })
+      .andWhere("emission.date_of_reporting <= :endDate", { endDate: rangeSel.endDate });
+    if (filters.categoryIds && filters.categoryIds.length > 0) {
+      monthQb.andWhere("category.category_id IN (:...categoryIds)", { categoryIds: filters.categoryIds });
+    }
+    const monthRows = await monthQb
+      .select("DATE_TRUNC('month', emission.date_of_reporting)", "m")
+      .distinct(true)
+      .getRawMany();
+    monthsWithData = monthRows.length;
+  } catch {
+    monthsWithData = 0;
+  }
+
   const topSite = bySite[0], topCat = cats[0];
+  const catCount = filters.categoryIds?.length ?? 0;
+  const catText = catCount > 0 ? `${catCount} selected categor${catCount === 1 ? "y" : "ies"}` : "All categories";
 
   const nar = await writeNarrative({
-    companyName, year, total, scope1: s1, scope2: s2, coverage,
+    companyName, year: selectedYear, total, scope1: s1, scope2: s2, coverage,
     sites: bySite.map((r) => ({ name: r.site_name, t: r.t })),
     categories: cats.map((c) => ({ name: c.emission_category || "Unspecified", t: c.t })),
-    missingSites, renewable, months: months.length,
+    missingSites, renewable, months: monthsWithData,
   }).catch(() => null);
 
   const summary = nar?.summary ?? [
-    `In CY${year}, ${companyName} reported total greenhouse-gas emissions of ${fmt1(total)} tCO₂e across Scope 1 and Scope 2, based on ${sitesWithData.size} of ${allSites.length} operational sites.`,
-    `Scope 2 (purchased electricity) contributes ${fmt(s2)} tCO₂e (${pct(s2, total)}) and Scope 1 (direct combustion and fugitive sources) ${fmt(s1)} tCO₂e (${pct(s1, total)}), showing where reduction effort is best focused.`,
+    `In ${yearLabel}, ${companyName} reported total greenhouse-gas emissions of ${fmt1(total)} tCO₂e across Scope 1, 2 and 3, based on ${sitesWithData.size} of ${allSiteNames.length} selected site(s).`,
+    `Scope 2 (purchased electricity) contributes ${fmt(s2)} tCO₂e (${pct(s2, total)}), Scope 1 (direct combustion and fugitive sources) ${fmt(s1)} tCO₂e (${pct(s1, total)}) and Scope 3 ${fmt(s3)} tCO₂e (${pct(s3, total)}), showing where reduction effort is best focused.`,
     `Data coverage stands at ${coverage}%${missingSites.length ? `, with ${missingSites.length} site(s) yet to report` : ""}, which the recommendations address.`,
   ];
   const note = (v: string | undefined, fb: string) => (v && v.length > 4 ? v : fb);
 
   const B: Block[] = [];
 
+  const coverSubtitle = siteNames.length === 1
+    ? `Greenhouse Gas Emissions Inventory · ${siteNames[0]} · ${yearLabel}`
+    : `Greenhouse Gas Emissions Inventory · ${allSiteNames.length} site(s) · ${yearLabel}`;
+
   B.push({
     type: "cover", style: "document", title: `${companyName} Carbon Accounting Report`,
-    subtitle: `Greenhouse Gas Emissions Inventory · CY${year}`,
-    caption: `${freqLabel} reporting · Prepared to the GHG Protocol Corporate Standard`,
+    subtitle: coverSubtitle,
+    caption: `${periodName} · ${catText} · Prepared to the GHG Protocol Corporate Standard`,
     infoCards: [
-      { label: "Reporting Period", value: `CY${year}` },
-      { label: "Sites Covered", value: `${sitesWithData.size} of ${allSites.length} sites` },
+      { label: "Reporting Period", value: periodName },
+      { label: "Sites Covered", value: `${sitesWithData.size} of ${allSiteNames.length} site(s)` },
+      { label: "Categories", value: catText },
       { label: "Standard & Boundary", value: "GHG Protocol · Operational Control" },
-      { label: "Prepared By", value: `${companyName} — ESG Office` },
     ],
   });
 
@@ -97,8 +188,8 @@ export async function generateGhgReport(companyId: number, year: number, frequen
 
   B.push({ type: "section", title: "Introduction", kicker: "01 · ABOUT THIS REPORT" });
   B.push({ type: "narrative", body: [
-    `This report presents the greenhouse gas (GHG) emissions inventory of ${companyName} for the calendar year ${year}. It quantifies direct and energy-indirect emissions across the organisation's operational control boundary and is prepared in accordance with the GHG Protocol Corporate Accounting and Reporting Standard.`,
-    `Emissions are expressed in tonnes of carbon-dioxide equivalent (tCO₂e). Figures are aggregated from site-level activity data and applicable emission factors; all values in this report are drawn directly from the recorded inventory.`,
+    `This report presents the greenhouse gas (GHG) emissions inventory of ${companyName} for the ${periodName.toLowerCase()}. It quantifies direct and energy-indirect emissions across the selected operational boundary and is prepared in accordance with the GHG Protocol Corporate Accounting and Reporting Standard.`,
+    `Emissions are expressed in tonnes of carbon-dioxide equivalent (tCO₂e). Figures are aggregated from site-level activity data and applicable emission factors; all values in this report are drawn directly from the recorded, approved inventory for the selected filters.`,
   ] });
   B.push({
     type: "table", title: "Scope Definitions", columns: ["Scope", "Definition"], align: ["left", "left"],
@@ -108,17 +199,18 @@ export async function generateGhgReport(companyId: number, year: number, frequen
       ["Scope 3", "Other indirect emissions occurring across the value chain (assessed where data is available)."],
     ],
   });
-  B.push({ type: "callout", variant: "info", title: "Notes on Data & Assumptions", body: `Emissions are calculated from metered/recorded activity data multiplied by recognised emission factors. This inventory covers ${sitesWithData.size} of ${allSites.length} operational sites for CY${year}; any site or period without entered data is flagged in Section 06 and excluded from totals rather than estimated.` });
+  B.push({ type: "callout", variant: "info", title: "Notes on Data & Assumptions", body: `Emissions are calculated from metered/recorded activity data multiplied by recognised emission factors, restricted to approved entries. This inventory covers ${sitesWithData.size} of ${allSiteNames.length} selected site(s) for ${yearLabel}; any selected site without entered data is flagged in Section 06 and excluded from totals rather than estimated.` });
 
   B.push({ type: "section", title: "Executive Summary", kicker: "02 · OVERVIEW" });
   B.push({
-    type: "statBoard", badge: "EMISSIONS AT A GLANCE", title: `CY${year} Performance Summary`,
+    type: "statBoard", badge: "EMISSIONS AT A GLANCE", title: `${yearLabel} Performance Summary`,
     kpis: [
-      { value: fmt(total), label: "Total Emissions (tCO₂e)", sub: `CY${year} · all reported scopes` },
-      ...(yoy !== null ? [{ value: `${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}%`, label: "YoY Change", sub: `vs CY${year - 1}` }] : []),
+      { value: fmt(total), label: "Total Emissions (tCO₂e)", sub: `${yearLabel} · all reported scopes` },
+      ...(yoy !== null ? [{ value: `${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}%`, label: "YoY Change", sub: `vs ${compLabel}` }] : []),
       { value: fmt(s1), label: "Scope 1 · Direct", sub: pct(s1, total) },
       { value: fmt(s2), label: "Scope 2 · Energy Indirect", sub: pct(s2, total) },
-      { value: `${coverage}%`, label: "Data Coverage", sub: `${sitesWithData.size}/${allSites.length} sites` },
+      { value: fmt(s3), label: "Scope 3 · Value Chain", sub: pct(s3, total) },
+      { value: `${coverage}%`, label: "Data Coverage", sub: `${sitesWithData.size}/${allSiteNames.length} sites` },
     ],
     tiles: [
       { label: "Largest Site", value: topSite ? `${topSite.site_name} (${pct(topSite.t, total)})` : "—" },
@@ -128,7 +220,7 @@ export async function generateGhgReport(companyId: number, year: number, frequen
   });
   B.push({ type: "narrative", body: summary });
   B.push({ type: "chart", title: "Emissions by Scope", chartType: "pie", categories: scopes.map((s) => s.scope), series: [{ name: "tCO₂e", data: scopes.map((s) => Math.round(s.t)) }], caption: "Share of total emissions by GHG scope." });
-  B.push({ type: "chart", title: "Emissions by Category", chartType: "bar", unit: "tCO₂e", categories: cats.slice(0, 8).map((c) => c.emission_category || "—"), series: [{ name: "tCO₂e", data: cats.slice(0, 8).map((c) => Math.round(c.t)) }], caption: "Top emission sources across the organisation." });
+  B.push({ type: "chart", title: "Emissions by Category", chartType: "bar", unit: "tCO₂e", categories: cats.slice(0, 8).map((c) => c.emission_category || "—"), series: [{ name: "tCO₂e", data: cats.slice(0, 8).map((c) => Math.round(c.t)) }], caption: "Top emission sources across the selected boundary." });
 
   B.push({ type: "section", title: "Emissions Overview by Location", kicker: "03 · SITES" });
   B.push({ type: "narrative", body: [note(nar?.siteNote, `Emissions are distributed across ${sitesWithData.size} reporting site(s), led by ${siteNames[0] ?? "—"}. Site-level visibility lets management prioritise the highest-impact locations.`)] });
@@ -136,13 +228,13 @@ export async function generateGhgReport(companyId: number, year: number, frequen
   B.push({ type: "narrative", body: [note(nar?.scopeNote, `Splitting each site by scope shows whether direct combustion (Scope 1) or purchased energy (Scope 2) dominates locally, guiding site-specific abatement.`)] });
   B.push({
     type: "chart", title: "Site-wise & scope-wise", chartType: "bar", unit: "tCO₂e", categories: siteNames,
-    series: scopeNames.map((sc) => ({ name: sc, data: siteNames.map((sn) => Math.round(siteScope.find((r) => r.site_name === sn && r.scope === sc)?.t ?? 0)) })),
+    series: scopeNames.map((sc) => ({ name: sc, data: siteNames.map((sn) => Math.round(siteScopeMap.get(`${sn}||${sc}`) ?? 0)) })),
     caption: "Each site split by GHG scope.",
   });
   B.push({
     type: "table", title: "Site × Scope (tCO₂e)", columns: ["Site", ...scopeNames, "Total"], align: ["left", ...scopeNames.map(() => "right" as const), "right"],
     rows: siteNames.map((sn) => {
-      const vals = scopeNames.map((sc) => siteScope.find((r) => r.site_name === sn && r.scope === sc)?.t ?? 0);
+      const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
       return [sn, ...vals.map((v) => fmt(v)), fmt(vals.reduce((a, b) => a + b, 0))];
     }),
   });
@@ -162,19 +254,9 @@ export async function generateGhgReport(companyId: number, year: number, frequen
     });
   }
 
-  if (months.length > 0 && frequency !== "yearly") {
-    if (frequency === "quarterly") {
-      const qd = [0, 0, 0, 0];
-      months.forEach((m) => { qd[Math.floor((m.m - 1) / 3)] += m.t; });
-      B.push({ type: "chart", title: `Quarterly emissions — CY${year}`, subtitle: "Reporting frequency coverage", chartType: "bar", unit: "tCO₂e", categories: ["Q1", "Q2", "Q3", "Q4"], series: [{ name: "tCO₂e", data: qd.map((v) => Math.round(v)) }], caption: "Quarterly aggregation." });
-    } else {
-      B.push({ type: "chart", title: `Monthly emissions — CY${year}`, subtitle: "Reporting frequency coverage", chartType: "line", unit: "tCO₂e", categories: months.map((m) => (m.mn || String(m.m)).slice(0, 3)), series: [{ name: "tCO₂e", data: months.map((m) => Math.round(m.t)) }], caption: `${months.length} of 12 months have data.` });
-    }
-  }
-
   B.push({ type: "section", title: "Results & Key Findings", kicker: "05 · WHAT THE DATA SHOWS" });
   const findings = [
-    `Total CY${year} emissions were ${fmt1(total)} tCO₂e${yoy !== null ? ` (${yoy >= 0 ? "up" : "down"} ${Math.abs(yoy).toFixed(1)}% vs CY${year - 1})` : ""}.`,
+    `Total ${yearLabel} emissions were ${fmt1(total)} tCO₂e${yoy !== null ? ` (${yoy >= 0 ? "up" : "down"} ${Math.abs(yoy).toFixed(1)}% vs ${compLabel})` : ""}.`,
     topSite ? `${topSite.site_name} is the largest contributing site at ${fmt(topSite.t)} tCO₂e (${pct(topSite.t, total)} of total).` : "",
     `${s2 >= s1 ? "Scope 2 (purchased energy)" : "Scope 1 (direct)"} dominates the footprint at ${pct(Math.max(s1, s2), total)}, indicating the highest-leverage reduction pathway.`,
     topCat ? `${topCat.emission_category} is the single largest emission source (${pct(topCat.t, total)}).` : "",
@@ -182,21 +264,21 @@ export async function generateGhgReport(companyId: number, year: number, frequen
   findings.forEach((f, i) => B.push({ type: "callout", variant: i === 0 ? "success" : "info", title: `Finding ${i + 1}`, body: f }));
 
   B.push({ type: "section", title: "Data Availability & Renewables", kicker: "06 · COVERAGE" });
-  B.push({ type: "narrative", body: [note(nar?.coverageNote, `Data completeness determines the confidence management can place in these figures. Any site marked below has not been entered by the user and is excluded from totals.`)] });
+  B.push({ type: "narrative", body: [note(nar?.coverageNote, `Data completeness determines the confidence management can place in these figures. Any selected site marked below has not been entered by the user and is excluded from totals.`)] });
   B.push(renewable > 0
-    ? { type: "callout", variant: "success", title: "Renewable energy", body: `${fmt1(renewable)} tCO₂e of renewable-linked activity recorded in CY${year}.` }
+    ? { type: "callout", variant: "success", title: "Renewable energy", body: `${fmt1(renewable)} tCO₂e of renewable-linked activity recorded in ${yearLabel}.` }
     : { type: "callout", variant: "warning", title: "Renewable energy — data not available", body: "No renewable energy data has been entered for this period. Recording renewable consumption will let the report quantify avoided emissions." });
   B.push({
     type: "table", title: "Site reporting status", columns: ["Site", "Status", "Emissions (tCO₂e)"], align: ["left", "left", "right"],
-    rows: allSites.map((s) => sitesWithData.has(s.name)
-      ? [s.name, "Reported ✓", fmt(bySite.find((r) => r.site_name === s.name)?.t ?? 0)]
-      : [s.name, "Not entered by user", "—"]),
-    caption: missingSites.length ? `${missingSites.length} site(s) have no data entered for CY${year}.` : "All sites have reported data.",
+    rows: allSiteNames.map((n) => sitesWithData.has(n)
+      ? [n, "Reported ✓", fmt(siteTotals.get(n) ?? 0)]
+      : [n, "Not entered by user", "—"]),
+    caption: missingSites.length ? `${missingSites.length} selected site(s) have no data entered for ${yearLabel}.` : "All selected sites have reported data.",
   });
 
   B.push({ type: "section", title: "Conclusion & Recommended Actions", kicker: "07 · NEXT STEPS" });
   B.push({ type: "narrative", body: [
-    `This report provides a structured view of ${companyName}'s CY${year} greenhouse-gas footprint across sites, scopes and emission categories. The results give management a clear, defensible basis for prioritising reduction effort and improving data quality.`,
+    `This report provides a structured view of ${companyName}'s ${yearLabel} greenhouse-gas footprint across the selected sites, scopes and emission categories. The results give management a clear, defensible basis for prioritising reduction effort and improving data quality.`,
     `The recommended actions below sequence the next steps by impact — closing data gaps first, then addressing the largest emission sources.`,
   ] });
   const recs = nar?.recommendations ?? [
@@ -207,22 +289,22 @@ export async function generateGhgReport(companyId: number, year: number, frequen
   ];
   recs.slice(0, 4).forEach((r, i) => B.push({ type: "callout", variant: i % 2 === 0 ? "info" : "success", title: `Action ${i + 1}`, body: r }));
 
-  const doc: Report = { client: `co-${companyId}`, slug: `ghg-${companyId}-${year}`, docTitle: `${companyName} — GHG Report CY${year}`, blocks: B };
+  const doc: Report = { client: `co-${companyId}`, slug: `ghg-${companyId}-${selectedYear}-${yearType}`, docTitle: `${companyName} — GHG Report ${yearLabel}`, blocks: B };
   const theme = await getBrandTheme(companyId, companyName);
   const heroPrompt = brandImagePrompt(
     `A clean, professional, photographic cover image representing corporate sustainability and clean energy for ${companyName} — solar panels, wind turbines or a modern industrial facility at golden hour, calm and premium`,
     theme
   );
   const hero = await generateImage(heroPrompt).catch(() => null);
-  const variety = buildVariety(theme, companyId * 1000 + year, hero);
+  const variety = buildVariety(theme, companyId * 1000 + selectedYear, hero);
   variety.docCoverMode = "split"; // clean, professional cover (real logo + hero panel)
   const html = renderDocument(doc, theme, variety);
 
   const outDir = join(process.cwd(), "generated-reports");
   mkdirSync(outDir, { recursive: true });
-  const filename = `ghg-${companyId}-${year}-${frequency}.pdf`;
+  const filename = `ghg-${companyId}-${selectedYear}-${yearType}.pdf`;
   const path = join(outDir, filename);
-  writeFileSync(join(outDir, `ghg-${companyId}-${year}.html`), html, "utf8");
+  writeFileSync(join(outDir, `ghg-${companyId}-${selectedYear}-${yearType}.html`), html, "utf8");
   const res = await htmlToPdf(html, path, []);
-  return { path, filename, pages: res.pageCount, companyName, total, year };
+  return { path, filename, pages: res.pageCount, companyName, total, year: selectedYear };
 }
