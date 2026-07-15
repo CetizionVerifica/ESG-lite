@@ -2,11 +2,32 @@
 // Paged.js pagination to finish, then emit the PDF. Also saves PNG previews of
 // the first pages so we can visually verify design quality during development.
 
-import { chromium } from "playwright";
+import { chromium, Browser } from "playwright";
 
 export interface PrintResult {
   pageCount: number;
   previews: string[];
+}
+
+// Launch Chromium. In production (DO App Platform buildpack) the OS has no
+// system libraries for a normal Playwright browser and we can't apt-install
+// them (no root), so we use @sparticuz/chromium — a self-contained Chromium
+// built for locked-down/serverless environments. Locally we use Playwright's
+// own bundled browser.
+async function launchBrowser(): Promise<Browser> {
+  if (process.env.NODE_ENV === "production") {
+    // @sparticuz/chromium is ESM-only. This project compiles to CommonJS, which
+    // would turn import() into require() and can fail on ESM depending on the
+    // deployed Node version. new Function preserves a real native dynamic import.
+    const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<any>;
+    const sparticuz = (await dynamicImport("@sparticuz/chromium")).default;
+    return chromium.launch({
+      executablePath: await sparticuz.executablePath(),
+      args: sparticuz.args,
+      headless: true,
+    });
+  }
+  return chromium.launch();
 }
 
 export async function htmlToPdf(
@@ -14,7 +35,7 @@ export async function htmlToPdf(
   pdfPath: string,
   previewPngPaths: string[] = []
 ): Promise<PrintResult> {
-  const browser = await chromium.launch();
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "load", timeout: 60_000 });
