@@ -70,8 +70,14 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   const catTotals = new Map<string, number>();       // category -> total
   const scopeSet = new Set<string>();
 
+  // Only Scope 1/2/3 rows feed the charts/tables so every visual reconciles with
+  // the on-screen Table 1 totals (which sum by scope). Rows with no scope — e.g.
+  // "Renewable Electricity" — are excluded here and reported separately below,
+  // exactly like the screen (their tCO₂e is NOT part of total emissions).
+  const CORE_SCOPES = new Set(["Scope 1", "Scope 2", "Scope 3"]);
   for (const row of overviewRows) {
-    if (row.scope) scopeSet.add(row.scope);
+    if (!CORE_SCOPES.has(row.scope)) continue;
+    scopeSet.add(row.scope);
     catTotals.set(row.category, (catTotals.get(row.category) ?? 0) + row.total);
     for (const bs of row.bySite) {
       siteTotals.set(bs.siteName, (siteTotals.get(bs.siteName) ?? 0) + bs.value);
@@ -89,6 +95,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     .map(([emission_category, t]) => ({ emission_category, t }))
     .sort((a, b) => b.t - a.t);
   const scopeCat = overviewRows
+    .filter((r) => CORE_SCOPES.has(r.scope))
     .map((r) => ({ scope: r.scope, emission_category: r.category, t: r.total }));
 
   // Scopes for the pie / split (fixed order, only non-zero shown).
@@ -98,7 +105,9 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     { scope: "Scope 3", t: s3 },
   ].filter((x) => x.t > 0);
 
-  const renewable = cats.filter((c) => RENEW_RE.test(c.emission_category)).reduce((a, b) => a + b.t, 0);
+  // Renewable energy is reported from ALL rows (incl. no-scope ones excluded
+  // from the totals above) — it appears in its own callout, never in totals.
+  const renewable = overviewRows.filter((r) => RENEW_RE.test(r.category)).reduce((a, b) => a + b.total, 0);
 
   // Coverage is measured against the SELECTED sites.
   const selSites = await AppDataSource.query(
