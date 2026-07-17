@@ -23,3 +23,14 @@ export const requireManager = (
   }
   next();
 };
+
+export const requireCompanyAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.user?.role !== UserRole.ADMIN) {
+    return res.status(403).json({ message: "Company admin access required" });
+  }
+  next();
+};
