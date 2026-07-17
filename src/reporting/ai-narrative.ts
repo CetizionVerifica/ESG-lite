@@ -39,23 +39,27 @@ export async function writeNarrative(d: NarrativeInput): Promise<Narrative | nul
   if (!key) return null;
   const model = process.env.OPENROUTER_MODEL || "google/gemini-3-flash-preview";
 
+  // Every figure is pre-rounded/formatted so the model can never echo raw
+  // floats like "44545.924442624" into the report prose.
+  const nf = (n: number) => Math.round(n).toLocaleString("en-US");
   const prompt =
     `You are an ESG/GHG analyst writing a professional, board-facing Carbon Accounting Report for ` +
-    `${d.companyName}, calendar year ${d.year}. Use ONLY the figures below — never invent or change a number; ` +
+    `${d.companyName}, reporting year ${d.year}. Use ONLY the figures below — never invent or change a number; ` +
     `refer to them qualitatively where useful.\n\n` +
     `FIGURES (tCO2e):\n` +
-    `- Total: ${d.total}\n- Scope 1: ${d.scope1}\n- Scope 2: ${d.scope2}\n` +
+    `- Total: ${nf(d.total)}\n- Scope 1: ${nf(d.scope1)}\n- Scope 2: ${nf(d.scope2)}\n` +
     `- Data coverage: ${d.coverage}% of sites reporting\n` +
-    `- Sites: ${d.sites.map((s) => `${s.name}=${Math.round(s.t)}`).join(", ") || "none"}\n` +
-    `- Categories/fuels: ${d.categories.map((c) => `${c.name}=${Math.round(c.t)}`).join(", ") || "none"}\n` +
+    `- Sites: ${d.sites.map((s) => `${s.name}=${nf(s.t)}`).join(", ") || "none"}\n` +
+    `- Categories/fuels: ${d.categories.map((c) => `${c.name}=${nf(c.t)}`).join(", ") || "none"}\n` +
     `- Sites with NO data entered: ${d.missingSites.join(", ") || "none"}\n` +
-    `- Renewable-linked: ${d.renewable > 0 ? d.renewable : "none entered"}\n` +
+    `- Renewable-linked: ${d.renewable > 0 ? nf(d.renewable) : "none entered"}\n` +
     `- Months with data: ${d.months} of 12\n\n` +
     `Return STRICT JSON only, no markdown:\n` +
     `{"summary":["para1","para2","para3"],"siteNote":"...","scopeNote":"...","categoryNote":"...",` +
     `"coverageNote":"...","recommendations":["rec1","rec2","rec3","rec4"]}\n` +
     `summary = 3 concise executive-summary paragraphs. Each *Note = 1-2 sentences analysing that dimension. ` +
-    `recommendations = 4 specific, actionable next steps. Professional, concise, no fabricated numbers.`;
+    `recommendations = 4 specific, actionable next steps. Professional, concise, no fabricated numbers. ` +
+    `Write numbers exactly as given (thousands separators, no decimals).`;
 
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
