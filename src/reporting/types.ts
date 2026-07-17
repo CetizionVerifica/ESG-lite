@@ -45,7 +45,7 @@ export type Block =
       /** Hero image URL/data-URL (document style). Omit → procedural brand art. */
       hero?: string;
     }
-  | { type: "section"; title: string; kicker?: string }
+  | { type: "section"; title: string; kicker?: string; /** flow onto the current page instead of forcing a page break (for sub-sections) */ flow?: boolean }
   | {
       type: "kpiTiles";
       title?: string;

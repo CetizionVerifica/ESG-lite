@@ -140,6 +140,10 @@ h1,h2,h3{ font-family:var(--font-heading); font-weight:700; margin:0; }
 /* ---- Section header ---- */
 .section-head{ margin:0 0 16px; padding-top:0; break-before:page; break-inside:avoid; break-after:avoid-page; }
 .cover + .section-head, .section-head:first-child{ break-before:avoid; margin-top:0; }
+/* Sub-section: flows onto the current page (no forced break) but stays glued to
+   its following content, so short groups fill the page instead of orphaning. */
+.section-head--flow{ break-before:auto; margin-top:26px; }
+.section-head--flow .section-title{ font-size:16pt; }
 .block-title{ break-after:avoid-page; }
 .section-head--band{ background:linear-gradient(135deg, var(--tint-strong), var(--tint-accent)); border:1px solid var(--border); border-radius:16px; padding:18px 20px; margin-bottom:16px; }
 .section-kicker{ font-family:var(--font-heading); font-weight:700; font-size:9pt; letter-spacing:.14em; color:var(--accent); }
@@ -171,7 +175,7 @@ h1,h2,h3{ font-family:var(--font-heading); font-weight:700; margin:0; }
 
 /* ---- Chart ---- */
 .chart-block{ break-inside:avoid; margin:0 0 18px; background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px 18px; }
-.chart{ width:100%; height:275px; }
+.chart{ width:100%; height:330px; }
 .chart-caption{ font-size:8.5pt; color:var(--muted); margin-top:6px; font-style:italic; }
 
 /* ---- Table ---- */
@@ -193,7 +197,7 @@ tbody tr:last-child td{ font-weight:700; color:var(--primary); border-top:1.5px 
 .lrow--pair .block{ margin:0; }
 .lcol-text .narrative-grid{ display:block; }          /* single column inside a pair */
 .lcol-text .block-title{ margin-top:0; }
-.lcol-visual .chart{ height:230px; }
+.lcol-visual .chart{ height:280px; }
 .lcol-visual .figure{ margin:0; }
 .lcol-visual .figure img{ max-height:none; height:100%; min-height:230px; object-fit:cover; }
 .lcol-visual .kpi-grid{ grid-template-columns:1fr 1fr; }
@@ -203,7 +207,7 @@ tbody tr:last-child td{ font-weight:700; color:var(--primary); border-top:1.5px 
 /* ---- Image figure ---- */
 .figure{ break-inside:avoid; margin:0 0 18px; }
 .figure img{ width:100%; display:block; border-radius:16px; }
-.figure-banner img{ height:150px; object-fit:cover; }
+.figure-banner img{ height:200px; object-fit:cover; }
 .figure-full img{ max-height:320px; object-fit:cover; }
 .figure figcaption{ font-size:8.5pt; color:var(--muted); margin-top:6px; font-style:italic; }
 

@@ -163,6 +163,28 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   ];
   const note = (v: string | undefined, fb: string) => (v && v.length > 4 ? v : fb);
 
+  // Theme + all report imagery up-front, generated IN PARALLEL so the two
+  // section banners (used to fill short pages tastefully) add no extra latency
+  // over the single cover image we already waited for.
+  const theme = await getBrandTheme(companyId, companyName);
+  const heroPrompt = brandImagePrompt(
+    `A clean, professional, photographic cover image representing corporate sustainability and clean energy for ${companyName} — solar panels, wind turbines or a modern industrial facility at golden hour, calm and premium`,
+    theme
+  );
+  const sitesPrompt = brandImagePrompt(
+    `A wide cinematic aerial photograph of a modern industrial campus and logistics site at dawn, clean architecture, calm premium mood, no text`,
+    theme
+  );
+  const renewPrompt = brandImagePrompt(
+    `A wide serene photograph of renewable energy infrastructure — solar farm rows and distant wind turbines in soft morning light, hopeful and premium, no text`,
+    theme
+  );
+  const [hero, sitesImg, renewImg] = await Promise.all([
+    generateImage(heroPrompt).catch(() => null),
+    generateImage(sitesPrompt).catch(() => null),
+    generateImage(renewPrompt).catch(() => null),
+  ]);
+
   const B: Block[] = [];
 
   const coverSubtitle = siteNames.length === 1
@@ -247,6 +269,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
       return [sn, ...vals.map((v) => fmt(v)), fmt(vals.reduce((a, b) => a + b, 0))];
     }),
   });
+  if (sitesImg) B.push({ type: "image", prompt: sitesPrompt, layout: "banner", src: sitesImg, caption: "Operational sites — illustrative imagery." });
 
   B.push({ type: "section", title: "Detailed Analysis by Scope", kicker: "04 · CATEGORIES & FUEL TYPES" });
   B.push({ type: "narrative", body: [note(nar?.categoryNote, `Within each scope, emissions are broken down by category and fuel type (e.g. Diesel, Coal, Electricity, refrigerants), linking every figure to the activity that drives it — the basis for fuel-switching and efficiency decisions.`)] });
@@ -255,7 +278,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     const rows = scopeCat.filter((r) => r.scope === sc && r.t > 0).sort((a, b) => b.t - a.t);
     if (!rows.length) continue;
     const scTotal = rows.reduce((a, b) => a + b.t, 0);
-    B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e` });
+    B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e`, flow: true });
     B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by category/fuel type.` });
     B.push({
       type: "table", title: `${sc} category detail`, columns: ["Category / Fuel", "Emissions", "Share of scope"], align: ["left", "right", "right"],
@@ -284,6 +307,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
       : [n, "Not entered by user", "—"]),
     caption: missingSites.length ? `${missingSites.length} selected site(s) have no data entered for ${yearLabel}.` : "All selected sites have reported data.",
   });
+  if (renewImg) B.push({ type: "image", prompt: renewPrompt, layout: "banner", src: renewImg, caption: "Renewable energy — illustrative imagery." });
 
   B.push({ type: "section", title: "Conclusion & Recommended Actions", kicker: "07 · NEXT STEPS" });
   B.push({ type: "narrative", body: [
@@ -299,12 +323,6 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   recs.slice(0, 4).forEach((r, i) => B.push({ type: "callout", variant: i % 2 === 0 ? "info" : "success", title: `Action ${i + 1}`, body: r }));
 
   const doc: Report = { client: `co-${companyId}`, slug: `ghg-${companyId}-${selectedYear}-${yearType}`, docTitle: `${companyName} — GHG Report ${yearLabel}`, blocks: B };
-  const theme = await getBrandTheme(companyId, companyName);
-  const heroPrompt = brandImagePrompt(
-    `A clean, professional, photographic cover image representing corporate sustainability and clean energy for ${companyName} — solar panels, wind turbines or a modern industrial facility at golden hour, calm and premium`,
-    theme
-  );
-  const hero = await generateImage(heroPrompt).catch(() => null);
   const variety = buildVariety(theme, companyId * 1000 + selectedYear, hero);
   variety.docCoverMode = "split"; // clean, professional cover (real logo + hero panel)
   const html = renderDocument(doc, theme, variety);

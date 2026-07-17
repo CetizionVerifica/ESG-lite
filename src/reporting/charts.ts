@@ -9,6 +9,10 @@ type ChartBlock = Extract<Block, { type: "chart" }>;
 
 const FONT = "'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif";
 
+// Options are JSON-serialized into the page, so label formatters cannot be
+// functions — instead each datum carries its own pre-formatted label string.
+const nfmt = (n: number) => Math.round(n).toLocaleString("en-US");
+
 export function buildChartOption(block: ChartBlock, theme: Theme): unknown {
   const { colors, chartPalette } = theme;
   const base = {
@@ -30,7 +34,13 @@ export function buildChartOption(block: ChartBlock, theme: Theme): unknown {
 
   if (block.chartType === "pie") {
     const cats = block.categories ?? [];
-    const data = cats.map((name, i) => ({ name, value: block.series[0]?.data[i] ?? 0 }));
+    const data = cats.map((name, i) => {
+      const value = block.series[0]?.data[i] ?? 0;
+      // Slice label shows the value + share ({d}% resolved by echarts); the
+      // category name comes from the legend, keeping labels short enough to fit
+      // the narrow side-by-side columns without truncating.
+      return { name, value, label: { formatter: `${nfmt(value)}\n{d}%`, overflow: "none" } };
+    });
     return {
       ...base,
       legend: {
@@ -44,23 +54,25 @@ export function buildChartOption(block: ChartBlock, theme: Theme): unknown {
       series: [
         {
           type: "pie",
-          radius: ["46%", "72%"],
-          center: ["50%", "44%"],
+          radius: ["44%", "66%"],
+          center: ["50%", "42%"],
           avoidLabelOverlap: true,
           itemStyle: { borderColor: "#ffffff", borderWidth: 2 },
           label: {
             color: colors.ink,
-            fontSize: 11,
-            formatter: "{b}\n{d}%",
+            fontSize: 10,
+            lineHeight: 13,
+            formatter: "{d}%",
           },
-          labelLine: { length: 10, length2: 8, lineStyle: { color: colors.border } },
+          labelLine: { length: 8, length2: 8, lineStyle: { color: colors.border } },
           data,
         },
       ],
     };
   }
 
-  const grid = { left: 6, right: 18, top: multi ? 34 : 12, bottom: 6, containLabel: true };
+  // Extra top room so the value label above the tallest bar/point never clips.
+  const grid = { left: 6, right: 18, top: multi ? 40 : 24, bottom: 6, containLabel: true };
   const xAxis = {
     type: "category",
     data: block.categories ?? [],
@@ -95,7 +107,10 @@ export function buildChartOption(block: ChartBlock, theme: Theme): unknown {
         lineStyle: { width: 3 },
         emphasis: { disabled: true },
         areaStyle: multi ? undefined : { opacity: 0.12 },
-        data: s.data,
+        data: s.data.map((v) => ({
+          value: v,
+          label: { show: true, position: "top", formatter: nfmt(v), color: colors.ink, fontSize: 10, fontWeight: 600 },
+        })),
       })),
     };
   }
@@ -113,7 +128,11 @@ export function buildChartOption(block: ChartBlock, theme: Theme): unknown {
       barMaxWidth: 46,
       itemStyle: { borderRadius: [4, 4, 0, 0] },
       emphasis: { disabled: true },
-      data: s.data,
+      data: s.data.map((v) => ({
+        value: v,
+        // Every bar shows its value on top (smaller when several series share the axis).
+        label: { show: true, position: "top", formatter: nfmt(v), color: colors.ink, fontSize: multi ? 9 : 10, fontWeight: 600 },
+      })),
     })),
   };
 }
