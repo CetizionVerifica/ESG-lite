@@ -278,7 +278,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     const rows = scopeCat.filter((r) => r.scope === sc && r.t > 0).sort((a, b) => b.t - a.t);
     if (!rows.length) continue;
     const scTotal = rows.reduce((a, b) => a + b.t, 0);
-    B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e` });
+    B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e`, flow: true });
     B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by category/fuel type.` });
     B.push({
       type: "table", title: `${sc} category detail`, columns: ["Category / Fuel", "Emissions", "Share of scope"], align: ["left", "right", "right"],

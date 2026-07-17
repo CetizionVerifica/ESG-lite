@@ -140,6 +140,10 @@ h1,h2,h3{ font-family:var(--font-heading); font-weight:700; margin:0; }
 /* ---- Section header ---- */
 .section-head{ margin:0 0 16px; padding-top:0; break-before:page; break-inside:avoid; break-after:avoid-page; }
 .cover + .section-head, .section-head:first-child{ break-before:avoid; margin-top:0; }
+/* Sub-section: flows onto the current page (no forced break) but stays glued to
+   its following content, so short groups fill the page instead of orphaning. */
+.section-head--flow{ break-before:auto; margin-top:26px; }
+.section-head--flow .section-title{ font-size:16pt; }
 .block-title{ break-after:avoid-page; }
 .section-head--band{ background:linear-gradient(135deg, var(--tint-strong), var(--tint-accent)); border:1px solid var(--border); border-radius:16px; padding:18px 20px; margin-bottom:16px; }
 .section-kicker{ font-family:var(--font-heading); font-weight:700; font-size:9pt; letter-spacing:.14em; color:var(--accent); }

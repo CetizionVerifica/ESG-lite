@@ -223,7 +223,8 @@ function renderStatBoard(b: Extract<Block, { type: "statBoard" }>): string {
 }
 
 function renderSection(b: Extract<Block, { type: "section" }>, variety: Variety): string {
-  return `<section class="section-head section-head--${variety.sectionStyle}">
+  const flow = b.flow ? " section-head--flow" : "";
+  return `<section class="section-head section-head--${variety.sectionStyle}${flow}">
     ${b.kicker ? `<div class="section-kicker">${esc(b.kicker)}</div>` : ""}
     <h2 class="section-title">${esc(b.title)}</h2>
     <div class="section-rule"></div>
