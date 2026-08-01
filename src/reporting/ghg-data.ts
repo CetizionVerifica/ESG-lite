@@ -8,6 +8,7 @@ import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 
 export type YearType = "CY" | "FY";
+export type Frequency = "monthly" | "quarterly" | "yearly";
 
 export interface GhgFilters {
   siteIds: number[];
@@ -15,6 +16,8 @@ export interface GhgFilters {
   yearType: YearType;
   year: number;
   compareYear?: number;
+  /** Time granularity for the period breakdown. Defaults to "yearly" when absent. */
+  frequency?: Frequency;
 }
 
 const FY_START_MONTH = 4;
@@ -411,6 +414,140 @@ export async function computeGhgDetails(filters: GhgFilters) {
     },
     rows,
   };
+}
+
+export interface PeriodBucket {
+  label: string;
+  total: number;
+  scope1: number;
+  scope2: number;
+  scope3: number;
+}
+
+export interface GhgByPeriodResult {
+  frequency: Frequency;
+  periods: PeriodBucket[];
+  total: number;
+}
+
+const MONTH_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+const round2 = (n: number) => Number((n || 0).toFixed(2));
+
+/**
+ * Period-level emissions breakdown for the SELECTED year, respecting the exact
+ * same site/category/status/date-range filters as computeGhgTables. Each bucket
+ * carries the total tCO₂e plus the scope split (Scope 1/2/3).
+ *
+ *  - monthly   → 12 buckets in reporting-calendar order (CY: Jan…Dec, FY: Apr…Mar)
+ *  - quarterly → 4 buckets (Q1…Q4 of the selected calendar/fiscal year)
+ *  - yearly    → 1 bucket (the whole selected period)
+ *
+ * Bucketing is by emission.date_of_reporting. For FY the range spans two calendar
+ * years, so months are ordered Apr (year-1) → Mar (year).
+ */
+export async function computeGhgByPeriod(filters: GhgFilters): Promise<GhgByPeriodResult> {
+  const { siteIds, categoryIds, yearType, year } = filters;
+  const frequency: Frequency = filters.frequency ?? "yearly";
+
+  const range = getDateRange(yearType, year);
+  const repo = AppDataSource.getRepository(Emission);
+
+  const qb = repo
+    .createQueryBuilder("emission")
+    .leftJoin("emission.site", "site")
+    .leftJoin("emission.category", "category")
+    .where("emission.status = :status", { status: EmissionStatus.APPROVED })
+    .andWhere("site.site_id IN (:...siteIds)", { siteIds })
+    .andWhere("emission.date_of_reporting >= :startDate", { startDate: range.startDate })
+    .andWhere("emission.date_of_reporting <= :endDate", { endDate: range.endDate });
+
+  if (categoryIds && categoryIds.length > 0) {
+    qb.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
+  }
+
+  // Scope split per (calendar year, month). One grouped query for the whole range.
+  const raw = await qb
+    .select([
+      `EXTRACT(YEAR FROM emission.date_of_reporting)::int AS "y"`,
+      `EXTRACT(MONTH FROM emission.date_of_reporting)::int AS "m"`,
+      `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
+      `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
+      `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+    ])
+    .groupBy(`EXTRACT(YEAR FROM emission.date_of_reporting)`)
+    .addGroupBy(`EXTRACT(MONTH FROM emission.date_of_reporting)`)
+    .getRawMany();
+
+  // key = `${calYear}-${monthNum(1-12)}`
+  const byMonth = new Map<string, { scope1: number; scope2: number; scope3: number }>();
+  for (const r of raw) {
+    byMonth.set(`${Number(r.y)}-${Number(r.m)}`, {
+      scope1: Number(r.scope1) || 0,
+      scope2: Number(r.scope2) || 0,
+      scope3: Number(r.scope3) || 0,
+    });
+  }
+
+  // Ordered 12 months in reporting-calendar order.
+  const orderedMonths: { calYear: number; monthNum: number }[] = [];
+  if (yearType === "FY") {
+    for (let mn = FY_START_MONTH; mn <= 12; mn++) orderedMonths.push({ calYear: year - 1, monthNum: mn });
+    for (let mn = 1; mn < FY_START_MONTH; mn++) orderedMonths.push({ calYear: year, monthNum: mn });
+  } else {
+    for (let mn = 1; mn <= 12; mn++) orderedMonths.push({ calYear: year, monthNum: mn });
+  }
+
+  // Buckets are kept at FULL precision while aggregating; rounding happens once,
+  // at output. Rounding each month first and then summing would compound the
+  // per-bucket error and make the period totals drift from the annual total
+  // reported elsewhere (the report explicitly claims they reconcile).
+  type RawBucket = { label: string; scope1: number; scope2: number; scope3: number };
+
+  const monthRaw: RawBucket[] = orderedMonths.map(({ calYear, monthNum }) => {
+    const v = byMonth.get(`${calYear}-${monthNum}`) ?? { scope1: 0, scope2: 0, scope3: 0 };
+    return {
+      label: `${MONTH_SHORT[monthNum - 1]} ${calYear}`,
+      scope1: v.scope1,
+      scope2: v.scope2,
+      scope3: v.scope3,
+    };
+  });
+
+  const sumRaw = (group: RawBucket[], label: string): RawBucket => ({
+    label,
+    scope1: group.reduce((a, b) => a + b.scope1, 0),
+    scope2: group.reduce((a, b) => a + b.scope2, 0),
+    scope3: group.reduce((a, b) => a + b.scope3, 0),
+  });
+
+  let rawPeriods: RawBucket[];
+  if (frequency === "monthly") {
+    rawPeriods = monthRaw;
+  } else if (frequency === "quarterly") {
+    rawPeriods = [0, 1, 2, 3].map((qi) =>
+      sumRaw(monthRaw.slice(qi * 3, qi * 3 + 3), `Q${qi + 1}`)
+    );
+  } else {
+    rawPeriods = [sumRaw(monthRaw, `${yearType}${year}`)];
+  }
+
+  const periods: PeriodBucket[] = rawPeriods.map((p) => ({
+    label: p.label,
+    scope1: round2(p.scope1),
+    scope2: round2(p.scope2),
+    scope3: round2(p.scope3),
+    total: round2(p.scope1 + p.scope2 + p.scope3),
+  }));
+
+  // Derived from the raw sums, so it matches the annual total exactly.
+  const total = round2(
+    rawPeriods.reduce((a, b) => a + b.scope1 + b.scope2 + b.scope3, 0)
+  );
+  return { frequency, periods, total };
 }
 
 export type GhgTablesResult = Awaited<ReturnType<typeof computeGhgTables>>;

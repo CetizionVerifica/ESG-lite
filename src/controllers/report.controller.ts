@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { generateGhgReport } from "../reporting/ghg";
-import type { GhgFilters, YearType } from "../reporting/ghg-data";
+import type { GhgFilters, YearType, Frequency } from "../reporting/ghg-data";
 
 // Parse a comma-separated list of ids from a query param into number[].
 const parseIds = (v: unknown): number[] => {
@@ -46,12 +46,17 @@ export const ghgReport = async (req: Request, res: Response) => {
     const year = Number(req.query.year) || new Date().getFullYear();
     const compareYear = req.query.compareYear ? Number(req.query.compareYear) : undefined;
 
+    const freqRaw = String(req.query.frequency || "yearly").toLowerCase();
+    const frequency: Frequency =
+      freqRaw === "monthly" ? "monthly" : freqRaw === "quarterly" ? "quarterly" : "yearly";
+
     const filters: GhgFilters = {
       siteIds,
       ...(categoryIds.length ? { categoryIds } : {}),
       yearType,
       year,
       ...(compareYear ? { compareYear } : {}),
+      frequency,
     };
 
     const r = await generateGhgReport(filters, companyId);

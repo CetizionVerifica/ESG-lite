@@ -20,6 +20,7 @@ import { parseSiteIds } from "../utils/parseSiteIds";
 import {
   computeGhgTables,
   computeGhgDetails,
+  computeGhgByPeriod,
   type GhgFilters,
 } from "../reporting/ghg-data";
 
@@ -2854,18 +2855,32 @@ function validateGhgFilters(body: GhgFilters): { error?: string } {
   if (body.yearType !== "CY" && body.yearType !== "FY") {
     return { error: "yearType must be CY or FY" };
   }
+  // Optional (older clients omit it and get the yearly default), but when sent
+  // it must be a known value — otherwise it silently echoes back as-is.
+  if (
+    body.frequency !== undefined &&
+    body.frequency !== "monthly" &&
+    body.frequency !== "quarterly" &&
+    body.frequency !== "yearly"
+  ) {
+    return { error: "frequency must be monthly, quarterly or yearly" };
+  }
   return {};
 }
 
 export const getGhgReportTables = async (req: Request, res: Response) => {
   try {
-    const { siteIds, categoryIds, yearType, year, compareYear } = req.body as GhgReportRequest;
+    const { siteIds, categoryIds, yearType, year, compareYear, frequency } = req.body as GhgReportRequest;
 
-    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear });
+    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear, frequency });
     if (error) return res.status(400).json({ message: error });
 
-    const data = await computeGhgTables({ siteIds, categoryIds, yearType, year, compareYear });
-    return res.status(200).json(data);
+    const filters: GhgFilters = { siteIds, categoryIds, yearType, year, compareYear, frequency };
+
+    const data = await computeGhgTables(filters);
+    // Additive: on-screen report consumes this to render the period breakdown.
+    const periodBreakdown = await computeGhgByPeriod(filters);
+    return res.status(200).json({ ...data, periodBreakdown });
   } catch (error) {
     console.error("GHG report tables error:", error);
     return res.status(500).json({ message: "Internal server error" });
