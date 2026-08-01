@@ -20,6 +20,7 @@ import { parseSiteIds } from "../utils/parseSiteIds";
 import {
   computeGhgTables,
   computeGhgDetails,
+  computeGhgByPeriod,
   type GhgFilters,
 } from "../reporting/ghg-data";
 
@@ -2859,13 +2860,17 @@ function validateGhgFilters(body: GhgFilters): { error?: string } {
 
 export const getGhgReportTables = async (req: Request, res: Response) => {
   try {
-    const { siteIds, categoryIds, yearType, year, compareYear } = req.body as GhgReportRequest;
+    const { siteIds, categoryIds, yearType, year, compareYear, frequency } = req.body as GhgReportRequest;
 
-    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear });
+    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear, frequency });
     if (error) return res.status(400).json({ message: error });
 
-    const data = await computeGhgTables({ siteIds, categoryIds, yearType, year, compareYear });
-    return res.status(200).json(data);
+    const filters: GhgFilters = { siteIds, categoryIds, yearType, year, compareYear, frequency };
+
+    const data = await computeGhgTables(filters);
+    // Additive: on-screen report consumes this to render the period breakdown.
+    const periodBreakdown = await computeGhgByPeriod(filters);
+    return res.status(200).json({ ...data, periodBreakdown });
   } catch (error) {
     console.error("GHG report tables error:", error);
     return res.status(500).json({ message: "Internal server error" });

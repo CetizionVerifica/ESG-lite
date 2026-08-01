@@ -18,7 +18,7 @@ import { htmlToPdf } from "./print";
 import { buildVariety } from "./variety";
 import { generateImage, brandImagePrompt } from "./imagery";
 import { writeNarrative } from "./ai-narrative";
-import { computeGhgTables, getDateRange, type GhgFilters } from "./ghg-data";
+import { computeGhgTables, computeGhgByPeriod, getDateRange, type GhgFilters, type Frequency } from "./ghg-data";
 import type { Block, Report } from "./types";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -41,6 +41,11 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   // Exact same figures as the on-screen tables / plain Download PDF.
   const data = await computeGhgTables(filters);
   const compYear = data.filters.compareYear;
+
+  // Period breakdown at the selected frequency (same site/category/date filters).
+  const frequency: Frequency = filters.frequency ?? "yearly";
+  const periodData = await computeGhgByPeriod(filters);
+  const freqLabel = frequency === "monthly" ? "Monthly" : frequency === "quarterly" ? "Quarterly" : "Yearly";
 
   const totalsSel = data.totals[String(selectedYear)];
   const totalsComp = data.totals[String(compYear)];
@@ -194,7 +199,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   B.push({
     type: "cover", style: "document", title: `${companyName} Carbon Accounting Report`,
     subtitle: coverSubtitle,
-    caption: `${periodName} · ${catText} · Prepared to the GHG Protocol Corporate Standard`,
+    caption: `${freqLabel} · ${periodName} · ${catText} · Prepared to the GHG Protocol Corporate Standard`,
     infoCards: [
       { label: "Reporting Period", value: periodName },
       { label: "Sites Covered", value: `${sitesWithData.size} of ${allSiteNames.length} site(s)` },
@@ -252,6 +257,35 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   B.push({ type: "narrative", body: summary });
   B.push({ type: "chart", title: "Emissions by Scope", chartType: "pie", categories: scopes.map((s) => s.scope), series: [{ name: "tCO₂e", data: scopes.map((s) => Math.round(s.t)) }], caption: "Share of total emissions by GHG scope." });
   B.push({ type: "chart", title: "Emissions by Category", chartType: "bar", unit: "tCO₂e", categories: cats.slice(0, 8).map((c) => c.emission_category || "—"), series: [{ name: "tCO₂e", data: cats.slice(0, 8).map((c) => Math.round(c.t)) }], caption: "Top emission sources across the selected boundary." });
+
+  // Emissions by Period — only when a sub-annual frequency is chosen (yearly is
+  // already fully covered by the annual total above). Line for monthly (12
+  // points), bar for quarterly (4 bars). Numbers come from computeGhgByPeriod.
+  if (frequency === "monthly" || frequency === "quarterly") {
+    const periods = periodData.periods;
+    const unitWord = frequency === "monthly" ? "month" : "quarter";
+    B.push({ type: "section", title: "Emissions by Period", kicker: `02 · ${freqLabel.toUpperCase()} BREAKDOWN` });
+    B.push({ type: "narrative", body: [
+      `The breakdown below distributes total emissions across the ${periods.length} ${unitWord}s of the ${periodName.toLowerCase()}, exposing seasonality and reporting cadence within the selected boundary. Each ${unitWord} reconciles to the annual total of ${fmt1(periodData.total)} tCO₂e.`,
+    ] });
+    B.push({
+      type: "chart",
+      title: `Total emissions by ${unitWord}`,
+      chartType: frequency === "monthly" ? "line" : "bar",
+      unit: "tCO₂e",
+      categories: periods.map((p) => p.label),
+      series: [{ name: "tCO₂e", data: periods.map((p) => Math.round(p.total)) }],
+      caption: `Total tCO₂e per ${unitWord} for ${yearLabel}.`,
+    });
+    B.push({
+      type: "table",
+      title: `Emissions by ${unitWord} (tCO₂e)`,
+      columns: ["Period", "Scope 1", "Scope 2", "Scope 3", "Total"],
+      align: ["left", "right", "right", "right", "right"],
+      rows: periods.map((p) => [p.label, fmt(p.scope1), fmt(p.scope2), fmt(p.scope3), fmt(p.total)]),
+      caption: `Per-${unitWord} totals with scope split. Periods with no reported data show zero.`,
+    });
+  }
 
   B.push({ type: "section", title: "Emissions Overview by Location", kicker: "03 · SITES" });
   B.push({ type: "narrative", body: [note(nar?.siteNote, `Emissions are distributed across ${sitesWithData.size} reporting site(s), led by ${siteNames[0] ?? "—"}. Site-level visibility lets management prioritise the highest-impact locations.`)] });
