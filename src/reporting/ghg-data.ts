@@ -501,39 +501,52 @@ export async function computeGhgByPeriod(filters: GhgFilters): Promise<GhgByPeri
     for (let mn = 1; mn <= 12; mn++) orderedMonths.push({ calYear: year, monthNum: mn });
   }
 
-  const monthBuckets: PeriodBucket[] = orderedMonths.map(({ calYear, monthNum }) => {
+  // Buckets are kept at FULL precision while aggregating; rounding happens once,
+  // at output. Rounding each month first and then summing would compound the
+  // per-bucket error and make the period totals drift from the annual total
+  // reported elsewhere (the report explicitly claims they reconcile).
+  type RawBucket = { label: string; scope1: number; scope2: number; scope3: number };
+
+  const monthRaw: RawBucket[] = orderedMonths.map(({ calYear, monthNum }) => {
     const v = byMonth.get(`${calYear}-${monthNum}`) ?? { scope1: 0, scope2: 0, scope3: 0 };
-    const scope1 = round2(v.scope1);
-    const scope2 = round2(v.scope2);
-    const scope3 = round2(v.scope3);
     return {
       label: `${MONTH_SHORT[monthNum - 1]} ${calYear}`,
-      scope1,
-      scope2,
-      scope3,
-      total: round2(scope1 + scope2 + scope3),
+      scope1: v.scope1,
+      scope2: v.scope2,
+      scope3: v.scope3,
     };
   });
 
-  const sumBuckets = (group: PeriodBucket[], label: string): PeriodBucket => {
-    const scope1 = round2(group.reduce((a, b) => a + b.scope1, 0));
-    const scope2 = round2(group.reduce((a, b) => a + b.scope2, 0));
-    const scope3 = round2(group.reduce((a, b) => a + b.scope3, 0));
-    return { label, scope1, scope2, scope3, total: round2(scope1 + scope2 + scope3) };
-  };
+  const sumRaw = (group: RawBucket[], label: string): RawBucket => ({
+    label,
+    scope1: group.reduce((a, b) => a + b.scope1, 0),
+    scope2: group.reduce((a, b) => a + b.scope2, 0),
+    scope3: group.reduce((a, b) => a + b.scope3, 0),
+  });
 
-  let periods: PeriodBucket[];
+  let rawPeriods: RawBucket[];
   if (frequency === "monthly") {
-    periods = monthBuckets;
+    rawPeriods = monthRaw;
   } else if (frequency === "quarterly") {
-    periods = [0, 1, 2, 3].map((qi) =>
-      sumBuckets(monthBuckets.slice(qi * 3, qi * 3 + 3), `Q${qi + 1}`)
+    rawPeriods = [0, 1, 2, 3].map((qi) =>
+      sumRaw(monthRaw.slice(qi * 3, qi * 3 + 3), `Q${qi + 1}`)
     );
   } else {
-    periods = [sumBuckets(monthBuckets, `${yearType}${year}`)];
+    rawPeriods = [sumRaw(monthRaw, `${yearType}${year}`)];
   }
 
-  const total = round2(periods.reduce((a, b) => a + b.total, 0));
+  const periods: PeriodBucket[] = rawPeriods.map((p) => ({
+    label: p.label,
+    scope1: round2(p.scope1),
+    scope2: round2(p.scope2),
+    scope3: round2(p.scope3),
+    total: round2(p.scope1 + p.scope2 + p.scope3),
+  }));
+
+  // Derived from the raw sums, so it matches the annual total exactly.
+  const total = round2(
+    rawPeriods.reduce((a, b) => a + b.scope1 + b.scope2 + b.scope3, 0)
+  );
   return { frequency, periods, total };
 }
 

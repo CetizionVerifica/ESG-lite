@@ -2855,6 +2855,16 @@ function validateGhgFilters(body: GhgFilters): { error?: string } {
   if (body.yearType !== "CY" && body.yearType !== "FY") {
     return { error: "yearType must be CY or FY" };
   }
+  // Optional (older clients omit it and get the yearly default), but when sent
+  // it must be a known value — otherwise it silently echoes back as-is.
+  if (
+    body.frequency !== undefined &&
+    body.frequency !== "monthly" &&
+    body.frequency !== "quarterly" &&
+    body.frequency !== "yearly"
+  ) {
+    return { error: "frequency must be monthly, quarterly or yearly" };
+  }
   return {};
 }
 

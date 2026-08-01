@@ -44,7 +44,9 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
 
   // Period breakdown at the selected frequency (same site/category/date filters).
   const frequency: Frequency = filters.frequency ?? "yearly";
-  const periodData = await computeGhgByPeriod(filters);
+  // Only monthly/quarterly render a period section, so skip the extra grouped
+  // query entirely for yearly (its result would be discarded).
+  const periodData = frequency === "yearly" ? null : await computeGhgByPeriod(filters);
   const freqLabel = frequency === "monthly" ? "Monthly" : frequency === "quarterly" ? "Quarterly" : "Yearly";
 
   const totalsSel = data.totals[String(selectedYear)];
@@ -261,7 +263,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   // Emissions by Period — only when a sub-annual frequency is chosen (yearly is
   // already fully covered by the annual total above). Line for monthly (12
   // points), bar for quarterly (4 bars). Numbers come from computeGhgByPeriod.
-  if (frequency === "monthly" || frequency === "quarterly") {
+  if (periodData && (frequency === "monthly" || frequency === "quarterly")) {
     const periods = periodData.periods;
     const unitWord = frequency === "monthly" ? "month" : "quarter";
     B.push({ type: "section", title: "Emissions by Period", kicker: `02 · ${freqLabel.toUpperCase()} BREAKDOWN` });
