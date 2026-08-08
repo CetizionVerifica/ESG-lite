@@ -18,7 +18,7 @@ import { htmlToPdf } from "./print";
 import { buildVariety } from "./variety";
 import { generateImage, brandImagePrompt } from "./imagery";
 import { writeNarrative } from "./ai-narrative";
-import { computeGhgTables, computeGhgByPeriod, getDateRange, type GhgFilters, type Frequency } from "./ghg-data";
+import { computeGhgTables, computeGhgByFuelType, getPeriodRange, type GhgFilters, type Frequency } from "./ghg-data";
 import type { Block, Report } from "./types";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -40,14 +40,17 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
 
   // Exact same figures as the on-screen tables / plain Download PDF.
   const data = await computeGhgTables(filters);
+  // Fuel type within each category (Stationary Combustion -> Diesel, ...).
+  const fuelRows = await computeGhgByFuelType(filters).catch(() => []);
   const compYear = data.filters.compareYear;
 
-  // Period breakdown at the selected frequency (same site/category/date filters).
+  // Frequency NARROWS the whole report to a single period inside the reporting
+  // year (a month or a quarter); yearly keeps the full year. The same resolution
+  // computeGhgTables used for its date filter is repeated here for the labels.
   const frequency: Frequency = filters.frequency ?? "yearly";
-  // Only monthly/quarterly render a period section, so skip the extra grouped
-  // query entirely for yearly (its result would be discarded).
-  const periodData = frequency === "yearly" ? null : await computeGhgByPeriod(filters);
   const freqLabel = frequency === "monthly" ? "Monthly" : frequency === "quarterly" ? "Quarterly" : "Yearly";
+  const periodSel = getPeriodRange(yearType, selectedYear, frequency, filters.month, filters.quarter);
+  const periodComp = getPeriodRange(yearType, compYear, frequency, filters.month, filters.quarter);
 
   const totalsSel = data.totals[String(selectedYear)];
   const totalsComp = data.totals[String(compYear)];
@@ -64,12 +67,16 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     .catch(() => null);
   const companyName = company?.name ?? `Company ${companyId}`;
 
-  // Period labels reflect the CY/FY filter.
-  const yearLabel = `${yearType}${selectedYear}`;
-  const compLabel = `${yearType}${compYear}`;
-  const periodName = yearType === "FY"
+  // Period labels reflect the CY/FY filter AND the selected month/quarter, so a
+  // narrowed report never describes itself as covering the whole year.
+  const yearLabel = periodSel.label;                 // e.g. "FY2025" | "June 2024"
+  const compLabel = periodComp.label;                // same period, prior year
+  const fullYearName = yearType === "FY"
     ? `Financial Year (FY) ${selectedYear}`
     : `Calendar Year (CY) ${selectedYear}`;
+  const periodName = frequency === "yearly" ? fullYearName : periodSel.label;
+  // Reads correctly in prose for both "the financial year (fy) 2025" and "June 2024".
+  const periodPhrase = frequency === "yearly" ? `the ${fullYearName.toLowerCase()}` : periodSel.label;
 
   // Aggregate the overview rows into the shapes the branded blocks expect.
   const siteTotals = new Map<string, number>();      // siteName -> total
@@ -129,7 +136,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   const coverage = allSiteNames.length ? Math.round((sitesWithData.size / allSiteNames.length) * 100) : 100;
 
   // Months with data (qualitative — feeds the narrative only, never rendered as a figure).
-  const rangeSel = getDateRange(yearType, selectedYear);
+  const rangeSel = periodSel;
   let monthsWithData = 0;
   try {
     const monthQb = AppDataSource.getRepository(Emission)
@@ -226,7 +233,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
 
   B.push({ type: "section", title: "Introduction", kicker: "01 · ABOUT THIS REPORT" });
   B.push({ type: "narrative", body: [
-    `This report presents the greenhouse gas (GHG) emissions inventory of ${companyName} for the ${periodName.toLowerCase()}. It quantifies direct and energy-indirect emissions across the selected operational boundary and is prepared in accordance with the GHG Protocol Corporate Accounting and Reporting Standard.`,
+    `This report presents the greenhouse gas (GHG) emissions inventory of ${companyName} for ${periodPhrase}. It quantifies direct and energy-indirect emissions across the selected operational boundary and is prepared in accordance with the GHG Protocol Corporate Accounting and Reporting Standard.`,
     `Emissions are expressed in tonnes of carbon-dioxide equivalent (tCO₂e). Figures are aggregated from site-level activity data and applicable emission factors; all values in this report are drawn directly from the recorded, approved inventory for the selected filters.`,
   ] });
   B.push({
@@ -260,35 +267,6 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   B.push({ type: "chart", title: "Emissions by Scope", chartType: "pie", categories: scopes.map((s) => s.scope), series: [{ name: "tCO₂e", data: scopes.map((s) => Math.round(s.t)) }], caption: "Share of total emissions by GHG scope." });
   B.push({ type: "chart", title: "Emissions by Category", chartType: "bar", unit: "tCO₂e", categories: cats.slice(0, 8).map((c) => c.emission_category || "—"), series: [{ name: "tCO₂e", data: cats.slice(0, 8).map((c) => Math.round(c.t)) }], caption: "Top emission sources across the selected boundary." });
 
-  // Emissions by Period — only when a sub-annual frequency is chosen (yearly is
-  // already fully covered by the annual total above). Line for monthly (12
-  // points), bar for quarterly (4 bars). Numbers come from computeGhgByPeriod.
-  if (periodData && (frequency === "monthly" || frequency === "quarterly")) {
-    const periods = periodData.periods;
-    const unitWord = frequency === "monthly" ? "month" : "quarter";
-    B.push({ type: "section", title: "Emissions by Period", kicker: `02 · ${freqLabel.toUpperCase()} BREAKDOWN` });
-    B.push({ type: "narrative", body: [
-      `The breakdown below distributes total emissions across the ${periods.length} ${unitWord}s of the ${periodName.toLowerCase()}, exposing seasonality and reporting cadence within the selected boundary. Each ${unitWord} reconciles to the annual total of ${fmt1(periodData.total)} tCO₂e.`,
-    ] });
-    B.push({
-      type: "chart",
-      title: `Total emissions by ${unitWord}`,
-      chartType: frequency === "monthly" ? "line" : "bar",
-      unit: "tCO₂e",
-      categories: periods.map((p) => p.label),
-      series: [{ name: "tCO₂e", data: periods.map((p) => Math.round(p.total)) }],
-      caption: `Total tCO₂e per ${unitWord} for ${yearLabel}.`,
-    });
-    B.push({
-      type: "table",
-      title: `Emissions by ${unitWord} (tCO₂e)`,
-      columns: ["Period", "Scope 1", "Scope 2", "Scope 3", "Total"],
-      align: ["left", "right", "right", "right", "right"],
-      rows: periods.map((p) => [p.label, fmt(p.scope1), fmt(p.scope2), fmt(p.scope3), fmt(p.total)]),
-      caption: `Per-${unitWord} totals with scope split. Periods with no reported data show zero.`,
-    });
-  }
-
   B.push({ type: "section", title: "Emissions Overview by Location", kicker: "03 · SITES" });
   B.push({ type: "narrative", body: [note(nar?.siteNote, `Emissions are distributed across ${sitesWithData.size} reporting site(s), led by ${siteNames[0] ?? "—"}. Site-level visibility lets management prioritise the highest-impact locations.`)] });
   B.push({ type: "chart", title: "Total emissions — site-wise", chartType: "bar", unit: "tCO₂e", categories: siteNames, series: [{ name: "tCO₂e", data: bySite.map((r) => Math.round(r.t)) }], caption: "Gross emissions by site." });
@@ -315,11 +293,44 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     if (!rows.length) continue;
     const scTotal = rows.reduce((a, b) => a + b.t, 0);
     B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e`, flow: true });
-    B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by category/fuel type.` });
+    B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by emission category.` });
     B.push({
-      type: "table", title: `${sc} category detail`, columns: ["Category / Fuel", "Emissions", "Share of scope"], align: ["left", "right", "right"],
+      type: "table", title: `${sc} category detail`, columns: ["Category", "Emissions", "Share of scope"], align: ["left", "right", "right"],
       rows: rows.map((r) => [r.emission_category || "Unspecified", fmt(r.t), pct(r.t, scTotal)]),
     });
+
+    // One level deeper: the fuel type driving each category (e.g. Stationary
+    // Combustion -> Diesel / Coal), so every figure ties back to an activity.
+    const scopeFuels = fuelRows.filter((f) => f.scope === sc && f.emissions > 0);
+    if (scopeFuels.length) {
+      const fuelTableRows: string[][] = [];
+      for (const r of rows) {
+        const catName = r.emission_category || "Unspecified";
+        const fuels = scopeFuels
+          .filter((f) => f.category === catName)
+          .sort((a, b) => b.emissions - a.emissions);
+        if (!fuels.length) continue;
+        const catTotal = fuels.reduce((a, b) => a + b.emissions, 0);
+        fuels.forEach((f, i) => {
+          fuelTableRows.push([
+            i === 0 ? catName : "",
+            f.fuelType,
+            fmt(f.emissions),
+            pct(f.emissions, catTotal),
+          ]);
+        });
+      }
+      if (fuelTableRows.length) {
+        B.push({
+          type: "table",
+          title: `${sc} — fuel type within each category`,
+          columns: ["Category", "Fuel type", "Emissions", "Share of category"],
+          align: ["left", "left", "right", "right"],
+          rows: fuelTableRows,
+          caption: "Activity/fuel driving each emission category.",
+        });
+      }
+    }
   }
 
   B.push({ type: "section", title: "Results & Key Findings", kicker: "05 · WHAT THE DATA SHOWS" });
@@ -358,16 +369,25 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   ];
   recs.slice(0, 4).forEach((r, i) => B.push({ type: "callout", variant: i % 2 === 0 ? "info" : "success", title: `Action ${i + 1}`, body: r }));
 
-  const doc: Report = { client: `co-${companyId}`, slug: `ghg-${companyId}-${selectedYear}-${yearType}`, docTitle: `${companyName} — GHG Report ${yearLabel}`, blocks: B };
+  // The period is part of the file identity — two months of the same year must
+  // not overwrite each other in generated-reports/.
+  const periodSuffix = frequency === "monthly" && filters.month
+    ? `-m${String(filters.month).padStart(2, "0")}`
+    : frequency === "quarterly" && filters.quarter
+    ? `-q${filters.quarter}`
+    : "";
+  const slug = `ghg-${companyId}-${selectedYear}-${yearType}${periodSuffix}`;
+
+  const doc: Report = { client: `co-${companyId}`, slug, docTitle: `${companyName} — GHG Report ${yearLabel}`, blocks: B };
   const variety = buildVariety(theme, companyId * 1000 + selectedYear, hero);
   variety.docCoverMode = "split"; // clean, professional cover (real logo + hero panel)
   const html = renderDocument(doc, theme, variety);
 
   const outDir = join(process.cwd(), "generated-reports");
   mkdirSync(outDir, { recursive: true });
-  const filename = `ghg-${companyId}-${selectedYear}-${yearType}.pdf`;
+  const filename = `${slug}.pdf`;
   const path = join(outDir, filename);
-  writeFileSync(join(outDir, `ghg-${companyId}-${selectedYear}-${yearType}.html`), html, "utf8");
+  writeFileSync(join(outDir, `${slug}.html`), html, "utf8");
   const res = await htmlToPdf(html, path, []);
   return { path, filename, pages: res.pageCount, companyName, total, year: selectedYear };
 }

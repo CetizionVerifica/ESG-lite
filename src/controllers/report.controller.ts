@@ -20,6 +20,9 @@ const parseIds = (v: unknown): number[] => {
 //     &yearType=CY|FY          default CY
 //     &year=2025
 //     &compareYear=2024        optional
+//     &frequency=yearly|monthly|quarterly   narrows the whole report to one period
+//     &month=6                 calendar month 1-12 (frequency=monthly)
+//     &quarter=2               quarter 1-4 of the reporting year (frequency=quarterly)
 //     &download=1              force attachment download
 export const ghgReport = async (req: Request, res: Response) => {
   try {
@@ -50,6 +53,20 @@ export const ghgReport = async (req: Request, res: Response) => {
     const frequency: Frequency =
       freqRaw === "monthly" ? "monthly" : freqRaw === "quarterly" ? "quarterly" : "yearly";
 
+    // Which single month/quarter the whole report covers. Validated as strictly
+    // as the JSON endpoints: without this an out-of-range value silently falls
+    // back to a full-year range while the file is still named for a period
+    // (e.g. "-m13"), and month=0 would overwrite the yearly report's file.
+    const month = req.query.month !== undefined ? Number(req.query.month) : undefined;
+    const quarter = req.query.quarter !== undefined ? Number(req.query.quarter) : undefined;
+
+    if (frequency === "monthly" && !(Number.isInteger(month) && (month as number) >= 1 && (month as number) <= 12)) {
+      return res.status(400).json({ error: "month (1-12) is required for monthly frequency" });
+    }
+    if (frequency === "quarterly" && !(Number.isInteger(quarter) && (quarter as number) >= 1 && (quarter as number) <= 4)) {
+      return res.status(400).json({ error: "quarter (1-4) is required for quarterly frequency" });
+    }
+
     const filters: GhgFilters = {
       siteIds,
       ...(categoryIds.length ? { categoryIds } : {}),
@@ -57,6 +74,8 @@ export const ghgReport = async (req: Request, res: Response) => {
       year,
       ...(compareYear ? { compareYear } : {}),
       frequency,
+      ...(frequency === "monthly" ? { month } : {}),
+      ...(frequency === "quarterly" ? { quarter } : {}),
     };
 
     const r = await generateGhgReport(filters, companyId);

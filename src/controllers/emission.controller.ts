@@ -20,7 +20,6 @@ import { parseSiteIds } from "../utils/parseSiteIds";
 import {
   computeGhgTables,
   computeGhgDetails,
-  computeGhgByPeriod,
   type GhgFilters,
 } from "../reporting/ghg-data";
 
@@ -2865,22 +2864,33 @@ function validateGhgFilters(body: GhgFilters): { error?: string } {
   ) {
     return { error: "frequency must be monthly, quarterly or yearly" };
   }
+  // Monthly/quarterly narrow the whole report to one period, so the period
+  // itself has to be supplied — otherwise there is nothing to narrow to.
+  if (body.frequency === "monthly") {
+    if (!Number.isInteger(body.month) || (body.month as number) < 1 || (body.month as number) > 12) {
+      return { error: "month must be an integer between 1 and 12 for monthly frequency" };
+    }
+  }
+  if (body.frequency === "quarterly") {
+    if (!Number.isInteger(body.quarter) || (body.quarter as number) < 1 || (body.quarter as number) > 4) {
+      return { error: "quarter must be an integer between 1 and 4 for quarterly frequency" };
+    }
+  }
   return {};
 }
 
 export const getGhgReportTables = async (req: Request, res: Response) => {
   try {
-    const { siteIds, categoryIds, yearType, year, compareYear, frequency } = req.body as GhgReportRequest;
+    const { siteIds, categoryIds, yearType, year, compareYear, frequency, month, quarter } =
+      req.body as GhgReportRequest;
 
-    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear, frequency });
+    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear, frequency, month, quarter });
     if (error) return res.status(400).json({ message: error });
 
-    const filters: GhgFilters = { siteIds, categoryIds, yearType, year, compareYear, frequency };
+    const filters: GhgFilters = { siteIds, categoryIds, yearType, year, compareYear, frequency, month, quarter };
 
     const data = await computeGhgTables(filters);
-    // Additive: on-screen report consumes this to render the period breakdown.
-    const periodBreakdown = await computeGhgByPeriod(filters);
-    return res.status(200).json({ ...data, periodBreakdown });
+    return res.status(200).json(data);
   } catch (error) {
     console.error("GHG report tables error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -2889,12 +2899,13 @@ export const getGhgReportTables = async (req: Request, res: Response) => {
 
 export const getGhgReportDetails = async (req: Request, res: Response) => {
   try {
-    const { siteIds, categoryIds, yearType, year, compareYear } = req.body as GhgDetailsRequest;
+    const { siteIds, categoryIds, yearType, year, compareYear, frequency, month, quarter } =
+      req.body as GhgDetailsRequest;
 
-    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear });
+    const { error } = validateGhgFilters({ siteIds, categoryIds, yearType, year, compareYear, frequency, month, quarter });
     if (error) return res.status(400).json({ message: error });
 
-    const data = await computeGhgDetails({ siteIds, categoryIds, yearType, year, compareYear });
+    const data = await computeGhgDetails({ siteIds, categoryIds, yearType, year, compareYear, frequency, month, quarter });
     return res.status(200).json(data);
   } catch (error) {
     console.error("GHG report details error:", error);

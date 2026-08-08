@@ -59,7 +59,7 @@ import {
   deleteDocument,
   bulkDeleteDocuments,
 } from "../controllers/document.controller";
-import { getCompanies, getCompanyNameBySites } from "../controllers/company.controller";
+import { getCompanies, getCompanyNameBySites, getReportingCalendar } from "../controllers/company.controller";
 import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
 import { getAuditLogs } from "../controllers/auditLog.controller";
 import { exportEmissions } from "../controllers/emissionExport.controller";
@@ -155,6 +155,7 @@ router.post("/emissions/approved", getApprovedEmissionsReport);
 router.post("/reports/ede", getEdeReport)
 router.get("/companies", getCompanies)
 router.post("/companies/by-sites", getCompanyNameBySites)
+router.get("/reporting-calendar", getReportingCalendar)
 router.get("/category-mappings/company/:companyId", getMappingsByCompany)
 router.post("/ghg/tables", getGhgReportTables);
 router.post("/ghg/details",getGhgReportDetails)
