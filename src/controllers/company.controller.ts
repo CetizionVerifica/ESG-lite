@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
+import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -45,7 +46,13 @@ export const getCompanyNameBySites = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Company not found for the provided sites" });
     }
 
-    return res.status(200).json({ companyName: site.company.name });
+    // fiscalYearStartMonth lets the UI build FY month/quarter options from the
+    // backend's single definition instead of hardcoding its own copy.
+    return res.status(200).json({
+      companyName: site.company.name,
+      fiscalYearStartMonth: FY_START_MONTH,
+      fiscalYearRule: FISCAL_YEAR_RULE,
+    });
   } catch (error) {
     console.error("Error fetching company name:", error);
     return res.status(500).json({ message: "Internal server error" });

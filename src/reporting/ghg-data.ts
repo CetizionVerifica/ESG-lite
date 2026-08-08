@@ -27,7 +27,14 @@ export interface GhgFilters {
   quarter?: number;
 }
 
-const FY_START_MONTH = 4;
+/**
+ * The month the financial year starts in (4 = April, so FY runs Apr → Mar).
+ * This is the SINGLE definition for the whole system: the fiscal-year rule text
+ * and the `fiscalYearStartMonth` returned to clients are both derived from it,
+ * and the frontend reads that value from the API instead of keeping its own
+ * copy — so the UI and the backend can never disagree.
+ */
+export const FY_START_MONTH = 4;
 
 export function getDateRange(yearType: YearType, year: number) {
   if (yearType === "CY") {
@@ -47,6 +54,15 @@ const MONTH_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+
+/** Month the FY ends in — the month before it starts (1-12). */
+const FY_END_MONTH = ((FY_START_MONTH + 10) % 12) + 1;
+/** Last day of the FY end month (2001 is non-leap, so Feb resolves to 28). */
+const FY_END_DAY = new Date(2001, FY_END_MONTH, 0).getDate();
+
+/** Human-readable FY rule, derived from FY_START_MONTH so it can never drift. */
+export const FISCAL_YEAR_RULE =
+  `${MONTH_SHORT[FY_START_MONTH - 1]} 1 → ${MONTH_SHORT[FY_END_MONTH - 1]} ${FY_END_DAY}`;
 
 const MONTH_LONG = [
   "January", "February", "March", "April", "May", "June",
@@ -306,7 +322,8 @@ export async function computeGhgTables(filters: GhgFilters) {
       yearType,
       year: selectedYear,
       compareYear: compYear,
-      fiscalYearRule: "Apr 1 → Mar 31",
+      fiscalYearRule: FISCAL_YEAR_RULE,
+      fiscalYearStartMonth: FY_START_MONTH,
       frequency,
       month: frequency === "monthly" ? (month ?? null) : null,
       quarter: frequency === "quarterly" ? (quarter ?? null) : null,
@@ -519,7 +536,8 @@ export async function computeGhgDetails(filters: GhgFilters) {
       yearType,
       year: selectedYear,
       compareYear: compYear,
-      fiscalYearRule: "Apr 1 → Mar 31",
+      fiscalYearRule: FISCAL_YEAR_RULE,
+      fiscalYearStartMonth: FY_START_MONTH,
       frequency,
       month: frequency === "monthly" ? (month ?? null) : null,
       quarter: frequency === "quarterly" ? (quarter ?? null) : null,
