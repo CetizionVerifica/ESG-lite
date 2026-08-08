@@ -53,10 +53,19 @@ export const ghgReport = async (req: Request, res: Response) => {
     const frequency: Frequency =
       freqRaw === "monthly" ? "monthly" : freqRaw === "quarterly" ? "quarterly" : "yearly";
 
-    // Which single month/quarter the whole report covers (only read for the
-    // matching frequency; getPeriodRange falls back to the full year if absent).
-    const month = req.query.month ? Number(req.query.month) : undefined;
-    const quarter = req.query.quarter ? Number(req.query.quarter) : undefined;
+    // Which single month/quarter the whole report covers. Validated as strictly
+    // as the JSON endpoints: without this an out-of-range value silently falls
+    // back to a full-year range while the file is still named for a period
+    // (e.g. "-m13"), and month=0 would overwrite the yearly report's file.
+    const month = req.query.month !== undefined ? Number(req.query.month) : undefined;
+    const quarter = req.query.quarter !== undefined ? Number(req.query.quarter) : undefined;
+
+    if (frequency === "monthly" && !(Number.isInteger(month) && (month as number) >= 1 && (month as number) <= 12)) {
+      return res.status(400).json({ error: "month (1-12) is required for monthly frequency" });
+    }
+    if (frequency === "quarterly" && !(Number.isInteger(quarter) && (quarter as number) >= 1 && (quarter as number) <= 4)) {
+      return res.status(400).json({ error: "quarter (1-4) is required for quarterly frequency" });
+    }
 
     const filters: GhgFilters = {
       siteIds,
@@ -65,8 +74,8 @@ export const ghgReport = async (req: Request, res: Response) => {
       year,
       ...(compareYear ? { compareYear } : {}),
       frequency,
-      ...(frequency === "monthly" && Number.isFinite(month) ? { month } : {}),
-      ...(frequency === "quarterly" && Number.isFinite(quarter) ? { quarter } : {}),
+      ...(frequency === "monthly" ? { month } : {}),
+      ...(frequency === "quarterly" ? { quarter } : {}),
     };
 
     const r = await generateGhgReport(filters, companyId);
