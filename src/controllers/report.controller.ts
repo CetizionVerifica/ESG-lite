@@ -20,6 +20,9 @@ const parseIds = (v: unknown): number[] => {
 //     &yearType=CY|FY          default CY
 //     &year=2025
 //     &compareYear=2024        optional
+//     &frequency=yearly|monthly|quarterly   narrows the whole report to one period
+//     &month=6                 calendar month 1-12 (frequency=monthly)
+//     &quarter=2               quarter 1-4 of the reporting year (frequency=quarterly)
 //     &download=1              force attachment download
 export const ghgReport = async (req: Request, res: Response) => {
   try {
@@ -50,6 +53,11 @@ export const ghgReport = async (req: Request, res: Response) => {
     const frequency: Frequency =
       freqRaw === "monthly" ? "monthly" : freqRaw === "quarterly" ? "quarterly" : "yearly";
 
+    // Which single month/quarter the whole report covers (only read for the
+    // matching frequency; getPeriodRange falls back to the full year if absent).
+    const month = req.query.month ? Number(req.query.month) : undefined;
+    const quarter = req.query.quarter ? Number(req.query.quarter) : undefined;
+
     const filters: GhgFilters = {
       siteIds,
       ...(categoryIds.length ? { categoryIds } : {}),
@@ -57,6 +65,8 @@ export const ghgReport = async (req: Request, res: Response) => {
       year,
       ...(compareYear ? { compareYear } : {}),
       frequency,
+      ...(frequency === "monthly" && Number.isFinite(month) ? { month } : {}),
+      ...(frequency === "quarterly" && Number.isFinite(quarter) ? { quarter } : {}),
     };
 
     const r = await generateGhgReport(filters, companyId);
