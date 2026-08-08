@@ -552,5 +552,68 @@ export async function computeGhgDetails(filters: GhgFilters) {
   };
 }
 
+export interface FuelTypeRow {
+  scope: string;
+  category: string;
+  fuelType: string;
+  emissions: number;
+}
+
+/**
+ * Emissions broken down to FUEL TYPE within each emission category — the level
+ * below `computeGhgTables` (which stops at the category). E.g. Stationary
+ * Combustion → Diesel / Coal. Uses the same activity_data extraction as
+ * computeGhgDetails and the same site/category/status/period filters, and only
+ * covers the SELECTED period (no comparison year).
+ */
+export async function computeGhgByFuelType(filters: GhgFilters): Promise<FuelTypeRow[]> {
+  const { siteIds, categoryIds, yearType, year, month, quarter } = filters;
+  const frequency: Frequency = filters.frequency ?? "yearly";
+  const range = getPeriodRange(yearType, year, frequency, month, quarter);
+
+  const fuelExpr = `
+      COALESCE(
+        NULLIF(emission.activity_data->>'fuelType', ''),
+        NULLIF(emission.activity_data->>'emission_category', ''),
+        'Unknown'
+      )
+    `;
+
+  const qb = AppDataSource.getRepository(Emission)
+    .createQueryBuilder("emission")
+    .leftJoin("emission.site", "site")
+    .leftJoin("emission.category", "category")
+    .where("emission.status = :status", { status: EmissionStatus.APPROVED })
+    .andWhere("site.site_id IN (:...siteIds)", { siteIds })
+    .andWhere("emission.date_of_reporting >= :startDate", { startDate: range.startDate })
+    .andWhere("emission.date_of_reporting <= :endDate", { endDate: range.endDate });
+
+  if (categoryIds && categoryIds.length > 0) {
+    qb.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
+  }
+
+  const raw = await qb
+    .select([
+      `category.scope AS "scope"`,
+      `category.category_name AS "category"`,
+      `${fuelExpr} AS "fuelType"`,
+      `COALESCE(SUM(emission.total_emission), 0) AS "emissions"`,
+    ])
+    .groupBy(`category.scope`)
+    .addGroupBy(`category.category_name`)
+    .addGroupBy(fuelExpr)
+    .orderBy(`category.scope`, "ASC")
+    .addOrderBy(`category.category_name`, "ASC")
+    .addOrderBy(`"emissions"`, "DESC")
+    .getRawMany();
+
+  return raw.map((r: any) => ({
+    scope: String(r.scope ?? ""),
+    category: String(r.category ?? "Unspecified"),
+    fuelType: String(r.fuelType ?? "Unknown"),
+    emissions: Number(r.emissions) || 0,
+  }));
+}
+
 export type GhgTablesResult = Awaited<ReturnType<typeof computeGhgTables>>;
 export type GhgDetailsResult = Awaited<ReturnType<typeof computeGhgDetails>>;

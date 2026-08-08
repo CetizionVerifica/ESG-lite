@@ -18,7 +18,7 @@ import { htmlToPdf } from "./print";
 import { buildVariety } from "./variety";
 import { generateImage, brandImagePrompt } from "./imagery";
 import { writeNarrative } from "./ai-narrative";
-import { computeGhgTables, getPeriodRange, type GhgFilters, type Frequency } from "./ghg-data";
+import { computeGhgTables, computeGhgByFuelType, getPeriodRange, type GhgFilters, type Frequency } from "./ghg-data";
 import type { Block, Report } from "./types";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -40,6 +40,8 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
 
   // Exact same figures as the on-screen tables / plain Download PDF.
   const data = await computeGhgTables(filters);
+  // Fuel type within each category (Stationary Combustion -> Diesel, ...).
+  const fuelRows = await computeGhgByFuelType(filters).catch(() => []);
   const compYear = data.filters.compareYear;
 
   // Frequency NARROWS the whole report to a single period inside the reporting
@@ -291,11 +293,44 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     if (!rows.length) continue;
     const scTotal = rows.reduce((a, b) => a + b.t, 0);
     B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e`, flow: true });
-    B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by category/fuel type.` });
+    B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by emission category.` });
     B.push({
-      type: "table", title: `${sc} category detail`, columns: ["Category / Fuel", "Emissions", "Share of scope"], align: ["left", "right", "right"],
+      type: "table", title: `${sc} category detail`, columns: ["Category", "Emissions", "Share of scope"], align: ["left", "right", "right"],
       rows: rows.map((r) => [r.emission_category || "Unspecified", fmt(r.t), pct(r.t, scTotal)]),
     });
+
+    // One level deeper: the fuel type driving each category (e.g. Stationary
+    // Combustion -> Diesel / Coal), so every figure ties back to an activity.
+    const scopeFuels = fuelRows.filter((f) => f.scope === sc && f.emissions > 0);
+    if (scopeFuels.length) {
+      const fuelTableRows: string[][] = [];
+      for (const r of rows) {
+        const catName = r.emission_category || "Unspecified";
+        const fuels = scopeFuels
+          .filter((f) => f.category === catName)
+          .sort((a, b) => b.emissions - a.emissions);
+        if (!fuels.length) continue;
+        const catTotal = fuels.reduce((a, b) => a + b.emissions, 0);
+        fuels.forEach((f, i) => {
+          fuelTableRows.push([
+            i === 0 ? catName : "",
+            f.fuelType,
+            fmt(f.emissions),
+            pct(f.emissions, catTotal),
+          ]);
+        });
+      }
+      if (fuelTableRows.length) {
+        B.push({
+          type: "table",
+          title: `${sc} — fuel type within each category`,
+          columns: ["Category", "Fuel type", "Emissions", "Share of category"],
+          align: ["left", "left", "right", "right"],
+          rows: fuelTableRows,
+          caption: "Activity/fuel driving each emission category.",
+        });
+      }
+    }
   }
 
   B.push({ type: "section", title: "Results & Key Findings", kicker: "05 · WHAT THE DATA SHOWS" });
