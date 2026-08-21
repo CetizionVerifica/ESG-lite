@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { authenticate } from "../middlewares/auth.middleware";
 import { requireSuperAdmin } from "../middlewares/role.middleware";
+import { withUploadErrors } from "../middlewares/upload.middleware";
 import {
   createCompany,
   getCompanies,
@@ -83,12 +84,29 @@ const upload = multer({
   },
 });
 
+// The onboarding form posts multipart/form-data (branding files travel with the
+// company details), so it needs its own parser — express.json() skips multipart
+// and leaves req.body undefined.
+const onboardingUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit, matches the form hint
+});
+
 const router = Router();
 
 router.use(authenticate, requireSuperAdmin);
 
 // Onboarding
-router.post("/onboarding/company", onboardCompany);
+router.post(
+  "/onboarding/company",
+  withUploadErrors(
+    onboardingUpload.fields([
+      { name: "logo", maxCount: 1 },
+      { name: "colorGuideline", maxCount: 1 },
+    ])
+  ),
+  onboardCompany
+);
 
 // Company
 router.post("/companies", createCompany);
