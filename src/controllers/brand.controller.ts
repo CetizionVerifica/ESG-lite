@@ -3,20 +3,17 @@ import { AppDataSource } from "../config/data-source";
 import { Brand } from "../entities/Brand";
 import { Company } from "../entities/Company";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import { uploadToR2, r2Enabled, brandLogoKey } from "../config/r2";
+import {
+  saveCompanyLogo,
+  isSupportedLogoMime,
+  isAssetStorageConfigured,
+  SUPPORTED_LOGO_MIMES,
+} from "../services/brandLogo.service";
 
 const brandRepo = () => AppDataSource.getRepository(Brand);
 const companyRepo = () => AppDataSource.getRepository(Company);
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
-
-const EXT_BY_MIME: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/webp": "webp",
-  "image/svg+xml": "svg",
-};
 
 // GET /brands/:companyId — current brand kit (falls back to company name/defaults)
 export const getBrand = async (req: AuthRequest, res: Response) => {
@@ -88,26 +85,20 @@ export const uploadBrandLogo = async (req: AuthRequest, res: Response) => {
 
     const file = req.file;
     if (!file) return res.status(400).json({ message: "No logo uploaded (field name: logo)" });
-    if (!file.mimetype.startsWith("image/")) {
-      return res.status(400).json({ message: "Logo must be an image (png, jpg, svg, webp)" });
+    if (!isSupportedLogoMime(file.mimetype)) {
+      return res.status(400).json({
+        message: `Logo must be an image (${SUPPORTED_LOGO_MIMES.join(", ")})`,
+      });
     }
 
     const company = await companyRepo().findOne({ where: { company_id: companyId } });
     if (!company) return res.status(404).json({ message: "Company not found" });
 
-    if (!r2Enabled()) {
+    if (!isAssetStorageConfigured()) {
       return res.status(503).json({ message: "Asset storage (R2) is not configured on the server" });
     }
-    const ext = EXT_BY_MIME[file.mimetype] || "png";
-    const key = brandLogoKey(companyId, ext);
-    const { url } = await uploadToR2(file.buffer, key, file.mimetype);
 
-    const repo = brandRepo();
-    let brand = await repo.findOne({ where: { companyId } });
-    if (!brand) brand = repo.create({ companyId, name: company.name });
-    brand.logoUrl = url;
-    brand.logoPublicId = key;
-    await repo.save(brand);
+    const brand = await saveCompanyLogo(companyId, company.name, file);
 
     return res.status(200).json({ message: "Logo uploaded", brand });
   } catch (error) {
