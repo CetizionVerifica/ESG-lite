@@ -12,3 +12,6 @@ npm-debug.log*
 backup
 # Generated report artifacts (PDF/HTML)
 /generated-reports
+
+# Local dev file storage (not for commit)
+local-uploads/
