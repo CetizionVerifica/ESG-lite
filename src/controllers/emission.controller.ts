@@ -8,6 +8,7 @@ import { In } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
+import { getUsdRate } from "../services/fxRate";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
@@ -50,10 +51,13 @@ const unitConversions: Record<string, Record<string, number>> = {
   mwh: { kwh: 1000, gj: 3.6, mj: 3600 },
   gj: { kwh: 277.778, mwh: 0.277778, mj: 1000 },
   mj: { kwh: 0.277778, gj: 0.001 },
-  // Currency
-  inr: { usd: 0.012 },
-  usd: { inr: 83.5, eur: 0.92 },
-  eur: { usd: 1.09 },
+  // Currency — seed values only. These are refreshed from the live FX service
+  // below (refreshCurrencyRates), because a frozen rate silently skews every
+  // spend-based Scope 3 figure: the previous hardcoded 83.5 had drifted ~15%
+  // from the real rate, inflating every INR spend line by the same 15%.
+  inr: { usd: 1 / 95.77 },
+  usd: { inr: 95.77, eur: 0.86 },
+  eur: { usd: 1 / 0.86 },
 
   "tonne.km": { "kg.km": 1000, "g.km": 1000000 },
 "kg.km": { "tonne.km": 0.001, "g.km": 1000 },
@@ -61,6 +65,25 @@ const unitConversions: Record<string, Record<string, number>> = {
 };
 
 //comment
+
+// Keep the currency rows of `unitConversions` in step with the live market.
+// Done as a periodic refresh rather than an async lookup so that
+// getConversionFactor stays synchronous and no call site has to change.
+// Both directions are written as exact inverses, so converting INR->USD->INR
+// can no longer drift (the old table had 0.012 vs 83.5, which did not agree).
+async function refreshCurrencyRates(): Promise<void> {
+  try {
+    const [inr, eur] = await Promise.all([getUsdRate("INR"), getUsdRate("EUR")]);
+    unitConversions.usd.inr = inr.rate;
+    unitConversions.inr.usd = 1 / inr.rate;
+    unitConversions.usd.eur = eur.rate;
+    unitConversions.eur.usd = 1 / eur.rate;
+  } catch (err) {
+    console.warn("[fx] Could not refresh currency rates; keeping previous values.", err);
+  }
+}
+void refreshCurrencyRates();
+setInterval(refreshCurrencyRates, 12 * 60 * 60 * 1000).unref?.();
 
 // Get conversion factor between two units
 const getConversionFactor = (fromUnit: string, toUnit: string): number | null => {
