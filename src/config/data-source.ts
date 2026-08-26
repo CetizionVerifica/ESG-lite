@@ -128,7 +128,9 @@ const getDataSourceConfig = (): DataSourceOptions => {
         username: process.env.DB_USERNAME,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
-        synchronize: true, // Re-enable to sync schema with forked DB
+        synchronize: makeSync, // Opt-in only via TYPEORM_SYNC=true. Left on, TypeORM rewrites
+        // the schema to match entities on boot, which mangles restored-dump tables that have
+        // no corresponding entity (activity_data, final_emission, invoice, uploaded_documents...).
         logging: false,
         entities,
         // Enable SSL if connecting to a managed DB (host is not localhost)

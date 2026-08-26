@@ -73,6 +73,16 @@ export class Emission {
   @JoinColumn({ name: "site_id" })
   site!: Site;
 
+  // 'monthly' (default, all pre-existing rows) or 'yearly'. A yearly row's
+  // date_of_reporting is the period-end date (Dec 31 for CY, Mar 31 for FY)
+  // and covers its whole year — reports must not treat it as one month.
+  @Column({ type: "varchar", length: 10, default: "monthly" })
+  reporting_period!: "monthly" | "yearly";
+
+  // Only set on yearly rows: 'CY' (Jan-Dec) or 'FY' (Apr-Mar, Indian financial year).
+  @Column({ type: "varchar", length: 2, nullable: true })
+  year_type!: "CY" | "FY" | null;
+
   @Column({ nullable: true })
   fera_linked_id!: number;
 
