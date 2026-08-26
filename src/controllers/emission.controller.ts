@@ -16,6 +16,7 @@ import axios from "axios";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
+import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import {
   computeGhgTables,
@@ -269,7 +270,7 @@ export const getEmissionsBySiteAndCategory = async (req: Request, res: Response)
 // Create a new emission entry
 export const createEmission = async (req: AuthRequest, res: Response) => {
   try {
-    const { site_id, category_id, activity_data, total_emission, unit, date_of_reporting, activity_data_unit, extra_data } = req.body;
+    const { site_id, category_id, activity_data, total_emission, unit, date_of_reporting, activity_data_unit, extra_data, reporting_period, year_type } = req.body;
     const userId = req.user?.userId;
 
     if (!site_id || !category_id || !activity_data || !date_of_reporting) {
@@ -278,17 +279,59 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Check for duplicate emission (same site + category + date + emission_category)
-    const duplicateWhere: any = {
-      site: { site_id },
-      category: { category_id },
+    // Yearly data entry: validate period fields, then enforce the mode lock
+    // (one site+category+year is either all monthly or all yearly — mixing
+    // would double count, since a yearly batch already contains the months).
+    const periodError = validatePeriodFields({
+      category_id,
+      reporting_period,
+      year_type,
       date_of_reporting: new Date(date_of_reporting),
-    };
-
-    const existingEmissions = await repo.find({
-      where: duplicateWhere,
-      relations: ["site", "category", "created_by"],
     });
+    if (periodError) {
+      return res.status(400).json({ message: periodError });
+    }
+    const effectivePeriod: "monthly" | "yearly" = reporting_period === "yearly" ? "yearly" : "monthly";
+    const modeConflict = await findModeLockConflict(repo, {
+      site_id,
+      category_id,
+      reporting_period: effectivePeriod,
+      year_type: effectivePeriod === "yearly" ? year_type : null,
+      date_of_reporting: new Date(date_of_reporting),
+    });
+    if (modeConflict) {
+      let conflictMessage: string;
+      if (effectivePeriod === "yearly" && modeConflict.conflicting_period === "monthly") {
+        conflictMessage = `This category already has ${modeConflict.conflicting_rows} monthly entr${modeConflict.conflicting_rows === 1 ? "y" : "ies"} in ${modeConflict.window.start} – ${modeConflict.window.end}. Delete them first, or continue entering monthly.`;
+      } else if (effectivePeriod === "yearly") {
+        // Overlapping yearly batch of the other calendar (CY vs FY): their
+        // windows share up to nine months, so both existing double counts.
+        conflictMessage = `This year overlaps an existing ${modeConflict.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${modeConflict.conflicting_year_type} batch first, or file this data under ${modeConflict.conflicting_year_type} too.`;
+      } else {
+        conflictMessage = `This category already has a yearly batch covering ${modeConflict.window.start} – ${modeConflict.window.end}. Delete the yearly data first, or file this entry under a different period.`;
+      }
+      return res.status(409).json({
+        message: conflictMessage,
+        mode_lock: true,
+        conflict: modeConflict,
+      });
+    }
+
+    // Check for duplicate emission (same site + category + date + emission_category).
+    // Monthly rows only: every row of a yearly batch shares the period-end date,
+    // so date-based dedup would wrongly reject a second purchase of the same
+    // subcategory within the year.
+    const existingEmissions =
+      effectivePeriod === "yearly"
+        ? []
+        : await repo.find({
+            where: {
+              site: { site_id },
+              category: { category_id },
+              date_of_reporting: new Date(date_of_reporting),
+            },
+            relations: ["site", "category", "created_by"],
+          });
 
     // If emission_category is provided, match on it too; otherwise match any entry for that date
     const duplicate = activity_data.emission_category
@@ -450,6 +493,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       total_emission: calculatedEmission,
       unit: "tCO2e",
       date_of_reporting: new Date(date_of_reporting),
+      reporting_period: effectivePeriod,
+      year_type: effectivePeriod === "yearly" ? year_type : null,
       activity_data_unit: activity_data_unit || null,
       created_by: userId ? { user_id: userId } as any : null,
       emission_factor_snapshot: matchedEmissionFactor ? {
@@ -1549,7 +1594,7 @@ export const getPendingEmissions = async (req: AuthRequest, res: Response) => {
 export const approveEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { comment } = req.body;
+    const { comment } = req.body || {};
     const userId = req.user?.userId;
 
     const emission = await repo.findOne({
@@ -1655,7 +1700,7 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
 export const rejectEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { comment } = req.body;
+    const { comment } = req.body || {};
     const userId = req.user?.userId;
 
     if (!comment) {
