@@ -40,6 +40,23 @@ export const isValidPeriodEnd = (yearType: YearType, d: Date): boolean => {
     return yearType === "CY" ? month === 12 && day === 31 : month === 3 && day === 31;
 };
 
+/**
+ * SQL predicate (for query-builder alias `alias`) matching yearly rows whose
+ * reporting window contains the bound `:coveredDate` parameter.
+ *
+ * Shared deliberately: the mode lock and any "is this month already covered by
+ * a yearly batch?" check must agree on the window, or a user who filed a whole
+ * year at once gets chased for monthly data they already submitted.
+ */
+export const yearlyCoversDateSql = (alias: string): string =>
+    `(${alias}.reporting_period = 'yearly' AND (
+        (${alias}.year_type = 'CY'
+            AND EXTRACT(YEAR FROM ${alias}.date_of_reporting) = EXTRACT(YEAR FROM CAST(:coveredDate AS date)))
+     OR (${alias}.year_type = 'FY'
+            AND CAST(:coveredDate AS date) > ${alias}.date_of_reporting - INTERVAL '1 year'
+            AND CAST(:coveredDate AS date) <= ${alias}.date_of_reporting)
+    ))`;
+
 export interface ModeLockConflict {
     conflicting_period: ReportingPeriod;
     conflicting_rows: number;
@@ -123,13 +140,9 @@ export const findModeLockConflict = async (
         .createQueryBuilder("e")
         .where("e.site_id = :site_id", { site_id })
         .andWhere("e.category_id = :category_id", { category_id })
-        .andWhere("e.reporting_period = 'yearly'")
-        .andWhere(
-            `((e.year_type = 'CY' AND EXTRACT(YEAR FROM e.date_of_reporting) = EXTRACT(YEAR FROM CAST(:d AS date)))
-              OR (e.year_type = 'FY' AND CAST(:d AS date) > e.date_of_reporting - INTERVAL '1 year'
-                  AND CAST(:d AS date) <= e.date_of_reporting))`,
-            { d: date_of_reporting.toISOString().slice(0, 10) },
-        );
+        .andWhere(yearlyCoversDateSql("e"), {
+            coveredDate: date_of_reporting.toISOString().slice(0, 10),
+        });
     if (exclude_pk_id) qb.andWhere("e.pk_id != :pk", { pk: exclude_pk_id });
     const conflicting = await qb
         .select(["e.year_type", "e.date_of_reporting"])

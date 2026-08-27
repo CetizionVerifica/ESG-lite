@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { MoreThanOrEqual } from "typeorm";
+import { Brackets, MoreThanOrEqual } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Emission } from "../entities/Emission";
@@ -7,6 +7,9 @@ import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/type";
 import { sendToQueue } from "../queues/emailProducer";
 import { createNotification } from "../services/notificationService";
+import { yearlyCoversDateSql } from "../services/reportingPeriod";
+
+const pad = (n: number) => String(n).padStart(2, "0");
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -46,8 +49,11 @@ const getUsersWithNoSubmissions = async (year: number, month: number) => {
 
   const pendingUsers: { user_id: number; name: string; email: string; role: string; siteName: string; siteId: number; timezone: string | null }[] = [];
 
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0); // Last day of month
+  // Built as plain date strings rather than via toISOString(), which shifts the
+  // boundary by a day in any timezone east of UTC and made the window run from
+  // the last day of the previous month to the second-to-last day of this one.
+  const monthStart = `${year}-${pad(month)}-01`;
+  const monthEnd = `${year}-${pad(month)}-${pad(new Date(year, month, 0).getDate())}`;
 
   for (const user of users) {
     if (!user.email) continue;
@@ -80,8 +86,20 @@ const getUsersWithNoSubmissions = async (year: number, month: number) => {
     const count = await emissionRepo
       .createQueryBuilder("emission")
       .where("emission.created_by = :userId", { userId: user.user_id })
-      .andWhere("emission.date_of_reporting >= :startDate", { startDate: startDate.toISOString().split("T")[0] })
-      .andWhere("emission.date_of_reporting <= :endDate", { endDate: endDate.toISOString().split("T")[0] })
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where("emission.date_of_reporting BETWEEN :monthStart AND :monthEnd", {
+              monthStart,
+              monthEnd,
+            })
+            // A month inside a yearly batch's window is already submitted: the
+            // user filed the whole year at once, so a monthly reminder would be
+            // wrong. Yearly windows align to month boundaries, so the first of
+            // the month is representative of the whole month.
+            .orWhere(yearlyCoversDateSql("emission"), { coveredDate: monthStart }),
+        ),
+      )
       .getCount();
 
     console.log(`User ${user.email} (id: ${user.user_id}) — emissions this month: ${count}, sites: ${userSites.map(s => s.name).join(", ")}`);
