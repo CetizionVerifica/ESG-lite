@@ -1,3 +1,4 @@
+import path from "path";
 import express from "express";
 import { AppDataSource } from "./config/data-source";
 import authRoutes from "./routes/auth.routes";
@@ -26,6 +27,15 @@ app.use(
         credentials: true,
     }),
 );
+// Serve locally-stored documents when LOCAL_FILE_STORAGE is on (dev only).
+// Matches the URLs returned by src/config/localStorage.ts.
+if (process.env.LOCAL_FILE_STORAGE === "true") {
+    app.use(
+        "/local-uploads",
+        express.static(path.resolve(process.cwd(), "local-uploads")),
+    );
+}
+
 app.use(requestLogger);
 
 app.use("/auth", authRoutes);
