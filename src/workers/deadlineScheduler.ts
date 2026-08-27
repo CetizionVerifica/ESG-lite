@@ -7,7 +7,7 @@ import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/type";
 import { sendToQueue } from "../queues/emailProducer";
 import { createNotification } from "../services/notificationService";
-import { yearlyCoversDateSql } from "../services/reportingPeriod";
+import { YEARLY_ALLOWED_CATEGORY_IDS, yearlyCoversDateSql } from "../services/reportingPeriod";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -42,7 +42,7 @@ const getUsersWithNoSubmissions = async (year: number, month: number) => {
   // Get all active users with role USER — load both single site and multiple sites
   const users = await userRepo.find({
     where: { role: UserRole.USER },
-    relations: ["site", "sites"],
+    relations: ["site", "sites", "categories"],
   });
 
   console.log(`Found ${users.length} user(s) with role USER`);
@@ -83,22 +83,33 @@ const getUsersWithNoSubmissions = async (year: number, month: number) => {
     }
 
     // Check if this user has submitted any emission for the current month
+    // A yearly batch only excuses the month when EVERYTHING this user is
+    // responsible for can be filed yearly. Yearly entry is limited to the
+    // spend-based categories, so a user who also owns metered ones still owes
+    // monthly data and must still be chased — otherwise one Capital Goods row
+    // would silence a year of reminders for their fuel and electricity too.
+    // An empty grant set means legacy full access (see utils/filterUserCategories),
+    // so it never qualifies.
+    const grantedCategories = user.categories || [];
+    const filesYearlyOnly =
+      grantedCategories.length > 0 &&
+      grantedCategories.every((c) => YEARLY_ALLOWED_CATEGORY_IDS.has(c.category_id));
+
     const count = await emissionRepo
       .createQueryBuilder("emission")
       .where("emission.created_by = :userId", { userId: user.user_id })
       .andWhere(
-        new Brackets((qb) =>
-          qb
-            .where("emission.date_of_reporting BETWEEN :monthStart AND :monthEnd", {
-              monthStart,
-              monthEnd,
-            })
-            // A month inside a yearly batch's window is already submitted: the
-            // user filed the whole year at once, so a monthly reminder would be
-            // wrong. Yearly windows align to month boundaries, so the first of
-            // the month is representative of the whole month.
-            .orWhere(yearlyCoversDateSql("emission"), { coveredDate: monthStart }),
-        ),
+        new Brackets((qb) => {
+          qb.where("emission.date_of_reporting BETWEEN :monthStart AND :monthEnd", {
+            monthStart,
+            monthEnd,
+          });
+          if (filesYearlyOnly) {
+            // Yearly windows align to month boundaries, so the first of the
+            // month is representative of the whole month.
+            qb.orWhere(yearlyCoversDateSql("emission"), { coveredDate: monthStart });
+          }
+        }),
       )
       .getCount();
 
