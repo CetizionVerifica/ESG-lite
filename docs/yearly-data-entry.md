@@ -16,10 +16,11 @@ This branch adds **yearly reporting periods**:
 - Yearly records also carry `year_type` — `'CY'` (calendar year, Jan–Dec) or
   `'FY'` (Indian financial year, Apr–Mar) — and are dated on their **period end**
   (CY → Dec 31, FY → Mar 31 of the following year).
-- Yearly entry is only allowed for the **spend-based categories**:
-  Purchased Goods and Services (3) and Capital Goods (12) — the two whose forms
-  carry a Spent Value column. Everything else stays monthly-only on purpose
-  (metered data would lose real monthly precision).
+- Yearly entry is available for **every category and scope** (widened
+  Aug 2026 from the original spend-based-only rollout, by product decision).
+  Note for entry discipline: metered data (electricity, fuel) is usually best
+  kept monthly — filing it yearly is allowed but discards real monthly
+  precision, and the mode lock then blocks monthly entry for that year.
 
 ## ⚠️ Deployment requirement
 
@@ -60,13 +61,18 @@ Allowed: many yearly rows in the same batch (they share the period-end date —
 the old duplicate check is skipped for yearly rows for exactly this reason),
 adjacent years, and different sites/categories.
 
-Validation errors (HTTP 400): yearly on a non-spend category, missing/invalid
-`year_type`, wrong period-end date for the chosen calendar.
+Validation errors (HTTP 400): missing/invalid `year_type`, wrong period-end
+date for the chosen calendar.
+
+FERA twins: the auto-created FERA record inherits the parent's
+`reporting_period`/`year_type`. If the FERA category already holds the other
+mode for that window, the twin is skipped with a console warning (non-fatal,
+mirroring the missing-factor behavior) instead of creating mixed-mode data.
 
 ## Key files
 
 - `src/entities/Emission.ts` — the two new columns
-- `src/services/reportingPeriod.ts` — allow-list, period windows, mode-lock check
+- `src/services/reportingPeriod.ts` — period windows and the mode-lock check
 - `src/controllers/emission.controller.ts` — validation + lock wiring in
   `createEmission`; duplicate check scoped to monthly; approve/reject no longer
   500 on an empty request body

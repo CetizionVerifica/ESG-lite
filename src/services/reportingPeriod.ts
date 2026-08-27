@@ -5,17 +5,14 @@ import { Emission } from "../entities/Emission";
  * Yearly data entry (see docs: "Yearly Data Entry" spec).
  *
  * Rules agreed with product:
- *  - Only spend-based categories may be entered yearly.
+ *  - Every category and scope may be entered yearly (widened Aug 2026 from
+ *    the original spend-based-only rollout, by product decision).
  *  - A year supports two calendars: CY (Jan-Dec) and FY (Indian financial
  *    year, Apr-Mar).
  *  - Mode lock: within one site + category + year, data is either all
  *    monthly or all yearly. Mixing the two would double count (a yearly
  *    batch already contains the months), so conflicting saves are rejected.
  */
-
-// Spend-based categories: Purchased Goods and Services (3), Capital Goods (12).
-// These are the only forms with a "Spent Value" column.
-export const YEARLY_ALLOWED_CATEGORY_IDS = new Set([3, 12]);
 
 export type ReportingPeriod = "monthly" | "yearly";
 export type YearType = "CY" | "FY";
@@ -168,9 +165,6 @@ export const validatePeriodFields = (args: {
     }
     if (period === "monthly") {
         return null; // year_type is ignored for monthly rows
-    }
-    if (!YEARLY_ALLOWED_CATEGORY_IDS.has(args.category_id)) {
-        return "Yearly entry is only available for spend-based categories (Purchased Goods and Services, Capital Goods).";
     }
     if (args.year_type !== "CY" && args.year_type !== "FY") {
         return `Yearly entries require year_type "CY" or "FY" (got ${args.year_type == null ? "none" : `"${args.year_type}"`}).`;
