@@ -32,7 +32,7 @@ import {
   geocodeLocation,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
-import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
+import { getUnitsForDataEntry } from "../controllers/unit.controller";
 import { getProductsBySite } from "../controllers/product.controller";
 import {
   createProductionData,
@@ -114,7 +114,7 @@ router.delete("/emissions/:id", deleteEmission);
 router.get("/emission-factors/site/:siteId/category/:categoryId", getEmissionFactorsBySiteAndCategory);
 
 // Unit routes
-router.get("/units/site/:siteId/category/:categoryId", getUnitsBySiteAndCategory);
+router.get("/units/site/:siteId/category/:categoryId", getUnitsForDataEntry);
 
 // Product routes (read-only for users)
 router.get("/products/site/:siteId", getProductsBySite);

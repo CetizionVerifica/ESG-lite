@@ -77,6 +77,24 @@ mirroring the missing-factor behavior) instead of creating mixed-mode data.
   `createEmission`; duplicate check scoped to monthly; approve/reject no longer
   500 on an empty request body
 
+## Unit dropdown fix (rides along on this branch)
+
+The data-entry Unit dropdown used to show only the admin-configured unit list,
+which drifts out of sync with the factor library (e.g. Chieron Stationary
+Combustion configured Kg/tonne while its factors price Diesel per litre and
+Natural Gas per Cubic meter — the expected unit was simply not offered).
+
+`GET /user/units/site/:siteId/category/:categoryId` now resolves to a new
+handler, `getUnitsForDataEntry`, which merges the DISTINCT `denominator_unit`
+values of that site+category's emission factors into the response
+(case-insensitively deduped, synthetic negative ids, description marks the
+origin). Derived from the factors themselves, the list stays correct for every
+site — including future ones — with no manual upkeep.
+
+The admin management route (`/admin/units/...`) still uses the original pure
+handler on purpose: the Superadmin Units page must list only real rows it can
+edit or delete.
+
 ## Dev tooling (second commit — no production effect while env vars are unset)
 
 - `LOCAL_FILE_STORAGE=true` swaps Cloudinary for a local-disk adapter
