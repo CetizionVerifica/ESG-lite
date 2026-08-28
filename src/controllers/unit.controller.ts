@@ -3,12 +3,10 @@ import { AppDataSource } from "../config/data-source";
 import { Unit } from "../entities/Unit";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
-import { EmissionFactor } from "../entities/EmissionFactor";
 
 const repo = AppDataSource.getRepository(Unit);
 const siteRepo = AppDataSource.getRepository(Site);
 const categoryRepo = AppDataSource.getRepository(Category);
-const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
 
 // Get all units
 export const getUnits = async (_: Request, res: Response) => {
@@ -68,61 +66,6 @@ export const getUnitsBySiteAndCategory = async (req: Request, res: Response) => 
     return res.status(200).json(units);
   } catch (error) {
     console.error("Fetch units by site and category error:", error);
-    return res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-};
-
-// Units offered on the data-entry form: the configured list PLUS every unit
-// this site+category's emission factors actually expect. The admin-maintained
-// unit list drifts out of sync with the factor library (e.g. factors priced
-// per litre / Cubic meter while only Kg/tonne were configured), which left
-// users unable to pick the expected unit at all. Deriving from the factors
-// keeps the list correct for every site — including ones created in the
-// future — with no manual upkeep.
-//
-// Deliberately a separate handler from getUnitsBySiteAndCategory: the admin
-// units-management page uses that one and must list only REAL rows it can
-// edit/delete — the synthetic entries here carry negative ids and exist only
-// for selection.
-export const getUnitsForDataEntry = async (req: Request, res: Response) => {
-  try {
-    const { siteId, categoryId }: any = req.params;
-
-    const units = await repo.find({
-      where: {
-        site: { site_id: parseInt(siteId) },
-        category: { category_id: parseInt(categoryId) },
-      },
-      relations: ["site", "category"],
-      order: { unit_name: "ASC" },
-    });
-
-    const factorUnits: { unit: string }[] = await emissionFactorRepo
-      .createQueryBuilder("f")
-      .select("DISTINCT f.denominator_unit", "unit")
-      .where("f.site_id = :siteId", { siteId: parseInt(siteId) })
-      .andWhere("f.category_id = :categoryId", { categoryId: parseInt(categoryId) })
-      .andWhere("f.denominator_unit IS NOT NULL")
-      .andWhere("TRIM(f.denominator_unit) != ''")
-      .getRawMany();
-
-    const existing = new Set(units.map((u) => u.unit_name.trim().toLowerCase()));
-    let syntheticId = -1;
-    const derived = factorUnits
-      .map((r) => r.unit.trim())
-      .filter((name) => name && !existing.has(name.toLowerCase()) && (existing.add(name.toLowerCase()), true))
-      .sort((a, b) => a.localeCompare(b))
-      .map((name) => ({
-        unit_id: syntheticId--,
-        unit_name: name,
-        description: "Expected by this site's emission factors",
-      }));
-
-    return res.status(200).json([...units, ...derived]);
-  } catch (error) {
-    console.error("Fetch data-entry units error:", error);
     return res.status(500).json({
       message: "Internal server error",
     });
