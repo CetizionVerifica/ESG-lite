@@ -618,6 +618,27 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
                 }
               }
 
+              // The FERA twin must carry the same reporting period as its
+              // parent: a yearly fuel entry with a monthly FERA twin would
+              // draw a false period-end spike on FERA charts and later trip
+              // the mode lock. And the twin must respect the lock on ITS OWN
+              // category — if FERA already holds the other mode for this
+              // window, skip the twin (non-fatal, mirrors the missing-factor
+              // behavior) rather than silently creating mixed-mode data.
+              const feraModeConflict = await findModeLockConflict(repo, {
+                site_id,
+                category_id: feraCategory.category_id,
+                reporting_period: effectivePeriod,
+                year_type: effectivePeriod === "yearly" ? year_type : null,
+                date_of_reporting: new Date(date_of_reporting),
+              });
+              if (feraModeConflict) {
+                console.warn(
+                  `FERA auto-create skipped: ${effectivePeriod} twin would conflict with existing ${feraModeConflict.conflicting_period} FERA data for this window (site ${site_id}).`,
+                );
+                throw Object.assign(new Error("fera-mode-lock-skip"), { nonFatal: true });
+              }
+
               feraEmission = repo.create({
                 site: { site_id },
                 category: { category_id: feraCategory.category_id },
@@ -625,6 +646,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
                 total_emission: feraCalculated,
                 unit: "tCO2e",
                 date_of_reporting: new Date(date_of_reporting),
+                reporting_period: effectivePeriod,
+                year_type: effectivePeriod === "yearly" ? year_type : null,
                 activity_data_unit: activity_data_unit || null,
                 created_by: userId ? { user_id: userId } as any : null,
                 fera_linked_id: emission.pk_id,
