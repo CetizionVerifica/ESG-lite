@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { Brackets, MoreThanOrEqual } from "typeorm";
+import { MoreThanOrEqual } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Emission } from "../entities/Emission";
@@ -7,7 +7,7 @@ import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/type";
 import { sendToQueue } from "../queues/emailProducer";
 import { createNotification } from "../services/notificationService";
-import { YEARLY_ALLOWED_CATEGORY_IDS, yearlyCoversDateSql } from "../services/reportingPeriod";
+import { yearlyCoversDateSql } from "../services/reportingPeriod";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -82,40 +82,46 @@ const getUsersWithNoSubmissions = async (year: number, month: number) => {
       continue;
     }
 
-    // Check if this user has submitted any emission for the current month
-    // A yearly batch only excuses the month when EVERYTHING this user is
-    // responsible for can be filed yearly. Yearly entry is limited to the
-    // spend-based categories, so a user who also owns metered ones still owes
-    // monthly data and must still be chased — otherwise one Capital Goods row
-    // would silence a year of reminders for their fuel and electricity too.
-    // An empty grant set means legacy full access (see utils/filterUserCategories),
-    // so it never qualifies.
-    const grantedCategories = user.categories || [];
-    const filesYearlyOnly =
-      grantedCategories.length > 0 &&
-      grantedCategories.every((c) => YEARLY_ALLOWED_CATEGORY_IDS.has(c.category_id));
-
+    // Has this user submitted anything dated in the month?
     const count = await emissionRepo
       .createQueryBuilder("emission")
       .where("emission.created_by = :userId", { userId: user.user_id })
-      .andWhere(
-        new Brackets((qb) => {
-          qb.where("emission.date_of_reporting BETWEEN :monthStart AND :monthEnd", {
-            monthStart,
-            monthEnd,
-          });
-          if (filesYearlyOnly) {
-            // Yearly windows align to month boundaries, so the first of the
-            // month is representative of the whole month.
-            qb.orWhere(yearlyCoversDateSql("emission"), { coveredDate: monthStart });
-          }
-        }),
-      )
+      .andWhere("emission.date_of_reporting BETWEEN :monthStart AND :monthEnd", {
+        monthStart,
+        monthEnd,
+      })
       .getCount();
 
-    console.log(`User ${user.email} (id: ${user.user_id}) — emissions this month: ${count}, sites: ${userSites.map(s => s.name).join(", ")}`);
+    // Nothing dated in the month is not the same as nothing submitted: a yearly
+    // batch covers its months without carrying their dates. Since yearly entry
+    // was widened to every category, "the user files yearly" is no longer a
+    // property of the category — so excuse the month only when EVERY category
+    // granted to this user is covered by a yearly batch. A user who files one
+    // category yearly and meters the rest still owes monthly data and must
+    // still be chased. An empty grant set means legacy full access (see
+    // utils/filterUserCategories) with no enumerable obligation, so it never
+    // qualifies.
+    let coveredByYearlyBatch = false;
+    const grantedCategoryIds = [
+      ...new Set((user.categories || []).map((c) => c.category_id)),
+    ];
+    if (count === 0 && grantedCategoryIds.length > 0) {
+      const covered = await emissionRepo
+        .createQueryBuilder("emission")
+        .select("COUNT(DISTINCT emission.category_id)", "covered")
+        .where("emission.created_by = :userId", { userId: user.user_id })
+        .andWhere("emission.category_id IN (:...grantedCategoryIds)", { grantedCategoryIds })
+        // Yearly windows align to month boundaries, so the first of the month
+        // is representative of the whole month.
+        .andWhere(yearlyCoversDateSql("emission"), { coveredDate: monthStart })
+        .getRawOne();
+      coveredByYearlyBatch =
+        Number(covered?.covered ?? 0) === grantedCategoryIds.length;
+    }
 
-    if (count === 0) {
+    console.log(`User ${user.email} (id: ${user.user_id}) — emissions this month: ${count}, covered by yearly batch: ${coveredByYearlyBatch}, sites: ${userSites.map(s => s.name).join(", ")}`);
+
+    if (count === 0 && !coveredByYearlyBatch) {
       // Add an entry for each site the user belongs to
       for (const site of userSites) {
         pendingUsers.push({
