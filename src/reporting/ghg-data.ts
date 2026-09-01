@@ -294,13 +294,21 @@ export async function computeGhgTables(filters: GhgFilters) {
       const siteName = String(r.siteName || "");
       const value = Number(r.value) || 0;
 
-      const k = `${scope}||${category}`;
+      // Case-insensitive category key so "Natural gas" and "natural gas"
+      // collapse into one line (keeps the first-seen casing for display).
+      const k = `${scope}||${category.toLowerCase()}`;
       if (!map.has(k)) {
         map.set(k, { scope, category, bySite: [], total: 0 });
       }
 
       const item = map.get(k)!;
-      item.bySite.push({ siteId, siteName, value: Number(value.toFixed(2)) });
+      // Merge site rows by siteId (a site can appear under both casings).
+      const existingSite = item.bySite.find((b) => b.siteId === siteId);
+      if (existingSite) {
+        existingSite.value = Number((existingSite.value + value).toFixed(2));
+      } else {
+        item.bySite.push({ siteId, siteName, value: Number(value.toFixed(2)) });
+      }
       item.total += value;
     }
 

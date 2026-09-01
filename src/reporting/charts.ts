@@ -73,12 +73,24 @@ export function buildChartOption(block: ChartBlock, theme: Theme): unknown {
 
   // Extra top room so the value label above the tallest bar/point never clips.
   const grid = { left: 6, right: 18, top: multi ? 40 : 24, bottom: 6, containLabel: true };
+  const catCount = (block.categories ?? []).length;
   const xAxis = {
     type: "category",
     data: block.categories ?? [],
     axisTick: { show: false },
     axisLine: { lineStyle: { color: colors.border } },
-    axisLabel: { color: colors.muted, fontSize: 11 },
+    axisLabel: {
+      color: colors.muted,
+      fontSize: 11,
+      // Force EVERY category label to render (echarts hides overlapping ones by
+      // default, which dropped most site/category names). Rotate + hideOverlap:false
+      // keeps them all legible when there are many or long labels.
+      interval: 0,
+      hideOverlap: false,
+      rotate: catCount > 4 ? 30 : 0,
+      width: catCount > 6 ? 80 : undefined,
+      overflow: "truncate",
+    },
   };
   const yAxis = {
     type: "value",
