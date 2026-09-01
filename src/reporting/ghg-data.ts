@@ -294,20 +294,30 @@ export async function computeGhgTables(filters: GhgFilters) {
       const siteName = String(r.siteName || "");
       const value = Number(r.value) || 0;
 
-      const k = `${scope}||${category}`;
+      // Case-insensitive category key so "Natural gas" and "natural gas"
+      // collapse into one line (keeps the first-seen casing for display).
+      const k = `${scope}||${category.toLowerCase()}`;
       if (!map.has(k)) {
         map.set(k, { scope, category, bySite: [], total: 0 });
       }
 
       const item = map.get(k)!;
-      item.bySite.push({ siteId, siteName, value: Number(value.toFixed(2)) });
+      // Merge site rows by siteId (a site can appear under both casings).
+      // Accumulate at FULL precision; round once when building the result so the
+      // per-site breakdown always reconciles with the category total.
+      const existingSite = item.bySite.find((b) => b.siteId === siteId);
+      if (existingSite) {
+        existingSite.value += value;
+      } else {
+        item.bySite.push({ siteId, siteName, value });
+      }
       item.total += value;
     }
 
     return Array.from(map.values()).map((x) => ({
       scope: x.scope,
       category: x.category,
-      bySite: x.bySite,
+      bySite: x.bySite.map((b) => ({ ...b, value: Number(b.value.toFixed(2)) })),
       total: Number(x.total.toFixed(2)),
     }));
   };
@@ -607,11 +617,26 @@ export async function computeGhgByFuelType(filters: GhgFilters): Promise<FuelTyp
     .addOrderBy(`"emissions"`, "DESC")
     .getRawMany();
 
-  return raw.map((r: any) => ({
-    scope: String(r.scope ?? ""),
-    category: String(r.category ?? "Unspecified"),
-    fuelType: String(r.fuelType ?? "Unknown"),
-    emissions: Number(r.emissions) || 0,
+  // Merge case-variant categories/fuels ("Natural gas" + "natural gas") into one
+  // row — mirrors the case-insensitive category merge in overviewByLocations, so
+  // the fuel breakdown reconciles with the merged category totals in the report.
+  const merged = new Map<string, FuelTypeRow>();
+  for (const r of raw as any[]) {
+    const scope = String(r.scope ?? "");
+    const category = String(r.category ?? "Unspecified");
+    const fuelType = String(r.fuelType ?? "Unknown");
+    const emissions = Number(r.emissions) || 0;
+    const key = `${scope}||${category.toLowerCase()}||${fuelType.toLowerCase()}`;
+    const existing = merged.get(key);
+    if (existing) {
+      existing.emissions += emissions;
+    } else {
+      merged.set(key, { scope, category, fuelType, emissions });
+    }
+  }
+  return Array.from(merged.values()).map((r) => ({
+    ...r,
+    emissions: Number(r.emissions.toFixed(2)),
   }));
 }
 
