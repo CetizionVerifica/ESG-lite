@@ -18,6 +18,8 @@ import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
 import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
+import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
+import { ColumnConfig } from "../entities/ColumnConfig";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import {
   computeGhgTables,
@@ -28,6 +30,7 @@ import {
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
 const siteRepo = AppDataSource.getRepository(Site);
+const columnConfigRepo = AppDataSource.getRepository(ColumnConfig);
 
 // Common unit conversions
 const unitConversions: Record<string, Record<string, number>> = {
@@ -340,6 +343,11 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Multi-field categories (e.g. Use of Sold Products) carry a calculation
+    // spec on their column config; it changes the duplicate identity below and
+    // replaces the one-value heuristic in the calculation block.
+    const calcSpec = await getCalculationSpec(columnConfigRepo, site_id, category_id);
+
     // Check for duplicate emission (same site + category + date + emission_category).
     // Monthly rows only: every row of a yearly batch shares the period-end date,
     // so date-based dedup would wrongly reject a second purchase of the same
@@ -356,10 +364,15 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
             relations: ["site", "category", "created_by"],
           });
 
-    // If emission_category is provided, match on it too; otherwise match any entry for that date
+    // If emission_category is provided, match on it too; otherwise match any entry
+    // for that date. For spec categories the emission_category is the country/fuel/
+    // gas — two different products in the same country are NOT duplicates, so the
+    // spec's identity columns (e.g. Product Name) must match as well.
     const duplicate = activity_data.emission_category
       ? existingEmissions.find(
-          (e) => e.activity_data?.emission_category === activity_data.emission_category
+          (e) =>
+            e.activity_data?.emission_category === activity_data.emission_category &&
+            (!calcSpec || specIdentityMatches(calcSpec, activity_data, e.activity_data))
         )
       : existingEmissions.length > 0
         ? existingEmissions[0]
@@ -422,6 +435,18 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         // Try to find the numeric value from activity_data
         let activityValue = 0;
 
+        if (calcSpec) {
+          // Spec category: the activity value is the product of the method's
+          // fields (e.g. units sold × energy per use × lifetime uses). The
+          // one-value heuristic below must not run — with several numeric
+          // columns it would pick one of them and store a wrong total.
+          const computed = computeSpecActivityValue(calcSpec, activity_data);
+          if (!computed.ok) {
+            return res.status(400).json({ message: computed.message });
+          }
+          activityValue = computed.value;
+        } else {
+
         // Known dropdown/select column names to skip (these contain IDs, not activity data)
         const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
 
@@ -474,6 +499,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
               }
             }
           }
+        }
         }
 
         if (activityValue > 0) {
@@ -533,9 +559,12 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
 
-    // Auto-create FERA entry if the site has a FERA category with a matching emission factor
+    // Auto-create FERA entry if the site has a FERA category with a matching emission factor.
+    // Never for spec categories: their emission_category is a country/fuel/gas name for
+    // downstream USE-phase emissions, not a fuel the company burned — a same-named FERA
+    // factor (e.g. a country name) would spawn a phantom twin from one sniffed field.
     let feraEmission: Emission | null = null;
-    if (activity_data.emission_category) {
+    if (activity_data.emission_category && !calcSpec) {
       try {
         const site = await siteRepo.findOne({
           where: { site_id },
@@ -780,6 +809,21 @@ const targetYear = reportingDate.getFullYear() - 1;
           // Find activity value from activity_data
           let activityValue = 0;
 
+          // Spec category (e.g. Use of Sold Products): multiply the method's
+          // fields instead of sniffing for one value — see createEmission.
+          const updateCalcSpec = await getCalculationSpec(
+            columnConfigRepo,
+            emission.site.site_id,
+            emission.category.category_id,
+          );
+          if (updateCalcSpec) {
+            const computed = computeSpecActivityValue(updateCalcSpec, activity_data);
+            if (!computed.ok) {
+              return res.status(400).json({ message: computed.message });
+            }
+            activityValue = computed.value;
+          } else {
+
           // Known dropdown/select column names to skip (these contain IDs, not activity data)
           const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
 
@@ -821,6 +865,7 @@ const targetYear = reportingDate.getFullYear() - 1;
                 }
               }
             }
+          }
           }
 
           if (activityValue > 0) {
@@ -3251,6 +3296,21 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
           const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
           let activityValue = 0;
 
+          // Spec category (e.g. Use of Sold Products): multiply the method's
+          // fields instead of sniffing for one value — see createEmission.
+          const managerCalcSpec = await getCalculationSpec(
+            columnConfigRepo,
+            emission.site.site_id,
+            emission.category.category_id,
+          );
+          if (managerCalcSpec) {
+            const computed = computeSpecActivityValue(managerCalcSpec, activity_data);
+            if (!computed.ok) {
+              return res.status(400).json({ message: computed.message });
+            }
+            activityValue = computed.value;
+          } else {
+
           for (const field of commonFields) {
             const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
             if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
@@ -3287,6 +3347,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
                 }
               }
             }
+          }
           }
 
           if (activityValue > 0) {

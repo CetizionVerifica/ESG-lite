@@ -35,6 +35,23 @@ export interface EmissionCategoryMapping {
   [key: string]: string;
 }
 
+// Per-method multi-field calculation (see services/calculationSpec.ts).
+// When set, the activity value is the PRODUCT of the listed columns instead
+// of a single heuristically-found field. Keys of `methods` are the option
+// ids of the method dropdown (activity_data stores option ids for selects).
+export interface MethodCalculation {
+  multiply: string[];      // column names whose values multiply together
+  percent?: string[];      // subset of multiply entered as percentages (divided by 100)
+  activity_unit?: string;  // unit the product is in (preselects activity_data_unit)
+}
+
+export interface CalculationSpec {
+  mode: "per_method";
+  method_column: string;               // name of the select column that picks the method
+  identity_columns?: string[];         // columns added to the duplicate-entry identity
+  methods: { [methodOptionId: string]: MethodCalculation };
+}
+
 // Definition for supplementary (extra) fields per category
 // These fields don't affect emission calculation — stored separately in emission.extra_data
 export interface ExtraFieldDefinition {
@@ -85,6 +102,11 @@ export class ColumnConfig {
   // These define extra form fields that don't affect emission calculation
   @Column({ type: "jsonb", nullable: true, default: [] })
   extra_fields?: ExtraFieldDefinition[];
+
+  // Multi-field calculation spec (null = normal one-value × factor category).
+  // Column added by direct SQL, not TypeORM sync — see docs/use-of-sold-products.md.
+  @Column({ type: "jsonb", nullable: true })
+  calculation?: CalculationSpec | null;
 
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({

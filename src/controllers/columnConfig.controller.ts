@@ -134,6 +134,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       dependent_options,
       emission_category_mapping,
       extra_fields,
+      calculation,
     } = req.body;
 
     if (!config_name || !site_id || !category_id) {
@@ -212,6 +213,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       dependent_options: validatedDependentOptions,
       emission_category_mapping: validatedEmissionCategoryMapping,
       extra_fields: validatedExtraFields,
+      calculation: calculation && typeof calculation === "object" ? calculation : null,
     });
 
     await repo.save(columnConfig);
@@ -247,6 +249,7 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       dependent_options,
       emission_category_mapping,
       extra_fields,
+      calculation,
       rename_map,
     } = req.body;
 
@@ -259,7 +262,8 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       column_dependencies === undefined &&
       dependent_options === undefined &&
       emission_category_mapping === undefined &&
-      extra_fields === undefined
+      extra_fields === undefined &&
+      calculation === undefined
     ) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -362,6 +366,11 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
 
     if (extra_fields !== undefined) {
       columnConfig.extra_fields = extra_fields === null ? [] : extra_fields;
+    }
+
+    // Absent = keep the stored spec (config modals PUT without it); explicit null clears.
+    if (calculation !== undefined) {
+      columnConfig.calculation = calculation;
     }
 
     // Handle column renames: rename if exclusive to this config, create new if shared
