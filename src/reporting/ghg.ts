@@ -312,7 +312,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
         const catName = r.emission_category || "Unspecified";
         if (NO_FUEL_BREAKDOWN.test(catName)) continue;
         const fuels = scopeFuels
-          .filter((f) => f.category === catName)
+          .filter((f) => f.category.toLowerCase() === catName.toLowerCase())
           .sort((a, b) => b.emissions - a.emissions);
         if (!fuels.length) continue;
         const catTotal = fuels.reduce((a, b) => a + b.emissions, 0);
