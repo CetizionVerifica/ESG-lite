@@ -126,6 +126,31 @@ Until a config's `calculation` is set, **nothing changes anywhere**: every
 existing category has `calculation = NULL` and takes the exact pre-existing code
 paths (verified by regression tests on Stationary Combustion incl. FERA twinning).
 
+## Changes in this branch (`feature/use-of-sold-products`)
+
+**Backend (this repo):**
+- `src/entities/ColumnConfig.ts` — new nullable `calculation` jsonb column + types.
+- `src/services/calculationSpec.ts` — new: spec loading, product computation,
+  duplicate identity.
+- `src/controllers/emission.controller.ts` — spec branch in createEmission,
+  updateEmission, managerUpdateEmission; spec-aware duplicate check; FERA-twin
+  guard for spec categories.
+- `src/controllers/columnConfig.controller.ts` — `calculation` on create/update.
+- `src/scripts/seedUseOfSoldProducts.ts` — new: idempotent category-20 setup.
+- `docs/` — this file + `use-of-sold-products-testing.md`.
+
+**Frontend (ESG-lite_FE):** spec-aware live preview (`useEmissionCalculation`),
+per-method field visibility, percent prefill, unit preselect on the data-entry
+page; types.
+
+**AI service (python_AI_service):** spec-aware bulk upload in
+`app/services/excel_parser.py` (preview + import; invalid rows skipped with
+`row_error`), `fetch_column_config` reads `calculation` and orders by
+config_name.
+
+**Database (prod checklist):** one additive column —
+`ALTER TABLE column_config ADD COLUMN IF NOT EXISTS calculation jsonb NULL;`
+
 ## Known limitations / follow-ups
 
 - Bulk upload for spec categories is supported (added Sep 2026, second commit):
