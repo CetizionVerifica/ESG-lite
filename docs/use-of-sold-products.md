@@ -162,7 +162,11 @@ config_name.
 - The Superadmin UI has no editor for the `calculation` jsonb yet; it is set by
   the seed script or via the column-config API. Editing other parts of the config
   in the UI preserves the spec.
-- Refrigerant GWPs are AR4 values to match the tool's existing convention —
-  confirm with the boss whether AR5/AR6 GWPs are wanted before prod upload.
+- Refrigerant GWPs in the seed are AR4 values (R134a 1430, R410A 2088), matching
+  the GHG Protocol guidance PDF's era. Note the tool's existing Fugitive
+  Emissions factors follow DEFRA, which switched from AR4 to AR5 in its 2023
+  set (R-404A 3922 → 3943 in the data) — so AR5 (R134a 1300, R410A 1924) is
+  likely the consistent choice for current years. Awaiting product decision
+  before production factor upload; changing is a factor-value edit, no code.
 - Country list is per-site config data (Germany/Denmark/Netherlands/India seeded);
   extending it is admin work, not code.
