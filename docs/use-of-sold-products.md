@@ -78,9 +78,13 @@ config, mirrors the product in the live preview, shows/hides numeric fields per
 method, prefills percentage fields to 100 (guidance: assume 100% when unknown),
 preselects the method's unit, and **hides Bulk Upload** for spec categories.
 
-AI-service: `/v1/excel/preview` and `/v1/excel/import` refuse spec categories with
-a 400 ("Bulk upload is not available for this category yet") — that engine has its
-own independent one-value formula and would silently store wrong totals.
+AI-service: the bulk-upload engine (`app/services/excel_parser.py`) reads the same
+calculation spec (`_load_calculation_spec` / `_compute_spec_activity_value`) in both
+`/v1/excel/preview` and `/v1/excel/import`, so spreadsheet imports multiply the
+method's fields exactly like manual entry. Rows it cannot compute (missing field,
+% > 100, unknown method, no factor, unit mismatch) get a `row_error` in the preview
+and are **skipped** on import — never saved with a zero or one-field total. Legacy
+categories keep the pre-existing one-value behavior bit-for-bit.
 
 ## Superadmin data (seeded)
 
@@ -124,11 +128,12 @@ paths (verified by regression tests on Stationary Combustion incl. FERA twinning
 
 ## Known limitations / follow-ups
 
-- Bulk upload for category 20 is deliberately blocked (see above) — teaching the
-  Python engine the multi-field formula is a follow-up. The AI-service guard is
-  defence-in-depth and scoped per site+category config (a site with no config at
-  all isn't blocked — but such a site has no data-entry form either) and fails
-  open on DB errors; the primary control is the hidden button in the entry page.
+- Bulk upload for spec categories is supported (added Sep 2026, second commit):
+  the Python engine mirrors the spec. Note the spreadsheet's Method and
+  Country/Fuel/Gas cells must use the exact option labels (e.g. "Product that
+  uses energy", "Germany") and emission_category the exact factor name. Bulk
+  import still bypasses the duplicate check and the yearly mode lock (both
+  pre-existing engine-wide gaps, not specific to this category).
 - The Superadmin UI has no editor for the `calculation` jsonb yet; it is set by
   the seed script or via the column-config API. Editing other parts of the config
   in the UI preserves the spec.
