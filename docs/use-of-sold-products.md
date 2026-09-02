@@ -130,6 +130,40 @@ and factors are looked up at data-year minus 1 — upload year N−1 for year-N 
 **Adding a new country/fuel/gas** is three admin steps, no code: dropdown option +
 mapping line + factor row (see "Superadmin data" above).
 
+## Getting these changes running (any environment)
+
+Copy-paste steps for a team member pulling this branch — local machine or a
+shared/public DB (each step is idempotent; skip what's already done):
+
+```bash
+# 1. Check out the branch in ALL THREE repos (backend, frontend, ai-service)
+git fetch origin && git checkout feature/use-of-sold-products
+```
+
+```sql
+-- 2. One-time DB column (run on the target database; safe, additive)
+ALTER TABLE column_config ADD COLUMN IF NOT EXISTS calculation jsonb NULL;
+```
+
+```bash
+# 3. Seed the category setup (columns, dropdowns, units, factors) for a site.
+#    From the backend repo; repeatable; defaults to sites 27 (Noida) + 24 (Chieron):
+npx ts-node src/scripts/seedUseOfSoldProducts.ts
+# or for specific site id(s):
+npx ts-node src/scripts/seedUseOfSoldProducts.ts 20
+```
+
+4. Assign the category to the site: Superadmin → Sites → edit the site → add
+   **Use of sold products** to its Categories → Save (this also grants the
+   site's users access).
+
+5. Restart the backend and the ai-service so both pick up the new code
+   (`npm run dev` / `uv run python main.py`). Then: Data Entry → the site →
+   Use of sold products → a date in 2025/2026 → **Add New Entries**.
+
+Sanity check: an energy entry of 1000 units × 0.01 kWh × 15000 uses, Germany,
+must show **52.35 tCO2e**.
+
 ## Production deploy
 
 Order: **DB → backend → frontend → ai-service** (each step is
