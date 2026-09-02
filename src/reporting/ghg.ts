@@ -328,11 +328,11 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
       if (fuelTableRows.length) {
         B.push({
           type: "table",
-          title: `${sc} — emission category within each category`,
-          columns: ["Category", "Emission category", "Emissions", "Share of category"],
+          title: `${sc} — fuel / source within each category`,
+          columns: ["Category", "Fuel / source", "Emissions", "Share of category"],
           align: ["left", "left", "right", "right"],
           rows: fuelTableRows,
-          caption: "Emission categories within each reporting category.",
+          caption: "Fuel or spend source driving each reporting category.",
         });
       }
     }
