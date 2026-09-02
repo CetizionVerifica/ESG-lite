@@ -107,6 +107,29 @@ site's users. To add a country later: add its option to the Country / Fuel / Gas
 dependent options, a mapping row `"Product that uses energy|<Country>" → "Grid Mix
 <Country>"`, and upload a `Grid Mix <Country>` factor for year N−1. No code change.
 
+## Managing emission factors for this category (Superadmin)
+
+**Where the numbers come from** (free public tables; record the table name in the
+factor's Source field):
+
+| Method | Factor kind | Source |
+|---|---|---|
+| Product that uses energy | Country grid factor, kg CO2e/kWh | IEA yearly emission-factor tables (or national grid authorities) |
+| Fuel sold to customers | Fuel combustion factor, kg CO2e/litre | DEFRA GHG conversion factors (annual) |
+| Product containing gas | GWP of the gas, kg CO2e/kg | IPCC Assessment Report GWP100 values — one edition company-wide (see GWP note below) |
+
+**Adding a factor by hand:** Superadmin → Emission Factors → Add Emission Factor →
+Site → Category `Use of sold products` → Year → Factor Value → Denominator Unit
+(`kg CO2e/kWh` / `.../litre` / `.../kg`) → Source → Emission Category Name. Bulk
+Upload / Smart Upload on the same page take whole spreadsheets.
+
+**Two rules:** the Emission Category Name must byte-match the config's mapping
+target (`Grid Mix Germany`, `Petrol - Combustion`, `R134a - GWP` naming scheme),
+and factors are looked up at data-year minus 1 — upload year N−1 for year-N entries.
+
+**Adding a new country/fuel/gas** is three admin steps, no code: dropdown option +
+mapping line + factor row (see "Superadmin data" above).
+
 ## Production deploy
 
 Order: **DB → backend → frontend → ai-service** (each step is
