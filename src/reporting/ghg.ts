@@ -303,11 +303,16 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     // Combustion -> Diesel / Coal), so every figure ties back to an activity.
     const scopeFuels = fuelRows.filter((f) => f.scope === sc && f.emissions > 0);
     if (scopeFuels.length) {
+      // Categories with no meaningful fuel-type breakdown (e.g. Purchased
+      // Electricity is a single energy stream, not a mix of fuels) are excluded
+      // from the fuel-type section in both the web report and the branded PDF.
+      const NO_FUEL_BREAKDOWN = /purchased electricity/i;
       const fuelTableRows: string[][] = [];
       for (const r of rows) {
         const catName = r.emission_category || "Unspecified";
+        if (NO_FUEL_BREAKDOWN.test(catName)) continue;
         const fuels = scopeFuels
-          .filter((f) => f.category === catName)
+          .filter((f) => f.category.toLowerCase() === catName.toLowerCase())
           .sort((a, b) => b.emissions - a.emissions);
         if (!fuels.length) continue;
         const catTotal = fuels.reduce((a, b) => a + b.emissions, 0);
