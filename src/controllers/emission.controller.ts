@@ -296,7 +296,10 @@ export const getEmissionsBySiteAndCategory = async (req: Request, res: Response)
 // Create a new emission entry
 export const createEmission = async (req: AuthRequest, res: Response) => {
   try {
-    const { site_id, category_id, activity_data, total_emission, unit, date_of_reporting, activity_data_unit, extra_data, reporting_period, year_type } = req.body;
+    const { site_id, category_id, activity_data, total_emission, unit, date_of_reporting, extra_data, reporting_period, year_type } = req.body;
+    // `let`: per-unit spec categories replace a spelling variant ("Tonne KM")
+    // with the canonical unit key so matching and storage stay consistent.
+    let activity_data_unit = req.body.activity_data_unit;
     const userId = req.user?.userId;
 
     if (!site_id || !category_id || !activity_data || !date_of_reporting) {
@@ -440,11 +443,16 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
           // fields (e.g. units sold × energy per use × lifetime uses). The
           // one-value heuristic below must not run — with several numeric
           // columns it would pick one of them and store a wrong total.
-          const computed = computeSpecActivityValue(calcSpec, activity_data);
+          const computed = computeSpecActivityValue(calcSpec, activity_data, activity_data_unit);
           if (!computed.ok) {
             return res.status(400).json({ message: computed.message });
           }
           activityValue = computed.value;
+          if (computed.unitKey) activity_data_unit = computed.unitKey;
+          // Persist the computed product alongside the inputs so reports,
+          // exports and the legacy readers (which look for activity_value)
+          // see one activity figure for the row.
+          activity_data.activity_value = String(activityValue);
         } else {
 
         // Known dropdown/select column names to skip (these contain IDs, not activity data)
@@ -817,11 +825,13 @@ const targetYear = reportingDate.getFullYear() - 1;
             emission.category.category_id,
           );
           if (updateCalcSpec) {
-            const computed = computeSpecActivityValue(updateCalcSpec, activity_data);
+            const computed = computeSpecActivityValue(updateCalcSpec, activity_data, emission.activity_data_unit);
             if (!computed.ok) {
               return res.status(400).json({ message: computed.message });
             }
             activityValue = computed.value;
+            if (computed.unitKey) emission.activity_data_unit = computed.unitKey;
+            activity_data.activity_value = String(activityValue);
           } else {
 
           // Known dropdown/select column names to skip (these contain IDs, not activity data)
@@ -3167,11 +3177,11 @@ export const downloadEmissions = async (req: AuthRequest, res: Response) => {
         row[colTitle] = em.extra_data?.[key] ?? "";
       }
 
-      row["Total Emission (tCO2e)"] = em.total_emission;
+      row["Total Emission (tCO2e)"] = em.total_emission != null ? Number(em.total_emission) : "";
       row["Status"] = em.status;
 
       // Emission factor details
-      row["EF Value"] = factor?.factor_value ?? "";
+      row["EF Value"] = factor?.factor_value != null ? Number(factor.factor_value) : "";
       row["EF Unit"] = factor?.denominator_unit ?? "";
       row["EF Source"] = factor?.source ?? "";
       row["EF Year"] = factor?.year ?? "";
@@ -3203,7 +3213,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   try {
     const { id }: any = req.params;
     const userId = req.user?.userId;
-    const { activity_data, date_of_reporting, activity_data_unit, reason } = req.body;
+    const { activity_data: activityDataInput, date_of_reporting, activity_data_unit, reason } = req.body;
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -3221,10 +3231,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       return res.status(404).json({ message: "Emission not found" });
     }
 
+    // A unit-only change must recalculate too — relabelling tonne.km as kg.km
+    // while keeping the old total would leave the row off by the conversion
+    // factor. Treat it as an activity_data edit using the stored data.
+    const unitChanged = activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit;
+    const activity_data = activityDataInput !== undefined
+      ? activityDataInput
+      : (unitChanged ? emission.activity_data : undefined);
+
     // Capture changes for audit trail
     const changedFields: Record<string, { old: any; new: any }> = {};
-    if (activity_data !== undefined) {
-      changedFields.activity_data = { old: emission.activity_data, new: activity_data };
+    if (activityDataInput !== undefined) {
+      changedFields.activity_data = { old: emission.activity_data, new: activityDataInput };
     }
     if (date_of_reporting !== undefined) {
       changedFields.date_of_reporting = { old: emission.date_of_reporting, new: date_of_reporting };
@@ -3298,17 +3316,31 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
 
           // Spec category (e.g. Use of Sold Products): multiply the method's
           // fields instead of sniffing for one value — see createEmission.
+          // Keep the factor snapshot in step with the recalculation (the
+          // factor panel and the Excel export read the snapshot first).
+          emission.emission_factor_snapshot = {
+            emission_factor_id: emissionFactor.emission_factor_id,
+            emission_category_name: emissionFactor.emission_category_name,
+            global_category_name: emissionFactor.global_category_name || undefined,
+            factor_value: emissionFactor.factor_value,
+            denominator_unit: emissionFactor.denominator_unit,
+            source: emissionFactor.source,
+            year: emissionFactor.year,
+          } as any;
+
           const managerCalcSpec = await getCalculationSpec(
             columnConfigRepo,
             emission.site.site_id,
             emission.category.category_id,
           );
           if (managerCalcSpec) {
-            const computed = computeSpecActivityValue(managerCalcSpec, activity_data);
+            const computed = computeSpecActivityValue(managerCalcSpec, activity_data, emission.activity_data_unit);
             if (!computed.ok) {
               return res.status(400).json({ message: computed.message });
             }
             activityValue = computed.value;
+            if (computed.unitKey) emission.activity_data_unit = computed.unitKey;
+            activity_data.activity_value = String(activityValue);
           } else {
 
           for (const field of commonFields) {
