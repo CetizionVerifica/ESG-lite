@@ -48,11 +48,25 @@ export async function getCalculationSpec(
   return spec;
 }
 
+// Kept byte-compatible with the Python engine's float(str(raw).replace(",", ""))
+// so a value imported by bulk upload recomputes identically on a later edit:
+// thousands separators are tolerated, and trailing junk is rejected outright
+// rather than silently truncated the way parseFloat("12abc") -> 12 would.
 function parsePositiveNumber(raw: unknown): number | null {
-  if (raw === undefined || raw === null || raw === "") return null;
-  const num = parseFloat(String(raw));
-  if (isNaN(num) || num <= 0) return null;
+  if (raw === undefined || raw === null) return null;
+  const text = String(raw).replace(/,/g, "").trim();
+  if (text === "") return null;
+  const num = Number(text);
+  if (!isFinite(num) || num <= 0) return null;
   return num;
+}
+
+// Select values reach us from three sources (form, bulk import, manager edit)
+// and only the Python engine trimmed them. Without this a row imported with a
+// trailing space in its method cell computes fine, then 400s on every later
+// edit as an option "this category is not configured to calculate".
+function normalizeMethodKey(raw: unknown): string {
+  return String(raw).trim();
 }
 
 // Multiply the method's fields together. Every listed field must hold a
@@ -65,15 +79,17 @@ export function computeSpecActivityValue(
   activity_data: Record<string, unknown>,
 ): SpecComputation {
   const methodValue = activity_data[spec.method_column];
-  if (methodValue === undefined || methodValue === null || methodValue === "") {
+  const methodKey =
+    methodValue === undefined || methodValue === null ? "" : normalizeMethodKey(methodValue);
+  if (methodKey === "") {
     return { ok: false, message: `Please choose a value for "${spec.method_column}".` };
   }
 
-  const method = spec.methods[String(methodValue)];
+  const method = spec.methods[methodKey];
   if (!method || !Array.isArray(method.multiply) || method.multiply.length === 0) {
     return {
       ok: false,
-      message: `"${spec.method_column}" has an option ("${methodValue}") this category is not configured to calculate. Ask a Superadmin to check the category's calculation settings.`,
+      message: `"${spec.method_column}" has an option ("${methodKey}") this category is not configured to calculate. Ask a Superadmin to check the category's calculation settings.`,
     };
   }
 

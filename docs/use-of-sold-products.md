@@ -76,7 +76,8 @@ Backend implementation:
 Frontend (`ESG-lite_FE`): the data-entry page loads the spec with the rest of the
 config, mirrors the product in the live preview, shows/hides numeric fields per
 method, prefills percentage fields to 100 (guidance: assume 100% when unknown),
-preselects the method's unit, and **hides Bulk Upload** for spec categories.
+preselects the method's unit, and supports **Bulk Upload** for spec categories
+(the AI service mirrors the same spec — see below).
 
 AI-service: the bulk-upload engine (`app/services/excel_parser.py`) reads the same
 calculation spec (`_load_calculation_spec` / `_compute_spec_activity_value`) in both
@@ -137,12 +138,14 @@ shared/public DB (each step is idempotent; skip what's already done):
 
 ```bash
 # 1. Check out the branch in ALL THREE repos (backend, frontend, ai-service)
-git fetch origin && git checkout feature/use-of-sold-products
+git fetch origin && git checkout feature/bulkUpload
 ```
 
-```sql
--- 2. One-time DB column (run on the target database; safe, additive)
-ALTER TABLE column_config ADD COLUMN IF NOT EXISTS calculation jsonb NULL;
+```bash
+# 2. One-time DB column (idempotent; safe, additive). From the backend repo:
+npm run migrate:calculation-column
+# equivalent by hand:
+#   ALTER TABLE column_config ADD COLUMN IF NOT EXISTS calculation jsonb NULL;
 ```
 
 ```bash
@@ -169,10 +172,13 @@ must show **52.35 tCO2e**.
 Order: **DB → backend → frontend → ai-service** (each step is
 backwards-compatible with the previous ones running).
 
-1. DB (safe additive DDL; nothing else touches the column):
+1. DB (safe additive DDL; nothing else touches the column). This step is
+   **not optional and must come first**: TypeORM selects every mapped column,
+   so a backend deployed before the column exists fails *every* column_config
+   read — the data-entry page dies for all categories, not just Category 11.
 
-   ```sql
-   ALTER TABLE column_config ADD COLUMN IF NOT EXISTS calculation jsonb NULL;
+   ```bash
+   npm run migrate:calculation-column
    ```
 
 2. Deploy backend, then frontend, then ai-service.
@@ -183,7 +189,7 @@ Until a config's `calculation` is set, **nothing changes anywhere**: every
 existing category has `calculation = NULL` and takes the exact pre-existing code
 paths (verified by regression tests on Stationary Combustion incl. FERA twinning).
 
-## Changes in this branch (`feature/use-of-sold-products`)
+## Changes in this branch (`feature/bulkUpload`)
 
 **Backend (this repo):**
 - `src/entities/ColumnConfig.ts` — new nullable `calculation` jsonb column + types.
@@ -194,6 +200,7 @@ paths (verified by regression tests on Stationary Combustion incl. FERA twinning
   guard for spec categories.
 - `src/controllers/columnConfig.controller.ts` — `calculation` on create/update.
 - `src/scripts/seedUseOfSoldProducts.ts` — new: idempotent category-20 setup.
+- `src/scripts/addCalculationColumn.ts` — new: adds the `calculation` column.
 - `docs/` — this file + `use-of-sold-products-testing.md`.
 
 **Frontend (ESG-lite_FE):** spec-aware live preview (`useEmissionCalculation`),
@@ -205,8 +212,9 @@ page; types.
 `row_error`), `fetch_column_config` reads `calculation` and orders by
 config_name.
 
-**Database (prod checklist):** one additive column —
-`ALTER TABLE column_config ADD COLUMN IF NOT EXISTS calculation jsonb NULL;`
+**Database (prod checklist):** one additive column, applied by
+`npm run migrate:calculation-column`
+(`src/scripts/addCalculationColumn.ts`) — must run before the backend starts.
 
 ## Known limitations / follow-ups
 
