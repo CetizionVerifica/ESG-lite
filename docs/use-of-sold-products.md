@@ -5,6 +5,15 @@ previously dormant) with all three direct use-phase methods, per the boss's deci
 (Sep 2026): energy-consuming products, fuels sold, and gas-containing products, with
 **per-country factor selection** the way the Luqom reference workbook does it.
 
+
+## Guides
+
+- `use-of-sold-products-configuration-guide.md` — configuring a site by hand
+  (Add Column Config) or with Smart Config (Auto-Generate), with the exact
+  values, and a three-row verification.
+- `emission-factor-sources.md` — where each factor comes from (free and paid
+  sources, links), entry rules, and the ready-to-upload files in `factor-files/`.
+
 ## The three methods (GHG Protocol Technical Guidance pp. 113–121)
 
 | Method (form dropdown) | Formula | Factor rows used |
