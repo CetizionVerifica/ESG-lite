@@ -105,6 +105,17 @@ Ran locally on all 14 site/category pairs (sites 20, 21, 22, 23, 24, 27, 29).
 official DEFRA 2024 value: `--lpg2024=<value>`. Also the plug-in-hybrid van
 factors exist only for 2024–2025; 2021–2023 values must come from DEFRA.
 
+## Rail distance in the map tool (estimate)
+
+The Calculate Distance popup has a **Rail** button. There is no public
+rail-routing service (Google routes roads, not railways), so Rail *estimates*:
+it uses the road route between the two points — freight rail follows the same
+corridors, typically within 10–15% — and falls back to straight-line × 1.2 when
+no road route exists. The card is labelled "estimated from the road corridor";
+the GHG Protocol accepts estimated activity data when the method is stated.
+A real rail router (self-hosted OSRM/GraphHopper on OpenStreetMap rail data)
+is the upgrade path if a client's rail volumes justify it.
+
 ## Deploy
 
 Order: DB (the `calculation` column from the Cat-11 branch must already exist)
