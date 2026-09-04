@@ -216,9 +216,12 @@ config_name.
   uses energy", "Germany") and emission_category the exact factor name. Bulk
   import still bypasses the duplicate check and the yearly mode lock (both
   pre-existing engine-wide gaps, not specific to this category).
-- The Superadmin UI has no editor for the `calculation` jsonb yet; it is set by
-  the seed script or via the column-config API. Editing other parts of the config
-  in the UI preserves the spec.
+- The calculation rule can be edited in the Superadmin UI since Sep 2026:
+  Column Config → Edit → **Calculation** tab (mode, deciding dropdown, fields
+  to multiply, percent fields, preselected unit, duplicate-identity columns,
+  legacy field). The seed script and the column-config API remain alternatives.
+  A full click-by-click setup (no script) is documented for site A100 in the
+  "Use of Sold Products Setup" guide.
 - Refrigerant GWPs in the seed are AR4 values (R134a 1430, R410A 2088), matching
   the GHG Protocol guidance PDF's era. Note the tool's existing Fugitive
   Emissions factors follow DEFRA, which switched from AR4 to AR5 in its 2023
