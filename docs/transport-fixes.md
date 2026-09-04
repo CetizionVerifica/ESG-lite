@@ -116,7 +116,62 @@ the GHG Protocol accepts estimated activity data when the method is stated.
 A real rail router (self-hosted OSRM/GraphHopper on OpenStreetMap rail data)
 is the upgrade path if a client's rail volumes justify it.
 
-## Deploy
+## Deployment guide (for the lead)
+
+Branch `feature/transport-fixes` in all three repos (ESG-lite, ESG-lite_FE,
+python_AI_service). It is stacked on `feature/use-of-sold-products`, which
+must be merged first (it carries the calculation-spec engine and the DB column).
+
+1. **Database** — one additive column, already required by the Cat-11 branch:
+   `ALTER TABLE column_config ADD COLUMN IF NOT EXISTS calculation jsonb NULL;`
+   Nothing else. No data migration; existing rows and configs are untouched.
+2. **Backend** (ESG-lite) → 3. **Frontend** (ESG-lite_FE) → 4. **AI service**
+   (python_AI_service). Each step is backwards-compatible with the previous one
+   still running.
+5. **Per-site configuration is Superadmin work, done through the UI**, not
+   scripts: `transport-configuration-guide.md` (Smart Config route, ~10 minutes
+   per category; existing sites only need two columns and the Calculation tab).
+   Factor spreadsheet: `factor-files/UPLOAD-transport-factors.xlsx`.
+   `src/scripts/repairTransportConfigs.ts` is kept as optional automation of
+   the same steps; it is idempotent but not required.
+6. Rollback: revert the three deployments; the `calculation` column can stay
+   (NULL everywhere = old behaviour).
+
+Until a config has a calculation rule, nothing changes for that site: spec-less
+configs take the pre-existing code paths (regression-tested on Stationary
+Combustion incl. FERA twinning).
+
+## What we implemented
+
+**Fixes**
+1. Weight × distance was multiplied in the browser and only the product saved; edit showed blank boxes. Both are stored; the server recomputes.
+2. Editing an old row picked up its date as the activity value. Bookkeeping keys are never treated as numbers.
+3. Switching the unit silently reinterpreted the number. Fields change with the unit; a mismatch is refused with a hint.
+4. A second shipment on the same route in a month was a "duplicate" and Replace hard-deleted the first. Shipment Ref joins the identity.
+5. Bulk upload never multiplied separate Weight and Distance and saved uncomputable rows as zero. It multiplies; rows it cannot compute are skipped with a reason.
+6. Any-year factor fallback picked the oldest year → newest.
+7. Manager unit-only edits relabelled without recalculating and kept a stale factor snapshot → recalculated, snapshot refreshed.
+8. Distance tool: stuck button after switching to Air, hidden sea fallback, silent geocode failure, zero distance accepted.
+9. Excel export wrote numbers as text.
+10. Entry form showed a wrong "expected unit" before the dependent dropdown was chosen (empty-name factor lookup).
+11. Deleting a global column in use looked dead; the page now names the configs that use it.
+12. Auto-Generate could create a config with zero mappings; it now warns and blocks.
+13. AI service kept dead pooled DB connections after Postgres dropped sessions; they are probed and replaced.
+
+**Changes**
+- `per_unit` calculation mode; canonical unit spelling stored; computed product stored as `activity_value`; legacy rows recognised by the missing Weight key.
+- Standard transport vocabulary (Travel Mode / Vehicle Type / Fuel Type/Class / Shipment Ref / Weight (tonne) / Distance travelled; units km + tonne.km).
+- Site configuration is done in the Superadmin UI from the guides (scripts optional).
+
+**Improvements**
+- **Calculation tab** in Edit Column Config (per method / per unit, percent fields, preselected unit, identity columns, old-entries field).
+- **Rail** in the distance tool: estimate from the road corridor, straight-line × 1.2 fallback, labelled as an estimate.
+- Rail freight reachable as Rail → Freight train; Downstream identical to Upstream.
+- Clear "[km] / [tonne.km]" mismatch message; expected unit shown as soon as a method is chosen.
+
+**Open with the product owner**: official DEFRA 2024 value for `Road - Van - LPG [km]` (0.7166 looks mistyped); plug-in hybrid van factors 2021–2023. See `emission-factor-sources.md`.
+
+## Deploy (short form)
 
 Order: DB (the `calculation` column from the Cat-11 branch must already exist)
 → backend → frontend → ai-service → run the repair script per site (or once
