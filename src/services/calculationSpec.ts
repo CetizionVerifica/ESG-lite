@@ -60,10 +60,20 @@ export async function getCalculationSpec(
 }
 
 function parsePositiveNumber(raw: unknown): number | null {
-  if (raw === undefined || raw === null || raw === "") return null;
-  const num = parseFloat(String(raw).replace(/,/g, ""));
-  if (isNaN(num) || num <= 0) return null;
+  if (raw === undefined || raw === null) return null;
+  const text = String(raw).replace(/,/g, "").trim();
+  if (text === "") return null;
+  const num = Number(text);
+  if (!isFinite(num) || num <= 0) return null;
   return num;
+}
+
+// Select values reach us from three sources (form, bulk import, manager edit)
+// and only the Python engine trimmed them. Without this a row imported with a
+// trailing space in its method cell computes fine, then 400s on every later
+// edit as an option "this category is not configured to calculate".
+function normalizeMethodKey(raw: unknown): string {
+  return String(raw).trim();
 }
 
 // Which method applies to this row: the dropdown's value (per_method) or the
@@ -85,16 +95,18 @@ export function resolveSpecMethod(
   }
   const methodColumn = spec.method_column ?? "";
   const methodValue = activity_data[methodColumn];
-  if (methodValue === undefined || methodValue === null || methodValue === "") {
+  const methodKey =
+    methodValue === undefined || methodValue === null ? "" : normalizeMethodKey(methodValue);
+  if (methodKey === "") {
     return { error: `Please choose a value for "${methodColumn}".` };
   }
-  const method = spec.methods[String(methodValue)];
+  const method = spec.methods[methodKey];
   if (!method || !Array.isArray(method.multiply) || method.multiply.length === 0) {
     return {
-      error: `"${methodColumn}" has an option ("${methodValue}") this category is not configured to calculate. Ask a Superadmin to check the category's calculation settings.`,
+      error: `"${methodColumn}" has an option ("${methodKey}") this category is not configured to calculate. Ask a Superadmin to check the category's calculation settings.`,
     };
   }
-  return { method, key: String(methodValue) };
+  return { method, key: methodKey };
 }
 
 // Multiply the method's fields together. Every listed field must hold a

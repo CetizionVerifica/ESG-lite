@@ -368,8 +368,15 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       columnConfig.extra_fields = extra_fields === null ? [] : extra_fields;
     }
 
-    // Absent = keep the stored spec (config modals PUT without it); explicit null clears.
+    // Absent = keep the stored spec (config modals PUT without it); explicit null
+    // clears. Anything that isn't an object is rejected rather than stored — the
+    // jsonb would happily hold a string and every consumer treats it as a spec.
     if (calculation !== undefined) {
+      if (calculation !== null && (typeof calculation !== "object" || Array.isArray(calculation))) {
+        return res.status(400).json({
+          message: "calculation must be an object or null",
+        });
+      }
       columnConfig.calculation = calculation;
     }
 
