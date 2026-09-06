@@ -46,10 +46,19 @@ export interface MethodCalculation {
 }
 
 export interface CalculationSpec {
-  mode: "per_method";
-  method_column: string;               // name of the select column that picks the method
+  // per_method: a select column picks which fields multiply (Use of Sold Products).
+  // per_unit:   the row's activity_data_unit picks them (transport: tonne.km →
+  //             Weight × Distance, km → Distance alone). Keys of `methods` are
+  //             normalized unit names (lowercase, separators as ".").
+  mode: "per_method" | "per_unit";
+  method_column?: string;              // per_method only: the select column
   identity_columns?: string[];         // columns added to the duplicate-entry identity
-  methods: { [methodOptionId: string]: MethodCalculation };
+  methods: { [methodKeyOrUnit: string]: MethodCalculation };
+  // per_unit only: rows saved BEFORE the spec existed carry only the already
+  // multiplied value under this field (and none of the other multiply fields).
+  // When the other fields are absent (key missing, not just empty) the legacy
+  // field is used as the activity value as-is.
+  legacy_field?: string;
 }
 
 // Definition for supplementary (extra) fields per category

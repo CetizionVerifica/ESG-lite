@@ -32,11 +32,14 @@ export const findEmissionFactorForCategory = async (
 ): Promise<EmissionFactor | null> => {
   const base = { site: { site_id }, category: { category_id } };
 
+  // Any-year fallbacks prefer the NEWEST factor: without an order clause the
+  // database returned the oldest row (2021), silently applying a stale factor
+  // to entries dated beyond the uploaded years.
   const exact =
     (await repo.findOne({ where: { ...base, emission_category_name: emissionCategory, year } })) ||
     (await repo.findOne({ where: { ...base, global_category_name: emissionCategory, year } })) ||
-    (await repo.findOne({ where: { ...base, emission_category_name: emissionCategory } })) ||
-    (await repo.findOne({ where: { ...base, global_category_name: emissionCategory } }));
+    (await repo.findOne({ where: { ...base, emission_category_name: emissionCategory }, order: { year: "DESC" } })) ||
+    (await repo.findOne({ where: { ...base, global_category_name: emissionCategory }, order: { year: "DESC" } }));
 
   if (exact) return exact;
 
@@ -50,6 +53,7 @@ export const findEmissionFactorForCategory = async (
       normalize(f.global_category_name) === target
   );
 
+  matches.sort((a, b) => b.year - a.year);
   return (
     matches.find((f) => f.year === year) ||
     matches[0] ||
