@@ -18,6 +18,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { Notification } from "../entities/Notification";
 import { Brand } from "../entities/Brand";
 import dotenv from "dotenv";
+import { EmissionThreshold } from "../entities/Threshold";
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -43,6 +44,7 @@ const entities = [
     AuditLog,
     Notification,
     Brand,
+    EmissionThreshold,
 ];
 
 // Parse DATABASE_URL to extract connection parameters

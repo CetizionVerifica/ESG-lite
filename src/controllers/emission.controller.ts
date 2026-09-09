@@ -3730,3 +3730,76 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+export const getPreviousPeriodTotal = async (req: Request, res: Response) => {
+  try {
+    const {
+      site_id,
+      category_id,
+      emission_category,
+      year,
+      month,
+      year_type,
+      reporting_period,
+    } = req.query;
+
+    if (!site_id || !category_id || !emission_category || !year || !reporting_period) {
+      return res.status(400).json({
+        message:
+          "site_id, category_id, emission_category, year, and reporting_period are required",
+      });
+    }
+
+    if (reporting_period !== "monthly" && reporting_period !== "yearly") {
+      return res.status(400).json({
+        message: "reporting_period must be 'monthly' or 'yearly'",
+      });
+    }
+
+    const qb = AppDataSource.getRepository(Emission)
+      .createQueryBuilder("emission")
+      .where("emission.site_id = :siteId", { siteId: Number(site_id) })
+      .andWhere("emission.category_id = :categoryId", { categoryId: Number(category_id) })
+      .andWhere("emission.activity_data->>'emission_category' = :emissionCategory", {
+        emissionCategory: String(emission_category),
+      })
+      .andWhere("emission.reporting_period = :reportingPeriod", {
+        reportingPeriod: String(reporting_period),
+      })
+      .andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", {
+        year: Number(year),
+      });
+
+    // Monthly: pin to the specific month. Yearly: no month filter — sums
+    // (in practice, matches) the single period-end-dated row for that year.
+    if (reporting_period === "monthly") {
+      if (!month) {
+        return res.status(400).json({
+          message: "month is required when reporting_period is 'monthly'",
+        });
+      }
+      qb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", {
+        month: Number(month),
+      });
+    }
+
+    // Yearly: must also match CY vs FY so we don't mix year types.
+    if (reporting_period === "yearly") {
+      if (!year_type) {
+        return res.status(400).json({
+          message: "year_type is required when reporting_period is 'yearly'",
+        });
+      }
+      qb.andWhere("emission.year_type = :yearType", { yearType: String(year_type) });
+    }
+
+    const { total } = await qb
+      .select("COALESCE(SUM(emission.total_emission), 0)", "total")
+      .getRawOne();
+
+    return res.json({ total_emission: Number(total) });
+  } catch (error) {
+    console.error("Fetch previous period total error:", error);
+    return res.status(500).json({ message: "Failed to fetch previous period total" });
+  }
+};
