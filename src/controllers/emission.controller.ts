@@ -3730,3 +3730,101 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// Totals one emission category over one reporting period. Data entry calls it
+// twice: once for the previous period (approved basis — the reported number)
+// and once for the period being entered (entered basis), which cannot have an
+// approved total yet because approval happens after entry.
+export const getPeriodTotal = async (req: Request, res: Response) => {
+  try {
+    const {
+      site_id,
+      category_id,
+      emission_category,
+      year,
+      month,
+      year_type,
+      reporting_period,
+      basis,
+    } = req.query;
+
+    if (!site_id || !category_id || !emission_category || !year || !reporting_period) {
+      return res.status(400).json({
+        message:
+          "site_id, category_id, emission_category, year, and reporting_period are required",
+      });
+    }
+
+    if (reporting_period !== "monthly" && reporting_period !== "yearly") {
+      return res.status(400).json({
+        message: "reporting_period must be 'monthly' or 'yearly'",
+      });
+    }
+
+    // 'approved' matches the dashboard and GHG report. 'entered' counts
+    // everything a manager has not rejected — the only basis that means
+    // anything for a period still being filled in.
+    const statusBasis = basis === undefined ? "approved" : String(basis);
+    if (statusBasis !== "approved" && statusBasis !== "entered") {
+      return res.status(400).json({
+        message: "basis must be 'approved' or 'entered'",
+      });
+    }
+
+    const qb = AppDataSource.getRepository(Emission)
+      .createQueryBuilder("emission")
+      .where("emission.site_id = :siteId", { siteId: Number(site_id) })
+      .andWhere("emission.category_id = :categoryId", { categoryId: Number(category_id) })
+      .andWhere("emission.activity_data->>'emission_category' = :emissionCategory", {
+        emissionCategory: String(emission_category),
+      })
+      .andWhere("emission.reporting_period = :reportingPeriod", {
+        reportingPeriod: String(reporting_period),
+      })
+      .andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", {
+        year: Number(year),
+      });
+
+    if (statusBasis === "approved") {
+      qb.andWhere("emission.status = :status", {
+        status: EmissionStatus.APPROVED,
+      });
+    } else {
+      qb.andWhere("emission.status != :rejected", {
+        rejected: EmissionStatus.REJECTED,
+      });
+    }
+
+    // Monthly: pin to the specific month. Yearly: no month filter — sums
+    // (in practice, matches) the single period-end-dated row for that year.
+    if (reporting_period === "monthly") {
+      if (!month) {
+        return res.status(400).json({
+          message: "month is required when reporting_period is 'monthly'",
+        });
+      }
+      qb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", {
+        month: Number(month),
+      });
+    }
+
+    // Yearly: must also match CY vs FY so we don't mix year types.
+    if (reporting_period === "yearly") {
+      if (!year_type) {
+        return res.status(400).json({
+          message: "year_type is required when reporting_period is 'yearly'",
+        });
+      }
+      qb.andWhere("emission.year_type = :yearType", { yearType: String(year_type) });
+    }
+
+    const { total } = await qb
+      .select("COALESCE(SUM(emission.total_emission), 0)", "total")
+      .getRawOne();
+
+    return res.json({ total_emission: Number(total) });
+  } catch (error) {
+    console.error("Fetch previous period total error:", error);
+    return res.status(500).json({ message: "Failed to fetch previous period total" });
+  }
+};

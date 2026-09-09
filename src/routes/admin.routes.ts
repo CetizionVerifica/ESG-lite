@@ -67,6 +67,7 @@ import {
   bulkCreateMappings,
   bulkDeleteMappings,
 } from "../controllers/emissionCategoryMapping.controller";
+import { createThreshold, deleteThreshold, getThresholds,updateThreshold } from "../controllers/threshold.controller";
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({
@@ -188,6 +189,12 @@ router.get("/products", getProducts);
 router.get("/products/:id", getProductById);
 router.put("/products/:id", updateProduct);
 router.delete("/products/:id", deleteProduct);
+
+//thresgold routes
+router.get("/thresholds", getThresholds);
+router.post("/thresholds", createThreshold);
+router.put("/thresholds/:id", updateThreshold);
+router.delete("/thresholds/:id", deleteThreshold);
 
 // Category mapping routes
 router.post("/category-mappings", createMapping);

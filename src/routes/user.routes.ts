@@ -30,6 +30,7 @@ import {
   managerUpdateEmission,
   calculateDistance,
   geocodeLocation,
+  getPeriodTotal,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
 import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
@@ -63,6 +64,7 @@ import { getCompanies, getCompanyNameBySites, getReportingCalendar } from "../co
 import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
 import { getAuditLogs } from "../controllers/auditLog.controller";
 import { exportEmissions } from "../controllers/emissionExport.controller";
+import { getThresholdByCompany } from "../controllers/threshold.controller";
 
 const router = Router();
 
@@ -163,8 +165,11 @@ router.post("/targets/tables",getNearTermTargetTables)
 router.post("/targets/long-term-chart",getLongTermTargetChart)
 router.post("/emissions/calculate-distance", calculateDistance);
 router.post("/emissions/geocode-location", geocodeLocation);
-
+router.get("/emissions/period-total", getPeriodTotal);
 // Audit trail
 router.get("/audit-logs", getAuditLogs);
+
+//threshold routes
+router.get("/thresholds/company/:companyId", getThresholdByCompany);
 
 export default router;
