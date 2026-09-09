@@ -3731,7 +3731,11 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getPreviousPeriodTotal = async (req: Request, res: Response) => {
+// Totals one emission category over one reporting period. Data entry calls it
+// twice: once for the previous period (approved basis — the reported number)
+// and once for the period being entered (entered basis), which cannot have an
+// approved total yet because approval happens after entry.
+export const getPeriodTotal = async (req: Request, res: Response) => {
   try {
     const {
       site_id,
@@ -3741,6 +3745,7 @@ export const getPreviousPeriodTotal = async (req: Request, res: Response) => {
       month,
       year_type,
       reporting_period,
+      basis,
     } = req.query;
 
     if (!site_id || !category_id || !emission_category || !year || !reporting_period) {
@@ -3756,6 +3761,16 @@ export const getPreviousPeriodTotal = async (req: Request, res: Response) => {
       });
     }
 
+    // 'approved' matches the dashboard and GHG report. 'entered' counts
+    // everything a manager has not rejected — the only basis that means
+    // anything for a period still being filled in.
+    const statusBasis = basis === undefined ? "approved" : String(basis);
+    if (statusBasis !== "approved" && statusBasis !== "entered") {
+      return res.status(400).json({
+        message: "basis must be 'approved' or 'entered'",
+      });
+    }
+
     const qb = AppDataSource.getRepository(Emission)
       .createQueryBuilder("emission")
       .where("emission.site_id = :siteId", { siteId: Number(site_id) })
@@ -3766,13 +3781,19 @@ export const getPreviousPeriodTotal = async (req: Request, res: Response) => {
       .andWhere("emission.reporting_period = :reportingPeriod", {
         reportingPeriod: String(reporting_period),
       })
-      // Approved rows only — same basis every other aggregate here uses, so the
-      // baseline shown during data entry matches the dashboard and GHG report.
-      // Counting pending/rejected entries would inflate it.
-      .andWhere("emission.status = :status", { status: EmissionStatus.APPROVED })
       .andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", {
         year: Number(year),
       });
+
+    if (statusBasis === "approved") {
+      qb.andWhere("emission.status = :status", {
+        status: EmissionStatus.APPROVED,
+      });
+    } else {
+      qb.andWhere("emission.status != :rejected", {
+        rejected: EmissionStatus.REJECTED,
+      });
+    }
 
     // Monthly: pin to the specific month. Yearly: no month filter — sums
     // (in practice, matches) the single period-end-dated row for that year.

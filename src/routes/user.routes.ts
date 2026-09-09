@@ -30,7 +30,7 @@ import {
   managerUpdateEmission,
   calculateDistance,
   geocodeLocation,
-  getPreviousPeriodTotal,
+  getPeriodTotal,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
 import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
@@ -165,7 +165,7 @@ router.post("/targets/tables",getNearTermTargetTables)
 router.post("/targets/long-term-chart",getLongTermTargetChart)
 router.post("/emissions/calculate-distance", calculateDistance);
 router.post("/emissions/geocode-location", geocodeLocation);
-router.get("/emissions/previous-period-total", getPreviousPeriodTotal);
+router.get("/emissions/period-total", getPeriodTotal);
 // Audit trail
 router.get("/audit-logs", getAuditLogs);
 
