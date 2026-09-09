@@ -3766,6 +3766,10 @@ export const getPreviousPeriodTotal = async (req: Request, res: Response) => {
       .andWhere("emission.reporting_period = :reportingPeriod", {
         reportingPeriod: String(reporting_period),
       })
+      // Approved rows only — same basis every other aggregate here uses, so the
+      // baseline shown during data entry matches the dashboard and GHG report.
+      // Counting pending/rejected entries would inflate it.
+      .andWhere("emission.status = :status", { status: EmissionStatus.APPROVED })
       .andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", {
         year: Number(year),
       });
