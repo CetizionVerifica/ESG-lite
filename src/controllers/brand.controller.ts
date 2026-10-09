@@ -10,6 +10,7 @@ import {
   SUPPORTED_LOGO_MIMES,
 } from "../services/brandLogo.service";
 import { resolveUserCompanyId } from "../utils/companyScope";
+import { UserRole } from "../types/type";
 
 const brandRepo = () => AppDataSource.getRepository(Brand);
 const companyRepo = () => AppDataSource.getRepository(Company);
@@ -40,15 +41,26 @@ const loadBrandOrDefaults = async (companyId: number) => {
   };
 };
 
-// GET /brands/:companyId — current brand kit (falls back to company name/defaults)
+// GET /brands/:companyId — current brand kit (falls back to company name/defaults).
+// Superadmins read any company. Everyone else reads only their own company's
+// kit, without the storage keys, so Managers, Users and company Admins can
+// theme the app.
 export const getBrand = async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
-    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!Number.isInteger(companyId) || companyId < 1) return res.status(400).json({ message: "companyId must be a positive integer" });
+
+    const isSuperAdmin = req.user?.role === UserRole.SUPERADMIN;
+    if (!isSuperAdmin) {
+      const ownCompanyId = req.user?.userId ? await resolveUserCompanyId(req.user.userId) : null;
+      if (ownCompanyId !== companyId) return res.status(403).json({ message: "Access denied" });
+    }
 
     const brand = await loadBrandOrDefaults(companyId);
     if (!brand) return res.status(404).json({ message: "Company not found" });
-    return res.status(200).json(brand);
+    if (isSuperAdmin) return res.status(200).json(brand);
+    const { logoPublicId, logoOnDarkPublicId, ...kit } = brand as any;
+    return res.status(200).json(kit);
   } catch (error) {
     console.error("Get brand error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -56,9 +68,9 @@ export const getBrand = async (req: AuthRequest, res: Response) => {
 };
 
 // GET /brands/mine — read-only brand kit of the signed-in user's own company,
-// so the app can theme itself for Managers, Users and company Admins (who
-// cannot read /brands/:companyId). 404 when the user has no company
-// (e.g. Superadmin), in which case the app uses the PlanetPulse defaults.
+// so the app can theme itself without knowing the company id. 404 when the
+// user has no company (e.g. Superadmin), in which case the app uses the
+// PlanetPulse defaults.
 export const getMyBrand = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -81,7 +93,7 @@ export const getMyBrand = async (req: AuthRequest, res: Response) => {
 export const upsertBrand = async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
-    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!Number.isInteger(companyId) || companyId < 1) return res.status(400).json({ message: "companyId must be a positive integer" });
 
     const company = await companyRepo().findOne({ where: { company_id: companyId } });
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -140,7 +152,7 @@ export const uploadBrandDarkLogo = (req: AuthRequest, res: Response) =>
 const handleLogoUpload = async (req: AuthRequest, res: Response, variant: "default" | "dark") => {
   try {
     const companyId = Number(req.params.companyId);
-    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!Number.isInteger(companyId) || companyId < 1) return res.status(400).json({ message: "companyId must be a positive integer" });
 
     const file = req.file;
     if (!file) return res.status(400).json({ message: "No logo uploaded (field name: logo)" });

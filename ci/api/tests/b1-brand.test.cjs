@@ -24,7 +24,6 @@ test("GET /brands/:companyId falls back to defaults (with new fields) when no ro
 
 test("brand management stays superadmin-only", async () => {
   for (const who of ["manager", "admin", "user"]) {
-    assert.equal((await call("GET", "/brands/1", who)).status, 403);
     assert.equal((await call("PUT", "/brands/1", who, { defaultLook: "night" })).status, 403);
     assert.equal((await call("POST", "/brands/1/logo-dark", who)).status, 403);
   }
@@ -82,4 +81,26 @@ test("GET /brands/mine returns the user's own company brand without storage keys
   assert.equal(other.json.companyId, 2);
 
   assert.equal((await call("GET", "/brands/mine", "superadmin")).status, 404);
+});
+
+test("GET /brands/:companyId: company members read their own brand only, without storage keys", async () => {
+  for (const who of ["manager", "user", "admin", "multiSiteUser"]) {
+    const res = await call("GET", "/brands/1", who);
+    assert.equal(res.status, 200, who);
+    assert.equal(res.json.companyId, 1);
+    assert.equal(res.json.logoUrl, "https://assets.example.invalid/brand-assets/company_1.png");
+    assert.ok(!("logoPublicId" in res.json));
+    assert.ok(!("logoOnDarkPublicId" in res.json));
+    assert.equal((await call("GET", "/brands/2", who)).status, 403, who);
+  }
+  assert.equal((await call("GET", "/brands/2", "otherManager")).status, 200);
+  assert.equal((await call("GET", "/brands/1", "otherUser")).status, 403);
+  assert.equal((await call("GET", "/brands/1", null)).status, 401);
+
+  assert.equal((await call("GET", "/brands/1.5", "superadmin")).status, 400);
+
+  // Superadmins still get the full row, storage keys included.
+  const staff = await call("GET", "/brands/1", "superadmin");
+  assert.equal(staff.status, 200);
+  assert.equal(staff.json.logoPublicId, "brand-assets/company_1.png");
 });
