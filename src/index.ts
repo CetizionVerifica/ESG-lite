@@ -9,6 +9,7 @@ import notificationRoutes from "./routes/notification.routes";
 import reportRoutes from "./routes/report.routes";
 import brandRoutes from "./routes/brand.routes";
 import companyAdminRoutes from "./routes/companyAdmin.routes";
+import pcfRoutes from "./routes/pcf.routes";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
@@ -46,6 +47,7 @@ app.use("/notifications", notificationRoutes);
 app.use("/reports", reportRoutes);
 app.use("/brands", brandRoutes);
 app.use("/company-admin", companyAdminRoutes);
+app.use("/pcf", pcfRoutes);
 
 let server: any;
 
