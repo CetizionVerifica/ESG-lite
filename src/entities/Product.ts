@@ -29,6 +29,19 @@ export class Product {
   @JoinColumn({ name: "site_id" })
   site!: Site;
 
+  // PCF (E1): what one footprint is expressed per, e.g. 1 kg or 1 km.
+  @Column({ type: "varchar", length: 20, nullable: true })
+  declared_unit!: string | null;
+
+  @Column({ type: "decimal", nullable: true })
+  declared_unit_qty!: string | null;
+
+  @Column({ type: "decimal", nullable: true })
+  mass_per_unit_kg!: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  pcr_tag!: string | null;
+
   @OneToMany(() => ProductionData, (pd) => pd.product)
   production_data!: ProductionData[];
 
