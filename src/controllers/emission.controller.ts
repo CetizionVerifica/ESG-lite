@@ -103,22 +103,25 @@ const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null 
 };
 
 // Ledger sort keys for GET /user/emissions?sort= (redesign B6) → column.
-const EMISSION_SORTS: Record<string, string> = {
-  id: "emission.pk_id",
-  date: "emission.date_of_reporting",
-  total_emission: "emission.total_emission",
-  status: "emission.status",
-  category: "category.category_name",
-  scope: "category.scope",
-  site: "site.name",
-  submitted_by: "created_by.name",
-  created_at: "emission.created_at",
-  reviewed_at: "emission.reviewed_at",
-};
+// A Map, not an object literal: a plain lookup would also accept inherited
+// keys such as "__proto__" or "constructor".
+const EMISSION_SORTS = new Map<string, string>([
+  ["id", "emission.pk_id"],
+  ["date", "emission.date_of_reporting"],
+  ["total_emission", "emission.total_emission"],
+  ["status", "emission.status"],
+  ["category", "category.category_name"],
+  ["scope", "category.scope"],
+  ["site", "site.name"],
+  ["submitted_by", "created_by.name"],
+  ["created_at", "emission.created_at"],
+  ["reviewed_at", "emission.reviewed_at"],
+]);
 
 // Free-text ledger search (B6): case-insensitive match on category, site,
 // submitter, units, review comment and the entered activity values, or the
-// exact entry id. Aliases differ between the list and summary queries.
+// exact entry id. Activity data matches on its values (at any depth), never on
+// key names. Aliases differ between the list and summary queries.
 const emissionSearchSql = (a: { e: string; c: string; s: string; u: string }) =>
   `(${a.c}.category_name ILIKE :search ESCAPE '\\'
     OR ${a.s}.name ILIKE :search ESCAPE '\\'
@@ -128,7 +131,9 @@ const emissionSearchSql = (a: { e: string; c: string; s: string; u: string }) =>
     OR ${a.e}.unit ILIKE :search ESCAPE '\\'
     OR ${a.e}.activity_data_unit ILIKE :search ESCAPE '\\'
     OR ${a.e}.review_comment ILIKE :search ESCAPE '\\'
-    OR CAST(${a.e}.activity_data AS text) ILIKE :search ESCAPE '\\'
+    OR EXISTS (SELECT 1 FROM jsonb_path_query(CAST(${a.e}.activity_data AS jsonb), 'strict $.**') AS v(val)
+               WHERE jsonb_typeof(v.val) IN ('string', 'number', 'boolean')
+                 AND (v.val #>> '{}') ILIKE :search ESCAPE '\\')
     OR CAST(${a.e}.pk_id AS text) = :searchExact)`;
 
 // Get emissions by site, category, and date (with optional pagination).
@@ -139,8 +144,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     const { categoryId, date, year, month, page, limit, status, scope, sort, order } = req.query;
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
 
-    if (sort !== undefined && !EMISSION_SORTS[String(sort)]) {
-      return res.status(400).json({ message: `sort must be one of ${Object.keys(EMISSION_SORTS).join(", ")}` });
+    if (sort !== undefined && !EMISSION_SORTS.has(String(sort))) {
+      return res.status(400).json({ message: `sort must be one of ${[...EMISSION_SORTS.keys()].join(", ")}` });
     }
     if (order !== undefined && !["asc", "desc"].includes(String(order).toLowerCase())) {
       return res.status(400).json({ message: "order must be asc or desc" });
@@ -198,7 +203,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     if (sort !== undefined) {
       const direction = String(order ?? "desc").toUpperCase() as "ASC" | "DESC";
-      qb.orderBy(EMISSION_SORTS[String(sort)], direction, direction === "ASC" ? "NULLS FIRST" : "NULLS LAST");
+      qb.orderBy(EMISSION_SORTS.get(String(sort)) as string, direction, direction === "ASC" ? "NULLS FIRST" : "NULLS LAST");
       // Stable pages when many rows share the sort value.
       if (sort !== "id") qb.addOrderBy("emission.pk_id", "DESC");
     } else {

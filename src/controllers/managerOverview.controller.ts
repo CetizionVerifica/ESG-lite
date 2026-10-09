@@ -81,6 +81,14 @@ const submissionMonth = (period: OverviewPeriod): string => {
 };
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
+const r3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000 || 0;
+
+// A yearly batch counts in the KPIs only for a whole year of its own type
+// (CY batch <-> "YYYY", FY batch <-> "FYyyyy-yy") or for all time. For any
+// other period it overlaps (month, quarter, the other year type) it appears
+// only in yearly_total: the overview does not pro-rate a batch over months.
+const kpiYearType = (period: OverviewPeriod): "CY" | "FY" | null =>
+  period.type === "cy" ? "CY" : period.type === "fy" ? "FY" : null;
 
 /**
  * GET /manager/overview?period=&siteIds=&categoryId=
@@ -90,7 +98,11 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
  *  - figures use approved entries only; counts cover every status;
  *  - "Scope 1/2/3" make up gross, a null scope (e.g. Renewable Electricity)
  *    is saved, net = gross - saved;
- *  - the monthly series leaves out yearly batches (reported as yearly_total);
+ *  - yearly batches count in the KPIs, by_scope, by_site and by_category only
+ *    for a whole year of the same type (or all time); yearly_total holds every
+ *    approved yearly batch whose year overlaps the period;
+ *  - the monthly series leaves out yearly batches;
+ *  - tCO2e figures are rounded to 3 decimals;
  *  - by_category leaves out null-scope categories.
  * siteIds defaults to every site the manager manages; any other site is 403.
  */
@@ -103,10 +115,11 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
     if (!period) {
       return res.status(400).json({ message: "period must be YYYY, YYYY-MM, YYYY-Qn or FYYYYY-YY (e.g. FY2025-26)" });
     }
-    const categoryId = req.query.categoryId ? parseInt(String(req.query.categoryId), 10) : null;
-    if (req.query.categoryId && !Number.isFinite(categoryId)) {
-      return res.status(400).json({ message: "categoryId must be a number" });
+    const rawCategory = req.query.categoryId;
+    if (rawCategory !== undefined && rawCategory !== "" && !/^[1-9]\d*$/.test(String(rawCategory))) {
+      return res.status(400).json({ message: "categoryId must be a positive integer" });
     }
+    const categoryId = rawCategory !== undefined && rawCategory !== "" ? parseInt(String(rawCategory), 10) : null;
 
     const manager = await AppDataSource.getRepository(User).findOne({
       where: { user_id: managerId },
@@ -142,6 +155,8 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Rows in the period: monthly rows dated inside it, yearly rows whose
+    // year (CY Jan-Dec, FY Apr-Mar, ending on date_of_reporting) overlaps it.
     const filtered = () => {
       const qb = AppDataSource.getRepository(Emission)
         .createQueryBuilder("e")
@@ -149,10 +164,26 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
         .where("e.site_id IN (:...siteIds)", { siteIds });
       if (categoryId) qb.andWhere("e.category_id = :categoryId", { categoryId });
       if (period.start && period.end) {
-        qb.andWhere("e.date_of_reporting BETWEEN :start AND :end", { start: period.start, end: period.end });
+        qb.andWhere(
+          `((e.reporting_period IS DISTINCT FROM 'yearly' AND e.date_of_reporting BETWEEN :start AND :end)
+            OR (e.reporting_period = 'yearly' AND e.date_of_reporting >= CAST(:start AS date)
+                AND (CASE WHEN e.year_type = 'FY'
+                          THEN e.date_of_reporting - INTERVAL '1 year' + INTERVAL '1 day'
+                          ELSE date_trunc('year', e.date_of_reporting) END) <= CAST(:end AS date)))`,
+          { start: period.start, end: period.end },
+        );
       }
       return qb;
     };
+    // Whether a row counts in the KPIs (see kpiYearType).
+    const yt = kpiYearType(period);
+    const countedSql =
+      period.type === "all"
+        ? "(e.pk_id IS NOT NULL)" // always true; a bare TRUE cannot be grouped by
+        : yt
+          ? "(e.reporting_period IS DISTINCT FROM 'yearly' OR (e.year_type = :kpiYearType AND e.date_of_reporting = CAST(:end AS date)))"
+          : "(e.reporting_period IS DISTINCT FROM 'yearly')";
+    const countedParams = { kpiYearType: yt, end: period.end };
 
     // Approved tCO2e by site x category x month x period type; everything
     // else is summed from these rows in JS.
@@ -163,15 +194,19 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       .addSelect("c.scope", "scope")
       .addSelect("to_char(e.date_of_reporting, 'YYYY-MM')", "month")
       .addSelect("(e.reporting_period = 'yearly')", "yearly")
+      .addSelect(countedSql, "counted")
       .addSelect("SUM(e.total_emission)", "total")
       .andWhere("e.status = 'approved'")
+      .setParameters(countedParams)
       .groupBy("e.site_id")
       .addGroupBy("e.category_id")
       .addGroupBy("c.category_name")
       .addGroupBy("c.scope")
       .addGroupBy("to_char(e.date_of_reporting, 'YYYY-MM')")
       .addGroupBy("(e.reporting_period = 'yearly')")
+      .addGroupBy(countedSql)
       .getRawMany();
+    const inKpis = approved.filter((r) => r.counted);
 
     const counts = await filtered()
       .select("e.site_id", "site_id")
@@ -180,12 +215,13 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       .addSelect("COUNT(*) FILTER (WHERE e.status = 'pending')", "pending")
       .addSelect("COUNT(*) FILTER (WHERE e.status = 'rejected')", "rejected")
       .addSelect("COALESCE(SUM(e.total_emission) FILTER (WHERE e.status = 'pending'), 0)", "pending_emission")
+      .andWhere(countedSql, countedParams)
       .groupBy("e.site_id")
       .getRawMany();
 
     // KPIs
     const kpis = emptyKpis();
-    for (const r of approved) {
+    for (const r of inKpis) {
       const t = num(r.total);
       if (r.scope === "Scope 1") kpis.scope_1 += t;
       else if (r.scope === "Scope 2") kpis.scope_2 += t;
@@ -201,6 +237,7 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       kpis.rejected_count += num(c.rejected);
       kpis.pending_emission += num(c.pending_emission);
     }
+    for (const k of ["gross", "net", "saved", "scope_1", "scope_2", "scope_3", "pending_emission"] as const) kpis[k] = r3(kpis[k]);
 
     const by_scope = [
       { scope: "Scope 1", total: kpis.scope_1 },
@@ -227,12 +264,13 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       if (r.scope === null || r.scope === undefined) bucket.saved += num(r.total);
       else bucket.gross += num(r.total);
     }
-    const by_month = [...monthMap.values()].map((b) => ({ ...b, net: b.gross - b.saved }));
+    yearly_total = r3(yearly_total);
+    const by_month = [...monthMap.values()].map((b) => ({ month: b.month, gross: r3(b.gross), saved: r3(b.saved), net: r3(b.gross - b.saved) }));
 
     // By site: `total` is every approved entry (as the dashboard's site
     // comparison chart), gross/saved/net split it like the KPIs.
     const by_site = siteIds.map((siteId) => {
-      const rows = approved.filter((r) => r.site_id === siteId);
+      const rows = inKpis.filter((r) => r.site_id === siteId);
       const c = counts.find((x) => x.site_id === siteId);
       const sum = (pred: (r: any) => boolean) => rows.filter(pred).reduce((s, r) => s + num(r.total), 0);
       const gross = sum((r) => r.scope === "Scope 1" || r.scope === "Scope 2" || r.scope === "Scope 3");
@@ -240,10 +278,10 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       return {
         site_id: siteId,
         name: managed.get(siteId),
-        total: sum(() => true),
-        gross,
-        saved,
-        net: gross - saved,
+        total: r3(sum(() => true)),
+        gross: r3(gross),
+        saved: r3(saved),
+        net: r3(gross - saved),
         entries: num(c?.entries),
         approved: num(c?.approved),
         pending: num(c?.pending),
@@ -253,13 +291,15 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
 
     // By category (scoped categories only), largest first.
     const catMap = new Map<number, { category_id: number; category_name: string; scope: string; total: number }>();
-    for (const r of approved) {
+    for (const r of inKpis) {
       if (r.scope === null || r.scope === undefined) continue;
       const cur = catMap.get(r.category_id) || { category_id: r.category_id, category_name: r.category_name, scope: r.scope, total: 0 };
       cur.total += num(r.total);
       catMap.set(r.category_id, cur);
     }
-    const by_category = [...catMap.values()].sort((a, b) => b.total - a.total || a.category_id - b.category_id);
+    const by_category = [...catMap.values()]
+      .map((c) => ({ ...c, total: r3(c.total) }))
+      .sort((a, b) => b.total - a.total || a.category_id - b.category_id);
 
     const submission = await submissionFor(submissionMonth(period), siteIds);
 

@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const XLSX = require("xlsx");
-const { call } = require("../helpers.cjs");
+const { call, withDb } = require("../helpers.cjs");
 
 const readSheet = (buffer) => {
   const wb = XLSX.read(buffer, { type: "buffer" });
@@ -43,8 +43,42 @@ test("financial year export uses Apr-Mar ending in the given year", async () => 
   const sheet = readSheet(res.buffer);
   assert.equal(sheet.name, "FY 2024-25");
   const { header, rows } = dataRows(sheet.rows);
-  // Apr 2024 - Mar 2025 on sites 1-2: ids 9, 10 (May 24), 11 (Nov 24), 12 (Dec 24), 13 (CY yearly, Dec 24), 14 (Feb 25).
-  assert.deepEqual(col(header, rows, "Emission (tCO2e)").sort((a, b) => a - b), [3, 5, 7, 11, 50, 80]);
+  // Apr 2024 - Mar 2025 on sites 1-2: ids 9, 10 (May 24), 11 (Nov 24), 12 (Dec 24), 14 (Feb 25).
+  // Id 13 is a CY 2024 yearly batch dated Dec 31: it is CY data, not FY data.
+  assert.deepEqual(col(header, rows, "Emission (tCO2e)").sort((a, b) => a - b), [3, 5, 7, 11, 50]);
+  assert.equal(res.headers.get("x-export-truncated"), "false");
+});
+
+test("yearly batches appear only in the export of their own year type", async () => {
+  const cy24 = dataRows(readSheet((await call("GET", "/user/emissions/export?siteIds=1&year=2024", "manager")).buffer).rows);
+  assert.ok(col(cy24.header, cy24.rows, "Emission (tCO2e)").includes(80), "CY 2024 batch in CY 2024");
+
+  // Id 7: FY 2025-26 batch on site 2, dated 2026-03-31.
+  const fy26 = await call("GET", "/user/emissions/export?siteIds=2&year=2026&yearType=FY", "manager");
+  const fy = dataRows(readSheet(fy26.buffer).rows);
+  assert.ok(col(fy.header, fy.rows, "Emission (tCO2e)").includes(120), "FY batch in its FY");
+  // Site 2 has nothing else in CY 2026, so the CY export is empty.
+  assert.equal((await call("GET", "/user/emissions/export?siteIds=2&year=2026", "manager")).status, 404);
+});
+
+test("a year export over the row cap says it was truncated", async () => {
+  // 50,001 monthly rows on site 2 in 2031, removed afterwards.
+  await withDb((db) =>
+    db.query(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status,
+                                    created_by, category_id, site_id, reporting_period, created_at)
+              SELECT 200000 + g, '{"activity_value": 1}', 0.001, 'tCO2e', DATE '2031-01-31', 'approved', 7, 1, 2, 'monthly', now()
+                FROM generate_series(1, 50001) AS g`),
+  );
+  try {
+    const res = await call("GET", "/user/emissions/export?siteIds=2&year=2031", "manager");
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("x-export-truncated"), "true");
+    const sheet = readSheet(res.buffer);
+    assert.ok(sheet.rows.some((r) => String(r[0]).startsWith("Truncated: only the first 50,000 entries")));
+    assert.equal(sheet.rows.find((r) => r[0] === "Total Entries:")[1], 50000);
+  } finally {
+    await withDb((db) => db.query("DELETE FROM emission WHERE pk_id > 200000 AND pk_id <= 250001"));
+  }
 });
 
 test("status filter applies to the year export", async () => {
