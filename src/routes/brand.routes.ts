@@ -18,13 +18,14 @@ const logoUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-// Any signed-in user can read their own company's brand (to theme the app).
+// Any signed-in user can read their own company's brand (to theme the app);
+// Superadmins can read any company's. getBrand checks the company.
 router.get("/mine", authenticate, getMyBrand);
+router.get("/:companyId", authenticate, getBrand);
 
 // Brand management is superadmin-only (per-client onboarding/config).
 router.use(authenticate, requireSuperAdmin);
 
-router.get("/:companyId", getBrand);
 router.put("/:companyId", upsertBrand);
 router.post("/:companyId/logo", logoUpload.single("logo"), uploadBrandLogo);
 router.post("/:companyId/logo-dark", logoUpload.single("logo"), uploadBrandDarkLogo);
