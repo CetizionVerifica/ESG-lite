@@ -1,0 +1,941 @@
+{
+  "entries": [
+    {
+      "name": "diesel litres, exact unit",
+      "status": 201
+    },
+    {
+      "name": "diesel gallons, converted to litres",
+      "status": 201
+    },
+    {
+      "name": "natural gas MWh, converted to kWh",
+      "status": 201
+    },
+    {
+      "name": "electricity, value found by >=100 heuristic",
+      "status": 201
+    },
+    {
+      "name": "electricity, small value fallback",
+      "status": 201
+    },
+    {
+      "name": "electricity dated 2026 falls back to newest factor year",
+      "status": 201
+    },
+    {
+      "name": "electricity, rounding at the 2-decimal boundary",
+      "status": 201
+    },
+    {
+      "name": "use of sold products, per-method product",
+      "status": 201
+    },
+    {
+      "name": "use of sold products, percent field",
+      "status": 201
+    },
+    {
+      "name": "transport tonne.km spelling variant",
+      "status": 201
+    },
+    {
+      "name": "transport km",
+      "status": 201
+    },
+    {
+      "name": "transport legacy row (product stored only)",
+      "status": 201
+    },
+    {
+      "name": "waste yearly CY batch",
+      "status": 201
+    },
+    {
+      "name": "plant B diesel",
+      "status": 201
+    },
+    {
+      "name": "plant B electricity FY month",
+      "status": 201
+    },
+    {
+      "message": "Unit mismatch: Expected \"litre\" but received \"kg\". No conversion available.",
+      "name": "rejected: unit with no conversion",
+      "status": 400
+    },
+    {
+      "message": "No emission factor found for emission category \"Unobtainium\" (year 2024)",
+      "name": "rejected: no factor",
+      "status": 400
+    },
+    {
+      "message": "Please enter a number greater than 0 in \"Energy per use\".",
+      "name": "rejected: spec field missing",
+      "status": 400
+    },
+    {
+      "message": "\"Share in use\" is a percentage — it cannot be more than 100.",
+      "name": "rejected: percent over 100",
+      "status": 400
+    },
+    {
+      "message": "Duplicate emission entry already exists for this site, category, date, and emission subcategory.",
+      "name": "rejected: duplicate entry",
+      "status": 409
+    }
+  ],
+  "reports": [
+    {
+      "body": {
+        "filters": {
+          "categoryIds": null,
+          "comparePeriodLabel": "CY2024",
+          "compareYear": 2024,
+          "fiscalYearRule": "Apr 1 → Mar 31",
+          "fiscalYearStartMonth": 4,
+          "frequency": "yearly",
+          "month": null,
+          "periodLabel": "CY2025",
+          "quarter": null,
+          "siteIds": [
+            1,
+            2
+          ],
+          "year": 2025,
+          "yearType": "CY"
+        },
+        "ranges": {
+          "2024": {
+            "endDate": "2024-12-31T23:59:59.999Z",
+            "label": "CY2024",
+            "startDate": "2024-01-01T00:00:00.000Z"
+          },
+          "2025": {
+            "endDate": "2025-12-31T23:59:59.999Z",
+            "label": "CY2025",
+            "startDate": "2025-01-01T00:00:00.000Z"
+          }
+        },
+        "tables": {
+          "table1_emissionsByScope_twoYears": [
+            {
+              "scope": "Scope 1",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 15935.95,
+                  "pctOfTotal": 42.83
+                }
+              }
+            },
+            {
+              "scope": "Scope 2",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 17730.63,
+                  "pctOfTotal": 47.65
+                }
+              }
+            },
+            {
+              "scope": "Scope 3",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 3544.57,
+                  "pctOfTotal": 9.53
+                }
+              }
+            },
+            {
+              "scope": "Total Emissions (Scope 1, 2 and 3)",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 100
+                },
+                "2025": {
+                  "emissions": 37211.15,
+                  "pctOfTotal": 100
+                }
+              }
+            }
+          ],
+          "table_overviewByLocations_compareYear": {
+            "rows": [],
+            "year": 2024
+          },
+          "table_overviewByLocations_selectedYear": {
+            "rows": [
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 10039.95
+                  },
+                  {
+                    "siteId": 2,
+                    "siteName": "CI Plant B",
+                    "value": 5896
+                  }
+                ],
+                "category": "Stationary Combustion",
+                "scope": "Scope 1",
+                "total": 15935.95
+              },
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 17730.63
+                  }
+                ],
+                "category": "Purchased Electricity",
+                "scope": "Scope 2",
+                "total": 17730.63
+              },
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 2761.5
+                  }
+                ],
+                "category": "Upstream Transportation and Distribution",
+                "scope": "Scope 3",
+                "total": 2761.5
+              },
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 765.6
+                  }
+                ],
+                "category": "Use of Sold Products",
+                "scope": "Scope 3",
+                "total": 765.6
+              },
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 17.47
+                  }
+                ],
+                "category": "Waste Generated in Operations",
+                "scope": "Scope 3",
+                "total": 17.47
+              }
+            ],
+            "year": 2025
+          }
+        },
+        "totals": {
+          "2024": {
+            "scope1": 0,
+            "scope2": 0,
+            "scope3": 0,
+            "total": 0
+          },
+          "2025": {
+            "scope1": 15935.95,
+            "scope2": 17730.63,
+            "scope3": 3544.57,
+            "total": 37211.15
+          }
+        }
+      },
+      "name": "GHG tables CY 2025, both sites",
+      "status": 200
+    },
+    {
+      "body": {
+        "filters": {
+          "categoryIds": null,
+          "comparePeriodLabel": "FY2024",
+          "compareYear": 2024,
+          "fiscalYearRule": "Apr 1 → Mar 31",
+          "fiscalYearStartMonth": 4,
+          "frequency": "yearly",
+          "month": null,
+          "periodLabel": "FY2025",
+          "quarter": null,
+          "siteIds": [
+            1,
+            2
+          ],
+          "year": 2025,
+          "yearType": "FY"
+        },
+        "ranges": {
+          "2024": {
+            "endDate": "2024-03-31T23:59:59.999Z",
+            "label": "FY2024",
+            "startDate": "2023-04-01T00:00:00.000Z"
+          },
+          "2025": {
+            "endDate": "2025-03-31T23:59:59.999Z",
+            "label": "FY2025",
+            "startDate": "2024-04-01T00:00:00.000Z"
+          }
+        },
+        "tables": {
+          "table1_emissionsByScope_twoYears": [
+            {
+              "scope": "Scope 1",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 10039.95,
+                  "pctOfTotal": 36.19
+                }
+              }
+            },
+            {
+              "scope": "Scope 2",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 17700,
+                  "pctOfTotal": 63.81
+                }
+              }
+            },
+            {
+              "scope": "Scope 3",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                }
+              }
+            },
+            {
+              "scope": "Total Emissions (Scope 1, 2 and 3)",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 100
+                },
+                "2025": {
+                  "emissions": 27739.95,
+                  "pctOfTotal": 100
+                }
+              }
+            }
+          ],
+          "table_overviewByLocations_compareYear": {
+            "rows": [],
+            "year": 2024
+          },
+          "table_overviewByLocations_selectedYear": {
+            "rows": [
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 10039.95
+                  }
+                ],
+                "category": "Stationary Combustion",
+                "scope": "Scope 1",
+                "total": 10039.95
+              },
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 17700
+                  }
+                ],
+                "category": "Purchased Electricity",
+                "scope": "Scope 2",
+                "total": 17700
+              }
+            ],
+            "year": 2025
+          }
+        },
+        "totals": {
+          "2024": {
+            "scope1": 0,
+            "scope2": 0,
+            "scope3": 0,
+            "total": 0
+          },
+          "2025": {
+            "scope1": 10039.95,
+            "scope2": 17700,
+            "scope3": 0,
+            "total": 27739.95
+          }
+        }
+      },
+      "name": "GHG tables FY 2025, both sites, compare 2024",
+      "status": 200
+    },
+    {
+      "body": {
+        "filters": {
+          "categoryIds": null,
+          "comparePeriodLabel": "July 2024",
+          "compareYear": 2024,
+          "fiscalYearRule": "Apr 1 → Mar 31",
+          "fiscalYearStartMonth": 4,
+          "frequency": "monthly",
+          "month": 7,
+          "periodLabel": "July 2025",
+          "quarter": null,
+          "siteIds": [
+            1
+          ],
+          "year": 2025,
+          "yearType": "CY"
+        },
+        "ranges": {
+          "2024": {
+            "endDate": "2024-07-31T23:59:59.999Z",
+            "label": "July 2024",
+            "startDate": "2024-07-01T00:00:00.000Z"
+          },
+          "2025": {
+            "endDate": "2025-07-31T23:59:59.999Z",
+            "label": "July 2025",
+            "startDate": "2025-07-01T00:00:00.000Z"
+          }
+        },
+        "tables": {
+          "table1_emissionsByScope_twoYears": [
+            {
+              "scope": "Scope 1",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                }
+              }
+            },
+            {
+              "scope": "Scope 2",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                }
+              }
+            },
+            {
+              "scope": "Scope 3",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 0
+                },
+                "2025": {
+                  "emissions": 1812.9,
+                  "pctOfTotal": 100
+                }
+              }
+            },
+            {
+              "scope": "Total Emissions (Scope 1, 2 and 3)",
+              "values": {
+                "2024": {
+                  "emissions": 0,
+                  "pctOfTotal": 100
+                },
+                "2025": {
+                  "emissions": 1812.9,
+                  "pctOfTotal": 100
+                }
+              }
+            }
+          ],
+          "table_overviewByLocations_compareYear": {
+            "rows": [],
+            "year": 2024
+          },
+          "table_overviewByLocations_selectedYear": {
+            "rows": [
+              {
+                "bySite": [
+                  {
+                    "siteId": 1,
+                    "siteName": "CI Plant A",
+                    "value": 1812.9
+                  }
+                ],
+                "category": "Upstream Transportation and Distribution",
+                "scope": "Scope 3",
+                "total": 1812.9
+              }
+            ],
+            "year": 2025
+          }
+        },
+        "totals": {
+          "2024": {
+            "scope1": 0,
+            "scope2": 0,
+            "scope3": 0,
+            "total": 0
+          },
+          "2025": {
+            "scope1": 0,
+            "scope2": 0,
+            "scope3": 1812.9,
+            "total": 1812.9
+          }
+        }
+      },
+      "name": "GHG tables CY 2025 July only, plant A",
+      "status": 200
+    },
+    {
+      "body": {
+        "filters": {
+          "categoryIds": null,
+          "comparePeriodLabel": "CY2024",
+          "compareYear": 2024,
+          "fiscalYearRule": "Apr 1 → Mar 31",
+          "fiscalYearStartMonth": 4,
+          "frequency": "yearly",
+          "month": null,
+          "periodLabel": "CY2025",
+          "quarter": null,
+          "siteIds": [
+            1,
+            2
+          ],
+          "year": 2025,
+          "yearType": "CY"
+        },
+        "ranges": {
+          "2024": {
+            "endDate": "2024-12-31T23:59:59.999Z",
+            "label": "CY2024",
+            "startDate": "2024-01-01T00:00:00.000Z"
+          },
+          "2025": {
+            "endDate": "2025-12-31T23:59:59.999Z",
+            "label": "CY2025",
+            "startDate": "2025-01-01T00:00:00.000Z"
+          }
+        },
+        "rows": [
+          {
+            "categoryId": 1,
+            "categoryName": "Stationary Combustion",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "litre"
+            },
+            "fuelType": "Diesel",
+            "scope": "Scope 1",
+            "selected": {
+              "consumption": 500,
+              "emissions": 5072.45,
+              "unit": "gallon"
+            },
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          },
+          {
+            "categoryId": 1,
+            "categoryName": "Stationary Combustion",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "mwh"
+            },
+            "fuelType": "Natural Gas",
+            "scope": "Scope 1",
+            "selected": {
+              "consumption": 0,
+              "emissions": 2287.5,
+              "unit": "mwh"
+            },
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          },
+          {
+            "categoryId": 1,
+            "categoryName": "Stationary Combustion",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "litre"
+            },
+            "fuelType": "Diesel",
+            "scope": "Scope 1",
+            "selected": {
+              "consumption": 2200,
+              "emissions": 5896,
+              "unit": "litre"
+            },
+            "siteId": 2,
+            "siteName": "CI Plant B"
+          },
+          {
+            "categoryId": 2,
+            "categoryName": "Purchased Electricity",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "kwh"
+            },
+            "fuelType": "Grid Electricity",
+            "scope": "Scope 2",
+            "selected": {
+              "consumption": 1.25,
+              "emissions": 17730.63,
+              "unit": "kwh"
+            },
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          },
+          {
+            "categoryId": 4,
+            "categoryName": "Upstream Transportation and Distribution",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "tonne.km"
+            },
+            "fuelType": "HGV Diesel [tonne.km]",
+            "scope": "Scope 3",
+            "selected": {
+              "consumption": 23400,
+              "emissions": 2466.36,
+              "unit": "tonne.km"
+            },
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          },
+          {
+            "categoryId": 4,
+            "categoryName": "Upstream Transportation and Distribution",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "km"
+            },
+            "fuelType": "Van Diesel [km]",
+            "scope": "Scope 3",
+            "selected": {
+              "consumption": 1180,
+              "emissions": 295.14,
+              "unit": "km"
+            },
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          },
+          {
+            "categoryId": 3,
+            "categoryName": "Use of Sold Products",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "kwh"
+            },
+            "fuelType": "India Grid",
+            "scope": "Scope 3",
+            "selected": {
+              "consumption": 3285800,
+              "emissions": 765.6,
+              "unit": "kwh"
+            },
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          },
+          {
+            "categoryId": 5,
+            "categoryName": "Waste Generated in Operations",
+            "compare": {
+              "consumption": 0,
+              "emissions": 0,
+              "unit": "tonne"
+            },
+            "fuelType": "Landfill",
+            "scope": "Scope 3",
+            "selected": {
+              "consumption": 37.4,
+              "emissions": 17.47,
+              "unit": "tonne"
+            },
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          }
+        ]
+      },
+      "name": "GHG details CY 2025, both sites",
+      "status": 200
+    }
+  ],
+  "stored_emissions": [
+    {
+      "activity_data_unit": "litre",
+      "category_id": 1,
+      "date": "2025-01-15",
+      "factor_value": "2680.0000",
+      "factor_year": "2024",
+      "pk_id": 1,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "1000",
+      "total_emission": "2680",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "gallon",
+      "category_id": 1,
+      "date": "2025-02-15",
+      "factor_value": "2680.0000",
+      "factor_year": "2024",
+      "pk_id": 2,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": null,
+      "total_emission": "5072.45",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "mwh",
+      "category_id": 1,
+      "date": "2025-03-15",
+      "factor_value": "183.0000",
+      "factor_year": "2024",
+      "pk_id": 3,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": null,
+      "total_emission": "2287.5",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kwh",
+      "category_id": 2,
+      "date": "2025-01-31",
+      "factor_value": "708.0000",
+      "factor_year": "2024",
+      "pk_id": 4,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": null,
+      "total_emission": "17700",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kwh",
+      "category_id": 2,
+      "date": "2025-04-30",
+      "factor_value": "708.0000",
+      "factor_year": "2024",
+      "pk_id": 5,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": null,
+      "total_emission": "29.74",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kwh",
+      "category_id": 2,
+      "date": "2026-01-31",
+      "factor_value": "708.0000",
+      "factor_year": "2024",
+      "pk_id": 6,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "1000",
+      "total_emission": "708",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kwh",
+      "category_id": 2,
+      "date": "2025-05-31",
+      "factor_value": "708.0000",
+      "factor_year": "2024",
+      "pk_id": 7,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "1.25",
+      "total_emission": "0.89",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kwh",
+      "category_id": 3,
+      "date": "2025-06-30",
+      "factor_value": "0.2330",
+      "factor_year": "2024",
+      "pk_id": 8,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "3285000",
+      "total_emission": "765.41",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kwh",
+      "category_id": 3,
+      "date": "2025-06-30",
+      "factor_value": "0.2330",
+      "factor_year": "2024",
+      "pk_id": 9,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "800",
+      "total_emission": "0.19",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "tonne.km",
+      "category_id": 4,
+      "date": "2025-07-31",
+      "factor_value": "105.4000",
+      "factor_year": "2024",
+      "pk_id": 10,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "14400",
+      "total_emission": "1517.76",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "km",
+      "category_id": 4,
+      "date": "2025-07-31",
+      "factor_value": "250.1200",
+      "factor_year": "2024",
+      "pk_id": 11,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "1180",
+      "total_emission": "295.14",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "tonne.km",
+      "category_id": 4,
+      "date": "2025-08-31",
+      "factor_value": "105.4000",
+      "factor_year": "2024",
+      "pk_id": 12,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "9000",
+      "total_emission": "948.6",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "tonne",
+      "category_id": 5,
+      "date": "2025-12-31",
+      "factor_value": "467.0100",
+      "factor_year": "2024",
+      "pk_id": 13,
+      "reporting_period": "yearly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "37.4",
+      "total_emission": "17.47",
+      "unit": "tCO2e",
+      "year_type": "CY"
+    },
+    {
+      "activity_data_unit": "litre",
+      "category_id": 1,
+      "date": "2025-09-15",
+      "factor_value": "2680.0000",
+      "factor_year": "2024",
+      "pk_id": 14,
+      "reporting_period": "monthly",
+      "site_id": 2,
+      "status": "approved",
+      "stored_activity_value": "2200",
+      "total_emission": "5896",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kwh",
+      "category_id": 2,
+      "date": "2026-02-28",
+      "factor_value": "708.0000",
+      "factor_year": "2024",
+      "pk_id": 15,
+      "reporting_period": "monthly",
+      "site_id": 2,
+      "status": "approved",
+      "stored_activity_value": "51000",
+      "total_emission": "36108",
+      "unit": "tCO2e",
+      "year_type": null
+    }
+  ]
+}

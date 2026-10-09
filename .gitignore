@@ -15,3 +15,5 @@ backup
 
 # Local dev file storage (not for commit)
 local-uploads/
+golden-actual.json
+.ci-base/
