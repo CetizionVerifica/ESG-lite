@@ -97,6 +97,8 @@ test("GET /brands/:companyId: company members read their own brand only, without
   assert.equal((await call("GET", "/brands/1", "otherUser")).status, 403);
   assert.equal((await call("GET", "/brands/1", null)).status, 401);
 
+  assert.equal((await call("GET", "/brands/1.5", "superadmin")).status, 400);
+
   // Superadmins still get the full row, storage keys included.
   const staff = await call("GET", "/brands/1", "superadmin");
   assert.equal(staff.status, 200);

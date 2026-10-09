@@ -48,7 +48,7 @@ const loadBrandOrDefaults = async (companyId: number) => {
 export const getBrand = async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
-    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!Number.isInteger(companyId) || companyId < 1) return res.status(400).json({ message: "companyId must be a positive integer" });
 
     const isSuperAdmin = req.user?.role === UserRole.SUPERADMIN;
     if (!isSuperAdmin) {
@@ -93,7 +93,7 @@ export const getMyBrand = async (req: AuthRequest, res: Response) => {
 export const upsertBrand = async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
-    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!Number.isInteger(companyId) || companyId < 1) return res.status(400).json({ message: "companyId must be a positive integer" });
 
     const company = await companyRepo().findOne({ where: { company_id: companyId } });
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -152,7 +152,7 @@ export const uploadBrandDarkLogo = (req: AuthRequest, res: Response) =>
 const handleLogoUpload = async (req: AuthRequest, res: Response, variant: "default" | "dark") => {
   try {
     const companyId = Number(req.params.companyId);
-    if (!companyId) return res.status(400).json({ message: "companyId required" });
+    if (!Number.isInteger(companyId) || companyId < 1) return res.status(400).json({ message: "companyId must be a positive integer" });
 
     const file = req.file;
     if (!file) return res.status(400).json({ message: "No logo uploaded (field name: logo)" });
