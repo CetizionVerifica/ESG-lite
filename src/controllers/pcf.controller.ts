@@ -16,7 +16,7 @@ import { Site } from "../entities/Site";
 import { Company } from "../entities/Company";
 import { User } from "../entities/User";
 import { canSeeCompany, canSeeSite, pcfScope, PcfScope } from "../pcf/access";
-import { licensedLineIds, redactStages } from "../pcf/redact";
+import { licensedLineIds, redactAggregates, redactStages } from "../pcf/redact";
 import type { PcfEngineInput } from "../pcf/engine/computePcf";
 
 const studyRepo = () => AppDataSource.getRepository(PcfStudy);
@@ -112,8 +112,8 @@ function resultSummary(r: PcfResult, scope: PcfScope) {
     total_kg_per_unit: Number(r.total_kg_per_unit),
     by_stage,
     hidden_stages,
-    primary_data_share_pct: Number(r.primary_data_share_pct),
-    dqr_overall: Number(r.dqr_overall),
+    ...redactAggregates({ primary_data_share_pct: Number(r.primary_data_share_pct), dqr_overall: Number(r.dqr_overall) }, hidden),
+    warnings: ((r.cut_off as { warnings?: string[] } | null)?.warnings ?? []) as string[],
     is_draft: r.is_draft,
     calculated_at: r.calculated_at,
     engine_version: r.engine_version,

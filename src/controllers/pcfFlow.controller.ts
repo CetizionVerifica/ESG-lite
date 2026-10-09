@@ -27,7 +27,7 @@ import {
   PcfInputError,
 } from "../pcf/engine/computePcf";
 import { loadInputs, loadStudy, studyJson } from "./pcf.controller";
-import { licensedLineIds, redactLines, redactStages } from "../pcf/redact";
+import { licensedLineIds, redactAggregates, redactLines, redactStages } from "../pcf/redact";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CUT_OFF_MAX_TOTAL_PCT = 5; // spec: omitted items together stay below 5%
@@ -209,7 +209,7 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
           luc_kg_per_unit: String(r.luc_kg_per_unit),
           primary_data_share_pct: String(r.primary_data_share_pct),
           dqr_overall: String(r.dqr.overall),
-          cut_off: { ...r.cut_off, dqr: r.dqr, lines: r.lines, allocation: r.allocation },
+          cut_off: { ...r.cut_off, dqr: r.dqr, lines: r.lines, allocation: r.allocation, warnings: plant.warnings },
           factor_snapshot: makeSnapshot(engineInput) as unknown as Record<string, unknown>,
           emission_ids_used: plant.allocation ? plant.emission_ids_used : [],
           production_ids_used: plant.allocation ? plant.production_ids_used : [],
@@ -244,20 +244,28 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
 
     const hidden = scope.all ? new Set<string>() : licensedLineIds(engineInput);
     const redacted = redactStages(r.by_stage, r.lines, hidden);
-    res.json({
-      result: {
-        total_kg_per_unit: r.total_kg_per_unit,
+    const aggregates = redactAggregates(
+      {
         fossil_kg_per_unit: r.fossil_kg_per_unit,
         biogenic_kg_per_unit: r.biogenic_kg_per_unit,
         aircraft_kg_per_unit: r.aircraft_kg_per_unit,
         luc_kg_per_unit: r.luc_kg_per_unit,
+        primary_data_share_pct: r.primary_data_share_pct,
+        dqr: r.dqr,
+      },
+      hidden,
+    );
+    res.json({
+      result: {
+        total_kg_per_unit: r.total_kg_per_unit,
+        ...aggregates,
         by_stage: redacted.by_stage,
         hidden_stages: redacted.hidden_stages,
         lines: redactLines(r.lines, hidden).map((l) => ({ ...l, pcf_input_id: l.id.startsWith("in-") ? Number(l.id.slice(3)) : null })),
         allocation: r.allocation,
-        cut_off: r.cut_off,
-        primary_data_share_pct: r.primary_data_share_pct,
-        dqr: r.dqr,
+        cut_off: hidden.size
+          ? { below_threshold_ids: null, below_threshold_total_pct: null, within_limit: r.cut_off.within_limit }
+          : r.cut_off,
         engine_version: r.engine_version,
         is_draft: true,
       },
@@ -277,7 +285,12 @@ async function move(
   to: PcfStudyStatus,
   check?: (study: PcfStudy, result: PcfResult | null, userId: number) => string | [number, string] | null,
   apply?: (m: EntityManager, study: PcfStudy, userId: number) => Promise<void>,
-  opts: { where?: string; lock?: (m: EntityManager, study: PcfStudy) => Promise<unknown> } = {},
+  opts: {
+    where?: string;
+    lock?: (m: EntityManager, study: PcfStudy) => Promise<unknown>;
+    // Runs with the study row locked, so lines can't change between the check and the move.
+    verify?: (study: PcfStudy, result: PcfResult) => Promise<string | null>;
+  } = {},
 ) {
   const found = await studyFor(req, res);
   if (!found) return;
@@ -290,8 +303,14 @@ async function move(
     return res.status(status).json({ message });
   }
   // Conditional update: a second click or a concurrent reviewer can't move it twice.
-  const moved = await AppDataSource.transaction(async (m) => {
+  const moved = await AppDataSource.transaction(async (m): Promise<boolean | string> => {
     await opts.lock?.(m, study);
+    if (opts.verify) {
+      await m.createQueryBuilder(PcfStudy, "s").setLock("pessimistic_write").where("s.pcf_study_id = :id", { id: study.pcf_study_id }).getOne();
+      if (!result) return "Calculate the footprint first";
+      const problem = await opts.verify(study, result);
+      if (problem) return problem;
+    }
     const upd = await m
       .createQueryBuilder()
       .update(PcfStudy)
@@ -300,9 +319,10 @@ async function move(
       .execute();
     if (!upd.affected) return false;
     await apply?.(m, study, scope.userId);
-    await audit(m, study, scope.userId, ACTION[to] ?? to, { status: { old: from, new: to } }, req.body?.comment ?? null);
+    await audit(m, study, scope.userId, ACTION[to] ?? to, { status: { old: from, new: to } }, comment(req) || null);
     return true;
   });
+  if (typeof moved === "string") return res.status(409).json({ message: moved });
   if (!moved) return res.status(409).json({ message: "The footprint changed meanwhile; reload it" });
   const fresh = await loadStudy(study.pcf_study_id, scope);
   const freshResult = await resultRepo().findOne({ where: { study: { pcf_study_id: study.pcf_study_id } } });
@@ -323,23 +343,15 @@ async function resultIsCurrent(study: PcfStudy, result: PcfResult): Promise<bool
 }
 
 // POST /pcf/studies/:id/submit
-export const submitStudy = async (req: AuthRequest, res: Response) => {
-  try {
-    const found = await studyFor(req, res);
-    if (!found) return;
-    const result = await resultRepo().findOne({ where: { study: { pcf_study_id: found.study.pcf_study_id } } });
-    if (found.study.status === "draft") {
-      if (!result) return res.status(409).json({ message: "Calculate the footprint before sending it for review" });
-      if (!(await resultIsCurrent(found.study, result))) {
-        return res.status(409).json({ message: "Lines, factors or plant data changed since the last calculation; calculate it again" });
-      }
-    }
-    await move(req, res, "draft", "in_review");
-  } catch (err) {
+const currentOr = (message: string) => async (study: PcfStudy, result: PcfResult) => ((await resultIsCurrent(study, result)) ? null : message);
+
+export const submitStudy = (req: AuthRequest, res: Response) =>
+  move(req, res, "draft", "in_review", (_s, result) => (result ? null : "Calculate the footprint before sending it for review"), undefined, {
+    verify: currentOr("Lines, factors or plant data changed since the last calculation; calculate it again"),
+  }).catch((err) => {
     console.error("submitStudy", err);
     res.status(500).json({ message: "Could not send the footprint for review" });
-  }
-};
+  });
 
 // POST /pcf/studies/:id/approve  { comment? }
 export const approveStudy = (req: AuthRequest, res: Response) =>
@@ -367,6 +379,7 @@ export const approveStudy = (req: AuthRequest, res: Response) =>
         .where("pcf_study_id = :id", { id: study.pcf_study_id })
         .execute();
     },
+    { verify: currentOr("Factors or plant data changed since this footprint was calculated; send it back to draft and calculate again") },
   ).catch((err) => {
     console.error("approveStudy", err);
     res.status(500).json({ message: "Could not approve the footprint" });
@@ -422,6 +435,9 @@ export const publishStudy = (req: AuthRequest, res: Response) =>
 // GET /pcf/reconciliation?siteId=&start=YYYY-MM-DD&end=YYYY-MM-DD
 // Plant Scope 1+2 for the period against what the site's approved or
 // published footprints for exactly that period allocate to their products.
+// The spec sketches ?siteId&period with Σ(PCF × production); that would mix
+// in materials and transport, which are not plant Scope 1+2, so this compares
+// the allocated S1+S2 (A3 energy × output) instead.
 export const reconciliation = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await pcfScope(req);

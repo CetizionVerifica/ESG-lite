@@ -131,11 +131,18 @@ test("licensed (ecoinvent) line values stay hidden from managers", async () => {
   assert.deepEqual(calc.json.result.hidden_stages, ["A1"]);
   assert.equal(calc.json.result.by_stage.A3_packaging, 8.6);
   close(calc.json.result.total_kg_per_unit, 12.345 + 8.6 + 0.2025, "total");
+  for (const k of ["primary_data_share_pct", "dqr", "fossil_kg_per_unit", "biogenic_kg_per_unit"]) assert.equal(calc.json.result[k], null, k);
+  assert.equal(calc.json.result.cut_off.below_threshold_ids, null);
+  assert.equal(calc.json.result.cut_off.below_threshold_total_pct, null);
+  assert.equal(line.cut_off_candidate, null);
   const asManager = (await call("GET", `/pcf/studies/${id}`, "manager")).json.result;
   assert.equal(asManager.by_stage.A1, null);
+  assert.equal(asManager.primary_data_share_pct, null);
+  assert.equal(asManager.dqr_overall, null);
   const asSuper = (await call("GET", `/pcf/studies/${id}`, "superadmin")).json.result;
   close(asSuper.by_stage.A1, 12.345, "A1 for superadmin");
   assert.deepEqual(asSuper.hidden_stages, []);
+  assert.equal(typeof asSuper.primary_data_share_pct, "number");
   await call("DELETE", `/pcf/studies/${id}`, "manager");
   await withDb((db) => db.query("DELETE FROM material_factor WHERE material_factor_id = $1", [lic.json.material_factor_id]));
 });
@@ -262,4 +269,139 @@ test("calculate, review, publish, reconcile, then a new version supersedes it", 
     const actions = (await db.query("SELECT action FROM audit_log WHERE entity_type = 'pcf_study' AND entity_id = $1 ORDER BY id", [id])).rows.map((r) => r.action);
     assert.deepEqual(actions, ["calculate", "calculate", "submit", "reject", "submit", "approve", "publish", "superseded"]);
   });
+});
+
+test("two licensed lines in different stages can't be solved for from the cut-off, primary share or DQR", async () => {
+  const mk = (name, value) =>
+    call("POST", "/pcf/material-factors", "superadmin", { name, material_group: "m", unit: "kg", value_kgco2e: value, licence: "ecoinvent" })
+      .then((r) => r.json.material_factor_id);
+  const big = await mk("Flow licensed big", 3.71);
+  const small = await mk("Flow licensed small", 6.83);
+  const id = await newStudy();
+  await call("PUT", `/pcf/studies/${id}/inputs`, "manager", {
+    inputs: [
+      { stage: "A1", name: "Licensed big", unit: "kg", quantity: 1, material_factor_id: big, data_type: "primary", dqr_technology: 1 },
+      { stage: "A1", name: "Visible alu", unit: "kg", quantity: 1, material_factor_id: alu },
+      { stage: "A3_packaging", name: "Licensed small", unit: "kg", quantity: 0.001, material_factor_id: small },
+    ],
+  });
+  const calc = await call("POST", `/pcf/studies/${id}/calculate`, "manager", {});
+  assert.equal(calc.status, 200);
+  const r = calc.json.result;
+  const body = JSON.stringify(calc.json);
+  assert.equal(body.includes("3.71"), false);
+  assert.equal(body.includes("6.83"), false);
+  assert.deepEqual(r.hidden_stages.sort(), ["A1", "A3_packaging"]);
+  assert.equal(r.by_stage.A1, null);
+  assert.equal(r.by_stage.A3_packaging, null);
+  assert.equal(r.cut_off.below_threshold_total_pct, null);
+  assert.equal(r.cut_off.below_threshold_ids, null);
+  assert.equal(typeof r.cut_off.within_limit, "boolean");
+  assert.equal(r.primary_data_share_pct, null);
+  assert.equal(r.dqr, null);
+  assert.equal(r.lines.find((l) => l.name === "Visible alu").kgco2e_per_unit, 8.6);
+  const asSuper = (await call("GET", `/pcf/studies/${id}`, "superadmin")).json.result;
+  close(asSuper.by_stage.A3_packaging, 0.00683, "small for superadmin");
+  await call("DELETE", `/pcf/studies/${id}`, "manager");
+  await withDb((db) => db.query("DELETE FROM material_factor WHERE material_factor_id = ANY($1)", [[big, small]]));
+});
+
+test("approve re-checks the result against today's factors; a non-text comment is ignored", async () => {
+  const own = (await call("POST", "/pcf/material-factors", "manager", { name: "Flow changing alu", material_group: "m", unit: "kg", value_kgco2e: 2 })).json
+    .material_factor_id;
+  const id = await newStudy();
+  await call("PUT", `/pcf/studies/${id}/inputs`, "manager", {
+    inputs: [{ stage: "A1", name: "Changing", unit: "kg", quantity: 1, material_factor_id: own }],
+  });
+  assert.equal((await call("POST", `/pcf/studies/${id}/calculate`, "manager", {})).status, 200);
+  assert.equal((await call("POST", `/pcf/studies/${id}/submit`, "manager", { comment: { not: "text" } })).status, 200);
+  assert.equal((await call("PATCH", `/pcf/material-factors/${own}`, "manager", { value_kgco2e: 2.5 })).status, 200);
+  const res = await call("POST", `/pcf/studies/${id}/approve`, "superadmin");
+  assert.equal(res.status, 409);
+  assert.match(res.json.message, /send it back to draft/);
+  assert.equal((await call("GET", `/pcf/studies/${id}`, "manager")).json.status, "in_review");
+  await withDb(async (db) => {
+    const reasons = (await db.query("SELECT reason FROM audit_log WHERE entity_type = 'pcf_study' AND entity_id = $1 AND action = 'submit'", [id])).rows;
+    assert.deepEqual(reasons, [{ reason: null }]);
+    await db.query("DELETE FROM pcf_study WHERE pcf_study_id = $1", [id]);
+    await db.query("DELETE FROM material_factor WHERE material_factor_id = $1", [own]);
+  });
+});
+
+// The PCF-0 pilot entered through the API (site 2, CY 2019) must give the
+// golden spreadsheet's figures within its tolerance.
+test("golden: the PCF-0 pilot through /pcf gives the spreadsheet's numbers", async () => {
+  const g = JSON.parse(require("node:fs").readFileSync(require("node:path").resolve("docs/pcf/phase0/pilot-golden.json"), "utf8"));
+  const tol = g.tolerance_pct;
+  const near = (a, b, msg) =>
+    b === 0 ? assert.ok(Math.abs(a) < 1e-12, `${msg}: ${a}`) : assert.ok((Math.abs(a - b) / Math.abs(b)) * 100 <= tol, `${msg}: ${a} vs ${b}`);
+  const made = { factors: [], products: [], emissions: [], production: [] };
+  try {
+    for (const f of g.factors) {
+      const res = await call("POST", "/pcf/material-factors", "manager", { name: `Golden ${f.id}`, material_group: f.material_group, unit: f.unit, value_kgco2e: f.value_kgco2e });
+      assert.equal(res.status, 201);
+      made.factors.push([f.id, res.json.material_factor_id]);
+    }
+    const fid = Object.fromEntries(made.factors);
+    await withDb(async (db) => {
+      const pilot = g.production_approved_t.find((p) => p.is_pilot);
+      const others = g.production_approved_t.filter((p) => !p.is_pilot);
+      made.products = (await db.query(
+        `INSERT INTO product (name, unit, site_id, declared_unit, declared_unit_qty, mass_per_unit_kg) VALUES
+           ('Golden pilot rod', 'tonnes', 2, $1, 1, $2), ('Golden other products', 'tonnes', 2, NULL, NULL, NULL) RETURNING product_id`,
+        [g.study.declared_unit, g.study.mass_per_unit_kg],
+      )).rows.map((r) => r.product_id);
+      for (const [product, qty] of [[made.products[0], pilot.quantity_t], [made.products[1], others.reduce((s, p) => s + p.quantity_t, 0)]]) {
+        made.production.push((await db.query(
+          `INSERT INTO production_data (product_id, site_id, quantity, unit, start_date, end_date, status, created_by)
+           VALUES ($1, 2, $2, 'tonnes', '2019-01-01', '2019-12-31', 'approved', 7) RETURNING production_id`, [product, qty],
+        )).rows[0].production_id);
+      }
+      for (const e of g.plant_emissions_approved) {
+        made.emissions.push((await db.query(
+          `INSERT INTO emission (activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, year_type)
+           VALUES ('{}', $1, 'tCO2e', '2019-12-31', 'approved', 7, $2, 2, 'yearly', 'CY') RETURNING pk_id`, [e.period_total_tco2e, e.scope === 1 ? 1 : 2],
+        )).rows[0].pk_id);
+      }
+    });
+    const study = await call("POST", "/pcf/studies", "manager", {
+      product_id: made.products[0], reference_start: "2019-01-01", reference_end: "2019-12-31", cut_off_rule_pct: g.study.cut_off_rule_pct,
+    });
+    assert.equal(study.status, 201);
+    const id = study.json.pcf_study_id;
+    const dqr = (x) => ({ dqr_technology: x.dqr_technology, dqr_geography: x.dqr_geography, dqr_time: x.dqr_time });
+    const inputs = [
+      ...g.inputs.map((i) => ({
+        stage: i.stage, name: i.name, unit: i.unit, quantity: i.quantity, material_factor_id: fid[i.material_factor_id],
+        recycled_material_factor_id: i.recycled_factor_id ? fid[i.recycled_factor_id] : null, recycled_share_pct: i.recycled_share_pct,
+        data_type: i.data_type, ...dqr(i),
+      })),
+      ...g.transport_legs.map((t) => ({
+        stage: "A2", name: t.name, unit: "t", material_factor_id: fid[t.factor_id], payload_t: t.mass_t_per_unit, distance_km: t.distance_km,
+        data_type: t.data_type, ...dqr(t),
+      })),
+    ];
+    const put = await call("PUT", `/pcf/studies/${id}/inputs`, "manager", { inputs });
+    assert.equal(put.status, 200, JSON.stringify(put.json));
+    const calc = await call("POST", `/pcf/studies/${id}/calculate`, "manager", {});
+    assert.equal(calc.status, 200, JSON.stringify(calc.json));
+    const r = calc.json.result;
+    const x = g.expected;
+    for (const k of ["total_kg_per_unit", "fossil_kg_per_unit", "biogenic_kg_per_unit", "aircraft_kg_per_unit", "luc_kg_per_unit", "primary_data_share_pct"]) near(r[k], x[k], k);
+    for (const [k, v] of Object.entries(x.by_stage)) near(r.by_stage[k], v, `by_stage.${k}`);
+    for (const [k, v] of Object.entries(x.dqr)) near(r.dqr[k], v, `dqr.${k}`);
+    near(r.allocation.share_pct, x.allocation.share_pct, "allocation.share_pct");
+    near(r.allocation.product_output_units, x.allocation.product_output_units, "allocation.product_output_units");
+    near(r.cut_off.below_threshold_total_pct, x.cut_off.below_threshold_total_pct, "cut_off.below_threshold_total_pct");
+    assert.equal(r.cut_off.within_limit, x.cut_off.within_limit);
+    assert.equal(r.cut_off.below_threshold_ids.length, x.cut_off.below_threshold_ids.length);
+  } finally {
+    await withDb(async (db) => {
+      await db.query("DELETE FROM pcf_study WHERE product_id = ANY($1)", [made.products]);
+      await db.query("DELETE FROM emission WHERE pk_id = ANY($1)", [made.emissions]);
+      await db.query("DELETE FROM production_data WHERE production_id = ANY($1)", [made.production]);
+      await db.query("DELETE FROM product WHERE product_id = ANY($1)", [made.products]);
+      await db.query("DELETE FROM material_factor WHERE material_factor_id = ANY($1)", [made.factors.map(([, v]) => v)]);
+    });
+  }
 });
