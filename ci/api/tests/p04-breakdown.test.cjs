@@ -10,6 +10,9 @@ const breakdown = (q, who = "manager") => call("GET", `/user/emissions/breakdown
 test("needs a category", async () => {
   assert.equal((await breakdown("siteIds=1,2")).status, 400);
   assert.equal((await breakdown("categoryId=1&status=done")).status, 400);
+  assert.equal((await breakdown("categoryId=1abc")).status, 400);
+  assert.equal((await breakdown("categoryId=1&year=abc")).status, 400);
+  assert.equal((await breakdown("categoryId=1&month=13")).status, 400);
 });
 
 test("totals one category across the caller's sites", async () => {
@@ -29,6 +32,12 @@ test("follows the year, month and status filters", async () => {
   assert.equal(sept.json.entries, 1);
   const rejected = await breakdown("categoryId=1&siteIds=1,2&status=rejected");
   assert.deepEqual(rejected.json.groups.map((g) => g.total_emission), [3]);
+});
+
+test("follows the search filter", async () => {
+  const res = await breakdown("categoryId=3&siteIds=1,2&search=Mumbai"); // row 3 only
+  assert.equal(res.json.entries, 1);
+  assert.equal(res.json.groups[0].total_emission, 1);
 });
 
 test("stays inside the caller's sites", async () => {

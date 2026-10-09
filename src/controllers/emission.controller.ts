@@ -334,9 +334,12 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 export const getEmissionBreakdown = async (req: AuthRequest, res: Response) => {
   try {
     const { year, month, status } = req.query;
-    const categoryId = parseInt(String(req.query.categoryId ?? ""));
+    const categoryId = /^\d+$/.test(String(req.query.categoryId ?? "")) ? Number(req.query.categoryId) : NaN;
     if (!Number.isInteger(categoryId) || categoryId <= 0) {
       return res.status(400).json({ message: "categoryId is required" });
+    }
+    if ((year !== undefined && !/^\d{4}$/.test(String(year))) || (month !== undefined && !/^(0?[1-9]|1[0-2])$/.test(String(month)))) {
+      return res.status(400).json({ message: "year must be YYYY and month 1-12" });
     }
     if (status !== undefined && !["pending", "approved", "rejected"].includes(String(status))) {
       return res.status(400).json({ message: "status must be pending, approved or rejected" });
@@ -371,7 +374,10 @@ export const getEmissionBreakdown = async (req: AuthRequest, res: Response) => {
       .leftJoin("config.category", "c")
       .leftJoin("config.site", "s")
       .leftJoinAndSelect("config.columns", "col")
-      .where("c.category_id = :categoryId", { categoryId });
+      .where("c.category_id = :categoryId", { categoryId })
+      // Same config first as getCalculationSpec, so the fallback column order is stable.
+      .orderBy("config.config_name", "ASC")
+      .addOrderBy("col.pk_id", "ASC");
     if (scoped.siteIds) configQb.andWhere(siteFilterSql("s.site_id", scoped.siteIds), { scopedSiteIds: scoped.siteIds });
 
     const [rows, configs] = await Promise.all([qb.getMany(), configQb.getMany()]);
