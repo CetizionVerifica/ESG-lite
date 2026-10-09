@@ -21,6 +21,7 @@ import { validatePeriodFields, findModeLockConflict } from "../services/reportin
 import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
 import { parseSiteIds } from "../utils/parseSiteIds";
+import { scopeSiteIds, siteFilterSql, SITE_ACCESS_DENIED } from "../utils/companyScope";
 import {
   computeGhgTables,
   computeGhgDetails,
@@ -150,6 +151,11 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     if (order !== undefined && !["asc", "desc"].includes(String(order).toLowerCase())) {
       return res.status(400).json({ message: "order must be asc or desc" });
     }
+    // Only the caller's sites (all of them when none are named).
+    const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, siteIds);
+    if (scoped.forbidden) return res.status(403).json(SITE_ACCESS_DENIED);
+    const scopedSiteIds = scoped.siteIds;
+
     const searchText = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
     const searchParams = searchText
       ? { search: `%${searchText.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`, searchExact: searchText }
@@ -166,8 +172,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       qb.andWhere(emissionSearchSql({ e: "emission", c: "category", s: "site", u: "created_by" }), searchParams);
     }
 
-    if (siteIds.length > 0) {
-      qb.andWhere("site.site_id IN (:...siteIds)", { siteIds });
+    if (scopedSiteIds) {
+      qb.andWhere(siteFilterSql("site.site_id", scopedSiteIds), { scopedSiteIds });
     }
 
     if (categoryId) {
@@ -230,8 +236,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
           .leftJoin("emission.created_by", "cb")
           .andWhere(emissionSearchSql({ e: "emission", c: "c", s: "s", u: "cb" }), searchParams);
       }
-      if (siteIds.length > 0) {
-        summaryQb.andWhere("s.site_id IN (:...siteIds)", { siteIds });
+      if (scopedSiteIds) {
+        summaryQb.andWhere(siteFilterSql("s.site_id", scopedSiteIds), { scopedSiteIds });
       }
       if (categoryId) {
         summaryQb.andWhere("c.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
@@ -321,10 +327,13 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 };
 
 // Get emissions by site and category with date filter
-export const getEmissionsBySiteAndCategory = async (req: Request, res: Response) => {
+export const getEmissionsBySiteAndCategory = async (req: AuthRequest, res: Response) => {
   try {
     const { siteId, categoryId }: any = req.params;
     const { date }: any = req.query;
+
+    const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, [parseInt(siteId)]);
+    if (scoped.forbidden) return res.status(403).json(SITE_ACCESS_DENIED);
 
     const queryBuilder = repo
       .createQueryBuilder("emission")
@@ -1731,8 +1740,12 @@ export const getPendingEmissions = async (req: AuthRequest, res: Response) => {
       status: EmissionStatus.PENDING,
     };
 
-    if (siteId) {
-      whereClause.site = { site_id: parseInt(siteId as string) };
+    // Only the caller's sites (all of them when none is named).
+    const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, siteId ? [parseInt(siteId as string)] : []);
+    if (scoped.forbidden) return res.status(403).json(SITE_ACCESS_DENIED);
+    if (scoped.siteIds) {
+      if (!scoped.siteIds.length) return res.status(200).json([]);
+      whereClause.site = { site_id: In(scoped.siteIds) };
     }
 
     if (categoryId) {
@@ -3130,6 +3143,9 @@ export const downloadEmissions = async (req: AuthRequest, res: Response) => {
     if (!siteId) {
       return res.status(400).json({ message: "siteId is required" });
     }
+
+    const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, [parseInt(siteId as string)]);
+    if (scoped.forbidden) return res.status(403).json(SITE_ACCESS_DENIED);
 
     const qb = repo
       .createQueryBuilder("emission")

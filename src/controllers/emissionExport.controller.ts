@@ -5,7 +5,7 @@ import { Emission, EmissionStatus } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { log } from "../utils/logger";
 import { parseSiteIds } from "../utils/parseSiteIds";
-import { accessibleSiteIds } from "../utils/companyScope";
+import { scopeSiteIds, SITE_ACCESS_DENIED } from "../utils/companyScope";
 
 const repo = AppDataSource.getRepository(Emission);
 
@@ -41,14 +41,8 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
     if (wholeYear && yearType !== "CY" && yearType !== "FY") {
       return res.status(400).json({ message: "yearType must be CY or FY" });
     }
-    // The year export is new, so it checks site access from the start; the
-    // monthly export keeps its existing behaviour.
-    if (wholeYear) {
-      const allowed = await accessibleSiteIds(req.user?.userId, req.user?.role);
-      if (allowed && siteIds.some((id) => !allowed.has(id))) {
-        return res.status(403).json({ message: "You do not have access to one or more of these sites" });
-      }
-    }
+    const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, siteIds);
+    if (scoped.forbidden) return res.status(403).json(SITE_ACCESS_DENIED);
 
     let startDate: Date | string;
     let endDate: Date | string;

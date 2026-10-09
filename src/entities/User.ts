@@ -32,13 +32,15 @@ export class User {
   @Column({ unique: true })
   email!: string;
 
-  @Column()
+  // Never loaded unless asked for (addSelect), so a user joined into any
+  // response cannot leak the hash or a reset token. Login selects it.
+  @Column({ select: false })
   password!: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, select: false })
   password_reset_token?: string;
 
-  @Column({ type: "timestamp", nullable: true })
+  @Column({ type: "timestamp", nullable: true, select: false })
   password_reset_expires?: Date;
 
   @Column()

@@ -41,7 +41,13 @@ export const login = async (req: Request, res: Response) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const valid = await bcrypt.compare(password, user.password);
+  // password is select: false on the entity, so read the hash on its own.
+  const credentials = await userRepo
+    .createQueryBuilder("user")
+    .addSelect("user.password")
+    .where("user.user_id = :id", { id: user.user_id })
+    .getOne();
+  const valid = credentials?.password ? await bcrypt.compare(password, credentials.password) : false;
 
   if (!valid) {
     log.warn("Auth", "Login failed — wrong password", { email: emailLower, userId: user.user_id });

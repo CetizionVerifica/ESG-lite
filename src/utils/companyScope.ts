@@ -107,3 +107,30 @@ export const accessibleSiteIds = async (
   (user?.sites || []).forEach((site) => ids.add(site.site_id));
   return ids;
 };
+
+/**
+ * The sites a read may cover. With requested ids: forbidden when any is not
+ * the caller's, else those ids. Without: every site the caller may read, or
+ * null (no filter) for a Superadmin. An empty list means the caller has no
+ * sites, so the read must return nothing (see siteFilterSql).
+ */
+export const scopeSiteIds = async (
+  userId: number,
+  role: string,
+  requested: number[]
+): Promise<{ forbidden: true } | { forbidden: false; siteIds: number[] | null }> => {
+  const allowed = await accessibleSiteIds(userId, role);
+  if (!allowed) return { forbidden: false, siteIds: requested.length ? requested : null };
+  if (requested.length) {
+    return requested.every((id) => allowed.has(id))
+      ? { forbidden: false, siteIds: requested }
+      : { forbidden: true };
+  }
+  return { forbidden: false, siteIds: [...allowed] };
+};
+
+/** WHERE clause for a scoped site list; matches nothing when the list is empty. */
+export const siteFilterSql = (column: string, siteIds: number[]): string =>
+  siteIds.length ? `${column} IN (:...scopedSiteIds)` : "1 = 0";
+
+export const SITE_ACCESS_DENIED = { message: "You do not have access to one or more of these sites" };
