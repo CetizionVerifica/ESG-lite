@@ -1,0 +1,30 @@
+{
+  "entries": [
+    {"name": "diesel litres, exact unit", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-01-15", "activity_data_unit": "litre", "activity_data": {"emission_category": "Diesel", "activity_value": "1000"}}},
+    {"name": "diesel gallons, converted to litres", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-02-15", "activity_data_unit": "gallon", "activity_data": {"emission_category": "Diesel", "quantity": "500"}}},
+    {"name": "natural gas MWh, converted to kWh", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-03-15", "activity_data_unit": "mwh", "activity_data": {"emission_category": "Natural Gas", "consumption": "12.5"}}},
+    {"name": "electricity, value found by >=100 heuristic", "body": {"site_id": 1, "category_id": 2, "date_of_reporting": "2025-01-31", "activity_data_unit": "kwh", "activity_data": {"emission_category": "Grid Electricity", "meter_no": "7", "Units consumed": "25000"}}},
+    {"name": "electricity, small value fallback", "body": {"site_id": 1, "category_id": 2, "date_of_reporting": "2025-04-30", "activity_data_unit": "kwh", "activity_data": {"emission_category": "Grid Electricity", "Units consumed": "42"}}},
+    {"name": "electricity dated 2026 falls back to newest factor year", "body": {"site_id": 1, "category_id": 2, "date_of_reporting": "2026-01-31", "activity_data_unit": "kwh", "activity_data": {"emission_category": "grid electricity ", "activity_value": "1000"}}},
+    {"name": "electricity, rounding at the 2-decimal boundary", "body": {"site_id": 1, "category_id": 2, "date_of_reporting": "2025-05-31", "activity_data_unit": "kwh", "activity_data": {"emission_category": "Grid Electricity", "activity_value": "1.25"}}},
+    {"name": "use of sold products, per-method product", "body": {"site_id": 1, "category_id": 3, "date_of_reporting": "2025-06-30", "activity_data_unit": "kwh", "activity_data": {"emission_category": "India Grid", "Calculation Method": "Direct energy", "Product Name": "Fan X1", "Units Sold": "1,200", "Energy per use": "0.75", "Lifetime uses": "3650"}}},
+    {"name": "use of sold products, percent field", "body": {"site_id": 1, "category_id": 3, "date_of_reporting": "2025-06-30", "activity_data_unit": "kwh", "activity_data": {"emission_category": "India Grid", "Calculation Method": "Share of energy ", "Product Name": "Fan X2", "Units Sold": "800", "Energy per use": "2.5", "Share in use": "40"}}},
+    {"name": "transport tonne.km spelling variant", "body": {"site_id": 1, "category_id": 4, "date_of_reporting": "2025-07-31", "activity_data_unit": "Tonne KM", "activity_data": {"emission_category": "HGV Diesel [tonne.km]", "Shipment Ref": "S-1", "Weight": "22.5", "Distance travelled": "640"}}},
+    {"name": "transport km", "body": {"site_id": 1, "category_id": 4, "date_of_reporting": "2025-07-31", "activity_data_unit": "km", "activity_data": {"emission_category": "Van Diesel [km]", "Shipment Ref": "S-2", "Distance travelled": "1180"}}},
+    {"name": "transport legacy row (product stored only)", "body": {"site_id": 1, "category_id": 4, "date_of_reporting": "2025-08-31", "activity_data_unit": "tonne.km", "activity_data": {"emission_category": "HGV Diesel [tonne.km]", "Shipment Ref": "S-3", "Distance travelled": "9000"}}},
+    {"name": "waste yearly CY batch", "body": {"site_id": 1, "category_id": 5, "date_of_reporting": "2025-12-31", "reporting_period": "yearly", "year_type": "CY", "activity_data_unit": "tonne", "activity_data": {"emission_category": "Landfill", "activity_value": "37.4"}}},
+    {"name": "plant B diesel", "body": {"site_id": 2, "category_id": 1, "date_of_reporting": "2025-09-15", "activity_data_unit": "litre", "activity_data": {"emission_category": "Diesel", "activity_value": "2200"}}},
+    {"name": "plant B electricity FY month", "body": {"site_id": 2, "category_id": 2, "date_of_reporting": "2026-02-28", "activity_data_unit": "kwh", "activity_data": {"emission_category": "Grid Electricity", "activity_value": "51000"}}},
+    {"name": "rejected: unit with no conversion", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-10-15", "activity_data_unit": "kg", "activity_data": {"emission_category": "Diesel", "activity_value": "10"}}},
+    {"name": "rejected: no factor", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-10-15", "activity_data_unit": "litre", "activity_data": {"emission_category": "Unobtainium", "activity_value": "10"}}},
+    {"name": "rejected: spec field missing", "body": {"site_id": 1, "category_id": 3, "date_of_reporting": "2025-10-31", "activity_data_unit": "kwh", "activity_data": {"emission_category": "India Grid", "Calculation Method": "Direct energy", "Product Name": "Fan X3", "Units Sold": "10", "Energy per use": "", "Lifetime uses": "5"}}},
+    {"name": "rejected: percent over 100", "body": {"site_id": 1, "category_id": 3, "date_of_reporting": "2025-10-31", "activity_data_unit": "kwh", "activity_data": {"emission_category": "India Grid", "Calculation Method": "Share of energy", "Product Name": "Fan X4", "Units Sold": "10", "Energy per use": "1", "Share in use": "140"}}},
+    {"name": "rejected: duplicate entry", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-01-15", "activity_data_unit": "litre", "activity_data": {"emission_category": "Diesel", "activity_value": "999"}}}
+  ],
+  "reports": [
+    {"name": "GHG tables CY 2025, both sites", "path": "/user/ghg/tables", "body": {"siteIds": [1, 2], "yearType": "CY", "year": 2025}},
+    {"name": "GHG tables FY 2025, both sites, compare 2024", "path": "/user/ghg/tables", "body": {"siteIds": [1, 2], "yearType": "FY", "year": 2025, "compareYear": 2024}},
+    {"name": "GHG tables CY 2025 July only, plant A", "path": "/user/ghg/tables", "body": {"siteIds": [1], "yearType": "CY", "year": 2025, "frequency": "monthly", "month": 7}},
+    {"name": "GHG details CY 2025, both sites", "path": "/user/ghg/details", "body": {"siteIds": [1, 2], "yearType": "CY", "year": 2025}}
+  ]
+}
