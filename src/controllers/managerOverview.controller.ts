@@ -50,6 +50,75 @@ export const parseOverviewPeriod = (raw: unknown): OverviewPeriod | null => {
   return null;
 };
 
+// The same period one year earlier, for the "vs last year" figures; null for
+// all time.
+export const lastYearPeriod = (period: OverviewPeriod): OverviewPeriod | null => {
+  const k = period.key;
+  switch (period.type) {
+    case "cy":
+      return parseOverviewPeriod(String(+k - 1).padStart(4, "0"));
+    case "month":
+    case "quarter":
+      return parseOverviewPeriod(`${String(+k.slice(0, 4) - 1).padStart(4, "0")}${k.slice(4)}`);
+    case "fy": {
+      const y = +k.slice(2, 6) - 1;
+      return parseOverviewPeriod(`FY${String(y).padStart(4, "0")}-${pad((y + 1) % 100)}`);
+    }
+    default:
+      return null;
+  }
+};
+
+// Last day whose data is due: the end of the previous calendar month (data
+// for month M is filed in M+1).
+const dueThrough = (): string => {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+  return ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+};
+
+export type LastYearStatus = "complete" | "year_to_date" | "not_due";
+
+// What the period is compared with: the same period last year, cut to the
+// same months when the period is still running, so a part-filed year is not
+// set against a whole one.
+//   complete      the period has ended; last year's whole period
+//   year_to_date  the period is running; last year up to the same due month
+//   not_due       no month of the period is due yet; no % change is given
+export const lastYearComparison = (
+  period: OverviewPeriod,
+  due: string = dueThrough(),
+): { period: OverviewPeriod; status: LastYearStatus } | null => {
+  const ly = lastYearPeriod(period);
+  if (!ly || !period.start || !period.end || !ly.end) return null;
+  if (period.end <= due) return { period: ly, status: "complete" };
+  if (period.start > due) return { period: ly, status: "not_due" };
+  const y = +due.slice(0, 4) - 1;
+  const m = +due.slice(5, 7);
+  return { period: { ...ly, end: ymd(y, m, lastDay(y, m)) }, status: "year_to_date" };
+};
+
+const addMonths = (month: string, n: number): string => {
+  const d = new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7) - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
+};
+
+// Months the trend chart shows: a whole year's 12 months for CY and FY, else
+// the 6 months ending with the period's last month (for all time, with the
+// latest month that has approved monthly data).
+const TREND_MONTHS = 6;
+const trendMonths = (period: OverviewPeriod, latestMonth: string | null): string[] => {
+  if ((period.type === "cy" || period.type === "fy") && period.start && period.end) return monthsBetween(period.start, period.end);
+  const last = period.end ? period.end.slice(0, 7) : latestMonth;
+  if (!last) return [];
+  return Array.from({ length: TREND_MONTHS }, (_, i) => addMonths(last, i - TREND_MONTHS + 1));
+};
+
+// Percent change of `now` against `before`, 1 decimal; null when there is
+// nothing to compare against.
+const pctChange = (now: number, before: number | null | undefined): number | null =>
+  before === null || before === undefined || before === 0 ? null : Math.round(((now - before) / Math.abs(before)) * 1000) / 10;
+
 const monthsBetween = (start: string, end: string): string[] => {
   const out: string[] = [];
   let y = +start.slice(0, 4);
@@ -103,7 +172,14 @@ const kpiYearType = (period: OverviewPeriod): "CY" | "FY" | null =>
  *    approved yearly batch whose year overlaps the period;
  *  - the monthly series leaves out yearly batches;
  *  - tCO2e figures are rounded to 3 decimals;
- *  - by_category leaves out null-scope categories.
+ *  - by_category leaves out null-scope categories;
+ *  - trend: monthly gross/saved/net, 12 months for CY/FY, else the 6 months
+ *    ending with the period's last month (yearly batches left out; P06's
+ *    "Yearly filing" bar uses yearly_total);
+ *  - last_year: the same period a year earlier, cut to the same due months
+ *    while the period is running (status complete / year_to_date / not_due),
+ *    with kpis.net_vs_last_year_pct and by_site[].net_vs_last_year_pct
+ *    (null when last year's net is 0 or nothing is due yet).
  * siteIds defaults to every site the manager manages; any other site is 403.
  */
 export const getManagerOverview = async (req: AuthRequest, res: Response) => {
@@ -152,60 +228,69 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
         yearly_total: 0,
         by_category: [],
         submission: { month: submissionMonth(period), submitted: 0, missing: 0, users: [] },
+        trend: trendMonths(period, null).map((month) => ({ month, gross: 0, saved: 0, net: 0 })),
+        last_year: lastYear(period, []),
       });
     }
 
     // Rows in the period: monthly rows dated inside it, yearly rows whose
     // year (CY Jan-Dec, FY Apr-Mar, ending on date_of_reporting) overlaps it.
-    const filtered = () => {
+    const filtered = (p: OverviewPeriod = period) => {
       const qb = AppDataSource.getRepository(Emission)
         .createQueryBuilder("e")
         .leftJoin("e.category", "c")
         .where("e.site_id IN (:...siteIds)", { siteIds });
       if (categoryId) qb.andWhere("e.category_id = :categoryId", { categoryId });
-      if (period.start && period.end) {
+      if (p.start && p.end) {
         qb.andWhere(
           `((e.reporting_period IS DISTINCT FROM 'yearly' AND e.date_of_reporting BETWEEN :start AND :end)
             OR (e.reporting_period = 'yearly' AND e.date_of_reporting >= CAST(:start AS date)
                 AND (CASE WHEN e.year_type = 'FY'
                           THEN e.date_of_reporting - INTERVAL '1 year' + INTERVAL '1 day'
                           ELSE date_trunc('year', e.date_of_reporting) END) <= CAST(:end AS date)))`,
-          { start: period.start, end: period.end },
+          { start: p.start, end: p.end },
         );
       }
       return qb;
     };
     // Whether a row counts in the KPIs (see kpiYearType).
-    const yt = kpiYearType(period);
-    const countedSql =
-      period.type === "all"
-        ? "(e.pk_id IS NOT NULL)" // always true; a bare TRUE cannot be grouped by
-        : yt
-          ? "(e.reporting_period IS DISTINCT FROM 'yearly' OR (e.year_type = :kpiYearType AND e.date_of_reporting = CAST(:end AS date)))"
-          : "(e.reporting_period IS DISTINCT FROM 'yearly')";
-    const countedParams = { kpiYearType: yt, end: period.end };
+    const countedFor = (p: OverviewPeriod) => {
+      const yt = kpiYearType(p);
+      const sql =
+        p.type === "all"
+          ? "(e.pk_id IS NOT NULL)" // always true; a bare TRUE cannot be grouped by
+          : yt
+            ? "(e.reporting_period IS DISTINCT FROM 'yearly' OR (e.year_type = :kpiYearType AND e.date_of_reporting = CAST(:end AS date)))"
+            : "(e.reporting_period IS DISTINCT FROM 'yearly')";
+      return { sql, params: { kpiYearType: yt, end: p.end } };
+    };
+    const { sql: countedSql, params: countedParams } = countedFor(period);
 
     // Approved tCO2e by site x category x month x period type; everything
     // else is summed from these rows in JS.
-    const approved = await filtered()
+    const approvedRows = (p: OverviewPeriod) => {
+      const counted = countedFor(p);
+      return filtered(p)
       .select("e.site_id", "site_id")
       .addSelect("e.category_id", "category_id")
       .addSelect("c.category_name", "category_name")
       .addSelect("c.scope", "scope")
       .addSelect("to_char(e.date_of_reporting, 'YYYY-MM')", "month")
       .addSelect("(e.reporting_period = 'yearly')", "yearly")
-      .addSelect(countedSql, "counted")
+      .addSelect(counted.sql, "counted")
       .addSelect("SUM(e.total_emission)", "total")
       .andWhere("e.status = 'approved'")
-      .setParameters(countedParams)
+      .setParameters(counted.params)
       .groupBy("e.site_id")
       .addGroupBy("e.category_id")
       .addGroupBy("c.category_name")
       .addGroupBy("c.scope")
       .addGroupBy("to_char(e.date_of_reporting, 'YYYY-MM')")
       .addGroupBy("(e.reporting_period = 'yearly')")
-      .addGroupBy(countedSql)
+      .addGroupBy(counted.sql)
       .getRawMany();
+    };
+    const approved = await approvedRows(period);
     const inKpis = approved.filter((r) => r.counted);
 
     const counts = await filtered()
@@ -303,11 +388,82 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
 
     const submission = await submissionFor(submissionMonth(period), siteIds);
 
-    return res.json({ ...base, kpis, by_scope, by_site, by_month, yearly_total, by_category, submission });
+    // Trend: approved monthly entries per month (yearly batches left out, as
+    // in by_month), over trendMonths().
+    let latestMonth: string | null = null;
+    if (period.type === "all") {
+      const latest = await filtered()
+        .select("to_char(MAX(e.date_of_reporting), 'YYYY-MM')", "month")
+        .andWhere("e.status = 'approved'")
+        .andWhere("e.reporting_period IS DISTINCT FROM 'yearly'")
+        .getRawOne();
+      latestMonth = latest?.month ?? null;
+    }
+    const trendKeys = trendMonths(period, latestMonth);
+    let trend: { month: string; gross: number; saved: number; net: number }[] = [];
+    if (trendKeys.length) {
+      const [y, m] = trendKeys[trendKeys.length - 1].split("-").map(Number);
+      const rows = await filtered({ key: "trend", type: "month", start: `${trendKeys[0]}-01`, end: ymd(y, m, lastDay(y, m)) })
+        .select("to_char(e.date_of_reporting, 'YYYY-MM')", "month")
+        .addSelect("(c.scope IS NULL)", "saved")
+        .addSelect("SUM(e.total_emission)", "total")
+        .andWhere("e.status = 'approved'")
+        .andWhere("e.reporting_period IS DISTINCT FROM 'yearly'")
+        .groupBy("to_char(e.date_of_reporting, 'YYYY-MM')")
+        .addGroupBy("(c.scope IS NULL)")
+        .getRawMany();
+      trend = trendKeys.map((month) => {
+        const gross = num(rows.find((r) => r.month === month && !r.saved)?.total);
+        const saved = num(rows.find((r) => r.month === month && r.saved)?.total);
+        return { month, gross: r3(gross), saved: r3(saved), net: r3(gross - saved) };
+      });
+    }
+
+    // The same period last year, on the same rules as the KPIs.
+    const ly = lastYearComparison(period);
+    const lyRows = ly ? (await approvedRows(ly.period)).filter((r) => r.counted) : [];
+    const last_year = lastYear(period, siteIds, lyRows);
+    const compared = last_year && last_year.status !== "not_due" ? last_year : null;
+    kpis.net_vs_last_year_pct = pctChange(kpis.net, compared?.kpis.net);
+    const by_site_ly = by_site.map((s) => ({
+      ...s,
+      net_vs_last_year_pct: pctChange(s.net, compared?.by_site.find((x) => x.site_id === s.site_id)?.net),
+    }));
+
+    return res.json({ ...base, kpis, by_scope, by_site: by_site_ly, by_month, yearly_total, by_category, submission, trend, last_year });
   } catch (error) {
     console.error("Manager overview error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
+};
+
+type ApprovedRow = { site_id: number; scope: string | null; total: unknown };
+
+// Gross/saved/net and per-scope figures of last year's counted approved rows
+// (see lastYearComparison), in total and per site; null when the period has
+// no last year (all time).
+const lastYear = (period: OverviewPeriod, siteIds: number[], rows: ApprovedRow[] = []) => {
+  const ly = lastYearComparison(period);
+  if (!ly) return null;
+  const split = (rs: ApprovedRow[]) => {
+    const t = (scope: string | null) => rs.filter((r) => r.scope === scope).reduce((s, r) => s + num(r.total), 0);
+    const scope_1 = t("Scope 1");
+    const scope_2 = t("Scope 2");
+    const scope_3 = t("Scope 3");
+    const saved = t(null);
+    const gross = scope_1 + scope_2 + scope_3;
+    return { gross: r3(gross), net: r3(gross - saved), saved: r3(saved), scope_1: r3(scope_1), scope_2: r3(scope_2), scope_3: r3(scope_3) };
+  };
+  const kpis = split(rows);
+  return {
+    period: ly.period,
+    status: ly.status,
+    kpis,
+    by_site: siteIds.map((site_id) => {
+      const { gross, saved, net } = split(rows.filter((r) => r.site_id === site_id));
+      return { site_id, gross, saved, net };
+    }),
+  };
 };
 
 const emptyKpis = () => ({
@@ -322,6 +478,7 @@ const emptyKpis = () => ({
   pending_count: 0,
   rejected_count: 0,
   pending_emission: 0,
+  net_vs_last_year_pct: null as number | null,
 });
 
 // Contributors (role User) on the selected sites and whether they filed
