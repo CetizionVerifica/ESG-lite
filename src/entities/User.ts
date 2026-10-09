@@ -11,6 +11,10 @@ import { Site } from "./Site";
 import { Category } from "./Category";
 import { UserRole } from "../types/type";
 
+// Per-user colour scheme for the app (redesign F1/P14). "system" follows the OS.
+export const USER_APPEARANCES = ["light", "dark", "system"] as const;
+export type UserAppearance = (typeof USER_APPEARANCES)[number];
+
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
@@ -67,6 +71,9 @@ export class User {
   // User timezone (IANA format, e.g. "Asia/Dubai")
   @Column({ type: "varchar", nullable: true })
   timezone!: string | null;
+
+  @Column({ type: "varchar", length: 10, default: "system" })
+  appearance!: UserAppearance;
 
   // Per-user category access control (managed by Manager role)
   @ManyToMany(() => Category)
