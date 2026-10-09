@@ -45,8 +45,10 @@ export class PcfInput {
   @JoinColumn({ name: "recycled_material_factor_id" })
   recycled_material_factor!: MaterialFactor | null;
 
-  // A2 legs reuse the existing DEFRA freight rows (tonne.km).
-  @ManyToOne(() => EmissionFactor, { nullable: true })
+  // A2 legs reuse the existing DEFRA freight rows (tonne.km). SET NULL so the
+  // existing factor delete and re-upload flows keep working; a calculated
+  // result keeps the value in its factor_snapshot.
+  @ManyToOne(() => EmissionFactor, { nullable: true, onDelete: "SET NULL" })
   @JoinColumn({ name: "emission_factor_id" })
   emission_factor!: EmissionFactor | null;
 
