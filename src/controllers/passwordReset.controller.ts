@@ -50,8 +50,8 @@ export const forgotPassword = async (req: Request, res: Response) => {
       await sendPasswordResetEmail(user.email, resetToken, user.name);
     } catch (emailError) {
       // If email fails, clear the token
-      user.password_reset_token = undefined;
-      user.password_reset_expires = undefined;
+      user.password_reset_token = null as any; // null, not undefined: save() skips undefined
+      user.password_reset_expires = null as any;
       await userRepository.save(user);
 
       console.error("Failed to send password reset email:", emailError);
@@ -111,8 +111,8 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     // Update password and clear reset token fields
     user.password = hashedPassword;
-    user.password_reset_token = undefined;
-    user.password_reset_expires = undefined;
+    user.password_reset_token = null as any; // null, not undefined: save() skips undefined
+    user.password_reset_expires = null as any;
 
     await userRepository.save(user);
 

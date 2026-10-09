@@ -84,9 +84,12 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
     if (emission_id) {
       const emission = await emissionRepo.findOne({
         where: { pk_id: parseInt(emission_id) },
+        relations: ["site"],
       });
+      const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-      if (!emission) {
+      // Another company's entry reads as not found.
+      if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
         return res.status(404).json({
           message: "Emission not found",
         });
@@ -156,9 +159,12 @@ export const uploadMultipleDocuments = async (req: AuthRequest, res: Response) =
     if (emission_id) {
       const emission = await emissionRepo.findOne({
         where: { pk_id: parseInt(emission_id) },
+        relations: ["site"],
       });
+      const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-      if (!emission) {
+      // Another company's entry reads as not found.
+      if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
         return res.status(404).json({
           message: "Emission not found",
         });

@@ -114,3 +114,32 @@ test("login and session responses carry no password hash", async () => {
     await withDb((db) => db.query(`UPDATE "user" SET password = 'x' WHERE user_id = 1`));
   }
 });
+
+test("a password reset link works once: the token is cleared after use", async () => {
+  const crypto = require("crypto");
+  const token = "ci-reset-token";
+  const hashed = crypto.createHash("sha256").update(token).digest("hex");
+  await withDb((db) =>
+    db.query(`UPDATE "user" SET password_reset_token = $1, password_reset_expires = now() + interval '1 hour' WHERE user_id = 1`, [hashed]),
+  );
+  try {
+    const first = await call("POST", "/auth/reset-password", null, { token, password: "new-password-1" });
+    assert.equal(first.status, 200);
+    const row = await withDb((db) => db.query(`SELECT password_reset_token, password_reset_expires FROM "user" WHERE user_id = 1`));
+    assert.deepEqual(row.rows[0], { password_reset_token: null, password_reset_expires: null });
+    const again = await call("POST", "/auth/reset-password", null, { token, password: "new-password-2" });
+    assert.equal(again.status, 400);
+  } finally {
+    await withDb((db) => db.query(`UPDATE "user" SET password = 'x', password_reset_token = NULL, password_reset_expires = NULL WHERE user_id = 1`));
+  }
+});
+
+test("documents cannot be attached to another company's entry", async () => {
+  for (const path of ["/user/documents", "/user/documents/multiple"]) {
+    const form = new FormData();
+    form.append(path.endsWith("multiple") ? "files" : "file", new Blob(["x"], { type: "application/pdf" }), "x.pdf");
+    form.append("emission_id", "8"); // site 3, company 2
+    const res = await call("POST", path, "user", form);
+    assert.equal(res.status, 404, path);
+  }
+});
