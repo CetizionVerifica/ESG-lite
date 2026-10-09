@@ -1402,7 +1402,8 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
 
-    await pcfDataChanged("emission", eligibleIds);
+    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1529,7 +1530,8 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
 
-    await pcfDataChanged("emission", eligibleIds);
+    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1809,7 +1811,6 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
     emission.reviewed_at = new Date();
 
     await repo.save(emission);
-    await pcfDataChanged("emission", [emission.pk_id]);
 
     // Auto-approve linked FERA entries (bidirectional)
     const feraLinkedIds: number[] = [];
@@ -1826,6 +1827,8 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
         await repo.save(feraEmission);
       }
     }
+
+    await pcfDataChanged("emission", [emission.pk_id, ...feraLinkedIds]);
 
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -1939,6 +1942,8 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
         await repo.save(feraEmission);
       }
     }
+
+    await pcfDataChanged("emission", [emission.pk_id, ...feraLinkedIds]);
 
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -2057,7 +2062,8 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
 
-    await pcfDataChanged("emission", eligibleIds);
+    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -2189,7 +2195,8 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
 
-    await pcfDataChanged("emission", eligibleIds);
+    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);

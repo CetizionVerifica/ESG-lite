@@ -4,7 +4,8 @@
 // change rows. A footprint in review, approved or published becomes stale when
 //   - a row its result used changed (edited, re-reviewed or deleted), or
 //   - a row it would now use was approved: approved Scope 1/2 emissions or
-//     approved production at its site, inside its reference period.
+//     approved production at its site whose whole period lies inside its
+//     reference period (the same rule as src/pcf/plantData.ts).
 // Its owner (the creator) gets a notification. Stored results are never
 // recalculated here; a new version is the way to update them.
 // Never throws: a failure here must not undo or fail the caller's write.
@@ -24,10 +25,10 @@ const SQL: Record<Kind, string> = {
            SELECT 1 FROM emission e JOIN category c ON c.category_id = e.category_id
             WHERE e.pk_id = ANY($1::int[]) AND e.status = 'approved' AND e.site_id = s.site_id
               AND c.scope ~ '[12]'
-              AND e.date_of_reporting >= s.reference_start
+              AND e.date_of_reporting <= s.reference_end
               AND (CASE WHEN e.reporting_period = 'yearly'
                         THEN (e.date_of_reporting - INTERVAL '1 year' + INTERVAL '1 day')::date
-                        ELSE e.date_of_reporting END) <= s.reference_end))
+                        ELSE e.date_of_reporting END) >= s.reference_start))
     RETURNING s.pcf_study_id, s.created_by, s.version, s.product_id`,
   production: `
     UPDATE pcf_study s SET stale = true
@@ -38,7 +39,7 @@ const SQL: Record<Kind, string> = {
          OR EXISTS (
            SELECT 1 FROM production_data p
             WHERE p.production_id = ANY($1::int[]) AND p.status = 'approved' AND p.site_id = s.site_id
-              AND p.end_date >= s.reference_start AND p.start_date <= s.reference_end))
+              AND p.start_date >= s.reference_start AND p.end_date <= s.reference_end))
     RETURNING s.pcf_study_id, s.created_by, s.version, s.product_id`,
 };
 

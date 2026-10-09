@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const { call, withDb } = require("../helpers.cjs");
 
 const ids = { products: [], emissions: [], production: [] };
-let rod, alu, used, laterSite2, site1, otherProduction;
+let rod, alu, used, laterSite2, site1, partialFy, otherProduction;
 
 const staleOf = async (id) => (await call("GET", `/pcf/studies/${id}`, "manager")).json.stale;
 const staleNotes = () =>
@@ -44,11 +44,12 @@ test.before(async () => {
       `INSERT INTO emission (activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, upload_batch_id) VALUES
          ('{}', 1000, 'tCO2e', '2022-06-30', 'approved', 7, 1, 2, 'monthly', 'pcf-stale-batch'),
          ('{}', 500,  'tCO2e', '2022-07-31', 'pending',  7, 1, 2, 'monthly', NULL),
-         ('{}', 40,   'tCO2e', '2022-07-31', 'pending',  1, 1, 1, 'monthly', NULL)
+         ('{}', 40,   'tCO2e', '2022-07-31', 'pending',  1, 1, 1, 'monthly', NULL),
+         ('{}', 900,  'tCO2e', '2022-03-31', 'pending',  7, 2, 2, 'yearly',  NULL)
        RETURNING pk_id`,
     );
     ids.emissions = em.rows.map((r) => r.pk_id);
-    [used, laterSite2, site1] = ids.emissions;
+    [used, laterSite2, site1, partialFy] = ids.emissions;
   });
   alu = (await call("POST", "/pcf/material-factors", "manager", { name: "Stale alu", material_group: "aluminium", unit: "kg", value_kgco2e: 8.6 })).json.material_factor_id;
 });
@@ -72,6 +73,11 @@ test("approving new plant data at the site in the period makes an approved footp
   // Another site's data changes nothing.
   assert.equal((await call("PUT", `/user/emissions/${site1}/approve`, "manager", {})).status, 200);
   assert.equal(await staleOf(v1), false);
+  // Nor does a yearly batch only partly inside the period (the calculation never uses it).
+  assert.equal((await call("PUT", `/user/emissions/${partialFy}/approve`, "manager", {})).status, 200);
+  assert.equal(await staleOf(v1), false);
+  // It would block recalculating a CY 2022 version, so take it out again.
+  await withDb((db) => db.query("DELETE FROM emission WHERE pk_id = $1", [partialFy]));
 
   assert.equal((await call("PUT", `/user/emissions/${laterSite2}/approve`, "manager", {})).status, 200);
   assert.equal(await staleOf(v1), true);
