@@ -69,3 +69,21 @@ test("invalid sort or order is a 400", async () => {
   assert.equal((await page("&sort=password")).status, 400);
   assert.equal((await page("&sort=date&order=sideways")).status, 400);
 });
+
+test("inherited object keys are not sort keys (400, and the server keeps working)", async () => {
+  for (const key of ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"]) {
+    assert.equal((await page(`&sort=${key}`)).status, 400, key);
+  }
+  const after = await page("&sort=date&order=asc");
+  assert.equal(after.status, 200);
+  assert.equal(after.json.total, 13);
+});
+
+test("search matches activity values, not key names", async () => {
+  // Every fixture row has an "activity_value" key; none has it as a value.
+  assert.equal((await page("&search=activity_value")).json.total, 0);
+  assert.equal((await page("&search=Fuel")).json.total, 0);
+  assert.equal((await page("&search=Meter")).json.total, 0);
+  assert.deepEqual(ids(await page("&search=diesel")), [1]);
+  assert.deepEqual(ids(await page("&search=441242")), [2]);
+});

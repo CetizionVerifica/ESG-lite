@@ -108,19 +108,28 @@ async function dashboardData() {
 const close = (actual, expected, msg) => assert.ok(Math.abs(actual - expected) < 1e-9, `${msg}: ${actual} != ${expected}`);
 const r2 = (n) => parseFloat(n.toFixed(2));
 
+// Deliberate difference from the dashboard: for a calendar year the overview
+// counts only CY yearly batches of that year (the dashboard also counts an FY
+// batch in the year its end date falls in, e.g. FY 2025-26 in 2026). The
+// dashboard ports are fed the same rows the overview counts, and yearly_total
+// (every batch whose year overlaps the period) is checked against fixed values.
+const countsForYear = (selectedYear) => (e) =>
+  !selectedYear || e.reporting_period !== "yearly" ||
+  (e.year_type === "CY" && e.date_of_reporting.startsWith(`${selectedYear}-12-31`));
+
 const SCENARIOS = [
-  { name: "all time, all sites", query: "", selectedYear: null, selectedCategory: null, sites: [1, 2] },
-  { name: "2024, all sites", query: "period=2024", selectedYear: 2024, selectedCategory: null, sites: [1, 2] },
-  { name: "2025, all sites", query: "period=2025", selectedYear: 2025, selectedCategory: null, sites: [1, 2] },
-  { name: "2025, Plant B only", query: "period=2025&siteIds=2", selectedYear: 2025, selectedCategory: null, sites: [2] },
-  { name: "2025, Stationary Combustion", query: "period=2025&categoryId=1", selectedYear: 2025, selectedCategory: 1, sites: [1, 2] },
-  { name: "2026, all sites", query: "period=2026", selectedYear: 2026, selectedCategory: null, sites: [1, 2] },
+  { name: "all time, all sites", query: "", selectedYear: null, selectedCategory: null, sites: [1, 2], yearly: 200 },
+  { name: "2024, all sites", query: "period=2024", selectedYear: 2024, selectedCategory: null, sites: [1, 2], yearly: 80 },
+  { name: "2025, all sites", query: "period=2025", selectedYear: 2025, selectedCategory: null, sites: [1, 2], yearly: 120 },
+  { name: "2025, Plant B only", query: "period=2025&siteIds=2", selectedYear: 2025, selectedCategory: null, sites: [2], yearly: 120 },
+  { name: "2025, Stationary Combustion", query: "period=2025&categoryId=1", selectedYear: 2025, selectedCategory: 1, sites: [1, 2], yearly: 0 },
+  { name: "2026, all sites", query: "period=2026", selectedYear: 2026, selectedCategory: null, sites: [1, 2], yearly: 120 },
 ];
 
 for (const sc of SCENARIOS) {
   test(`overview matches the dashboard: ${sc.name}`, async () => {
     const perSite = await dashboardData();
-    const emissions = sc.sites.flatMap((id) => perSite[id]);
+    const emissions = sc.sites.flatMap((id) => perSite[id]).filter(countsForYear(sc.selectedYear));
     const filtered = filterEmissions(emissions, sc);
 
     const res = await call("GET", `/manager/overview?${sc.query}`, "manager");
@@ -135,7 +144,8 @@ for (const sc of SCENARIOS) {
       { pending: o.kpis.pending_count, approved: o.kpis.approved_count, rejected: o.kpis.rejected_count },
       st,
     );
-    assert.equal(r2(o.yearly_total), feYearlyTotal(filtered));
+    assert.equal(o.yearly_total, sc.yearly);
+    if (!sc.selectedYear) assert.equal(r2(o.yearly_total), feYearlyTotal(filtered));
 
     const feCats = feCategoryChart(filtered).sort((a, b) => a.name.localeCompare(b.name));
     const beCats = o.by_category.map((c) => ({ name: c.category_name, value: r2(c.total) })).sort((a, b) => a.name.localeCompare(b.name));
@@ -150,7 +160,10 @@ for (const sc of SCENARIOS) {
       // year from its own picker; compare it on the same footing.
       if (!sc.selectedCategory) {
         const approvedSites = Object.fromEntries(
-          Object.entries(perSite).map(([id, rows]) => [id, rows.filter((e) => e.status === "approved")]),
+          Object.entries(perSite).map(([id, rows]) => [
+            id,
+            rows.filter((e) => e.status === "approved").filter(countsForYear(sc.selectedYear)),
+          ]),
         );
         const feSites = feSiteComparison(MANAGER_SITES.filter((s) => sc.sites.includes(s.site_id)), approvedSites, sc.selectedYear);
         assert.deepEqual(o.by_site.map((s) => ({ site_id: s.site_id, value: r2(s.total) })), feSites);
@@ -207,4 +220,59 @@ test("role and site checks", async () => {
   const other = (await call("GET", "/manager/overview?period=2025", "otherManager")).json;
   assert.deepEqual(other.site_ids, [3]);
   close(other.kpis.gross, 999, "other company sees only its own site");
+});
+
+test("yearly batches count only in a whole year of their own type", async () => {
+  const get = async (q) => (await call("GET", `/manager/overview?${q}`, "manager")).json;
+
+  // The CY 2024 batch (80 t, site 1, Scope 2) is not December's data.
+  const dec = await get("period=2024-12");
+  assert.equal(dec.kpis.gross, 0);
+  assert.equal(dec.kpis.scope_2, 0);
+  assert.equal(dec.yearly_total, 80);
+  assert.equal(dec.by_site.find((s) => s.site_id === 1).total, 0);
+  assert.deepEqual(dec.by_category, []);
+
+  // Nor is the FY 2025-26 batch (120 t, site 2) Q1 2026's.
+  const q1 = await get("period=2026-Q1");
+  assert.equal(q1.kpis.gross, 0);
+  assert.equal(q1.kpis.entries, 0);
+  assert.equal(q1.yearly_total, 120);
+
+  // FY 2025-26 counts it: 120 + 4.29 + 1.0 + 10 approved monthly.
+  const fy = await get("period=FY2025-26");
+  assert.equal(fy.kpis.gross, 135.29);
+  assert.equal(fy.kpis.scope_2, 120);
+  assert.equal(fy.by_site.find((s) => s.site_id === 2).total, 130);
+
+  // CY 2025 does not count the FY batch; it is still listed in yearly_total.
+  const cy = await get("period=2025");
+  assert.equal(cy.kpis.scope_2, 0);
+  assert.equal(cy.yearly_total, 120);
+
+  // FY 2024-25 overlaps CY 2024 (Apr-Dec) but does not count it.
+  const fy24 = await get("period=FY2024-25");
+  assert.equal(fy24.kpis.gross, 61);
+  assert.equal(fy24.kpis.saved, 5);
+  assert.equal(fy24.yearly_total, 80);
+
+  // CY 2024 counts its own CY batch.
+  const cy24 = await get("period=2024");
+  assert.equal(cy24.kpis.scope_2, 80);
+});
+
+test("totals are rounded to 3 decimals", async () => {
+  const all = (await call("GET", "/manager/overview", "manager")).json;
+  assert.equal(all.kpis.gross, 276.29);
+  assert.equal(all.kpis.net, 271.29);
+  for (const v of [all.kpis.gross, all.kpis.net, ...all.by_site.map((s) => s.total), ...all.by_category.map((c) => c.total)]) {
+    assert.equal(v, Math.round(v * 1000) / 1000);
+  }
+});
+
+test("categoryId must be a positive integer", async () => {
+  for (const bad of ["0", "-1", "1.5", "abc", "1abc"]) {
+    assert.equal((await call("GET", `/manager/overview?categoryId=${bad}`, "manager")).status, 400, bad);
+  }
+  assert.equal((await call("GET", "/manager/overview?categoryId=2", "manager")).status, 200);
 });
