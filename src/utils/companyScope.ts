@@ -2,6 +2,7 @@ import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
+import { UserRole } from "../types/type";
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -81,4 +82,28 @@ export const collectSiteCategories = (sites: Site[]): Category[] => {
     }
   }
   return result;
+};
+
+/**
+ * Site ids a user may read: their own site(s) for Users and Managers, every
+ * site of their company for company Admins. Null means unrestricted
+ * (Superadmin).
+ */
+export const accessibleSiteIds = async (
+  userId: number,
+  role: string
+): Promise<Set<number> | null> => {
+  if (role === UserRole.SUPERADMIN) return null;
+  if (role === UserRole.ADMIN) {
+    const companyId = await resolveUserCompanyId(userId);
+    return companyId ? getCompanySiteIds(companyId) : new Set();
+  }
+  const user = await userRepo.findOne({
+    where: { user_id: userId },
+    relations: ["site", "sites"],
+  });
+  const ids = new Set<number>();
+  if (user?.site) ids.add(user.site.site_id);
+  (user?.sites || []).forEach((site) => ids.add(site.site_id));
+  return ids;
 };
