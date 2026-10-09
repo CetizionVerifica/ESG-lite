@@ -1,0 +1,138 @@
+# Safety checks for every change headed to redesign/integration or main.
+#
+# Nothing here can reach production: there are no repository secrets in this
+# file (ci/check_ci_isolation.py enforces that), every database step talks to
+# the disposable Postgres container below, and the scripts refuse any other
+# host (ci/lib/throwaway-db.cjs).
+name: CI
+
+on:
+  pull_request:
+    branches: [main, redesign/integration]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main, redesign/integration]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: UTC
+  NODE_VERSION: "22"
+  # Throwaway database settings; DB_NAME must start with ci_.
+  CI_THROWAWAY_DB: "true"
+  DB_HOST: localhost
+  DB_PORT: "5432"
+  DB_USERNAME: postgres
+  DB_PASSWORD: postgres
+  NODE_ENV: test
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+  # True only when a reviewer has put the data-loss-reviewed label on the PR.
+  DATA_LOSS_REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'data-loss-reviewed') }}
+
+jobs:
+  build:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+
+  data-safety:
+    name: Data safety
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ci_bootstrap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: CI has no production access
+        run: python3 ci/check_ci_isolation.py
+
+      - name: No destructive schema or data changes
+        if: github.event_name == 'pull_request'
+        run: python3 ci/check_destructive_changes.py "origin/${{ github.base_ref }}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Check out the base branch
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: .ci-base
+      - name: Build the base branch
+        if: github.event_name == 'pull_request'
+        working-directory: .ci-base
+        run: npm ci && npm run build
+
+      - name: Create throwaway databases
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_migrate'
+          psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_golden'
+
+      - name: Build the schema production has today (base branch entities)
+        env:
+          DB_NAME: ci_migrate
+        run: node ci/schema-sync.cjs "${{ github.event_name == 'pull_request' && '.ci-base/dist' || 'dist' }}"
+
+      - name: Run this branch's migrate scripts twice (must be idempotent)
+        env:
+          DB_NAME: ci_migrate
+        run: |
+          scripts=$(node -e 'console.log(Object.keys(require("./package.json").scripts).filter(s=>s.startsWith("migrate:")).join(" "))')
+          for pass in 1 2; do
+            for s in $scripts; do
+              echo "::group::pass $pass: npm run $s"
+              npm run "$s"
+              echo "::endgroup::"
+            done
+          done
+
+      - name: Entities match the migrated schema with nothing destructive
+        env:
+          DB_NAME: ci_migrate
+        run: node ci/schema-diff.cjs
+
+      - name: Calculation results match the locked snapshot
+        env:
+          DB_NAME: ci_golden
+        run: |
+          node ci/schema-sync.cjs dist
+          node ci/golden/run.cjs
+
+      - name: Upload changed calculation results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-actual
+          path: golden-actual.json
+          if-no-files-found: ignore
