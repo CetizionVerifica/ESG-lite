@@ -44,3 +44,26 @@ SELECT setval(pg_get_serial_sequence('company', 'company_id'), 100);
 SELECT setval(pg_get_serial_sequence('site', 'site_id'), 100);
 SELECT setval(pg_get_serial_sequence('category', 'category_id'), 100);
 SELECT setval(pg_get_serial_sequence('"user"', 'user_id'), 100);
+
+-- Emissions used by the B4–B8 tests. Totals are in tCO2e.
+--   2025-09: site 1 has one category per status, site 2 is partly filed,
+--            site 2 / Purchased Electricity is covered by an FY 2025-26 batch.
+--   2024:    a small year for the overview comparisons.
+--   site 3 belongs to company 2 and must never show up for company 1 users.
+INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, review_comment,
+                      reviewed_by, created_by, category_id, site_id, reporting_period, year_type, fera_linked_id, created_at) VALUES
+  (1,  '{"activity_value": 1600, "Fuel": "Diesel"}',   4.29,  'tCO2e', '2025-09-30', 'approved', NULL,        2, 1, 1, 1, 'monthly', NULL, NULL, '2025-10-02 09:00'),
+  (2,  '{"activity_value": 441242, "Meter": "Main"}',  312.4, 'tCO2e', '2025-09-30', 'pending',  NULL,     NULL, 1, 2, 1, 'monthly', NULL, NULL, '2025-10-03 09:00'),
+  (3,  '{"activity_value": 10, "Trip": "Mumbai"}',     1.0,   'tCO2e', '2025-09-15', 'approved', NULL,        2, 1, 3, 1, 'monthly', NULL, NULL, '2025-10-04 09:00'),
+  (4,  '{"activity_value": 20, "Trip": "Delhi"}',      2.0,   'tCO2e', '2025-09-20', 'rejected', 'Wrong unit, should be km', 2, 1, 3, 1, 'monthly', NULL, NULL, '2025-10-05 09:00'),
+  (5,  '{"activity_value": 1}',                        0.5,   'tCO2e', '2025-09-30', 'pending',  NULL,     NULL, 1, 5, 1, 'monthly', NULL, 1,    '2025-10-02 09:05'),
+  (6,  '{"activity_value": 120}',                      10.0,  'tCO2e', '2025-08-31', 'approved', NULL,        2, 7, 1, 2, 'monthly', NULL, NULL, '2025-09-05 09:00'),
+  (7,  '{"activity_value": 170000}',                   120.0, 'tCO2e', '2026-03-31', 'approved', NULL,        2, 7, 2, 2, 'yearly',  'FY', NULL, '2025-06-01 09:00'),
+  (8,  '{"activity_value": 9}',                        999.0, 'tCO2e', '2025-09-30', 'approved', NULL,        6, 4, 1, 3, 'monthly', NULL, NULL, '2025-10-02 09:00'),
+  (9,  '{"activity_value": 18}',                       50.0,  'tCO2e', '2024-05-31', 'approved', NULL,        2, 1, 1, 1, 'monthly', NULL, NULL, '2024-06-02 09:00'),
+  (10, '{"activity_value": 7000}',                     5.0,   'tCO2e', '2024-05-31', 'approved', NULL,        2, 1, 4, 1, 'monthly', NULL, NULL, '2024-06-02 09:00'),
+  (11, '{"activity_value": 9900}',                     7.0,   'tCO2e', '2024-11-30', 'pending',  NULL,     NULL, 7, 2, 2, 'monthly', NULL, NULL, '2024-12-02 09:00'),
+  (12, '{"activity_value": 1}',                        3.0,   'tCO2e', '2024-12-31', 'rejected', 'Duplicate', 2, 7, 1, 2, 'monthly', NULL, NULL, '2025-01-02 09:00'),
+  (13, '{"activity_value": 30}',                       80.0,  'tCO2e', '2024-12-31', 'approved', NULL,        2, 1, 2, 1, 'yearly',  'CY', NULL, '2025-01-10 09:00'),
+  (14, '{"activity_value": 4}',                        11.0,  'tCO2e', '2025-02-28', 'approved', NULL,        2, 1, 3, 1, 'monthly', NULL, NULL, '2025-03-02 09:00');
+SELECT setval(pg_get_serial_sequence('emission', 'pk_id'), 100);

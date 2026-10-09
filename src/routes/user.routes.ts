@@ -65,6 +65,7 @@ import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.con
 import { getAuditLogs } from "../controllers/auditLog.controller";
 import { exportEmissions } from "../controllers/emissionExport.controller";
 import { getThresholdByCompany } from "../controllers/threshold.controller";
+import { getMyMonth } from "../controllers/myMonth.controller";
 
 const router = Router();
 
@@ -76,6 +77,9 @@ const documentUpload = multer({
 
 // All routes require authentication but NOT superadmin
 router.use(authenticate);
+
+// Contributor checklist for a month (redesign P02)
+router.get("/my-month", getMyMonth);
 
 // Get site by ID (user can access their own site's data)
 router.get("/sites/:id", getSiteById);
