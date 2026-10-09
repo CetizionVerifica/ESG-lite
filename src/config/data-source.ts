@@ -19,6 +19,11 @@ import { Notification } from "../entities/Notification";
 import { Brand } from "../entities/Brand";
 import dotenv from "dotenv";
 import { EmissionThreshold } from "../entities/Threshold";
+import { MaterialFactor } from "../entities/MaterialFactor";
+import { PcfStudy } from "../entities/PcfStudy";
+import { PcfInput } from "../entities/PcfInput";
+import { PcfAllocation } from "../entities/PcfAllocation";
+import { PcfResult } from "../entities/PcfResult";
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -45,6 +50,11 @@ const entities = [
     Notification,
     Brand,
     EmissionThreshold,
+    MaterialFactor,
+    PcfStudy,
+    PcfInput,
+    PcfAllocation,
+    PcfResult,
 ];
 
 // Parse DATABASE_URL to extract connection parameters
