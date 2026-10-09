@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
@@ -61,6 +62,14 @@ export class EmissionDocument {
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: "uploaded_by" })
   uploaded_by!: User;
+
+  // Set when the file is a bill the AI service extracted (python_AI_service
+  // `invoice.invoice_id`). The Cloudinary file then belongs to that invoice:
+  // deleting this document must not delete it. No FK: the invoice table is
+  // owned by the AI service.
+  @Index()
+  @Column({ type: "integer", nullable: true })
+  ai_invoice_id!: number | null;
 
   @CreateDateColumn()
   created_at!: Date;
