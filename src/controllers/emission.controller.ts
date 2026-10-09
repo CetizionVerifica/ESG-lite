@@ -20,6 +20,7 @@ import { createNotification } from "../services/notificationService";
 import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
 import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
+import { computeBreakdown, type BreakdownSourceRow } from "../services/emissionBreakdown";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, siteFilterSql, SITE_ACCESS_DENIED } from "../utils/companyScope";
 import {
@@ -323,6 +324,65 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+// GET /user/emissions/breakdown?categoryId=… (+ siteIds, year, month, status,
+// search as on GET /user/emissions): consumption and tCO₂e per emission
+// category for one category, computed here instead of paging every row to
+// the browser. FERA rows have their own category, so they never mix in.
+export const getEmissionBreakdown = async (req: AuthRequest, res: Response) => {
+  try {
+    const { year, month, status } = req.query;
+    const categoryId = parseInt(String(req.query.categoryId ?? ""));
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ message: "categoryId is required" });
+    }
+    if (status !== undefined && !["pending", "approved", "rejected"].includes(String(status))) {
+      return res.status(400).json({ message: "status must be pending, approved or rejected" });
+    }
+    const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
+    const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, siteIds);
+    if (scoped.forbidden) return res.status(403).json(SITE_ACCESS_DENIED);
+
+    const searchText = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+
+    const qb = repo
+      .createQueryBuilder("emission")
+      .select(["emission.pk_id", "emission.activity_data", "emission.activity_data_unit", "emission.total_emission"])
+      .leftJoin("emission.site", "site")
+      .leftJoin("emission.category", "category")
+      .leftJoin("emission.created_by", "created_by")
+      .where("category.category_id = :categoryId", { categoryId });
+    if (scoped.siteIds) qb.andWhere(siteFilterSql("site.site_id", scoped.siteIds), { scopedSiteIds: scoped.siteIds });
+    if (status) qb.andWhere("emission.status = :status", { status: String(status) });
+    if (year) qb.andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", { year: parseInt(String(year)) });
+    if (month) qb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", { month: parseInt(String(month)) });
+    if (searchText) {
+      qb.andWhere(emissionSearchSql({ e: "emission", c: "category", s: "site", u: "created_by" }), {
+        search: `%${searchText.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`,
+        searchExact: searchText,
+      });
+    }
+
+    // Number columns of the category's capture forms: the fallback activity value.
+    const configQb = columnConfigRepo
+      .createQueryBuilder("config")
+      .leftJoin("config.category", "c")
+      .leftJoin("config.site", "s")
+      .leftJoinAndSelect("config.columns", "col")
+      .where("c.category_id = :categoryId", { categoryId });
+    if (scoped.siteIds) configQb.andWhere(siteFilterSql("s.site_id", scoped.siteIds), { scopedSiteIds: scoped.siteIds });
+
+    const [rows, configs] = await Promise.all([qb.getMany(), configQb.getMany()]);
+    const numberColumns = [
+      ...new Set(configs.flatMap((cfg) => (cfg.columns ?? []).filter((c) => c.column_type === "number").map((c) => c.column_name))),
+    ];
+    const groups = computeBreakdown(rows as BreakdownSourceRow[], numberColumns);
+    return res.status(200).json({ category_id: categoryId, entries: rows.length, groups });
+  } catch (error) {
+    console.error("Emission breakdown error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 

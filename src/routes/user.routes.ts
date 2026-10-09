@@ -5,6 +5,7 @@ import { getSiteById } from "../controllers/site.controller";
 import { getColumnConfigsBySiteAndCategory } from "../controllers/columnConfig.controller";
 import {
   getEmissions,
+  getEmissionBreakdown,
   getEmissionsBySiteAndCategory,
   createEmission,
   updateEmission,
@@ -97,6 +98,7 @@ router.post("/emissions", createEmission);
 // Download emissions as Excel (must come before :id routes)
 router.get("/emissions/download", downloadEmissions);
 router.get("/emissions/export", exportEmissions);
+router.get("/emissions/breakdown", getEmissionBreakdown);
 
 // Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
 router.put("/emissions/bulk-approve", bulkApproveEmissions);
