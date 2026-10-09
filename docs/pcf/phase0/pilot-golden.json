@@ -251,6 +251,7 @@
       "stage": "A2",
       "name": "Molten metal, smelter to plant (road)",
       "carried_input_id": "I1",
+      "mass_t_per_unit": 0.001012,
       "factor_id": "F-ROAD",
       "distance_km": 5,
       "data_type": "primary",
@@ -263,6 +264,7 @@
       "stage": "A2",
       "name": "Master alloy, Rotterdam to Khalifa Bin Salman port (sea)",
       "carried_input_id": "I2",
+      "mass_t_per_unit": 2e-06,
       "factor_id": "F-SEA",
       "distance_km": 11800,
       "data_type": "secondary",
@@ -275,6 +277,7 @@
       "stage": "A2",
       "name": "Master alloy, port to plant (road)",
       "carried_input_id": "I2",
+      "mass_t_per_unit": 2e-06,
       "factor_id": "F-ROAD",
       "distance_km": 40,
       "data_type": "secondary",
@@ -287,6 +290,7 @@
       "stage": "A2",
       "name": "Emulsion concentrate, Jebel Ali to plant (sea)",
       "carried_input_id": "I3",
+      "mass_t_per_unit": 8.000000000000001e-07,
       "factor_id": "F-SEA",
       "distance_km": 900,
       "data_type": "secondary",
@@ -371,11 +375,125 @@
       "T2": 0.00038231999999999996,
       "T3": 1.9263999999999997e-05,
       "T4": 1.1664e-05,
-      "E1": 0.06,
-      "E2": 0.002,
-      "E3": 0.0005,
-      "E4": 0.14
+      "A3E1": 0.06,
+      "A3E2": 0.002,
+      "A3E3": 0.0005,
+      "A3E4": 0.14
     },
+    "lines": [
+      {
+        "id": "I1",
+        "stage": "A1",
+        "kgco2e_per_unit": 8.29334,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "I2",
+        "stage": "A1",
+        "kgco2e_per_unit": 0.024,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "I3",
+        "stage": "A1",
+        "kgco2e_per_unit": 0.00144,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "I4",
+        "stage": "A3_packaging",
+        "kgco2e_per_unit": 0.001,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "I5",
+        "stage": "A3_packaging",
+        "kgco2e_per_unit": 0.00345,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "I6",
+        "stage": "A3_packaging",
+        "kgco2e_per_unit": 0.00156,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "I7",
+        "stage": "A3_waste",
+        "kgco2e_per_unit": 0.0015,
+        "data_type": "primary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "I8",
+        "stage": "A3_waste",
+        "kgco2e_per_unit": 0.00045000000000000004,
+        "data_type": "primary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "T1",
+        "stage": "A2",
+        "kgco2e_per_unit": 0.001218448,
+        "data_type": "primary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "T2",
+        "stage": "A2",
+        "kgco2e_per_unit": 0.00038231999999999996,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "T3",
+        "stage": "A2",
+        "kgco2e_per_unit": 1.9263999999999997e-05,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "T4",
+        "stage": "A2",
+        "kgco2e_per_unit": 1.1664e-05,
+        "data_type": "secondary",
+        "cut_off_candidate": true
+      },
+      {
+        "id": "A3E1",
+        "stage": "A3_energy",
+        "kgco2e_per_unit": 0.06,
+        "data_type": "primary",
+        "cut_off_candidate": false
+      },
+      {
+        "id": "A3E2",
+        "stage": "A3_energy",
+        "kgco2e_per_unit": 0.002,
+        "data_type": "primary",
+        "cut_off_candidate": false
+      },
+      {
+        "id": "A3E3",
+        "stage": "A3_energy",
+        "kgco2e_per_unit": 0.0005,
+        "data_type": "primary",
+        "cut_off_candidate": false
+      },
+      {
+        "id": "A3E4",
+        "stage": "A3_energy",
+        "kgco2e_per_unit": 0.14,
+        "data_type": "primary",
+        "cut_off_candidate": false
+      }
+    ],
     "cut_off": {
       "below_threshold_ids": [
         "I2",
@@ -403,7 +521,8 @@
     "reconciliation": {
       "plant_s1_s2_tco2e": 60750.0,
       "covered_tco2e": 24300.0,
-      "coverage_pct": 40.0
+      "coverage_pct": 40.0,
+      "note": "single product: coverage equals its allocation share by construction"
     }
   },
   "xlsx_total_cell": "Result!D22"

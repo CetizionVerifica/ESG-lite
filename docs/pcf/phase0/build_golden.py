@@ -119,7 +119,7 @@ def compute():
     product_units = product_t * 1000 / STUDY["mass_per_unit_kg"]
     for n, (cat, scope, tco2e) in enumerate(PLANT_EMISSIONS, 1):
         kg = tco2e * 1000 * share / product_units
-        items.append({"id": f"E{n}", "stage": "A3_energy", "name": cat, "kg": kg, "data_type": "primary", "dqr": ALLOC_DQR, "cut_off_candidate": False})
+        items.append({"id": f"A3E{n}", "stage": "A3_energy", "name": cat, "kg": kg, "data_type": "primary", "dqr": ALLOC_DQR, "cut_off_candidate": False})
 
     total = sum(i["kg"] for i in items)
     by_stage = {s: sum(i["kg"] for i in items if i["stage"] == s) for s in STAGES}
@@ -135,12 +135,17 @@ def compute():
         "total_kg_per_unit": total,
         "by_stage": by_stage,
         "by_input": {i["id"]: i["kg"] for i in items},
+        "lines": [{"id": i["id"], "stage": i["stage"], "kgco2e_per_unit": i["kg"], "data_type": i["data_type"],
+                   "cut_off_candidate": i["cut_off_candidate"]} for i in items],
         "cut_off": {"below_threshold_ids": [i["id"] for i in below], "below_threshold_total_pct": below_pct,
                     "within_limit": below_pct < STUDY["cut_off_max_total_pct"]},
         "primary_data_share_pct": primary,
         "dqr": {"technology": dqr_dims[0], "geography": dqr_dims[1], "time": dqr_dims[2], "overall": dqr_overall},
+        # With one footprinted product, coverage equals its allocation share by construction;
+        # it becomes an independent check once several products have footprints.
         "reconciliation": {"plant_s1_s2_tco2e": plant_total, "covered_tco2e": covered,
-                           "coverage_pct": covered / plant_total * 100},
+                           "coverage_pct": covered / plant_total * 100,
+                           "note": "single product: coverage equals its allocation share by construction"},
     }
 
 
@@ -251,7 +256,7 @@ def build_workbook(path):
 
     # Allocation (A3 energy)
     ws = wb.create_sheet("Allocation")
-    ws.cell(row=1, column=1, value="Approved ProductionData at the site in the reference period (t)").font = BOLD
+    ws.cell(row=1, column=1, value="Approved ProductionData at the site in the reference period (t) · PLACEHOLDER, not Midal data").font = WARN
     header(ws, 2, ["product", "quantity_t"])
     for r, (p, t) in enumerate(PRODUCTION, 3):
         ws.cell(row=r, column=1, value=p)
@@ -273,7 +278,7 @@ def build_workbook(path):
                    "data_type", "dqr_technology", "dqr_geography", "dqr_time"])
     for n, (cat, scope, t) in enumerate(PLANT_EMISSIONS, 1):
         r = h + n
-        vals = [f"E{n}", cat, scope, t, f"={share}", f"=D{r}*1000*E{r}/{units}", "primary", *ALLOC_DQR]
+        vals = [f"A3E{n}", cat, scope, t, f"={share}", f"=D{r}*1000*E{r}/{units}", "primary", *ALLOC_DQR]
         for c, v in enumerate(vals, 1):
             cell = ws.cell(row=r, column=c, value=v)
             if c == 4:
@@ -338,7 +343,7 @@ def build_workbook(path):
 
     # Reconciliation
     ws = wb.create_sheet("Reconciliation")
-    ws.cell(row=1, column=1, value="Σ PCF(A3 energy) × approved production vs plant Scope 1+2 (only the pilot is footprinted, so coverage is low by design)").font = BOLD
+    ws.cell(row=1, column=1, value="Σ PCF(A3 energy) × approved production vs plant Scope 1+2 (only the pilot is footprinted, so coverage equals its allocation share by construction)").font = BOLD
     a3 = f"Result!$D${s + 1 + 1 + STAGES.index('A3_energy')}"
     recon = [
         ("plant Scope 1+2, tCO2e", f"=SUM(Allocation!D{al_first}:D{al_last})"),
@@ -353,6 +358,12 @@ def build_workbook(path):
         ws.cell(row=n, column=2, value=f)
     widths(ws, [66, 18])
 
+    # Banner on every sheet so no screenshot can pass for Midal data.
+    for sheet in wb.worksheets[1:]:
+        sheet.sheet_properties.tabColor = "B00020"
+        col = sheet.max_column + 2
+        sheet.cell(row=1, column=col, value="PLACEHOLDER NUMBERS · not Midal data").font = WARN
+        sheet.column_dimensions[get_column_letter(col)].width = 40
     for sheet in wb.worksheets:
         for row in sheet.iter_rows():
             for c in row:
@@ -376,7 +387,8 @@ def main():
             for i in INPUTS
         ],
         "transport_legs": [
-            {"id": t[0], "stage": "A2", "name": t[1], "carried_input_id": t[2], "factor_id": t[3],
+            {"id": t[0], "stage": "A2", "name": t[1], "carried_input_id": t[2],
+             "mass_t_per_unit": next(i[5] for i in INPUTS if i[0] == t[2]) / 1000, "factor_id": t[3],
              "distance_km": t[4], "data_type": t[5], "dqr_technology": t[6][0], "dqr_geography": t[6][1], "dqr_time": t[6][2]}
             for t in LEGS
         ],

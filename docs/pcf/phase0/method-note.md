@@ -45,8 +45,12 @@ Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 Yield losses raise the A1 input mass (the pilot uses 1.012 kg aluminium per kg of rod); they are not a separate line.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
+### 2.7b Transport mass (A2)
+The mass on each inbound leg is the carried input's quantity per declared unit including process losses, in tonnes (`mass_t_per_unit` in the JSON; E1 stores it as `payload_t`). It is not the vehicle's payload capacity.
+Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
+
 ### 2.8 Cut-off rule
-Any input or transport leg below **1%** of the total is listed as a cut-off candidate; together they must stay **below 5%**. Choice made here because the spec allows two readings: **candidates stay in the total** (the engine lists them and checks the 5% limit); a user who wants to omit one deletes it from the study, and the 5% check still counts it.
+Any input or transport leg below **1%** of the total is listed as a cut-off candidate; together they must stay **below 5%**. Allocated plant energy lines (A3 energy) are never cut-off candidates: they come from approved inventory data, not from the BOM. Choice made here because the spec allows two readings: **candidates stay in the total** (the engine lists them and checks the 5% limit); a user who wants to omit one deletes it from the study, and the 5% check still counts it.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
 ### 2.9 Reference period
@@ -58,7 +62,7 @@ IPCC AR6 GWP100 (PACT v3 requirement). A factor available only in AR5 may be use
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
 ### 2.11 Data quality
-- **Primary data share** (PACT `primaryDataShare`) = emissions from primary-data lines ÷ total. Allocated plant Scope 1+2 counts as primary (it is measured and approved in ESG Lite).
+- **Primary data share** (PACT `primaryDataShare`) = emissions from primary-data lines ÷ total. A line is **primary when its activity data is measured at the plant or supplied by the supplier for this product**, whatever the factor's source (GHG Protocol Product Standard reading); a supplier-specific footprint also makes a line primary. Allocated plant Scope 1+2 counts as primary (it is measured and approved in ESG Lite). The stricter PACT reading (primary only when the emission factor itself is supplier-specific) would lower the share; say if you prefer it.
 - **DQR** 1 (best) to 3 per line for technology, geography and time; each dimension is the emission-weighted mean over all lines, and the overall DQR is the mean of the three.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
@@ -102,7 +106,7 @@ When these arrive, edit the input blocks at the top of `build_golden.py`, run `p
 | A3 waste | 0.0020 | 0.02% |
 | **Total** | **8.5309** | |
 
-Primary data share 2.4% · DQR 1.65 · cut-off candidates 0.41% of total (limit 5%) · reconciliation: the pilot covers 40% of plant Scope 1+2 (below 90% is expected while only one product is footprinted).
+Primary data share 2.4% · DQR 1.65 · cut-off candidates 0.41% of total (limit 5%) · reconciliation: the pilot covers 40% of plant Scope 1+2 (with one product this equals its allocation share by construction; below 90% is expected until all products have footprints).
 
 ## Files
 - `pilot-golden.xlsx`: the calculation with live formulas; yellow cells are inputs.
