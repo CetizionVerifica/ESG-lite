@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
-import { User } from "../entities/User";
+import { User, USER_APPEARANCES } from "../entities/User";
 import { Site } from "../entities/Site";
 import { signToken } from "../utils/jwt";
 import { UserRole } from "../types/type";
@@ -87,6 +87,32 @@ export const getMe = async (req: AuthRequest, res: Response) => {
   filterUserSiteCategories(user);
 
   return res.json({ role: user.role, user });
+};
+
+// GET /auth/me/appearance — the signed-in user's colour scheme
+export const getMyAppearance = async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+  const user = await userRepo.findOne({ where: { user_id: userId }, select: ["user_id", "appearance"] });
+  if (!user) return res.status(404).json({ message: "User not found" });
+  return res.json({ appearance: user.appearance });
+};
+
+// PUT /auth/me/appearance { appearance: "light" | "dark" | "system" }
+// Updates only this column, only for the signed-in user.
+export const updateMyAppearance = async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+  const { appearance } = req.body ?? {};
+  if (!(USER_APPEARANCES as readonly string[]).includes(appearance)) {
+    return res.status(400).json({ message: `appearance must be one of ${USER_APPEARANCES.join(", ")}` });
+  }
+
+  const result = await userRepo.update({ user_id: userId }, { appearance });
+  if (!result.affected) return res.status(404).json({ message: "User not found" });
+  return res.json({ appearance });
 };
 
 // 🔒 Only Superadmin can register users

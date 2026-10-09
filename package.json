@@ -12,6 +12,7 @@
     "migrate:calculation-column": "ts-node src/scripts/addCalculationColumn.ts",
     "migrate:emission-threshold": "ts-node src/scripts/createEmissionThresholdTable.ts",
     "migrate:brand-theme": "ts-node src/scripts/addBrandThemeColumns.ts",
+    "migrate:user-appearance": "ts-node src/scripts/addUserAppearanceColumn.ts",
     "test:api": "node ci/api/run.cjs"
   },
   "keywords": [],
