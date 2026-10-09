@@ -15,7 +15,8 @@
     "migrate:user-appearance": "ts-node src/scripts/addUserAppearanceColumn.ts",
     "migrate:document-ai-invoice": "ts-node src/scripts/addDocumentAiInvoiceColumn.ts",
     "migrate:pcf": "ts-node src/scripts/createPcfTables.ts",
-    "test:api": "node ci/api/run.cjs"
+    "test:api": "node ci/api/run.cjs",
+    "test:unit": "node --test ci/unit/*.test.cjs"
   },
   "keywords": [],
   "author": "",

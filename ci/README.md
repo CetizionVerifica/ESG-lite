@@ -8,7 +8,7 @@ container (`ci/lib/throwaway-db.cjs`).
 
 | Check | What fails it |
 |---|---|
-| Typecheck and build | `tsc` errors |
+| Typecheck and build | `tsc` errors, or a unit test in `ci/unit/` fails (PCF engine stages and the PCF-0 golden pilot, every value within ±0.5%) |
 | CI has no production access | a workflow references a secret or a production DB variable |
 | No destructive schema or data changes | an added line drops, truncates, renames or retypes schema, deletes every row, turns on `synchronize`/`TYPEORM_SYNC`, or a one-off script in `scripts/`/`seeds/` deletes or bulk-updates rows |
 | Run migrate scripts twice | a `migrate:*` script fails, or fails on a second run (not idempotent) |
