@@ -11,6 +11,7 @@ import {
 } from "../services/brandLogo.service";
 import { resolveUserCompanyId } from "../utils/companyScope";
 import { UserRole } from "../types/type";
+import { isBrandSlug } from "../utils/brandSlug";
 
 const brandRepo = () => AppDataSource.getRepository(Brand);
 const companyRepo = () => AppDataSource.getRepository(Company);
@@ -28,6 +29,7 @@ const loadBrandOrDefaults = async (companyId: number) => {
   return {
     companyId,
     name: company.name,
+    slug: null,
     primary: "#1f2a44",
     accent: "#3b82f6",
     coverFrom: "#0d1526",
@@ -89,6 +91,26 @@ export const getMyBrand = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// GET /brands/public/:slug — no sign-in needed. What a client's sign-in page
+// (/{slug}/login, P01) may show before anyone signs in: name, colours, logos
+// and look. No company id or storage keys. 404 for an unknown slug.
+export const getPublicBrand = async (req: AuthRequest, res: Response) => {
+  try {
+    const slug = String(req.params.slug ?? "").toLowerCase();
+    if (!isBrandSlug(slug)) return res.status(404).json({ message: "Not found" });
+    const brand = await brandRepo().findOne({ where: { slug } });
+    if (!brand) return res.status(404).json({ message: "Not found" });
+    const { name, primary, accent, coverFrom, coverTo, logoUrl, logoOnDarkUrl, defaultLook } = brand;
+    res.set("Cache-Control", "public, max-age=300");
+    return res
+      .status(200)
+      .json({ slug: brand.slug, name, primary, accent, coverFrom, coverTo, logoUrl, logoOnDarkUrl, defaultLook });
+  } catch (error) {
+    console.error("Get public brand error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // PUT /brands/:companyId — upsert name + colors (JSON body)
 export const upsertBrand = async (req: AuthRequest, res: Response) => {
   try {
@@ -98,7 +120,7 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
     const company = await companyRepo().findOne({ where: { company_id: companyId } });
     if (!company) return res.status(404).json({ message: "Company not found" });
 
-    const { name, primary, accent, coverFrom, coverTo, defaultLook, scope3Colour, logoOnDarkUrl } = req.body;
+    const { name, slug, primary, accent, coverFrom, coverTo, defaultLook, scope3Colour, logoOnDarkUrl } = req.body;
     for (const [k, v] of Object.entries({ primary, accent, coverFrom, coverTo })) {
       if (v !== undefined && !HEX.test(String(v))) {
         return res.status(400).json({ message: `${k} must be a 6-digit hex color like #1f2a44` });
@@ -109,6 +131,15 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
     }
     if (defaultLook !== undefined && !(BRAND_LOOKS as readonly string[]).includes(defaultLook)) {
       return res.status(400).json({ message: `defaultLook must be one of ${BRAND_LOOKS.join(", ")}` });
+    }
+    if (slug !== undefined && slug !== null && !isBrandSlug(slug)) {
+      return res.status(400).json({ message: "slug must be 1-63 lower-case letters, digits or single dashes, like midal-cables, or null" });
+    }
+    if (typeof slug === "string") {
+      const owner = await brandRepo().findOne({ where: { slug } });
+      if (owner && owner.companyId !== companyId) {
+        return res.status(409).json({ message: "Another client already uses this slug" });
+      }
     }
     // The dark logo is set by upload only; null removes it.
     if (logoOnDarkUrl !== undefined && logoOnDarkUrl !== null) {
@@ -121,6 +152,7 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
       brand = repo.create({ companyId, name: name || company.name });
     }
     if (name !== undefined) brand.name = name;
+    if (slug !== undefined) brand.slug = slug;
     if (primary !== undefined) brand.primary = primary;
     if (accent !== undefined) brand.accent = accent;
     if (coverFrom !== undefined) brand.coverFrom = coverFrom;

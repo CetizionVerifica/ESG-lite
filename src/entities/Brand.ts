@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, UpdateDateColumn } from "typeorm";
+import { Entity, PrimaryColumn, Column, Index, UpdateDateColumn } from "typeorm";
 
 // The app-wide looks a client can pick as its default (redesign F1/P18).
 export const BRAND_LOOKS = ["classic", "light", "night"] as const;
@@ -15,6 +15,12 @@ export class Brand {
 
   @Column()
   name!: string;
+
+  // Public name of the client in its sign-in link (/{slug}/login, P01).
+  // Null = no client-branded sign-in. Unique when set.
+  @Index("brand_slug_key", { unique: true })
+  @Column({ type: "varchar", length: 63, nullable: true })
+  slug!: string | null;
 
   @Column({ default: "#1f2a44" })
   primary!: string;

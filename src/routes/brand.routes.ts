@@ -5,6 +5,7 @@ import { requireSuperAdmin } from "../middlewares/role.middleware";
 import {
   getBrand,
   getMyBrand,
+  getPublicBrand,
   upsertBrand,
   uploadBrandLogo,
   uploadBrandDarkLogo,
@@ -17,6 +18,9 @@ const logoUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+// Signed-out: a client's sign-in page reads its public brand by slug (P01).
+router.get("/public/:slug", getPublicBrand);
 
 // Any signed-in user can read their own company's brand (to theme the app);
 // Superadmins can read any company's. getBrand checks the company.

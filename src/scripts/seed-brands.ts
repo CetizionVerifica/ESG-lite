@@ -40,6 +40,7 @@ const CREATE_BRAND_TABLE = `
 CREATE TABLE IF NOT EXISTS brand (
   company_id      integer PRIMARY KEY,
   name            varchar NOT NULL,
+  slug            varchar(63),
   "primary"       varchar NOT NULL DEFAULT '#1f2a44',
   accent          varchar NOT NULL DEFAULT '#3b82f6',
   cover_from      varchar NOT NULL DEFAULT '#0d1526',
@@ -59,6 +60,7 @@ async function ensureBrandTable() {
   try {
     await qr.startTransaction();
     await qr.query(CREATE_BRAND_TABLE);
+    await qr.query(`CREATE UNIQUE INDEX IF NOT EXISTS brand_slug_key ON brand (slug)`);
     await qr.commitTransaction();
     console.log("✓ brand table ready (created if it did not exist)");
   } catch (e) {
