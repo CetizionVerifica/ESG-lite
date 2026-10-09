@@ -102,11 +102,53 @@ const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null 
   return unit1.toLowerCase().trim() === unit2.toLowerCase().trim();
 };
 
-// Get emissions by site, category, and date (with optional pagination)
+// Ledger sort keys for GET /user/emissions?sort= (redesign B6) → column.
+const EMISSION_SORTS: Record<string, string> = {
+  id: "emission.pk_id",
+  date: "emission.date_of_reporting",
+  total_emission: "emission.total_emission",
+  status: "emission.status",
+  category: "category.category_name",
+  scope: "category.scope",
+  site: "site.name",
+  submitted_by: "created_by.name",
+  created_at: "emission.created_at",
+  reviewed_at: "emission.reviewed_at",
+};
+
+// Free-text ledger search (B6): case-insensitive match on category, site,
+// submitter, units, review comment and the entered activity values, or the
+// exact entry id. Aliases differ between the list and summary queries.
+const emissionSearchSql = (a: { e: string; c: string; s: string; u: string }) =>
+  `(${a.c}.category_name ILIKE :search ESCAPE '\\'
+    OR ${a.s}.name ILIKE :search ESCAPE '\\'
+    OR ${a.u}.name ILIKE :search ESCAPE '\\'
+    OR ${a.u}.last_name ILIKE :search ESCAPE '\\'
+    OR ${a.u}.email ILIKE :search ESCAPE '\\'
+    OR ${a.e}.unit ILIKE :search ESCAPE '\\'
+    OR ${a.e}.activity_data_unit ILIKE :search ESCAPE '\\'
+    OR ${a.e}.review_comment ILIKE :search ESCAPE '\\'
+    OR CAST(${a.e}.activity_data AS text) ILIKE :search ESCAPE '\\'
+    OR CAST(${a.e}.pk_id AS text) = :searchExact)`;
+
+// Get emissions by site, category, and date (with optional pagination).
+// Optional sort=<EMISSION_SORTS key>&order=asc|desc and search=<text>; without
+// them the result is exactly as before (newest id first, no text filter).
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { categoryId, date, year, month, page, limit, status, scope } = req.query;
+    const { categoryId, date, year, month, page, limit, status, scope, sort, order } = req.query;
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
+
+    if (sort !== undefined && !EMISSION_SORTS[String(sort)]) {
+      return res.status(400).json({ message: `sort must be one of ${Object.keys(EMISSION_SORTS).join(", ")}` });
+    }
+    if (order !== undefined && !["asc", "desc"].includes(String(order).toLowerCase())) {
+      return res.status(400).json({ message: "order must be asc or desc" });
+    }
+    const searchText = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+    const searchParams = searchText
+      ? { search: `%${searchText.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`, searchExact: searchText }
+      : null;
 
     const qb = repo
       .createQueryBuilder("emission")
@@ -114,6 +156,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       .leftJoinAndSelect("emission.category", "category")
       .leftJoinAndSelect("emission.reviewed_by", "reviewed_by")
       .leftJoinAndSelect("emission.created_by", "created_by");
+
+    if (searchParams) {
+      qb.andWhere(emissionSearchSql({ e: "emission", c: "category", s: "site", u: "created_by" }), searchParams);
+    }
 
     if (siteIds.length > 0) {
       qb.andWhere("site.site_id IN (:...siteIds)", { siteIds });
@@ -150,7 +196,14 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    qb.orderBy("emission.pk_id", "DESC");
+    if (sort !== undefined) {
+      const direction = String(order ?? "desc").toUpperCase() as "ASC" | "DESC";
+      qb.orderBy(EMISSION_SORTS[String(sort)], direction, direction === "ASC" ? "NULLS FIRST" : "NULLS LAST");
+      // Stable pages when many rows share the sort value.
+      if (sort !== "id") qb.addOrderBy("emission.pk_id", "DESC");
+    } else {
+      qb.orderBy("emission.pk_id", "DESC");
+    }
 
     // If page & limit are provided, return paginated result with total count + summary
     if (page && limit) {
@@ -167,6 +220,11 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         .leftJoin("emission.site", "s")
         .leftJoin("emission.category", "c");
 
+      if (searchParams) {
+        summaryQb
+          .leftJoin("emission.created_by", "cb")
+          .andWhere(emissionSearchSql({ e: "emission", c: "c", s: "s", u: "cb" }), searchParams);
+      }
       if (siteIds.length > 0) {
         summaryQb.andWhere("s.site_id IN (:...siteIds)", { siteIds });
       }
