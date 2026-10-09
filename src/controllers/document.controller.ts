@@ -5,6 +5,8 @@ import { Emission } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import cloudinary from "../config/cloudinary";
 import { Readable } from "stream";
+import { accessibleSiteIds } from "../utils/companyScope";
+import { EntityManager } from "typeorm";
 
 const documentRepo = AppDataSource.getRepository(EmissionDocument);
 const emissionRepo = AppDataSource.getRepository(Emission);
@@ -349,20 +351,25 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Delete from Cloudinary
-    try {
-      await cloudinary.uploader.destroy(document.cloudinary_public_id, {
-        resource_type: "raw",
-      });
-    } catch (cloudinaryError) {
-      console.error("Cloudinary delete error:", cloudinaryError);
-      // Continue with database deletion even if Cloudinary delete fails
+    // Delete from Cloudinary, unless the file belongs to an AI-service invoice
+    // (the invoice library still shows it, and other documents may link it).
+    if (document.ai_invoice_id == null) {
+      try {
+        await cloudinary.uploader.destroy(document.cloudinary_public_id, {
+          resource_type: "raw",
+        });
+      } catch (cloudinaryError) {
+        console.error("Cloudinary delete error:", cloudinaryError);
+        // Continue with database deletion even if Cloudinary delete fails
+      }
     }
 
-    await documentRepo.delete({ document_id: parseInt(id) });
+    const { filesDeleted } = await deleteDocumentRows([parseInt(id)]);
 
     return res.status(200).json({
       message: "Document deleted successfully",
+      // true when this was the last document using a deleted AI invoice's file
+      file_deleted: filesDeleted > 0,
     });
   } catch (error) {
     console.error("Delete document error:", error);
@@ -388,8 +395,9 @@ export const bulkDeleteDocuments = async (req: AuthRequest, res: Response) => {
       where: ids.map((id: number) => ({ document_id: id })),
     });
 
-    // Delete from Cloudinary
+    // Delete from Cloudinary (files of AI-service invoices stay with the invoice)
     for (const doc of documents) {
+      if (doc.ai_invoice_id != null) continue;
       try {
         await cloudinary.uploader.destroy(doc.cloudinary_public_id, {
           resource_type: "raw",
@@ -399,16 +407,188 @@ export const bulkDeleteDocuments = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const result = await documentRepo.delete(ids);
+    const { affected, filesDeleted } = await deleteDocumentRows(ids);
 
     return res.status(200).json({
-      message: `Successfully deleted ${result.affected} document(s)`,
-      deleted: result.affected,
+      message: `Successfully deleted ${affected} document(s)`,
+      deleted: affected,
+      invoice_files_deleted: filesDeleted,
     });
   } catch (error) {
     console.error("Bulk delete documents error:", error);
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+// Advisory-lock namespace for "documents sharing one AI invoice's file".
+const AI_INVOICE_LOCK = 2008;
+
+const invoiceTablePresent = async (m: EntityManager): Promise<boolean> => {
+  const [{ present }] = await m.query(`SELECT to_regclass('invoice') IS NOT NULL AS present`);
+  return Boolean(present);
+};
+
+// Invoice files are uploaded by python_AI_service as "raw"; fall back to
+// "image" as its delete_file does.
+const destroyInvoiceFile = async (publicId: string) => {
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
+    if (result?.result !== "ok") await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+  } catch (cloudinaryError) {
+    console.error("Cloudinary delete error:", cloudinaryError);
+  }
+};
+
+/**
+ * Deletes evidence documents. A file linked from an AI-service invoice
+ * (ai_invoice_id) belongs to that invoice while the invoice row exists; once
+ * the invoice is gone (python_AI_service keeps the file while documents link
+ * it) the last document using it deletes it. Runs in one transaction that
+ * holds the invoice rows FOR SHARE (python_AI_service deletes invoices under
+ * FOR UPDATE and checks links in the same transaction) and an advisory lock
+ * per invoice id (two documents of one invoice deleted at once).
+ */
+const deleteDocumentRows = async (ids: number[]): Promise<{ affected: number; filesDeleted: number }> => {
+  const orphanFiles: string[] = [];
+  const affected = await AppDataSource.transaction(async (m) => {
+    const docs = await m.getRepository(EmissionDocument).find({ where: ids.map((id) => ({ document_id: id })) });
+    const invoiceIds = [...new Set(docs.map((d) => d.ai_invoice_id).filter((v): v is number => v != null))].sort((a, b) => a - b);
+    for (const invoiceId of invoiceIds) {
+      await m.query("SELECT pg_advisory_xact_lock($1, $2)", [AI_INVOICE_LOCK, invoiceId]);
+    }
+    const liveInvoices = new Set<number>();
+    if (invoiceIds.length && (await invoiceTablePresent(m))) {
+      const rows = await m.query(
+        "SELECT invoice_id FROM invoice WHERE invoice_id = ANY($1) ORDER BY invoice_id FOR SHARE",
+        [invoiceIds],
+      );
+      rows.forEach((r: { invoice_id: number }) => liveInvoices.add(Number(r.invoice_id)));
+    }
+
+    const result = await m.getRepository(EmissionDocument).delete(ids);
+
+    for (const invoiceId of invoiceIds) {
+      if (liveInvoices.has(invoiceId)) continue;
+      const [{ n }] = await m.query("SELECT COUNT(*)::int AS n FROM emission_document WHERE ai_invoice_id = $1", [invoiceId]);
+      if (n === 0) {
+        const doc = docs.find((d) => d.ai_invoice_id === invoiceId);
+        if (doc?.cloudinary_public_id) orphanFiles.push(doc.cloudinary_public_id);
+      }
+    }
+    return result.affected ?? 0;
+  });
+  for (const publicId of orphanFiles) await destroyInvoiceFile(publicId);
+  return { affected, filesDeleted: orphanFiles.length };
+};
+
+class LinkError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+/**
+ * POST /user/documents/from-invoice  { invoice_id, emission_ids: number[] }
+ *
+ * Attaches a bill the AI service extracted (python_AI_service `invoice` row)
+ * as evidence to the emissions saved from it (redesign B8). Each document
+ * points at the invoice's existing Cloudinary file (nothing is re-uploaded)
+ * and records ai_invoice_id, so the UI can show "extracted by AI" and open
+ * the original bill. Idempotent per (emission, invoice).
+ *
+ * The caller must be able to reach the invoice: its site must be one of their
+ * accessible sites, and an invoice saved without a site may only be linked by
+ * the user who uploaded it. The invoice row is held FOR SHARE until the
+ * documents are saved, so python_AI_service cannot delete it (and its file)
+ * halfway through.
+ */
+export const linkInvoiceDocuments = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const invoiceId = Number(req.body?.invoice_id);
+    const rawIds = req.body?.emission_ids ?? (req.body?.emission_id != null ? [req.body.emission_id] : []);
+    const emissionIds: number[] = Array.isArray(rawIds) ? [...new Set(rawIds.map(Number))] : [];
+    if (!Number.isInteger(invoiceId) || invoiceId <= 0) {
+      return res.status(400).json({ message: "invoice_id is required" });
+    }
+    if (emissionIds.length === 0 || emissionIds.length > 200 || emissionIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+      return res.status(400).json({ message: "emission_ids must be 1-200 emission ids" });
+    }
+
+    const allowed = await accessibleSiteIds(userId, req.user?.role);
+
+    const documents = await AppDataSource.transaction(async (m) => {
+      if (!(await invoiceTablePresent(m))) throw new LinkError(404, "Invoice not found");
+      const [invoice] = await m.query(
+        `SELECT invoice_id, file_name, cloudinary_url, cloudinary_public_id, file_type, file_size, site_id, uploaded_by
+           FROM invoice WHERE invoice_id = $1 FOR SHARE`,
+        [invoiceId],
+      );
+      if (!invoice) throw new LinkError(404, "Invoice not found");
+      const invoiceSite = invoice.site_id == null ? null : Number(invoice.site_id);
+      const reachable =
+        invoiceSite != null ? !allowed || allowed.has(invoiceSite) : invoice.uploaded_by != null && Number(invoice.uploaded_by) === userId;
+      if (!reachable) throw new LinkError(403, "You do not have access to this invoice");
+
+      const emissions = await m.getRepository(Emission).find({
+        where: emissionIds.map((pk_id) => ({ pk_id })),
+        relations: ["site"],
+      });
+      if (emissions.length !== emissionIds.length) throw new LinkError(404, "One or more emissions not found");
+      if (allowed && emissions.some((e) => !allowed.has(e.site?.site_id))) {
+        throw new LinkError(403, "You do not have access to one or more of these emissions");
+      }
+      if (invoiceSite != null && emissions.some((e) => e.site?.site_id !== invoiceSite)) {
+        throw new LinkError(400, "The invoice was uploaded for a different site");
+      }
+
+      const docRepo = m.getRepository(EmissionDocument);
+      const out = [];
+      for (const emission of emissions) {
+        let doc = await docRepo.findOne({
+          where: { ai_invoice_id: invoiceId, emission: { pk_id: emission.pk_id } },
+        });
+        if (!doc) {
+          doc = await docRepo.save(
+            docRepo.create({
+              file_name: invoice.file_name,
+              original_name: invoice.file_name,
+              cloudinary_public_id: invoice.cloudinary_public_id,
+              cloudinary_url: invoice.cloudinary_url,
+              secure_url: invoice.cloudinary_url,
+              file_type: invoice.file_type,
+              file_size: invoice.file_size,
+              document_type: DocumentType.INVOICE,
+              description: "Extracted by AI",
+              emission: { pk_id: emission.pk_id } as any,
+              uploaded_by: { user_id: userId } as any,
+              ai_invoice_id: invoiceId,
+            }),
+          );
+        }
+        out.push({
+          document_id: doc.document_id,
+          emission_id: emission.pk_id,
+          ai_invoice_id: invoiceId,
+          original_name: doc.original_name,
+          file_type: doc.file_type,
+          file_size: doc.file_size,
+          secure_url: doc.secure_url,
+          document_type: doc.document_type,
+          created_at: doc.created_at,
+        });
+      }
+      return out;
+    });
+
+    return res.status(201).json({ message: "Invoice linked", documents });
+  } catch (error) {
+    if (error instanceof LinkError) return res.status(error.status).json({ message: error.message });
+    console.error("Link invoice documents error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

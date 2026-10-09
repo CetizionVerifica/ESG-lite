@@ -59,6 +59,7 @@ import {
   updateDocument,
   deleteDocument,
   bulkDeleteDocuments,
+  linkInvoiceDocuments,
 } from "../controllers/document.controller";
 import { getCompanies, getCompanyNameBySites, getReportingCalendar } from "../controllers/company.controller";
 import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
@@ -154,6 +155,7 @@ router.get("/documents/emission/:emissionId", getDocumentsByEmission);
 router.get("/documents/:id", getDocumentById);
 router.post("/documents", documentUpload.single("file"), uploadDocument);
 router.post("/documents/multiple", documentUpload.array("files", 10), uploadMultipleDocuments);
+router.post("/documents/from-invoice", linkInvoiceDocuments);
 router.put("/documents/:id", updateDocument);
 router.delete("/documents/bulk-delete", bulkDeleteDocuments);
 router.delete("/documents/:id", deleteDocument);

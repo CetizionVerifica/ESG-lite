@@ -13,6 +13,7 @@
     "migrate:emission-threshold": "ts-node src/scripts/createEmissionThresholdTable.ts",
     "migrate:brand-theme": "ts-node src/scripts/addBrandThemeColumns.ts",
     "migrate:user-appearance": "ts-node src/scripts/addUserAppearanceColumn.ts",
+    "migrate:document-ai-invoice": "ts-node src/scripts/addDocumentAiInvoiceColumn.ts",
     "test:api": "node ci/api/run.cjs"
   },
   "keywords": [],

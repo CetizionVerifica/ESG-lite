@@ -67,3 +67,24 @@ INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_report
   (13, '{"activity_value": 30}',                       80.0,  'tCO2e', '2024-12-31', 'approved', NULL,        2, 1, 2, 1, 'yearly',  'CY', NULL, '2025-01-10 09:00'),
   (14, '{"activity_value": 4}',                        11.0,  'tCO2e', '2025-02-28', 'approved', NULL,        2, 1, 3, 1, 'monthly', NULL, NULL, '2025-03-02 09:00');
 SELECT setval(pg_get_serial_sequence('emission', 'pk_id'), 100);
+
+-- The AI service's invoice table (owned by python_AI_service, not an entity
+-- here), with the columns its insert_invoice writes.
+CREATE TABLE IF NOT EXISTS invoice (
+  invoice_id serial PRIMARY KEY,
+  file_name varchar NOT NULL,
+  cloudinary_url varchar NOT NULL,
+  cloudinary_public_id varchar NOT NULL,
+  file_type varchar,
+  file_size integer,
+  uploaded_by integer,
+  site_id integer,
+  category_id integer,
+  ocr_text jsonb,
+  created_at timestamp NOT NULL DEFAULT now(),
+  updated_at timestamp NOT NULL DEFAULT now()
+);
+TRUNCATE invoice RESTART IDENTITY;
+INSERT INTO invoice (invoice_id, file_name, cloudinary_url, cloudinary_public_id, file_type, file_size, uploaded_by, site_id, category_id) VALUES
+  (1, 'sept-electricity.pdf', 'https://res.cloudinary.example.invalid/raw/upload/invoices/sept.pdf', 'invoices/sept', 'application/pdf', 52000, 1, 1, 2),
+  (2, 'unknown-site.png', 'https://res.cloudinary.example.invalid/image/upload/invoices/x.png', 'invoices/x', 'image/png', 1200, 1, NULL, NULL);
