@@ -34,7 +34,7 @@ Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 ### 2.5 Allocation of plant energy (A3)
 Approved Scope 1 and Scope 2 `Emission` rows of the producing site in the reference period are summed per category and split across products by **mass of approved `ProductionData`** in the same period:
 `A3 energy per unit = Σ period_total_tCO2e × 1000 × (product_t ÷ site_total_t) ÷ product output in declared units`.
-Scope 3 categories are excluded (covered by A1/A2 or outside the boundary). Market-based Scope 2 follows the corporate inventory's own treatment. Override per product with machine hours, metered kWh, economic value or a manual share.
+Scope 3 categories are excluded (covered by A1/A2 or outside the boundary). Scope 2 enters on the **location-based** figure (what the pilot uses); market-based applies only where the corporate inventory itself reports market-based with certificates. Confirm which basis Midal's approved Scope 2 rows carry. Override per product with machine hours, metered kWh, economic value or a manual share.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
 ### 2.6 Recycled content
@@ -42,39 +42,39 @@ Cut-off (recycled content) approach: a recycled share `r` splits a material line
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
 ### 2.7 Process losses
-Yield losses raise the A1 input mass (the pilot uses 1.012 kg aluminium per kg of rod); they are not a separate line.
+Yield losses raise the A1 input mass; they are not a separate line. The pilot uses 1.012 kg aluminium per kg of rod, i.e. a loss of 0.012 kg = 1.2% of output (≈1.19% of input). The pilot assumes this scrap is remelted in-house, so it has no waste line; scrap leaving the plant would be an A3 waste line (no burden under cut-off if recycled).
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.7b Transport mass (A2)
+### 2.8 Transport mass (A2)
 The mass on each inbound leg is the carried input's quantity per declared unit including process losses, in tonnes (`mass_t_per_unit` in the JSON; E1 stores it as `payload_t`). It is not the vehicle's payload capacity.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.8 Cut-off rule
+### 2.9 Cut-off rule
 Any input or transport leg below **1%** of the total is listed as a cut-off candidate; together they must stay **below 5%**. Allocated plant energy lines (A3 energy) are never cut-off candidates: they come from approved inventory data, not from the BOM. Choice made here because the spec allows two readings: **candidates stay in the total** (the engine lists them and checks the 5% limit); a user who wants to omit one deletes it from the study, and the 5% check still counts it.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.9 Reference period
+### 2.10 Reference period
 12 months, calendar or fiscal year according to the company's `year_type`. Pilot: CY 2025.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.10 GWP set
+### 2.11 GWP set
 IPCC AR6 GWP100 (PACT v3 requirement). A factor available only in AR5 may be used and is flagged on the result.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.11 Data quality
+### 2.12 Data quality
 - **Primary data share** (PACT `primaryDataShare`) = emissions from primary-data lines ÷ total. A line is **primary when its activity data is measured at the plant or supplied by the supplier for this product**, whatever the factor's source (GHG Protocol Product Standard reading); a supplier-specific footprint also makes a line primary. Allocated plant Scope 1+2 counts as primary (it is measured and approved in ESG Lite). The stricter PACT reading (primary only when the emission factor itself is supplier-specific) would lower the share; say if you prefer it.
 - **DQR** 1 (best) to 3 per line for technology, geography and time; each dimension is the emission-weighted mean over all lines, and the overall DQR is the mean of the three.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.12 Biogenic carbon, aircraft, land-use change
+### 2.13 Biogenic carbon, aircraft, land-use change
 Reported separately from the fossil total, as PACT requires. The pilot has none that is material; the pallet factor is its fossil part only.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.13 Precision
-Full precision stored; rounding only on display. The engine must reproduce the golden spreadsheet within **±0.5%**, and regenerate a stored result byte-identical from its factor snapshot.
+### 2.14 Precision
+Full precision stored; rounding only on display. The engine must reproduce **every value** in the golden file's `expected` block within **±0.5%** (relative): the total, each stage, each line, primary data share, each DQR dimension and the cut-off figures. A tolerance on the total alone would not catch a missing small stage, since A1 is ~97% of it. The engine must also regenerate a stored result byte-identical from its factor snapshot.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
-### 2.14 Relation to CBAM
+### 2.15 Relation to CBAM
 A PCF result is never reused as a CBAM "specific embedded emissions" figure. A future CBAM export may share inputs, not results.
 Sign-off: ☐ agreed ☐ change to: ________ · name / date: ________
 
