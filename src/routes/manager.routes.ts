@@ -7,6 +7,7 @@ import {
   updateUserCategories,
 } from "../controllers/managerUser.controller";
 import { getSubmissionStatus } from "../controllers/submissionStatus.controller";
+import { getManagerOverview } from "../controllers/managerOverview.controller";
 
 const router = Router();
 
@@ -19,5 +20,8 @@ router.put("/users/:userId/categories", updateUserCategories);
 
 // Submission status overview
 router.get("/submission-status", getSubmissionStatus);
+
+// Aggregated dashboard figures (redesign P06)
+router.get("/overview", getManagerOverview);
 
 export default router;
