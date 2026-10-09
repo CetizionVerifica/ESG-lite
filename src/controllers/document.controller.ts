@@ -6,10 +6,27 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import cloudinary from "../config/cloudinary";
 import { Readable } from "stream";
 import { accessibleSiteIds } from "../utils/companyScope";
-import { EntityManager } from "typeorm";
+import { EntityManager, In } from "typeorm";
 
 const documentRepo = AppDataSource.getRepository(EmissionDocument);
 const emissionRepo = AppDataSource.getRepository(Emission);
+
+// Documents a caller may read: those on an entry at one of their sites, plus
+// the ones they uploaded themselves (a document can have no entry). Returns
+// the base filter as find() OR-alternatives, or the base itself for a
+// Superadmin.
+const scopedDocumentWhere = async (req: AuthRequest, base: Record<string, any>) => {
+  const userId = req.user!.userId;
+  const allowed = await accessibleSiteIds(userId, req.user!.role);
+  if (!allowed) return base;
+  const alternatives: Record<string, any>[] = [{ uploaded_by: { user_id: userId } }];
+  if (allowed.size) alternatives.unshift({ emission: { site: { site_id: In([...allowed]) } } });
+  return alternatives.map((alt) => ({
+    ...base,
+    ...alt,
+    ...(base.emission && alt.emission ? { emission: { ...base.emission, ...alt.emission } } : {}),
+  }));
+};
 
 // Helper function to upload buffer to Cloudinary
 const uploadToCloudinary = (
@@ -67,9 +84,12 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
     if (emission_id) {
       const emission = await emissionRepo.findOne({
         where: { pk_id: parseInt(emission_id) },
+        relations: ["site"],
       });
+      const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-      if (!emission) {
+      // Another company's entry reads as not found.
+      if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
         return res.status(404).json({
           message: "Emission not found",
         });
@@ -139,9 +159,12 @@ export const uploadMultipleDocuments = async (req: AuthRequest, res: Response) =
     if (emission_id) {
       const emission = await emissionRepo.findOne({
         where: { pk_id: parseInt(emission_id) },
+        relations: ["site"],
       });
+      const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-      if (!emission) {
+      // Another company's entry reads as not found.
+      if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
         return res.status(404).json({
           message: "Emission not found",
         });
@@ -212,7 +235,7 @@ export const getDocuments = async (req: AuthRequest, res: Response) => {
     }
 
     const documents = await documentRepo.find({
-      where: whereClause,
+      where: await scopedDocumentWhere(req, whereClause),
       relations: ["emission", "uploaded_by"],
       order: { created_at: "DESC" },
     });
@@ -231,8 +254,9 @@ export const getDocumentById = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
 
+    // Another company's document reads as not found.
     const document = await documentRepo.findOne({
-      where: { document_id: parseInt(id) },
+      where: await scopedDocumentWhere(req, { document_id: parseInt(id) }),
       relations: ["emission", "uploaded_by"],
     });
 
@@ -257,7 +281,7 @@ export const getDocumentsByEmission = async (req: AuthRequest, res: Response) =>
     const { emissionId }: any = req.params;
 
     const documents = await documentRepo.find({
-      where: { emission: { pk_id: parseInt(emissionId) } },
+      where: await scopedDocumentWhere(req, { emission: { pk_id: parseInt(emissionId) } }),
       relations: ["emission", "uploaded_by"],
       order: { created_at: "DESC" },
     });
@@ -278,7 +302,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     const { document_type, description, emission_id } = req.body;
 
     const document = await documentRepo.findOne({
-      where: { document_id: parseInt(id) },
+      where: await scopedDocumentWhere(req, { document_id: parseInt(id) }),
     });
 
     if (!document) {
@@ -306,9 +330,11 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
       } else {
         const emission = await emissionRepo.findOne({
           where: { pk_id: parseInt(emission_id) },
+          relations: ["site"],
         });
+        const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-        if (!emission) {
+        if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
           return res.status(404).json({
             message: "Emission not found",
           });
@@ -342,7 +368,7 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
     const { id }: any = req.params;
 
     const document = await documentRepo.findOne({
-      where: { document_id: parseInt(id) },
+      where: await scopedDocumentWhere(req, { document_id: parseInt(id) }),
     });
 
     if (!document) {
@@ -364,7 +390,7 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const { filesDeleted } = await deleteDocumentRows([parseInt(id)]);
+    const { filesDeleted } = await deleteDocumentRows([document.document_id]);
 
     return res.status(200).json({
       message: "Document deleted successfully",
@@ -390,9 +416,10 @@ export const bulkDeleteDocuments = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Find all documents to get their Cloudinary public IDs
+    // Find all documents to get their Cloudinary public IDs. Only the
+    // caller's documents are deleted; other ids are ignored like unknown ones.
     const documents = await documentRepo.find({
-      where: ids.map((id: number) => ({ document_id: id })),
+      where: await scopedDocumentWhere(req, { document_id: In(ids.map((id: unknown) => Number(id)).filter(Number.isInteger)) }),
     });
 
     // Delete from Cloudinary (files of AI-service invoices stay with the invoice)
@@ -407,7 +434,7 @@ export const bulkDeleteDocuments = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const { affected, filesDeleted } = await deleteDocumentRows(ids);
+    const { affected, filesDeleted } = await deleteDocumentRows(documents.map((d) => d.document_id));
 
     return res.status(200).json({
       message: `Successfully deleted ${affected} document(s)`,
@@ -451,6 +478,8 @@ const destroyInvoiceFile = async (publicId: string) => {
  * per invoice id (two documents of one invoice deleted at once).
  */
 const deleteDocumentRows = async (ids: number[]): Promise<{ affected: number; filesDeleted: number }> => {
+  // An empty where list would match every document.
+  if (!ids.length) return { affected: 0, filesDeleted: 0 };
   const orphanFiles: string[] = [];
   const affected = await AppDataSource.transaction(async (m) => {
     const docs = await m.getRepository(EmissionDocument).find({ where: ids.map((id) => ({ document_id: id })) });
