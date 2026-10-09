@@ -56,17 +56,46 @@ export const lastYearPeriod = (period: OverviewPeriod): OverviewPeriod | null =>
   const k = period.key;
   switch (period.type) {
     case "cy":
-      return parseOverviewPeriod(String(+k - 1));
+      return parseOverviewPeriod(String(+k - 1).padStart(4, "0"));
     case "month":
     case "quarter":
-      return parseOverviewPeriod(`${+k.slice(0, 4) - 1}${k.slice(4)}`);
+      return parseOverviewPeriod(`${String(+k.slice(0, 4) - 1).padStart(4, "0")}${k.slice(4)}`);
     case "fy": {
       const y = +k.slice(2, 6) - 1;
-      return parseOverviewPeriod(`FY${y}-${pad((y + 1) % 100)}`);
+      return parseOverviewPeriod(`FY${String(y).padStart(4, "0")}-${pad((y + 1) % 100)}`);
     }
     default:
       return null;
   }
+};
+
+// Last day whose data is due: the end of the previous calendar month (data
+// for month M is filed in M+1).
+const dueThrough = (): string => {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+  return ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+};
+
+export type LastYearStatus = "complete" | "year_to_date" | "not_due";
+
+// What the period is compared with: the same period last year, cut to the
+// same months when the period is still running, so a part-filed year is not
+// set against a whole one.
+//   complete      the period has ended; last year's whole period
+//   year_to_date  the period is running; last year up to the same due month
+//   not_due       no month of the period is due yet; no % change is given
+export const lastYearComparison = (
+  period: OverviewPeriod,
+  due: string = dueThrough(),
+): { period: OverviewPeriod; status: LastYearStatus } | null => {
+  const ly = lastYearPeriod(period);
+  if (!ly || !period.start || !period.end || !ly.end) return null;
+  if (period.end <= due) return { period: ly, status: "complete" };
+  if (period.start > due) return { period: ly, status: "not_due" };
+  const y = +due.slice(0, 4) - 1;
+  const m = +due.slice(5, 7);
+  return { period: { ...ly, end: ymd(y, m, lastDay(y, m)) }, status: "year_to_date" };
 };
 
 const addMonths = (month: string, n: number): string => {
@@ -143,7 +172,14 @@ const kpiYearType = (period: OverviewPeriod): "CY" | "FY" | null =>
  *    approved yearly batch whose year overlaps the period;
  *  - the monthly series leaves out yearly batches;
  *  - tCO2e figures are rounded to 3 decimals;
- *  - by_category leaves out null-scope categories.
+ *  - by_category leaves out null-scope categories;
+ *  - trend: monthly gross/saved/net, 12 months for CY/FY, else the 6 months
+ *    ending with the period's last month (yearly batches left out; P06's
+ *    "Yearly filing" bar uses yearly_total);
+ *  - last_year: the same period a year earlier, cut to the same due months
+ *    while the period is running (status complete / year_to_date / not_due),
+ *    with kpis.net_vs_last_year_pct and by_site[].net_vs_last_year_pct
+ *    (null when last year's net is 0 or nothing is due yet).
  * siteIds defaults to every site the manager manages; any other site is 403.
  */
 export const getManagerOverview = async (req: AuthRequest, res: Response) => {
@@ -384,13 +420,14 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
     }
 
     // The same period last year, on the same rules as the KPIs.
-    const lyPeriod = lastYearPeriod(period);
-    const lyRows = lyPeriod ? (await approvedRows(lyPeriod)).filter((r) => r.counted) : [];
+    const ly = lastYearComparison(period);
+    const lyRows = ly ? (await approvedRows(ly.period)).filter((r) => r.counted) : [];
     const last_year = lastYear(period, siteIds, lyRows);
-    kpis.net_vs_last_year_pct = pctChange(kpis.net, last_year?.kpis.net);
+    const compared = last_year && last_year.status !== "not_due" ? last_year : null;
+    kpis.net_vs_last_year_pct = pctChange(kpis.net, compared?.kpis.net);
     const by_site_ly = by_site.map((s) => ({
       ...s,
-      net_vs_last_year_pct: pctChange(s.net, last_year?.by_site.find((x) => x.site_id === s.site_id)?.net),
+      net_vs_last_year_pct: pctChange(s.net, compared?.by_site.find((x) => x.site_id === s.site_id)?.net),
     }));
 
     return res.json({ ...base, kpis, by_scope, by_site: by_site_ly, by_month, yearly_total, by_category, submission, trend, last_year });
@@ -402,10 +439,11 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
 
 type ApprovedRow = { site_id: number; scope: string | null; total: unknown };
 
-// Gross/saved/net and per-scope figures of last year's counted approved rows,
-// in total and per site; null when the period has no last year (all time).
+// Gross/saved/net and per-scope figures of last year's counted approved rows
+// (see lastYearComparison), in total and per site; null when the period has
+// no last year (all time).
 const lastYear = (period: OverviewPeriod, siteIds: number[], rows: ApprovedRow[] = []) => {
-  const ly = lastYearPeriod(period);
+  const ly = lastYearComparison(period);
   if (!ly) return null;
   const split = (rs: ApprovedRow[]) => {
     const t = (scope: string | null) => rs.filter((r) => r.scope === scope).reduce((s, r) => s + num(r.total), 0);
@@ -418,7 +456,8 @@ const lastYear = (period: OverviewPeriod, siteIds: number[], rows: ApprovedRow[]
   };
   const kpis = split(rows);
   return {
-    period: ly,
+    period: ly.period,
+    status: ly.status,
     kpis,
     by_site: siteIds.map((site_id) => {
       const { gross, saved, net } = split(rows.filter((r) => r.site_id === site_id));

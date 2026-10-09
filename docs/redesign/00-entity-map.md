@@ -91,7 +91,7 @@ These tables live in the same Postgres but are owned by the FastAPI service (`VI
 | <a id="brand"></a>B1 | `Brand.logo_on_dark_url`, `Brand.default_look` (`classic|light|night`), optional `Brand.scope3_colour` | Classic/Night top bar needs a white logo; client picks default look | F1, P18 |
 | B2 | `User.appearance` (`light|dark|system`) | Persist per user instead of `localStorage` | F2, P14 |
 | B3 | Route-level role guard on the FE + 403 page | Today any role can open any URL | F2 |
-| B4 | `GET /manager/overview?period=&siteIds=` aggregate endpoint | P06 today downloads every emission per site and aggregates in the browser | P06 |
+| B4 | `GET /manager/overview?period=&siteIds=` aggregate endpoint; B4-TREND adds `trend` (12 months for CY/FY, else last 6), `last_year` (same period a year earlier, year to date while the period runs) and `net_vs_last_year_pct` on `kpis` and `by_site` | P06 today downloads every emission per site and aggregates in the browser | P06 |
 | B5 | `GET /user/my-month?month=` (categories due, done, pending, rejected for the signed-in user) | Powers the contributor checklist | P02 |
 | B6 | Server-side sort + search on `/emissions` paginated | Ledger table sort/search | P07, P04 |
 | B7 | Year export (`/emissions/export?year=`) | Today export needs a month | P07 |

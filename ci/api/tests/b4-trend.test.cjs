@@ -27,6 +27,7 @@ test("month: 6-month trend ending with the month, nothing last year", async () =
     { month: "2025-09", gross: 5.29, saved: 0, net: 5.29 },
   ]);
   assert.deepEqual(o.last_year.period, { key: "2024-09", type: "month", start: "2024-09-01", end: "2024-09-30" });
+  assert.equal(o.last_year.status, "complete");
   assert.deepEqual(o.last_year.kpis, { gross: 0, net: 0, saved: 0, scope_1: 0, scope_2: 0, scope_3: 0 });
   assert.equal(o.kpis.net_vs_last_year_pct, null);
   assert.ok(o.by_site.every((s) => s.net_vs_last_year_pct === null));
@@ -42,6 +43,7 @@ test("calendar year: 12-month trend, last year counts its own CY batch", async (
   // The trend is the monthly series; it matches by_month for a whole year.
   assert.deepEqual(o.trend, o.by_month);
   assert.equal(o.last_year.period.key, "2024");
+  assert.equal(o.last_year.status, "complete");
   assert.deepEqual(o.last_year.kpis, { gross: 130, net: 125, saved: 5, scope_1: 50, scope_2: 80, scope_3: 0 });
   assert.equal(o.kpis.net, 26.29);
   assert.equal(o.kpis.net_vs_last_year_pct, -79); // (26.29 - 125) / 125
@@ -107,4 +109,43 @@ test("site and category filters apply to the trend and last year", async () => {
   const site2 = await get("period=2025-09&siteIds=2");
   assert.deepEqual(site2.trend.filter((m) => m.gross), [{ month: "2025-08", gross: 10, saved: 0, net: 10 }]);
   assert.deepEqual(site2.last_year.by_site, [{ site_id: 2, gross: 0, saved: 0, net: 0 }]);
+});
+
+// Last day whose data is due today (end of the previous calendar month).
+const due = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).toISOString().slice(0, 10);
+};
+
+test("a running year is compared with last year to date", async () => {
+  // A year whose last month is not yet due, so this stays a running period.
+  const d = due();
+  const year = d.endsWith("-12-31") ? +d.slice(0, 4) + 1 : +d.slice(0, 4);
+  const o = await get(`period=${year}`);
+  const lyEnd = new Date(Date.UTC(year - 1, +d.slice(5, 7), 0)).toISOString().slice(0, 10);
+  if (year === +d.slice(0, 4)) {
+    assert.equal(o.last_year.status, "year_to_date");
+    assert.deepEqual(o.last_year.period, { key: String(year - 1), type: "cy", start: `${year - 1}-01-01`, end: lyEnd });
+  } else {
+    assert.equal(o.last_year.status, "not_due");
+    assert.equal(o.kpis.net_vs_last_year_pct, null);
+  }
+
+  // Through the fixture: with 2026 running, 2025 is cut to the same months.
+  if (d.startsWith("2026-") && d < "2026-12-31") {
+    const y26 = await get("period=2026");
+    const lyMonths = { "2025-02-28": 11, "2025-08-31": 10, "2025-09-30": 5.29 };
+    const expected = Object.entries(lyMonths).filter(([m]) => m.slice(0, 7) <= `2025-${d.slice(5, 7)}`).reduce((s, [, v]) => s + v, 0);
+    assert.equal(y26.last_year.kpis.net, Math.round(expected * 1000) / 1000);
+    assert.equal(y26.last_year.kpis.scope_2, 0, "the FY batch is not a CY batch");
+  }
+});
+
+test("a month not yet due gives no % change", async () => {
+  const d = due();
+  const next = new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7), 1)).toISOString().slice(0, 7);
+  const o = await get(`period=${next}`);
+  assert.equal(o.last_year.status, "not_due");
+  assert.equal(o.kpis.net_vs_last_year_pct, null);
+  assert.ok(o.by_site.every((s) => s.net_vs_last_year_pct === null));
 });
