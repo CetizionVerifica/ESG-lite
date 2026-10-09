@@ -2,14 +2,11 @@ import cron from "node-cron";
 import { MoreThanOrEqual } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
-import { Emission } from "../entities/Emission";
 import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/type";
 import { sendToQueue } from "../queues/emailProducer";
 import { createNotification } from "../services/notificationService";
-import { yearlyCoversDateSql } from "../services/reportingPeriod";
-
-const pad = (n: number) => String(n).padStart(2, "0");
+import { CONTRIBUTOR_RELATIONS, outstandingForMonth } from "../services/contributorObligations";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -32,108 +29,48 @@ const isLocalHour = (timezone: string | null, targetHour: number): boolean => {
 
 
 /**
- * Gets users who have NOT submitted any emission data for the given month/year.
- * Considers users with role USER who have an assigned site (single or multiple).
+ * Users (role USER) who still owe data for the given month, one entry per
+ * site where they owe something. A user owes a site when at least one of their
+ * categories there (the site's categories narrowed by their grants, without
+ * FERA) has nothing filed for the month: no monthly entry dated in it and no
+ * yearly batch covering it. Entries count whoever filed them, so a colleague's
+ * entry for the same site and category clears it. This matches the "todo"
+ * status of GET /user/my-month (services/contributorObligations).
  */
-const getUsersWithNoSubmissions = async (year: number, month: number) => {
+export const getUsersWithNoSubmissions = async (year: number, month: number) => {
   const userRepo = AppDataSource.getRepository(User);
-  const emissionRepo = AppDataSource.getRepository(Emission);
 
-  // Get all active users with role USER — load both single site and multiple sites
   const users = await userRepo.find({
     where: { role: UserRole.USER },
-    relations: ["site", "sites", "categories"],
+    relations: CONTRIBUTOR_RELATIONS,
   });
 
   console.log(`Found ${users.length} user(s) with role USER`);
 
-  const pendingUsers: { user_id: number; name: string; email: string; role: string; siteName: string; siteId: number; timezone: string | null }[] = [];
-
-  // Built as plain date strings rather than via toISOString(), which shifts the
-  // boundary by a day in any timezone east of UTC and made the window run from
-  // the last day of the previous month to the second-to-last day of this one.
-  const monthStart = `${year}-${pad(month)}-01`;
-  const monthEnd = `${year}-${pad(month)}-${pad(new Date(year, month, 0).getDate())}`;
+  const pendingUsers: { user_id: number; name: string; email: string; role: string; siteName: string; siteId: number; timezone: string | null; categories: string[] }[] = [];
 
   for (const user of users) {
     if (!user.email) continue;
-
-    // Determine which sites the user belongs to (single site OR multiple sites)
-    const userSites: { site_id: number; name: string }[] = [];
-
-    if (user.site) {
-      userSites.push({
-        site_id: (user.site as any).site_id,
-        name: (user.site as any).name || "N/A",
-      });
-    }
-
-    if (user.sites && user.sites.length > 0) {
-      for (const s of user.sites) {
-        const sid = (s as any).site_id;
-        if (!userSites.some((us) => us.site_id === sid)) {
-          userSites.push({ site_id: sid, name: (s as any).name || "N/A" });
-        }
-      }
-    }
-
-    if (userSites.length === 0) {
+    if (!user.site && !(user.sites && user.sites.length)) {
       console.log(`User ${user.email} has no site assigned, skipping`);
       continue;
     }
 
-    // Has this user submitted anything dated in the month?
-    const count = await emissionRepo
-      .createQueryBuilder("emission")
-      .where("emission.created_by = :userId", { userId: user.user_id })
-      .andWhere("emission.date_of_reporting BETWEEN :monthStart AND :monthEnd", {
-        monthStart,
-        monthEnd,
-      })
-      .getCount();
+    const outstanding = await outstandingForMonth(user, year, month);
 
-    // Nothing dated in the month is not the same as nothing submitted: a yearly
-    // batch covers its months without carrying their dates. Since yearly entry
-    // was widened to every category, "the user files yearly" is no longer a
-    // property of the category — so excuse the month only when EVERY category
-    // granted to this user is covered by a yearly batch. A user who files one
-    // category yearly and meters the rest still owes monthly data and must
-    // still be chased. An empty grant set means legacy full access (see
-    // utils/filterUserCategories) with no enumerable obligation, so it never
-    // qualifies.
-    let coveredByYearlyBatch = false;
-    const grantedCategoryIds = [
-      ...new Set((user.categories || []).map((c) => c.category_id)),
-    ];
-    if (count === 0 && grantedCategoryIds.length > 0) {
-      const covered = await emissionRepo
-        .createQueryBuilder("emission")
-        .select("COUNT(DISTINCT emission.category_id)", "covered")
-        .where("emission.created_by = :userId", { userId: user.user_id })
-        .andWhere("emission.category_id IN (:...grantedCategoryIds)", { grantedCategoryIds })
-        // Yearly windows align to month boundaries, so the first of the month
-        // is representative of the whole month.
-        .andWhere(yearlyCoversDateSql("emission"), { coveredDate: monthStart })
-        .getRawOne();
-      coveredByYearlyBatch =
-        Number(covered?.covered ?? 0) === grantedCategoryIds.length;
-    }
+    console.log(`User ${user.email} (id: ${user.user_id}) — sites with categories still to file: ${outstanding.map((o) => `${o.site.name} (${o.categories.length})`).join(", ") || "none"}`);
 
-    console.log(`User ${user.email} (id: ${user.user_id}) — emissions this month: ${count}, covered by yearly batch: ${coveredByYearlyBatch}, sites: ${userSites.map(s => s.name).join(", ")}`);
-
-    if (count === 0 && !coveredByYearlyBatch) {
-      // Add an entry for each site the user belongs to
-      for (const site of userSites) {
-        pendingUsers.push({
-          user_id: user.user_id,
-          name: `${user.name || ""} ${user.last_name || ""}`.trim() || "User",
-          email: user.email,
-          role: user.role || "User",
-          siteName: site.name,
-          siteId: site.site_id,
-          timezone: user.timezone || null,
-        });
-      }
+    for (const { site, categories } of outstanding) {
+      pendingUsers.push({
+        user_id: user.user_id,
+        name: `${user.name || ""} ${user.last_name || ""}`.trim() || "User",
+        email: user.email,
+        role: user.role || "User",
+        siteName: site.name || "N/A",
+        siteId: site.site_id,
+        timezone: user.timezone || null,
+        categories: categories.map((c) => c.category_name),
+      });
     }
   }
 
