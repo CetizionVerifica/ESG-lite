@@ -22,7 +22,7 @@ test.before(async () => {
       `INSERT INTO production_data (product_id, site_id, quantity, unit, start_date, end_date, status, created_by) VALUES
          ($1, 2, 120000, 'tonnes', '2023-01-01', '2023-12-31', 'approved', 7),
          ($2, 2, 180000, 't',      '2023-01-01', '2023-12-31', 'approved', 7),
-         ($2, 2, 999,    't',      '2022-07-01', '2023-06-30', 'approved', 7),
+         ($2, 2, 999,    't',      '2021-01-01', '2021-06-30', 'approved', 7),
          ($1, 2, 5000,   't',      '2023-02-01', '2023-02-28', 'pending',  7)
        RETURNING production_id`,
       [rod, alloy],
@@ -35,7 +35,7 @@ test.before(async () => {
          ('{}', 42000, 'tCO2e', '2023-12-31', 'approved', 7, 2, 2, 'yearly',  'CY'),
          ('{}', 100,   'tCO2e', '2023-06-30', 'approved', 7, 3, 2, 'monthly', NULL),
          ('{}', 70,    'tCO2e', '2023-06-30', 'approved', 7, 4, 2, 'monthly', NULL),
-         ('{}', 5000,  'tCO2e', '2023-03-31', 'approved', 7, 2, 2, 'yearly',  'FY'),
+         ('{}', 5000,  'tCO2e', '2021-03-31', 'approved', 7, 2, 2, 'yearly',  'FY'),
          ('{}', 9999,  'tCO2e', '2023-07-31', 'pending',  7, 1, 2, 'monthly', NULL)
        RETURNING pk_id`,
     );
@@ -65,7 +65,7 @@ const setLines = (id) =>
     inputs: [{ stage: "A1", name: "Aluminium", unit: "kg", quantity: 1, material_factor_id: alu }],
   });
 
-test("allocation preview: approved Scope 1+2 only, mass key, partial periods listed", async () => {
+test("allocation preview: approved Scope 1+2 only, mass key", async () => {
   const id = await newStudy();
   const res = await call("GET", `/pcf/studies/${id}/allocation-preview`, "manager");
   assert.equal(res.status, 200);
@@ -78,11 +78,74 @@ test("allocation preview: approved Scope 1+2 only, mass key, partial periods lis
   close(p.share_pct, 40, "share");
   assert.equal(p.product_output_units, 120000000);
   close(p.a3_energy_kg_per_unit, 0.2025, "A3 energy");
-  assert.deepEqual(p.excluded.map((e) => [e.kind, e.id]).sort(), [["emission", ids.emissions[5]], ["production", ids.production[2]]].sort());
+  assert.deepEqual(p.excluded, []);
   assert.deepEqual(p.production_ids_used, ids.production.slice(0, 2));
 
   assert.equal((await call("GET", `/pcf/studies/${id}/allocation-preview`, "otherManager")).status, 404);
   assert.equal((await call("GET", `/pcf/studies/${id}/allocation-preview`, "user")).status, 403);
+  await call("DELETE", `/pcf/studies/${id}`, "manager");
+});
+
+test("rows only partly inside the period are listed and block the calculation", async () => {
+  const id = await newStudy();
+  await setLines(id);
+  const extra = await withDb(async (db) => ({
+    e: (await db.query(`INSERT INTO emission (activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, year_type)
+          VALUES ('{}', 5000, 'tCO2e', '2023-03-31', 'approved', 7, 2, 2, 'yearly', 'FY') RETURNING pk_id`)).rows[0].pk_id,
+    p: (await db.query(`INSERT INTO production_data (product_id, site_id, quantity, unit, start_date, end_date, status, created_by)
+          VALUES ($1, 2, 999, 't', '2022-07-01', '2023-06-30', 'approved', 7) RETURNING production_id`, [alloy])).rows[0].production_id,
+  }));
+  try {
+    const p = (await call("GET", `/pcf/studies/${id}/allocation-preview`, "manager")).json;
+    assert.deepEqual(p.excluded.map((e) => [e.kind, e.id]), [["emission", extra.e], ["production", extra.p]]);
+    assert.equal(p.blockers.length, 2);
+    assert.equal(p.a3_energy_kg_per_unit, null);
+    assert.equal((await call("POST", `/pcf/studies/${id}/calculate`, "manager", {})).status, 400);
+  } finally {
+    await withDb(async (db) => {
+      await db.query("DELETE FROM emission WHERE pk_id = $1", [extra.e]);
+      await db.query("DELETE FROM production_data WHERE production_id = $1", [extra.p]);
+    });
+  }
+  await call("DELETE", `/pcf/studies/${id}`, "manager");
+});
+
+test("licensed (ecoinvent) line values stay hidden from managers", async () => {
+  const lic = await call("POST", "/pcf/material-factors", "superadmin", {
+    name: "Flow licensed alloy", material_group: "aluminium", unit: "kg", value_kgco2e: 12.345, licence: "ecoinvent",
+  });
+  const id = await newStudy();
+  await call("PUT", `/pcf/studies/${id}/inputs`, "manager", {
+    inputs: [
+      { stage: "A1", name: "Licensed alloy", unit: "kg", quantity: 1, material_factor_id: lic.json.material_factor_id },
+      { stage: "A3_packaging", name: "Pallet", unit: "kg", quantity: 1, material_factor_id: alu },
+    ],
+  });
+  const calc = await call("POST", `/pcf/studies/${id}/calculate`, "manager", {});
+  assert.equal(calc.status, 200);
+  assert.equal(JSON.stringify(calc.json).includes("12.345"), false);
+  const line = calc.json.result.lines.find((l) => l.name === "Licensed alloy");
+  assert.equal(line.kgco2e_per_unit, null);
+  assert.equal(line.value_hidden, true);
+  assert.equal(calc.json.result.by_stage.A1, null);
+  assert.deepEqual(calc.json.result.hidden_stages, ["A1"]);
+  assert.equal(calc.json.result.by_stage.A3_packaging, 8.6);
+  close(calc.json.result.total_kg_per_unit, 12.345 + 8.6 + 0.2025, "total");
+  const asManager = (await call("GET", `/pcf/studies/${id}`, "manager")).json.result;
+  assert.equal(asManager.by_stage.A1, null);
+  const asSuper = (await call("GET", `/pcf/studies/${id}`, "superadmin")).json.result;
+  close(asSuper.by_stage.A1, 12.345, "A1 for superadmin");
+  assert.deepEqual(asSuper.hidden_stages, []);
+  await call("DELETE", `/pcf/studies/${id}`, "manager");
+  await withDb((db) => db.query("DELETE FROM material_factor WHERE material_factor_id = $1", [lic.json.material_factor_id]));
+});
+
+test("AI lines without a confirmed confidence block the calculation", async () => {
+  const id = await newStudy();
+  await call("PUT", `/pcf/studies/${id}/inputs`, "manager", {
+    inputs: [{ stage: "A1", name: "Aluminium", unit: "kg", quantity: 1, material_factor_id: alu, ai_suggested: true }],
+  });
+  assert.equal((await call("POST", `/pcf/studies/${id}/calculate`, "manager", {})).status, 400);
   await call("DELETE", `/pcf/studies/${id}`, "manager");
 });
 
@@ -188,6 +251,12 @@ test("calculate, review, publish, reconcile, then a new version supersedes it", 
   assert.equal((await call("POST", `/pcf/studies/${v2}/approve`, "superadmin")).status, 200);
   assert.equal((await call("POST", `/pcf/studies/${v2}/publish`, "superadmin")).status, 200);
   assert.equal((await call("GET", `/pcf/studies/${id}`, "manager")).json.status, "superseded");
+
+  // Whoever calculated the result can't approve it either.
+  const v3 = (await call("POST", "/pcf/studies", "manager", { copy_from_id: v2 })).json.pcf_study_id;
+  assert.equal((await call("POST", `/pcf/studies/${v3}/calculate`, "superadmin", {})).status, 200);
+  assert.equal((await call("POST", `/pcf/studies/${v3}/submit`, "manager")).status, 200);
+  assert.equal((await call("POST", `/pcf/studies/${v3}/approve`, "superadmin")).status, 403);
 
   await withDb(async (db) => {
     const actions = (await db.query("SELECT action FROM audit_log WHERE entity_type = 'pcf_study' AND entity_id = $1 ORDER BY id", [id])).rows.map((r) => r.action);

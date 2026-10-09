@@ -27,10 +27,12 @@ import {
   PcfInputError,
 } from "../pcf/engine/computePcf";
 import { loadInputs, loadStudy, studyJson } from "./pcf.controller";
+import { licensedLineIds, redactLines, redactStages } from "../pcf/redact";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CUT_OFF_MAX_TOTAL_PCT = 5; // spec: omitted items together stay below 5%
-const AI_CONFIRM_BELOW = 0.6; // C02: AI lines under 60% must be confirmed before calculating
+const AI_CONFIRM_BELOW = 0.6;
+const PUBLISH_LOCK = 7101; // advisory lock namespace for publishing // C02: AI lines under 60% must be confirmed before calculating
 
 const resultRepo = () => AppDataSource.getRepository(PcfResult);
 
@@ -166,10 +168,10 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
 
     const inputs = await loadInputs(study.pcf_study_id);
     if (!inputs.length) return res.status(400).json({ message: "Add at least one input line first" });
-    const unconfirmed = inputs.filter((i) => i.ai_suggested && i.ai_confidence != null && Number(i.ai_confidence) < AI_CONFIRM_BELOW);
+    const unconfirmed = inputs.filter((i) => i.ai_suggested && (i.ai_confidence == null || Number(i.ai_confidence) < AI_CONFIRM_BELOW));
     if (unconfirmed.length) {
       return res.status(400).json({
-        message: `Confirm the ${unconfirmed.length} AI-suggested line(s) under ${AI_CONFIRM_BELOW * 100}% confidence first`,
+        message: `Confirm the ${unconfirmed.length} AI-suggested line(s) with confidence under ${AI_CONFIRM_BELOW * 100}% (or none given) first`,
         input_ids: unconfirmed.map((i) => i.pcf_input_id),
       });
     }
@@ -186,7 +188,14 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
     }
     const rows = allocatedRows(plant);
 
-    await AppDataSource.transaction(async (m) => {
+    const written = await AppDataSource.transaction(async (m) => {
+      // Re-check under a row lock: a submit or approve that landed meanwhile wins.
+      const locked = await m
+        .createQueryBuilder(PcfStudy, "s")
+        .setLock("pessimistic_write")
+        .where("s.pcf_study_id = :id", { id: study.pcf_study_id })
+        .getOne();
+      if (locked?.status !== "draft") return false;
       const existing = await m.findOne(PcfResult, { where: { study: { pcf_study_id: study.pcf_study_id } } });
       await m.save(
         m.create(PcfResult, {
@@ -229,8 +238,12 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
         );
       }
       await audit(m, study, scope.userId, "calculate", { total_kg_per_unit: { old: existing ? Number(existing.total_kg_per_unit) : null, new: r.total_kg_per_unit } });
+      return true;
     });
+    if (!written) return res.status(409).json({ message: "The footprint left draft meanwhile; reload it" });
 
+    const hidden = scope.all ? new Set<string>() : licensedLineIds(engineInput);
+    const redacted = redactStages(r.by_stage, r.lines, hidden);
     res.json({
       result: {
         total_kg_per_unit: r.total_kg_per_unit,
@@ -238,8 +251,9 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
         biogenic_kg_per_unit: r.biogenic_kg_per_unit,
         aircraft_kg_per_unit: r.aircraft_kg_per_unit,
         luc_kg_per_unit: r.luc_kg_per_unit,
-        by_stage: r.by_stage,
-        lines: r.lines.map((l) => ({ ...l, pcf_input_id: l.id.startsWith("in-") ? Number(l.id.slice(3)) : null })),
+        by_stage: redacted.by_stage,
+        hidden_stages: redacted.hidden_stages,
+        lines: redactLines(r.lines, hidden).map((l) => ({ ...l, pcf_input_id: l.id.startsWith("in-") ? Number(l.id.slice(3)) : null })),
         allocation: r.allocation,
         cut_off: r.cut_off,
         primary_data_share_pct: r.primary_data_share_pct,
@@ -263,12 +277,13 @@ async function move(
   to: PcfStudyStatus,
   check?: (study: PcfStudy, result: PcfResult | null, userId: number) => string | [number, string] | null,
   apply?: (m: EntityManager, study: PcfStudy, userId: number) => Promise<void>,
+  opts: { where?: string; lock?: (m: EntityManager, study: PcfStudy) => Promise<unknown> } = {},
 ) {
   const found = await studyFor(req, res);
   if (!found) return;
   const { scope, study } = found;
   if (study.status !== from) return res.status(409).json({ message: `The footprint is ${study.status.replace("_", " ")}, not ${from.replace("_", " ")}` });
-  const result = await resultRepo().findOne({ where: { study: { pcf_study_id: study.pcf_study_id } } });
+  const result = await resultRepo().findOne({ where: { study: { pcf_study_id: study.pcf_study_id } }, relations: ["calculated_by"] });
   const problem = check?.(study, result, scope.userId);
   if (problem) {
     const [status, message] = Array.isArray(problem) ? problem : [409, problem];
@@ -276,11 +291,12 @@ async function move(
   }
   // Conditional update: a second click or a concurrent reviewer can't move it twice.
   const moved = await AppDataSource.transaction(async (m) => {
+    await opts.lock?.(m, study);
     const upd = await m
       .createQueryBuilder()
       .update(PcfStudy)
       .set({ status: to })
-      .where("pcf_study_id = :id AND status = :from", { id: study.pcf_study_id, from })
+      .where(`pcf_study_id = :id AND status = :from${opts.where ? ` AND ${opts.where}` : ""}`, { id: study.pcf_study_id, from })
       .execute();
     if (!upd.affected) return false;
     await apply?.(m, study, scope.userId);
@@ -290,7 +306,7 @@ async function move(
   if (!moved) return res.status(409).json({ message: "The footprint changed meanwhile; reload it" });
   const fresh = await loadStudy(study.pcf_study_id, scope);
   const freshResult = await resultRepo().findOne({ where: { study: { pcf_study_id: study.pcf_study_id } } });
-  res.json(studyJson(fresh!, freshResult));
+  res.json(studyJson(fresh!, freshResult, scope));
 }
 
 const ACTION: Partial<Record<PcfStudyStatus, string>> = { in_review: "submit", draft: "reject", approved: "approve", published: "publish" };
@@ -332,7 +348,12 @@ export const approveStudy = (req: AuthRequest, res: Response) =>
     res,
     "in_review",
     "approved",
-    (study, _r, userId) => (study.created_by?.user_id === userId ? [403, "Someone other than the footprint's creator must approve it"] : null),
+    (study, result, userId) => {
+      // Four eyes: neither the creator nor whoever produced the result under review.
+      if (study.created_by?.user_id === userId) return [403, "Someone other than the footprint's creator must approve it"];
+      if (result?.calculated_by?.user_id === userId) return [403, "Someone other than the person who calculated it must approve it"];
+      return null;
+    },
     async (m, study, userId) => {
       await m.update(PcfStudy, { pcf_study_id: study.pcf_study_id }, {
         reviewed_by: { user_id: userId } as User,
@@ -387,6 +408,11 @@ export const publishStudy = (req: AuthRequest, res: Response) =>
         await m.update(PcfStudy, { pcf_study_id: In(older.map((s) => s.pcf_study_id)) }, { status: "superseded" });
         for (const s of older) await audit(m, s, userId, "superseded", { status: { old: "published", new: "superseded" } }, `by study ${study.pcf_study_id}`);
       }
+    },
+    {
+      where: "stale = false",
+      // One publish per product at a time, so two versions can't both stay published.
+      lock: (m, study) => m.query("SELECT pg_advisory_xact_lock($1, $2)", [PUBLISH_LOCK, study.product.product_id]),
     },
   ).catch((err) => {
     console.error("publishStudy", err);

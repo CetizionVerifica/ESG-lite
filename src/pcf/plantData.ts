@@ -4,8 +4,8 @@
 //
 // Only approved Scope 1 and Scope 2 emissions at the study's site count.
 // A row counts when the whole period it covers lies inside the reference
-// period; a yearly batch or production row that only partly overlaps is left
-// out and listed, never pro-rated.
+// period. A yearly batch or production row that only partly overlaps is never
+// pro-rated: it is listed in `excluded` and blocks the calculation.
 import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
@@ -124,6 +124,9 @@ export async function loadPlantData(study: PcfStudy, override: KeyOverride = {})
     if (scope !== 1 && scope !== 2) continue; // Scope 3 and renewable (no scope) are outside A3 energy
     if (w.start < start || w.end > end) {
       out.excluded.push({ kind: "emission", id: e.pk_id, reason: `covers ${w.start} – ${w.end}, only partly inside the reference period` });
+      out.blockers.push(
+        `Approved ${e.category.category_name} data (entry ${e.pk_id}) covers ${w.start} – ${w.end}, only partly inside this footprint's period; use a period that matches how the site files it`,
+      );
       continue;
     }
     const cid = e.category.category_id;
@@ -159,6 +162,9 @@ export async function loadPlantData(study: PcfStudy, override: KeyOverride = {})
     const pe = ymd(p.end_date);
     if (ps < start || pe > end) {
       out.excluded.push({ kind: "production", id: p.production_id, reason: `covers ${ps} – ${pe}, only partly inside the reference period` });
+      out.blockers.push(
+        `Approved production of ${p.product?.name ?? "a product"} (entry ${p.production_id}) covers ${ps} – ${pe}, only partly inside this footprint's period`,
+      );
       continue;
     }
     const qty = Number(p.quantity);
@@ -199,6 +205,7 @@ export async function loadPlantData(study: PcfStudy, override: KeyOverride = {})
     if (massKnown) {
       keyProduct = productT;
       keySite = siteT;
+      if (out.sources.length && !(siteT > 0)) out.blockers.push("The site's approved production in the reference period adds up to 0");
     }
   } else {
     keyProduct = override.key_value_product ?? null;
