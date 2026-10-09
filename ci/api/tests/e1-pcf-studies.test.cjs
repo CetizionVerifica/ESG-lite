@@ -85,6 +85,11 @@ test("manager creates, reads, edits and deletes a draft; other company cannot se
   assert.equal((await call("GET", `/pcf/studies/${s.pcf_study_id}`, "manager")).status, 404);
 });
 
+test("list rejects an unknown status filter", async () => {
+  assert.equal((await call("GET", "/pcf/studies?status=bogus", "manager")).status, 400);
+  assert.equal((await call("GET", "/pcf/studies?status=draft", "manager")).status, 200);
+});
+
 test("create is validated and scoped to the manager's sites", async () => {
   assert.equal((await call("POST", "/pcf/studies", "manager", study({ product_id: other }))).status, 404);
   assert.equal((await call("POST", "/pcf/studies", "otherManager", study())).status, 404);
@@ -157,6 +162,14 @@ test("material factors: company scope, global library and ecoinvent values", asy
   assert.equal(edited.status, 200);
   assert.equal(edited.json.value_kgco2e, 0.6);
 
+  // Required text fields stay non-empty on edit; superadmin company_id must be a real company.
+  for (const body of [{ name: "" }, { unit: "  " }, { material_group: null }]) {
+    assert.equal((await call("PATCH", `/pcf/material-factors/${own.json.material_factor_id}`, "manager", body)).status, 400);
+  }
+  const base = { name: "x", material_group: "m", unit: "kg", value_kgco2e: 1 };
+  assert.equal((await call("POST", "/pcf/material-factors", "superadmin", { ...base, company_id: "abc" })).status, 400);
+  assert.equal((await call("POST", "/pcf/material-factors", "superadmin", { ...base, company_id: 999999 })).status, 404);
+
   await call("DELETE", `/pcf/material-factors/${own.json.material_factor_id}`, "manager");
   await call("DELETE", `/pcf/material-factors/${global.json.material_factor_id}`, "superadmin");
 });
@@ -183,10 +196,12 @@ test("input lines: validation, replace, copy to a new version, draft-only", asyn
       { stage: "A1", name: "other company", unit: "kg", quantity: 1, material_factor_id: theirs.json.material_factor_id },
       { stage: "A1", name: "bad dqr", unit: "kg", quantity: 1, material_factor_id: alu, dqr_time: 4 },
       { stage: "A1", name: "negative", unit: "kg", quantity: -1, material_factor_id: alu },
+      { stage: "A1", name: "no quantity", unit: "kg", material_factor_id: alu },
     ],
   });
   assert.equal(invalid.status, 400);
-  assert.deepEqual(invalid.json.errors.map((e) => e.index), [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(invalid.json.errors.map((e) => e.index), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.match(invalid.json.errors[8].message, /quantity is required/);
 
   const lines = [
     { stage: "A1", name: "Aluminium", unit: "kg", quantity: 1.002, material_factor_id: alu, recycled_material_factor_id: rec, recycled_share_pct: 10, data_type: "primary", dqr_technology: 1 },
@@ -229,6 +244,14 @@ test("input lines: validation, replace, copy to a new version, draft-only", asyn
   assert.equal(copied.json.inputs[0].recycled_material_factor_id, rec);
   // The original keeps its own lines.
   assert.equal((await call("GET", `/pcf/studies/${s.pcf_study_id}`, "manager")).json.inputs.length, 2);
+
+  // Copying the same study again takes the next free version, never a duplicate.
+  const again = await call("POST", "/pcf/studies", "manager", { copy_from_id: s.pcf_study_id });
+  assert.equal(again.status, 201);
+  assert.equal(again.json.version, copy.json.version + 1);
+  const twin = await Promise.all([1, 2].map(() => call("POST", "/pcf/studies", "manager", { copy_from_id: s.pcf_study_id })));
+  assert.deepEqual(twin.map((r) => r.status), [201, 201]);
+  assert.notEqual(twin[0].json.version, twin[1].json.version);
 
   assert.equal((await call("POST", "/pcf/studies", "otherManager", { copy_from_id: s.pcf_study_id })).status, 404);
   // A version is for the same product.

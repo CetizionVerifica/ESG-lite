@@ -6,13 +6,14 @@ import { Response } from "express";
 import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import { PcfStudy, PcfAllocationKey } from "../entities/PcfStudy";
+import { PcfStudy, PcfAllocationKey, PcfStudyStatus } from "../entities/PcfStudy";
 import { PcfInput, PcfStage } from "../entities/PcfInput";
 import { PcfResult } from "../entities/PcfResult";
 import { MaterialFactor } from "../entities/MaterialFactor";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Product } from "../entities/Product";
 import { Site } from "../entities/Site";
+import { Company } from "../entities/Company";
 import { User } from "../entities/User";
 import { canSeeCompany, canSeeSite, pcfScope, PcfScope } from "../pcf/access";
 
@@ -21,6 +22,8 @@ const inputRepo = () => AppDataSource.getRepository(PcfInput);
 const resultRepo = () => AppDataSource.getRepository(PcfResult);
 const factorRepo = () => AppDataSource.getRepository(MaterialFactor);
 
+const STATUSES: PcfStudyStatus[] = ["draft", "in_review", "approved", "published", "superseded"];
+const VERSION_LOCK = 7102; // advisory lock namespace: numbering a product's versions
 const STAGES: PcfStage[] = ["A1", "A2", "A3_packaging", "A3_waste"];
 const KEYS: PcfAllocationKey[] = ["mass", "machine_hours", "energy", "economic", "manual"];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -167,7 +170,10 @@ export const listStudies = async (req: AuthRequest, res: Response) => {
     if (req.query.siteId !== undefined && !siteId) return res.status(400).json({ message: "siteId must be an id" });
     if (productId) qb.andWhere("product.product_id = :productId", { productId });
     if (siteId) qb.andWhere("site.site_id = :siteId", { siteId });
-    if (typeof req.query.status === "string" && req.query.status) qb.andWhere("s.status = :status", { status: req.query.status });
+    if (req.query.status !== undefined) {
+      if (!STATUSES.includes(req.query.status as PcfStudyStatus)) return res.status(400).json({ message: `status must be one of ${STATUSES.join(", ")}` });
+      qb.andWhere("s.status = :status", { status: req.query.status });
+    }
     const studies = await qb.getMany();
     const results = studies.length
       ? await resultRepo().find({ where: { study: { pcf_study_id: In(studies.map((s) => s.pcf_study_id)) } }, relations: ["study"] })
@@ -209,8 +215,11 @@ function readStudyFields(body: any, creating: boolean): [StudyFields, string | n
     if (!Number.isFinite(v) || v < 0 || v > 5) return [f, "cut_off_rule_pct must be between 0 and 5"];
     f.cut_off_rule_pct = String(v);
   }
-  if (body.pcr_tag !== undefined) f.pcr_tag = body.pcr_tag === null ? null : String(body.pcr_tag);
-  if (body.notes !== undefined) f.notes = body.notes === null ? null : String(body.notes);
+  for (const k of ["pcr_tag", "notes"] as const) {
+    if (body[k] === undefined) continue;
+    if (body[k] !== null && typeof body[k] !== "string") return [f, `${k} must be text`];
+    f[k] = body[k] === null || !body[k].trim() ? null : body[k].trim();
+  }
   return [f, null];
 }
 
@@ -256,12 +265,18 @@ export const createStudy = async (req: AuthRequest, res: Response) => {
     }
 
     const saved = await AppDataSource.transaction(async (m) => {
+      // Versions count per product and site; the lock stops two copies taking the same number.
+      await m.query("SELECT pg_advisory_xact_lock($1, $2)", [VERSION_LOCK, product.product_id]);
+      const [{ max }] = await m.query("SELECT COALESCE(MAX(version), 0) AS max FROM pcf_study WHERE product_id = $1 AND site_id = $2", [
+        product.product_id,
+        site.site_id,
+      ]);
       const study = m.create(PcfStudy, {
         ...fields,
         company: site.company,
         product,
         site,
-        version: parent ? parent.version + 1 : 1,
+        version: Number(max) + 1,
         parent_version: parent,
         status: "draft",
         created_by: { user_id: scope.userId } as User,
@@ -317,7 +332,9 @@ export const updateStudy = async (req: AuthRequest, res: Response) => {
     if (start > end) return res.status(400).json({ message: "reference_start must be on or before reference_end" });
     const periodProblem = periodError(start, end, fields.year_type ?? study.year_type);
     if (periodProblem) return res.status(400).json({ message: periodProblem });
-    await studyRepo().update({ pcf_study_id: study.pcf_study_id }, fields);
+    // Conditional on draft, so a submit that lands meanwhile wins.
+    const upd = await studyRepo().update({ pcf_study_id: study.pcf_study_id, status: "draft" }, fields);
+    if (!upd.affected) return res.status(409).json({ message: "Only a draft can be edited; create a new version instead" });
     const fresh = await loadStudy(study.pcf_study_id, scope);
     res.json(studyJson(fresh!));
   } catch (err) {
@@ -334,7 +351,8 @@ export const deleteStudy = async (req: AuthRequest, res: Response) => {
     const study = id ? await loadStudy(id, scope) : null;
     if (!study) return res.status(404).json({ message: "Footprint not found" });
     if (study.status !== "draft") return res.status(409).json({ message: "Only a draft can be deleted" });
-    await studyRepo().delete({ pcf_study_id: study.pcf_study_id });
+    const del = await studyRepo().delete({ pcf_study_id: study.pcf_study_id, status: "draft" });
+    if (!del.affected) return res.status(409).json({ message: "Only a draft can be deleted" });
     res.status(204).end();
   } catch (err) {
     console.error("deleteStudy", err);
@@ -404,6 +422,7 @@ export const replaceInputs = async (req: AuthRequest, res: Response) => {
       if (l.recycled_material_factor_id != null && (!rf || !factorVisibleTo(rf, companyId))) return fail("recycled factor not found");
       if (l.emission_factor_id != null && (!ef || ef.site?.company?.company_id !== companyId)) return fail("transport factor not found");
 
+      if (l.stage !== "A2" && n.quantity === null) return fail("quantity is required");
       if (l.stage === "A2") {
         if (n.payload_t === null || n.distance_km === null) return fail("a transport leg needs payload_t and distance_km");
         const unit = (ef?.denominator_unit ?? mf?.unit ?? "").trim().toLowerCase();
@@ -442,11 +461,19 @@ export const replaceInputs = async (req: AuthRequest, res: Response) => {
     });
     if (errors.length) return res.status(400).json({ message: "Some lines are not valid", errors });
 
-    await AppDataSource.transaction(async (m) => {
+    const replaced = await AppDataSource.transaction(async (m) => {
+      const locked = await m
+        .createQueryBuilder(PcfStudy, "s")
+        .setLock("pessimistic_write")
+        .where("s.pcf_study_id = :id", { id: study.pcf_study_id })
+        .getOne();
+      if (locked?.status !== "draft") return false;
       await m.delete(PcfInput, { study: { pcf_study_id: study.pcf_study_id } });
       if (rows.length) await m.save(rows.map((r) => m.create(PcfInput, { ...r, study })));
       await m.update(PcfStudy, { pcf_study_id: study.pcf_study_id }, { updated_at: new Date() });
+      return true;
     });
+    if (!replaced) return res.status(409).json({ message: "Only a draft can be edited; create a new version instead" });
     const saved = await loadInputs(study.pcf_study_id);
     res.json({ inputs: saved.map(inputJson) });
   } catch (err) {
@@ -508,7 +535,10 @@ function readFactor(body: any, partial: boolean): [Partial<MaterialFactor>, stri
   const req = (k: string) => !partial && (body[k] === undefined || body[k] === null || body[k] === "");
   for (const k of ["name", "material_group", "unit"] as const) {
     if (req(k)) return [f, `${k} is required`];
-    if (body[k] !== undefined) f[k] = String(body[k]).trim();
+    if (body[k] !== undefined) {
+      if (typeof body[k] !== "string" || !body[k].trim()) return [f, `${k} must be non-empty text`];
+      f[k] = body[k].trim();
+    }
   }
   if (req("value_kgco2e")) return [f, "value_kgco2e is required"];
   if (body.value_kgco2e !== undefined) {
@@ -546,7 +576,13 @@ export const createMaterialFactor = async (req: AuthRequest, res: Response) => {
     const scope = await pcfScope(req);
     const body = req.body ?? {};
     let companyId: number | null;
-    if (scope.all) companyId = body.company_id == null ? null : idParam(body.company_id);
+    if (scope.all) {
+      companyId = body.company_id == null ? null : idParam(body.company_id);
+      if (body.company_id != null && companyId === null) return res.status(400).json({ message: "company_id must be an id, or null for the global library" });
+      if (companyId !== null && !(await AppDataSource.getRepository(Company).exist({ where: { company_id: companyId } }))) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+    }
     else companyId = idParam(body.company_id) ?? (scope.companyIds.length === 1 ? scope.companyIds[0] : null);
     if (!scope.all && (companyId === null || !scope.companyIds.includes(companyId))) {
       return res.status(403).json({ message: "Managers add factors to their own company" });
