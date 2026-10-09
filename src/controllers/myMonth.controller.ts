@@ -5,6 +5,7 @@ import { Emission } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
 import { periodWindow, yearlyCoversDateSql, YearType } from "../services/reportingPeriod";
+import { CONTRIBUTOR_RELATIONS, contributorSiteCategories, monthBounds } from "../services/contributorObligations";
 
 type CategoryStatus = "todo" | "pending" | "approved" | "rejected" | "covered";
 
@@ -71,7 +72,7 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
 
     const user = await AppDataSource.getRepository(User).findOne({
       where: { user_id: userId },
-      relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
+      relations: CONTRIBUTOR_RELATIONS,
     });
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -82,24 +83,11 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "month must be YYYY-MM" });
     }
     const year = parseInt(match[1], 10);
-    const monthStart = `${year}-${pad(monthNum)}-01`;
-    const monthEnd = `${year}-${pad(monthNum)}-${pad(new Date(Date.UTC(year, monthNum, 0)).getUTCDate())}`;
+    const { monthStart, monthEnd } = monthBounds(year, monthNum);
 
-    const granted = new Set((user.categories || []).map((c) => c.category_id));
-    const sites = [user.site, ...(user.sites || [])]
-      .filter((s): s is NonNullable<typeof s> => Boolean(s))
-      .filter((s, i, all) => all.findIndex((o) => o.site_id === s.site_id) === i)
-      .sort((a, b) => a.site_id - b.site_id);
+    const siteCategories = contributorSiteCategories(user);
 
-    const siteCategories = sites.map((site) => ({
-      site,
-      categories: (site.categories || [])
-        .filter((c) => c.category_name?.toLowerCase() !== "fera")
-        .filter((c) => granted.size === 0 || granted.has(c.category_id))
-        .sort((a, b) => (a.scope ?? "~").localeCompare(b.scope ?? "~") || a.category_name.localeCompare(b.category_name)),
-    }));
-
-    const siteIds = sites.map((s) => s.site_id);
+    const siteIds = siteCategories.map((s) => s.site.site_id);
     const categoryIds = [...new Set(siteCategories.flatMap((s) => s.categories.map((c) => c.category_id)))];
 
     const rows =
