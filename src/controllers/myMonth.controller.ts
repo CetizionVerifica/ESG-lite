@@ -18,15 +18,27 @@ const deadlines = (year: number, month: number) => {
   return { due_date: `${ym}-10`, escalation_date: `${ym}-15` };
 };
 
-const previousMonth = (): string => {
-  const now = new Date();
-  const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+// The month before "now" in the user's IANA timezone (UTC when unset or
+// unknown), so a user in Asia/Dubai sees the new month at their midnight.
+export const previousMonth = (timeZone?: string | null, now: Date = new Date()): string => {
+  let y = now.getUTCFullYear();
+  let m = now.getUTCMonth() + 1;
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(now);
+      y = Number(parts.find((p) => p.type === "year")?.value);
+      m = Number(parts.find((p) => p.type === "month")?.value);
+    } catch {
+      // invalid timezone: keep UTC
+    }
+  }
+  const prev = new Date(Date.UTC(y, m - 2, 1));
   return `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}`;
 };
 
 /**
  * GET /user/my-month?month=YYYY-MM  (default: the previous month, the one
- * currently due)
+ * currently due, in the user's timezone; UTC when none is set)
  *
  * For the signed-in contributor: every category they owe for the month, per
  * site, with its status:
@@ -34,12 +46,15 @@ const previousMonth = (): string => {
  *   pending   filed, waiting for approval
  *   approved  filed and approved
  *   rejected  at least one entry was sent back (always wins: it needs action)
- *   covered   no monthly data needed: a yearly batch covers this month and
- *             its period ends in another month
+ *   covered   no monthly data needed: an approved yearly batch covers this
+ *             month and its period ends in another month
  * Categories are the site's categories narrowed by the user's grants (an empty
  * grant list means all), without FERA (FERA rows are generated from their
  * parent entry). Entries count per site + category, whoever filed them.
- * Yearly batches count as entries only in their period-end month.
+ * Yearly batches count as entries in their period-end month. In the other
+ * months they cover, a batch that is not fully approved shows its real status
+ * (pending/rejected, with rejections) but adds no tCO2e, so summing months
+ * never counts a batch twice.
  */
 export const getMyMonth = async (req: AuthRequest, res: Response) => {
   try {
@@ -49,7 +64,18 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: "Only contributors have a monthly checklist" });
     }
 
-    const monthParam = (req.query.month as string | undefined) ?? previousMonth();
+    const monthQuery = req.query.month as string | undefined;
+    if (monthQuery !== undefined && !/^(\d{4})-(\d{2})$/.test(String(monthQuery))) {
+      return res.status(400).json({ message: "month must be YYYY-MM" });
+    }
+
+    const user = await AppDataSource.getRepository(User).findOne({
+      where: { user_id: userId },
+      relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
+    });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const monthParam = monthQuery ?? previousMonth(user.timezone);
     const match = /^(\d{4})-(\d{2})$/.exec(monthParam);
     const monthNum = match ? parseInt(match[2], 10) : 0;
     if (!match || monthNum < 1 || monthNum > 12) {
@@ -58,12 +84,6 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
     const year = parseInt(match[1], 10);
     const monthStart = `${year}-${pad(monthNum)}-01`;
     const monthEnd = `${year}-${pad(monthNum)}-${pad(new Date(Date.UTC(year, monthNum, 0)).getUTCDate())}`;
-
-    const user = await AppDataSource.getRepository(User).findOne({
-      where: { user_id: userId },
-      relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
-    });
-    if (!user) return res.status(404).json({ message: "User not found" });
 
     const granted = new Set((user.categories || []).map((c) => c.category_id));
     const sites = [user.site, ...(user.sites || [])]
@@ -121,9 +141,14 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
         const mine = rows.filter((r) => r.site_id === site.site_id && r.category_id === category.category_id);
         const monthly = mine.filter((r) => r.reporting_period !== "yearly");
         const yearly = mine.filter((r) => r.reporting_period === "yearly");
-        // A yearly batch is "this month's" data only in its period-end month.
+        // A yearly batch is "this month's" data in its period-end month. In
+        // the other months it covers, only a fully approved batch means
+        // "covered"; a pending or rejected one shows its real status.
         const yearlyDueNow = yearly.filter((r) => r.date_of_reporting >= monthStart && r.date_of_reporting <= monthEnd);
-        const entries = monthly.length ? monthly : yearlyDueNow;
+        const yearlyOpen = yearly.some((r) => r.status !== "approved");
+        const entries = monthly.length ? monthly : yearlyDueNow.length ? yearlyDueNow : yearlyOpen ? yearly : [];
+        // tCO2e of a yearly batch belongs to its period-end month only.
+        const counted = monthly.length ? monthly : yearlyDueNow;
 
         const counts = {
           total: entries.length,
@@ -160,7 +185,7 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
             : null,
           entries: counts,
           // tCO2e of entries that still count (pending + approved)
-          total_emission: entries
+          total_emission: counted
             .filter((r) => r.status !== "rejected")
             .reduce((sum, r) => sum + Number(r.total_emission || 0), 0),
           last_entry_at: entries.length
