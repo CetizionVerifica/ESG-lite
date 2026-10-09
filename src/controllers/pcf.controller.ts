@@ -26,6 +26,26 @@ const KEYS: PcfAllocationKey[] = ["mass", "machine_hours", "energy", "economic",
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_LINES = 500;
 
+// A real calendar date, not just the YYYY-MM-DD shape.
+const isDate = (v: unknown): v is string => {
+  if (typeof v !== "string" || !DATE.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v && v >= "1900-01-01";
+};
+
+// Method note §2.10: the reference period is twelve months, a calendar year
+// (Jan–Dec) or a financial year (Apr–Mar), matching the study's year_type.
+export function periodError(start: string, end: string, yearType: "CY" | "FY"): string | null {
+  const y = Number(start.slice(0, 4));
+  const want = yearType === "CY" ? [`${y}-01-01`, `${y}-12-31`] : [`${y}-04-01`, `${y + 1}-03-31`];
+  if (start !== want[0] || end !== want[1]) {
+    return yearType === "CY"
+      ? "A calendar-year footprint runs from 1 January to 31 December of one year"
+      : "A financial-year footprint runs from 1 April to 31 March";
+  }
+  return null;
+}
+
 const num = (v: unknown): number | null => (v === null || v === undefined || v === "" ? null : Number(v));
 const isNum = (v: unknown) => typeof v === "number" && Number.isFinite(v);
 const idParam = (v: unknown) => {
@@ -169,7 +189,7 @@ function readStudyFields(body: any, creating: boolean): [StudyFields, string | n
   const f: StudyFields = {};
   for (const k of ["reference_start", "reference_end"] as const) {
     if (body[k] !== undefined) {
-      if (typeof body[k] !== "string" || !DATE.test(body[k])) return [f, `${k} must be YYYY-MM-DD`];
+      if (!isDate(body[k])) return [f, `${k} must be a date (YYYY-MM-DD)`];
       f[k] = body[k];
     } else if (creating) return [f, `${k} is required`];
   }
@@ -205,6 +225,9 @@ export const createStudy = async (req: AuthRequest, res: Response) => {
       parent = pid ? await loadStudy(pid, scope) : null;
       if (!parent) return res.status(404).json({ message: "Study to copy not found" });
     }
+    if (parent && body.product_id !== undefined && idParam(body.product_id) !== parent.product.product_id) {
+      return res.status(400).json({ message: "A new version is for the same product; start a new footprint for another product" });
+    }
     const productId = idParam(body.product_id) ?? parent?.product.product_id ?? null;
     if (!productId) return res.status(400).json({ message: "product_id is required" });
     const product = await AppDataSource.getRepository(Product).findOne({
@@ -226,6 +249,11 @@ export const createStudy = async (req: AuthRequest, res: Response) => {
       : {};
     const [fields, error] = readStudyFields({ ...base, ...body }, true);
     if (error) return res.status(400).json({ message: error });
+    const periodProblem = periodError(fields.reference_start!, fields.reference_end!, fields.year_type ?? "CY");
+    if (periodProblem) return res.status(400).json({ message: periodProblem });
+    if (parent && parent.company.company_id !== site.company?.company_id) {
+      return res.status(400).json({ message: "A new version stays in the same company" });
+    }
 
     const saved = await AppDataSource.transaction(async (m) => {
       const study = m.create(PcfStudy, {
@@ -287,6 +315,8 @@ export const updateStudy = async (req: AuthRequest, res: Response) => {
     const start = fields.reference_start ?? study.reference_start;
     const end = fields.reference_end ?? study.reference_end;
     if (start > end) return res.status(400).json({ message: "reference_start must be on or before reference_end" });
+    const periodProblem = periodError(start, end, fields.year_type ?? study.year_type);
+    if (periodProblem) return res.status(400).json({ message: periodProblem });
     await studyRepo().update({ pcf_study_id: study.pcf_study_id }, fields);
     const fresh = await loadStudy(study.pcf_study_id, scope);
     res.json(studyJson(fresh!));
@@ -502,7 +532,7 @@ function readFactor(body: any, partial: boolean): [Partial<MaterialFactor>, stri
   }
   for (const k of ["valid_from", "valid_to"] as const) {
     if (body[k] !== undefined) {
-      if (body[k] !== null && !(typeof body[k] === "string" && DATE.test(body[k]))) return [f, `${k} must be YYYY-MM-DD`];
+      if (body[k] !== null && !isDate(body[k])) return [f, `${k} must be a date (YYYY-MM-DD)`];
       f[k] = body[k];
     }
   }
@@ -523,6 +553,9 @@ export const createMaterialFactor = async (req: AuthRequest, res: Response) => {
     }
     const [fields, error] = readFactor(body, false);
     if (error) return res.status(400).json({ message: error });
+    if (!scope.all && fields.licence === "ecoinvent") {
+      return res.status(403).json({ message: "Only a superadmin can add licensed (ecoinvent) factors" });
+    }
     const saved = await factorRepo().save(
       factorRepo().create({ ...fields, company: companyId === null ? null : ({ company_id: companyId } as any) }),
     );
@@ -546,6 +579,11 @@ async function editableFactor(req: AuthRequest, res: Response, scope: PcfScope) 
     res.status(403).json({ message: "Only a superadmin can change the global library" });
     return null;
   }
+  // Licensed values are hidden from managers, so only a superadmin may touch those rows.
+  if (!scope.all && f.licence === "ecoinvent") {
+    res.status(403).json({ message: "Only a superadmin can change licensed (ecoinvent) factors" });
+    return null;
+  }
   return f;
 }
 
@@ -557,6 +595,9 @@ export const updateMaterialFactor = async (req: AuthRequest, res: Response) => {
     if (!f) return;
     const [fields, error] = readFactor(req.body ?? {}, true);
     if (error) return res.status(400).json({ message: error });
+    if (!scope.all && fields.licence === "ecoinvent") {
+      return res.status(403).json({ message: "Only a superadmin can mark a factor as licensed (ecoinvent)" });
+    }
     await factorRepo().update({ material_factor_id: f.material_factor_id }, fields);
     const fresh = await factorRepo().findOne({ where: { material_factor_id: f.material_factor_id }, relations: ["company"] });
     res.json(factorJson(fresh!, scope));

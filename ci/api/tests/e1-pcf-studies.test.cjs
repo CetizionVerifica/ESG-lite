@@ -93,6 +93,15 @@ test("create is validated and scoped to the manager's sites", async () => {
   assert.equal((await call("POST", "/pcf/studies", "manager", { product_id: rod })).status, 400);
   assert.equal((await call("POST", "/pcf/studies", "manager", study({ year_type: "Q" }))).status, 400);
   assert.equal((await call("POST", "/pcf/studies", "manager", study({ cut_off_rule_pct: 9 }))).status, 400);
+  // Real dates only, and a twelve-month period matching the year type.
+  assert.equal((await call("POST", "/pcf/studies", "manager", study({ reference_start: "2025-02-30" }))).status, 400);
+  assert.equal((await call("POST", "/pcf/studies", "manager", study({ reference_start: "0000-01-01" }))).status, 400);
+  assert.equal((await call("POST", "/pcf/studies", "manager", study({ reference_end: "2025-06-30" }))).status, 400);
+  assert.equal((await call("POST", "/pcf/studies", "manager", study({ year_type: "FY" }))).status, 400);
+  const fy = await call("POST", "/pcf/studies", "manager", study({ year_type: "FY", reference_start: "2025-04-01", reference_end: "2026-03-31" }));
+  assert.equal(fy.status, 201);
+  assert.equal((await call("PATCH", `/pcf/studies/${fy.json.pcf_study_id}`, "manager", { year_type: "CY" })).status, 400);
+  await call("DELETE", `/pcf/studies/${fy.json.pcf_study_id}`, "manager");
   const site2 = await call("POST", "/pcf/studies", "manager", study({ site_id: 2 }));
   assert.equal(site2.status, 201);
   assert.equal(site2.json.site.site_id, 2);
@@ -128,6 +137,21 @@ test("material factors: company scope, global library and ecoinvent values", asy
   const theirs = await call("GET", "/pcf/material-factors?q=CI%20", "otherManager");
   assert.ok(!theirs.json.some((f) => f.material_factor_id === own.json.material_factor_id));
   assert.equal((await call("PATCH", `/pcf/material-factors/${own.json.material_factor_id}`, "otherManager", { value_kgco2e: 1 })).status, 404);
+
+  // Licensed rows stay superadmin-only, even inside the manager's own company.
+  assert.equal((await call("POST", "/pcf/material-factors", "manager", { name: "x", material_group: "m", unit: "kg", value_kgco2e: 1, licence: "ecoinvent" })).status, 403);
+  assert.equal((await call("PATCH", `/pcf/material-factors/${own.json.material_factor_id}`, "manager", { licence: "ecoinvent" })).status, 403);
+  const licensed = await call("POST", "/pcf/material-factors", "superadmin", {
+    company_id: 1, name: "CI licensed copper", material_group: "metals", unit: "kg", value_kgco2e: 4.2, licence: "ecoinvent",
+  });
+  assert.equal(licensed.status, 201);
+  for (const body of [{ licence: "open" }, { value_kgco2e: 1 }]) {
+    const res = await call("PATCH", `/pcf/material-factors/${licensed.json.material_factor_id}`, "manager", body);
+    assert.equal(res.status, 403);
+    assert.equal(JSON.stringify(res.json).includes("4.2"), false);
+  }
+  assert.equal((await call("DELETE", `/pcf/material-factors/${licensed.json.material_factor_id}`, "manager")).status, 403);
+  assert.equal((await call("DELETE", `/pcf/material-factors/${licensed.json.material_factor_id}`, "superadmin")).status, 204);
 
   const edited = await call("PATCH", `/pcf/material-factors/${own.json.material_factor_id}`, "manager", { value_kgco2e: 0.6 });
   assert.equal(edited.status, 200);
@@ -207,4 +231,6 @@ test("input lines: validation, replace, copy to a new version, draft-only", asyn
   assert.equal((await call("GET", `/pcf/studies/${s.pcf_study_id}`, "manager")).json.inputs.length, 2);
 
   assert.equal((await call("POST", "/pcf/studies", "otherManager", { copy_from_id: s.pcf_study_id })).status, 404);
+  // A version is for the same product.
+  assert.equal((await call("POST", "/pcf/studies", "superadmin", { copy_from_id: s.pcf_study_id, product_id: other })).status, 400);
 });
