@@ -58,7 +58,7 @@ const idParam = (v: unknown) => {
 
 // ---------------------------------------------------------------- loading ---
 
-async function loadStudy(id: number, scope: PcfScope) {
+export async function loadStudy(id: number, scope: PcfScope) {
   const study = await studyRepo().findOne({
     where: { pcf_study_id: id },
     relations: ["company", "product", "site", "parent_version", "created_by", "reviewed_by"],
@@ -69,7 +69,7 @@ async function loadStudy(id: number, scope: PcfScope) {
 
 const userRef = (u: User | null | undefined) => (u ? { user_id: u.user_id, name: u.name } : null);
 
-function studyJson(s: PcfStudy, result?: PcfResult | null) {
+export function studyJson(s: PcfStudy, result?: PcfResult | null) {
   return {
     pcf_study_id: s.pcf_study_id,
     company_id: s.company?.company_id ?? null,

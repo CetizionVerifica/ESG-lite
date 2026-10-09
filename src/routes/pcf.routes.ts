@@ -13,6 +13,15 @@ import {
   updateMaterialFactor,
   deleteMaterialFactor,
 } from "../controllers/pcf.controller";
+import {
+  allocationPreview,
+  calculateStudy,
+  submitStudy,
+  approveStudy,
+  rejectStudy,
+  publishStudy,
+  reconciliation,
+} from "../controllers/pcfFlow.controller";
 
 // Product carbon footprints (E1). Managers (own sites) and superadmins only;
 // every other role gets 403.
@@ -26,6 +35,13 @@ router.get("/studies/:id", getStudy);
 router.patch("/studies/:id", updateStudy);
 router.delete("/studies/:id", deleteStudy);
 router.put("/studies/:id/inputs", replaceInputs);
+router.get("/studies/:id/allocation-preview", allocationPreview);
+router.post("/studies/:id/calculate", calculateStudy);
+router.post("/studies/:id/submit", submitStudy);
+router.post("/studies/:id/approve", approveStudy);
+router.post("/studies/:id/reject", rejectStudy);
+router.post("/studies/:id/publish", publishStudy);
+router.get("/reconciliation", reconciliation);
 
 router.get("/material-factors", listMaterialFactors);
 router.post("/material-factors", createMaterialFactor);
