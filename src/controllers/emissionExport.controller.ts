@@ -18,8 +18,13 @@ const repo = AppDataSource.getRepository(Emission);
  * With month: that month, as before. Without month (redesign B7): the whole
  * year — CY = Jan-Dec of `year`; FY = the Indian financial year ending
  * Mar 31 of `year` (Apr year-1 .. Mar year), the same convention as yearly
- * entries (services/reportingPeriod.ts).
+ * entries (services/reportingPeriod.ts). Monthly rows are picked by date;
+ * yearly batches only when their year_type is the one exported (a CY batch
+ * dated Dec 31 is not FY data, an FY batch dated Mar 31 is not CY data).
+ * More rows than the cap are cut, and the sheet says so (a "Truncated" line
+ * under the summary) as does the X-Export-Truncated response header.
  */
+const ROW_CAP = { month: 10000, year: 50000 };
 export const exportEmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { categoryId, year, month, status } = req.query;
@@ -83,6 +88,9 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       .andWhere("emission.date_of_reporting >= :startDate", { startDate })
       .andWhere("emission.date_of_reporting <= :endDate", { endDate })
       .andWhere("LOWER(category.category_name) != :fera", { fera: "fera" });
+    if (wholeYear) {
+      qb.andWhere("(emission.reporting_period IS DISTINCT FROM 'yearly' OR emission.year_type = :yearType)", { yearType });
+    }
 
     if (categoryId) {
       qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
@@ -93,9 +101,12 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
 
     qb.orderBy("category.category_name", "ASC")
       .addOrderBy("emission.date_of_reporting", "ASC")
-      .take(wholeYear ? 50000 : 10000);
+      .take((wholeYear ? ROW_CAP.year : ROW_CAP.month) + 1);
 
-    const emissions = await qb.getMany();
+    const fetched = await qb.getMany();
+    const cap = wholeYear ? ROW_CAP.year : ROW_CAP.month;
+    const truncated = fetched.length > cap;
+    const emissions = truncated ? fetched.slice(0, cap) : fetched;
 
     if (emissions.length === 0) {
       return res.status(404).json({ message: "No emissions found for the selected filters" });
@@ -137,6 +148,9 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       ["Site:", siteName, "", wholeYear ? "Year:" : "Month:", periodLabel],
       ["Status Filter:", statusLabel, "", "Exported:", new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })],
       ["Total Entries:", emissions.length, "", "Exported By:", req.user?.userId || ""],
+      ...(truncated
+        ? [[`Truncated: only the first ${cap.toLocaleString("en-US")} entries are included. Narrow the filters (site, category, status) to export the rest.`]]
+        : []),
       [],
     ];
 
@@ -237,11 +251,13 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
 
     log.info("Export", wholeYear ? "Yearly data download" : "Monthly data download", {
       siteIds, year: y, month: wholeYear ? null : m, yearType: wholeYear ? yearType : null, status: status || "all",
-      rows: emissions.length, userId: req.user?.userId,
+      rows: emissions.length, truncated, userId: req.user?.userId,
     });
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("X-Export-Truncated", truncated ? "true" : "false");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Disposition, X-Export-Truncated");
     res.send(buffer);
   } catch (error) {
     log.error("Export", "Download failed", { error: (error as Error).message });
