@@ -219,6 +219,10 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
           calculated_at: new Date(),
         }),
       );
+      // A fresh calculation reads today's plant data, so the draft is no longer stale.
+      if (study.stale) {
+        await m.createQueryBuilder().update(PcfStudy).set({ stale: false }).where("pcf_study_id = :id", { id: study.pcf_study_id }).execute();
+      }
       await m.delete(PcfAllocation, { study: { pcf_study_id: study.pcf_study_id } });
       if (plant.allocation) {
         await m.save(
@@ -364,6 +368,7 @@ export const approveStudy = (req: AuthRequest, res: Response) =>
       // Four eyes: neither the creator nor whoever produced the result under review.
       if (study.created_by?.user_id === userId) return [403, "Someone other than the footprint's creator must approve it"];
       if (result?.calculated_by?.user_id === userId) return [403, "Someone other than the person who calculated it must approve it"];
+      if (study.stale) return "Plant data behind this footprint changed during review; send it back so it can be recalculated";
       return null;
     },
     async (m, study, userId) => {
@@ -379,7 +384,10 @@ export const approveStudy = (req: AuthRequest, res: Response) =>
         .where("pcf_study_id = :id", { id: study.pcf_study_id })
         .execute();
     },
-    { verify: currentOr("Factors or plant data changed since this footprint was calculated; send it back to draft and calculate again") },
+    {
+      where: "stale = false",
+      verify: currentOr("Factors or plant data changed since this footprint was calculated; send it back to draft and calculate again"),
+    },
   ).catch((err) => {
     console.error("approveStudy", err);
     res.status(500).json({ message: "Could not approve the footprint" });
