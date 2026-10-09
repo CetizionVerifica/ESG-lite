@@ -14,6 +14,7 @@ container (`ci/lib/throwaway-db.cjs`).
 | Run migrate scripts twice | a `migrate:*` script fails, or fails on a second run (not idempotent) |
 | Entities match the migrated schema | an entity change would drop/rename/retype a column, or an entity change ships without a `migrate:*` script (production never auto-syncs) |
 | Calculation results match the snapshot | any stored `total_emission` or GHG report figure differs from `ci/golden/snapshot.json` |
+| API tests | a test in `ci/api/tests/` fails (endpoint shapes, role checks, numbers for the redesign endpoints B1–B8) |
 
 ## When a check blocks you on purpose
 
@@ -41,3 +42,15 @@ description. To cover a new calculation path, add a case to
 **New schema change.** Add an idempotent script (`IF NOT EXISTS`, additive
 only) under `src/scripts/` and register it as `migrate:<name>` in
 `package.json`. CI runs it against a copy of the base branch's schema.
+
+## API tests
+
+`ci/api/run.cjs` builds the schema from `dist/`, loads `ci/api/fixture.sql`,
+boots the server and runs `ci/api/tests/*.test.cjs` with `node:test`. Run it
+locally against a throwaway database:
+
+```bash
+createdb ci_api
+export CI_THROWAWAY_DB=true DB_HOST=localhost DB_PORT=5432 DB_USERNAME=postgres DB_PASSWORD=postgres DB_NAME=ci_api TZ=UTC
+npm run build && npm run test:api
+```

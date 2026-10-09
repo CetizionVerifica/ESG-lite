@@ -98,6 +98,7 @@ jobs:
         run: |
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_migrate'
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_golden'
+          psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_api'
 
       - name: Build the schema production has today (base branch entities)
         env:
@@ -128,6 +129,11 @@ jobs:
         run: |
           node ci/schema-sync.cjs dist
           node ci/golden/run.cjs
+
+      - name: API tests (redesign endpoints)
+        env:
+          DB_NAME: ci_api
+        run: node ci/api/run.cjs
 
       - name: Upload changed calculation results
         if: failure()

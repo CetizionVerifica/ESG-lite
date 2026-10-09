@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS brand (
   cover_to        varchar NOT NULL DEFAULT '#1f2a44',
   logo_url        varchar,
   logo_public_id  varchar,
+  logo_on_dark_url       varchar,
+  logo_on_dark_public_id varchar,
+  default_look    varchar(10) NOT NULL DEFAULT 'classic',
+  scope3_colour   varchar,
   updated_at      timestamp NOT NULL DEFAULT now()
 )`;
 
