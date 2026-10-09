@@ -46,6 +46,9 @@ export const r2PublicUrl = (key: string): string =>
 const BRAND_PREFIX = (process.env.R2_BRAND_PREFIX || "brand-assets").replace(/^\/+|\/+$/g, "");
 export const brandLogoKey = (companyId: number, ext: string): string =>
   `${BRAND_PREFIX}/company_${companyId}.${ext}`;
+// Logo for dark surfaces lives next to the main one under its own key.
+export const brandDarkLogoKey = (companyId: number, ext: string): string =>
+  `${BRAND_PREFIX}/company_${companyId}_dark.${ext}`;
 
 // Upload bytes at `key` (overwrites) and return { url, key }.
 export async function uploadToR2(
