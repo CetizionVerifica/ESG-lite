@@ -5,6 +5,7 @@ import { Emission } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
 import { parseSiteIds } from "../utils/parseSiteIds";
+import { pendingReviewCountSql } from "../utils/feraFold";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -298,6 +299,7 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       .addSelect("COUNT(*)", "entries")
       .addSelect("COUNT(*) FILTER (WHERE e.status = 'approved')", "approved")
       .addSelect("COUNT(*) FILTER (WHERE e.status = 'pending')", "pending")
+      .addSelect(pendingReviewCountSql("e", "c"), "pending_review")
       .addSelect("COUNT(*) FILTER (WHERE e.status = 'rejected')", "rejected")
       .addSelect("COALESCE(SUM(e.total_emission) FILTER (WHERE e.status = 'pending'), 0)", "pending_emission")
       .andWhere(countedSql, countedParams)
@@ -319,6 +321,7 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       kpis.entries += num(c.entries);
       kpis.approved_count += num(c.approved);
       kpis.pending_count += num(c.pending);
+      kpis.pending_review_count += num(c.pending_review);
       kpis.rejected_count += num(c.rejected);
       kpis.pending_emission += num(c.pending_emission);
     }
@@ -476,6 +479,9 @@ const emptyKpis = () => ({
   entries: 0,
   approved_count: 0,
   pending_count: 0,
+  // Pending entries as the approvals list shows them (FERA twins of a pending
+  // entry fold into it); pending_count counts every pending row.
+  pending_review_count: 0,
   rejected_count: 0,
   pending_emission: 0,
   net_vs_last_year_pct: null as number | null,
