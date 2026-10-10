@@ -15,7 +15,21 @@ export const getUnits = async (_: Request, res: Response) => {
       relations: ["site", "category"],
       order: { unit_id: "ASC" },
     });
-    return res.status(200).json(units);
+
+    // Entries per unit in one statement: emissions on the same site and
+    // category whose activity unit matches the unit name. emission.unit is the
+    // result unit (always tCO2e); the unit a user picks is activity_data_unit.
+    const rows: { unit_id: number; entry_count: number }[] = await AppDataSource.query(
+      `SELECT u.unit_id,
+              (SELECT COUNT(*) FROM emission e
+                WHERE e.site_id = u.site_id
+                  AND e.category_id = u.category_id
+                  AND LOWER(TRIM(e.activity_data_unit)) = LOWER(TRIM(u.unit_name)))::int AS entry_count
+         FROM unit u`
+    );
+    const counts = new Map(rows.map((r) => [Number(r.unit_id), r.entry_count]));
+
+    return res.status(200).json(units.map((u) => ({ ...u, entry_count: counts.get(u.unit_id) ?? 0 })));
   } catch (error) {
     console.error("Fetch units error:", error);
     return res.status(500).json({
@@ -192,6 +206,22 @@ export const updateUnit = async (req: Request, res: Response) => {
 
     if (unit_name !== undefined) unit.unit_name = unit_name.trim();
     if (description !== undefined) unit.description = description?.trim() || null;
+
+    // Same duplicate rule as create, against the target site + category.
+    if (unit_name !== undefined || site_id !== undefined || category_id !== undefined) {
+      const duplicate = await repo.findOne({
+        where: {
+          unit_name: unit.unit_name,
+          site: { site_id: unit.site?.site_id },
+          category: { category_id: unit.category?.category_id },
+        },
+      });
+      if (duplicate && duplicate.unit_id !== unit.unit_id) {
+        return res.status(400).json({
+          message: "Unit with this name already exists for this site and category",
+        });
+      }
+    }
 
     await repo.save(unit);
 
