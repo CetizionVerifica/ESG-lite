@@ -14,6 +14,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
+import { aiServiceHeaders } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
@@ -369,7 +370,9 @@ export const getEmissionsBySiteAndCategory = async (req: AuthRequest, res: Respo
 // Create a new emission entry
 export const createEmission = async (req: AuthRequest, res: Response) => {
   try {
-    const { site_id, category_id, activity_data, total_emission, unit, date_of_reporting, extra_data, reporting_period, year_type } = req.body;
+    // total_emission and unit from the client are ignored: the server
+    // computes the total from the factor (audit finding F-05).
+    const { site_id, category_id, activity_data, date_of_reporting, extra_data, reporting_period, year_type } = req.body;
     // `let`: per-unit spec categories replace a spelling variant ("Tonne KM")
     // with the canonical unit key so matching and storage stay consistent.
     let activity_data_unit = req.body.activity_data_unit;
@@ -486,7 +489,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       await pcfDataChanged("emission", idsToDelete);
     }
 
-    let calculatedEmission = total_emission || 0;
+    let calculatedEmission = 0;
     let matchedEmissionFactor: import("../entities/EmissionFactor").EmissionFactor | null = null;
 
     // Calculate total emission if emission_category is provided in activity_data
@@ -856,6 +859,13 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.review_comment = null as any;
       emission.reviewed_at = null as any;
 
+      // Without a category and unit there is no factor to apply, so no
+      // total; the old one would no longer match the data (audit F-05).
+      if (!(activity_data.emission_category && emission.activity_data_unit)) {
+        emission.total_emission = 0;
+        emission.emission_factor_snapshot = null as any;
+      }
+
       // Recalculate total emission if activity_data has emission_category
       if (activity_data.emission_category && emission.activity_data_unit) {
         // Calculate target year for emission factor (reporting year - 1, matching frontend logic)
@@ -991,132 +1001,7 @@ const targetYear = reportingDate.getFullYear() - 1;
     // Recalculate linked FERA emission if activity data changed
     let updatedFeraEmission: Emission | null = null;
     if (activity_data !== undefined && emission.fera_linked_id) {
-      try {
-        const feraEmission = await repo.findOne({
-          where: { pk_id: emission.fera_linked_id },
-          relations: ["site", "category"],
-        });
-        // Also check reverse link
-        const reverseFeraEmission = !feraEmission
-          ? await repo.findOne({ where: { fera_linked_id: emission.pk_id }, relations: ["site", "category"] })
-          : null;
-        const linkedFera = feraEmission || reverseFeraEmission;
-
-        if (linkedFera && linkedFera.category?.category_name?.toLowerCase() === "fera") {
-          const reportingDate = emission.date_of_reporting instanceof Date
-            ? emission.date_of_reporting
-            : new Date(emission.date_of_reporting);
-          const feraTargetYear = reportingDate.getFullYear() - 1;
-
-          // Find FERA emission factor (same 4-level fallback as parent)
-          let feraFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id: emission.site.site_id },
-              category: { category_id: linkedFera.category.category_id },
-              emission_category_name: activity_data.emission_category,
-              year: feraTargetYear,
-            },
-          });
-          if (!feraFactor) {
-            feraFactor = await emissionFactorRepo.findOne({
-              where: {
-                site: { site_id: emission.site.site_id },
-                category: { category_id: linkedFera.category.category_id },
-                global_category_name: activity_data.emission_category,
-                year: feraTargetYear,
-              },
-            });
-          }
-          if (!feraFactor) {
-            feraFactor = await emissionFactorRepo.findOne({
-              where: {
-                site: { site_id: emission.site.site_id },
-                category: { category_id: linkedFera.category.category_id },
-                emission_category_name: activity_data.emission_category,
-              },
-            });
-          }
-          if (!feraFactor) {
-            feraFactor = await emissionFactorRepo.findOne({
-              where: {
-                site: { site_id: emission.site.site_id },
-                category: { category_id: linkedFera.category.category_id },
-                global_category_name: activity_data.emission_category,
-              },
-            });
-          }
-
-          if (feraFactor) {
-            // Extract activity value (same logic as create)
-            let feraActivityValue = 0;
-            const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-            const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
-            for (const field of commonFlds) {
-              const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-              if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-                feraActivityValue = parseFloat(activity_data[matchingKey]);
-                if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
-              }
-            }
-            if (feraActivityValue === 0) {
-              for (const [key, value] of Object.entries(activity_data)) {
-                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-                if (value !== undefined && value !== '') {
-                  const numValue = parseFloat(value as string);
-                  if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
-                }
-              }
-            }
-            if (feraActivityValue === 0) {
-              for (const [key, value] of Object.entries(activity_data)) {
-                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-                if (value !== undefined && value !== '') {
-                  const numValue = parseFloat(value as string);
-                  if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
-                }
-              }
-            }
-
-            if (feraActivityValue > 0) {
-              const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, emission.activity_data_unit);
-              let feraCalculated = 0;
-              if (feraUnitsMatch) {
-                feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-              } else {
-                const conv = getConversionFactor(emission.activity_data_unit, feraFactor.denominator_unit);
-                if (conv) {
-                  feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
-                } else {
-                  feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-                }
-              }
-
-              linkedFera.activity_data = activity_data;
-              linkedFera.total_emission = feraCalculated;
-              linkedFera.date_of_reporting = emission.date_of_reporting;
-              linkedFera.activity_data_unit = emission.activity_data_unit;
-              linkedFera.status = EmissionStatus.PENDING;
-              linkedFera.reviewed_by = null as any;
-              linkedFera.review_comment = null as any;
-              linkedFera.reviewed_at = null as any;
-              linkedFera.emission_factor_snapshot = {
-                emission_factor_id: feraFactor.emission_factor_id,
-                emission_category_name: feraFactor.emission_category_name,
-                global_category_name: feraFactor.global_category_name || undefined,
-                factor_value: feraFactor.factor_value,
-                denominator_unit: feraFactor.denominator_unit,
-                source: feraFactor.source,
-                year: feraFactor.year,
-              };
-              await repo.save(linkedFera);
-              updatedFeraEmission = linkedFera;
-            }
-          }
-        }
-      } catch (feraError) {
-        console.error("Failed to update linked FERA emission:", feraError);
-        // Non-fatal: parent emission was updated successfully
-      }
+      updatedFeraEmission = await recalculateLinkedFera(emission, activity_data);
     }
 
     // Create audit log for user edit
@@ -1168,6 +1053,158 @@ const targetYear = reportingDate.getFullYear() - 1;
   }
 };
 
+/**
+ * Re-derive the FERA twin of an edited parent row from the parent's new
+ * activity data, and send it back to pending. Returns the updated twin, or
+ * null when there is none or no factor matches. Non-fatal on error: the
+ * parent edit has already been saved.
+ */
+async function recalculateLinkedFera(emission: Emission, activity_data: any): Promise<Emission | null> {
+  try {
+    // (A null id in `where` is ignored by TypeORM and would match any row.)
+    const feraEmission = emission.fera_linked_id
+      ? await repo.findOne({ where: { pk_id: emission.fera_linked_id }, relations: ["site", "category"] })
+      : null;
+    // Also check reverse link
+    const reverseFeraEmission = !feraEmission
+      ? await repo.findOne({ where: { fera_linked_id: emission.pk_id }, relations: ["site", "category"] })
+      : null;
+    const linkedFera = feraEmission || reverseFeraEmission;
+
+    if (linkedFera && linkedFera.category?.category_name?.toLowerCase() === "fera" && !activity_data?.emission_category) {
+      // No category: no factor applies, so the twin carries no total either
+      // (an undefined name in the lookups below would match any factor).
+      linkedFera.activity_data = activity_data;
+      linkedFera.total_emission = 0;
+      linkedFera.emission_factor_snapshot = null as any;
+      linkedFera.date_of_reporting = emission.date_of_reporting;
+      linkedFera.activity_data_unit = emission.activity_data_unit;
+      linkedFera.status = EmissionStatus.PENDING;
+      linkedFera.reviewed_by = null as any;
+      linkedFera.review_comment = null as any;
+      linkedFera.reviewed_at = null as any;
+      await repo.save(linkedFera);
+      return linkedFera;
+    }
+
+    if (linkedFera && linkedFera.category?.category_name?.toLowerCase() === "fera") {
+      const reportingDate = emission.date_of_reporting instanceof Date
+        ? emission.date_of_reporting
+        : new Date(emission.date_of_reporting);
+      const feraTargetYear = reportingDate.getFullYear() - 1;
+
+      // Find FERA emission factor (same 4-level fallback as parent)
+      let feraFactor = await emissionFactorRepo.findOne({
+        where: {
+          site: { site_id: emission.site.site_id },
+          category: { category_id: linkedFera.category.category_id },
+          emission_category_name: activity_data.emission_category,
+          year: feraTargetYear,
+        },
+      });
+      if (!feraFactor) {
+        feraFactor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id: emission.site.site_id },
+            category: { category_id: linkedFera.category.category_id },
+            global_category_name: activity_data.emission_category,
+            year: feraTargetYear,
+          },
+        });
+      }
+      if (!feraFactor) {
+        feraFactor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id: emission.site.site_id },
+            category: { category_id: linkedFera.category.category_id },
+            emission_category_name: activity_data.emission_category,
+          },
+        });
+      }
+      if (!feraFactor) {
+        feraFactor = await emissionFactorRepo.findOne({
+          where: {
+            site: { site_id: emission.site.site_id },
+            category: { category_id: linkedFera.category.category_id },
+            global_category_name: activity_data.emission_category,
+          },
+        });
+      }
+
+      if (feraFactor) {
+        // Extract activity value (same logic as create)
+        let feraActivityValue = 0;
+        const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
+        const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
+        for (const field of commonFlds) {
+          const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
+          if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
+            feraActivityValue = parseFloat(activity_data[matchingKey]);
+            if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
+          }
+        }
+        if (feraActivityValue === 0) {
+          for (const [key, value] of Object.entries(activity_data)) {
+            if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
+            if (value !== undefined && value !== '') {
+              const numValue = parseFloat(value as string);
+              if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
+            }
+          }
+        }
+        if (feraActivityValue === 0) {
+          for (const [key, value] of Object.entries(activity_data)) {
+            if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
+            if (value !== undefined && value !== '') {
+              const numValue = parseFloat(value as string);
+              if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
+            }
+          }
+        }
+
+        if (feraActivityValue > 0) {
+          const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, emission.activity_data_unit);
+          let feraCalculated = 0;
+          if (feraUnitsMatch) {
+            feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
+          } else {
+            const conv = getConversionFactor(emission.activity_data_unit, feraFactor.denominator_unit);
+            if (conv) {
+              feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
+            } else {
+              feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
+            }
+          }
+
+          linkedFera.activity_data = activity_data;
+          linkedFera.total_emission = feraCalculated;
+          linkedFera.date_of_reporting = emission.date_of_reporting;
+          linkedFera.activity_data_unit = emission.activity_data_unit;
+          linkedFera.status = EmissionStatus.PENDING;
+          linkedFera.reviewed_by = null as any;
+          linkedFera.review_comment = null as any;
+          linkedFera.reviewed_at = null as any;
+          linkedFera.emission_factor_snapshot = {
+            emission_factor_id: feraFactor.emission_factor_id,
+            emission_category_name: feraFactor.emission_category_name,
+            global_category_name: feraFactor.global_category_name || undefined,
+            factor_value: feraFactor.factor_value,
+            denominator_unit: feraFactor.denominator_unit,
+            source: feraFactor.source,
+            year: feraFactor.year,
+          };
+          await repo.save(linkedFera);
+          return linkedFera;
+        }
+      }
+    }
+    return null;
+  } catch (feraError) {
+    console.error("Failed to update linked FERA emission:", feraError);
+    return null;
+  }
+}
+
 // Delete an emission entry
 export const deleteEmission = async (req: Request, res: Response) => {
   try {
@@ -1192,7 +1229,7 @@ export const deleteEmission = async (req: Request, res: Response) => {
     const linkedBack = await repo.findOne({
       where: { fera_linked_id: emission.pk_id },
     });
-    if (linkedBack) {
+    if (linkedBack && !idsToDelete.includes(linkedBack.pk_id)) {
       idsToDelete.push(linkedBack.pk_id);
     }
 
@@ -3362,12 +3399,27 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       return res.status(200).json({ message: "No changes detected", emission });
     }
 
+    // An approved row stays approved after a manager edit (P07: "Changes are
+    // logged"), so it must keep a category: without one there is no factor
+    // and its total would silently drop to 0 (audit F-05/F-07).
+    const nextUnit = activity_data_unit !== undefined ? activity_data_unit : emission.activity_data_unit;
+    if (emission.status === EmissionStatus.APPROVED && activity_data !== undefined && (!activity_data.emission_category || !nextUnit)) {
+      return res.status(400).json({ message: "An approved entry must keep its emission category and unit" });
+    }
+    const oldTotal = emission.total_emission;
+
     // Apply changes (do NOT change approval status)
     if (activity_data_unit !== undefined) {
       emission.activity_data_unit = activity_data_unit;
     }
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
+
+      // No category and unit: no factor, so no total (audit F-05).
+      if (!(activity_data.emission_category && emission.activity_data_unit)) {
+        emission.total_emission = 0;
+        emission.emission_factor_snapshot = null as any;
+      }
 
       // Recalculate total emission if activity_data has emission_category
       if (activity_data.emission_category && emission.activity_data_unit) {
@@ -3514,6 +3566,31 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     await repo.save(emission);
     await pcfDataChanged("emission", [emission.pk_id]);
 
+    // Keep the FERA twin in step (audit F-07). A manager edit does not send
+    // the row back to review, so the twin keeps the parent's review state.
+    let feraEmission: Emission | null = null;
+    if (activity_data !== undefined) {
+      // The same twin recalculateLinkedFera picks: the forward link first.
+      const [twinBefore] = emission.fera_linked_id
+        ? await repo.query(`SELECT total_emission FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
+        : await repo.query(`SELECT total_emission FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
+      feraEmission = await recalculateLinkedFera(emission, activity_data);
+      if (feraEmission) {
+        await repo.query(
+          `UPDATE emission t SET status = p.status, reviewed_by = p.reviewed_by, reviewed_at = p.reviewed_at,
+             review_comment = p.review_comment
+           FROM emission p WHERE t.pk_id = $1 AND p.pk_id = $2`,
+          [feraEmission.pk_id, emission.pk_id]
+        );
+        changedFields.fera_total_emission = { old: twinBefore?.total_emission ?? null, new: feraEmission.total_emission };
+        // Return the twin as stored, with the review state just copied over.
+        feraEmission = await repo.findOne({ where: { pk_id: feraEmission.pk_id } });
+      }
+    }
+    if (Number(oldTotal) !== Number(emission.total_emission)) {
+      changedFields.total_emission = { old: oldTotal, new: emission.total_emission };
+    }
+
     // Write audit log
     const auditRepo = AppDataSource.getRepository(AuditLog);
     const auditEntry = auditRepo.create({
@@ -3529,12 +3606,22 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     return res.status(200).json({
       message: "Emission updated by manager",
       emission,
+      fera_emission: feraEmission || undefined,
     });
   } catch (error) {
     console.error("Manager update emission error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// An AxiosError carries the request config, including the X-Service-Key and
+// Google API key headers, so log only what helps debugging.
+const outboundErrorSummary = (error: any) => ({
+  message: error?.message,
+  code: error?.code,
+  status: error?.response?.status,
+  data: error?.response?.data,
+});
 
 type DistanceMode = "road" | "sea";
 
@@ -3634,11 +3721,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
             address: destination.address || null,
           },
         },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
+        { headers: aiServiceHeaders() },
       );
 
       const data = response.data?.data;
@@ -3738,7 +3821,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error("Calculate distance error:", error?.response?.data || error);
+    console.error("Calculate distance error:", outboundErrorSummary(error));
 
     return res.status(500).json({
       message:
@@ -3828,7 +3911,7 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error("Geocode location error:", error?.response?.data || error);
+    console.error("Geocode location error:", outboundErrorSummary(error));
 
     return res.status(500).json({
       message:

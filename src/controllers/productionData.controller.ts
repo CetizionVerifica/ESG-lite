@@ -546,7 +546,7 @@ export const getEmissionIntensityComparison = async (req: Request, res: Response
 // Get all production data for manager (with filters)
 export const getProductionDataForManager = async (req: Request, res: Response) => {
   try {
-    const { siteId, startDate, endDate, status, productId } = req.query;
+    const { siteId, siteIds, startDate, endDate, status, productId } = req.query;
 
     const queryBuilder = repo
       .createQueryBuilder("pd")
@@ -557,6 +557,10 @@ export const getProductionDataForManager = async (req: Request, res: Response) =
 
     if (siteId) {
       queryBuilder.andWhere("pd.site_id = :siteId", { siteId: parseInt(siteId as string) });
+    } else if (siteIds) {
+      // Filled with the caller's own sites by guardQuerySites when none is asked for.
+      const ids = String(siteIds).split(",").map((id) => parseInt(id, 10)).filter(Number.isInteger);
+      queryBuilder.andWhere(ids.length ? "pd.site_id IN (:...ids)" : "1 = 0", { ids });
     }
 
     if (status) {
