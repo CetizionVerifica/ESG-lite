@@ -84,8 +84,6 @@ CREATE TABLE IF NOT EXISTS invoice (
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now()
 );
--- deleteCategory unlinks invoice.emission_id before the emission cascade.
-ALTER TABLE invoice ADD COLUMN IF NOT EXISTS emission_id integer;
 TRUNCATE invoice RESTART IDENTITY;
 INSERT INTO invoice (invoice_id, file_name, cloudinary_url, cloudinary_public_id, file_type, file_size, uploaded_by, site_id, category_id) VALUES
   (1, 'sept-electricity.pdf', 'https://res.cloudinary.example.invalid/raw/upload/invoices/sept.pdf', 'invoices/sept', 'application/pdf', 52000, 1, 1, 2),

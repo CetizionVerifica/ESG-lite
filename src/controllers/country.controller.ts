@@ -153,19 +153,22 @@ export const deleteCountry = async (req: Request, res: Response) => {
     }
 
     // 1b. Sites reference the country without a cascade; refuse instead of
-    // failing on the foreign key.
-    const [{ n }] = await AppDataSource.query(
-      `SELECT COUNT(*)::int AS n FROM site WHERE country_id = $1`,
-      [country.country_id]
-    );
+    // failing on the foreign key. Counted under a row lock in the same
+    // transaction as the delete.
+    const n = await AppDataSource.transaction(async (manager) => {
+      await manager.query(`SELECT country_id FROM country WHERE country_id = $1 FOR UPDATE`, [country.country_id]);
+      const [{ n: used }] = await manager.query(`SELECT COUNT(*)::int AS n FROM site WHERE country_id = $1`, [country.country_id]);
+      if (used > 0) return used as number;
+      // 2️⃣ Delete country
+      // data-loss-reviewed: removes one country that no site uses.
+      await manager.delete(Country, { country_id: country.country_id });
+      return 0;
+    });
     if (n > 0) {
       return res.status(409).json({
         message: `${n} site(s) use this country. Move them to another country first.`,
       });
     }
-
-    // 2️⃣ Delete country
-    await countryRepo.delete({ country_id: parseInt(id) });
 
     return res.status(200).json({
       message: "Country deleted successfully",

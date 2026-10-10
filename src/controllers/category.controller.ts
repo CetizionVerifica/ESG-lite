@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { In } from "typeorm";
+import { EntityManager, In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
@@ -8,32 +8,54 @@ import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
 const repo = AppDataSource.getRepository(Category);
 const siteRepo = AppDataSource.getRepository(Site);
 
-type CategoryUsage = { sites: number; entries: number; factors: number; configs: number; units: number };
+type CategoryUsage = {
+  sites: number;
+  entries: number;
+  factors: number;
+  configs: number;
+  units: number;
+  mappings: number;
+  invoices: number;
+};
 
 // Per-category usage counts in one statement (correlated subqueries, no N+1).
 // Units link to a category through unit.category_id (no inverse relation on
-// Category), entries are emission rows.
-const loadCategoryUsage = async (categoryIds?: number[]): Promise<Map<number, CategoryUsage>> => {
+// Category), entries are emission rows. Client category mappings and invoices
+// point at a category without a cascading FK, so they count as use too.
+const loadCategoryUsage = async (
+  categoryIds?: number[],
+  manager: EntityManager = AppDataSource.manager
+): Promise<Map<number, CategoryUsage>> => {
   const params: any[] = [];
   let where = "";
   if (categoryIds) {
     params.push(categoryIds);
     where = "WHERE c.category_id = ANY($1::int[])";
   }
-  const rows: any[] = await AppDataSource.query(
+  const rows: any[] = await manager.query(
     `SELECT c.category_id,
             (SELECT COUNT(*) FROM site_categories sc WHERE sc.category_id = c.category_id)::int AS sites,
             (SELECT COUNT(*) FROM emission e WHERE e.category_id = c.category_id)::int AS entries,
             (SELECT COUNT(*) FROM emission_factors f WHERE f.category_id = c.category_id)::int AS factors,
             (SELECT COUNT(*) FROM column_config cc WHERE cc.category_id = c.category_id)::int AS configs,
-            (SELECT COUNT(*) FROM unit u WHERE u.category_id = c.category_id)::int AS units
+            (SELECT COUNT(*) FROM unit u WHERE u.category_id = c.category_id)::int AS units,
+            (SELECT COUNT(*) FROM emission_category_mapping m WHERE m.category_id = c.category_id)::int AS mappings,
+            (SELECT COUNT(*) FROM invoice i WHERE i.category_id = c.category_id)::int AS invoices
        FROM category c ${where}`,
     params
   );
   return new Map(
     rows.map((r) => [
       Number(r.category_id),
-      { sites: r.sites, entries: r.entries, factors: r.factors, configs: r.configs, units: r.units },
+      {
+        sites: r.sites,
+        entries: r.entries,
+        factors: r.factors,
+        configs: r.configs,
+        units: r.units,
+        mappings: r.mappings,
+        invoices: r.invoices,
+      },
     ])
   );
 };
@@ -229,30 +251,34 @@ export const updateCategory = async (req: Request, res: Response) => {
     // Allow scope to be set to null or a value
     if (scope !== undefined) category.scope = scope ? scope.trim() : null;
 
-    // Save only the columns; the site links are changed below through the
-    // relation builder so a partial sites array never rewrites the join table.
-    await repo.update(
-      { category_id: category.category_id },
-      { category_name: category.category_name, scope: category.scope ?? (null as any) }
-    );
+    // Columns, site links and user grants change together or not at all.
+    await AppDataSource.transaction(async (manager) => {
+      // Save only the columns; the site links are changed below through the
+      // relation builder so a partial sites array never rewrites the join table.
+      await manager.update(
+        Category,
+        { category_id: category.category_id },
+        { category_name: category.category_name, scope: category.scope ?? (null as any) }
+      );
 
-    // 5️⃣ Replace the site assignment when site_ids was sent.
-    if (targetSiteIds) {
-      const toAdd = targetSiteIds.filter((sid) => !currentSiteIds.includes(sid));
-      const toUnlink = currentSiteIds.filter((sid) => !targetSiteIds!.includes(sid));
-      const relation = repo.createQueryBuilder().relation(Category, "sites").of(category.category_id);
+      // 5️⃣ Replace the site assignment when site_ids was sent.
+      if (targetSiteIds) {
+        const toAdd = targetSiteIds.filter((sid) => !currentSiteIds.includes(sid));
+        const toUnlink = currentSiteIds.filter((sid) => !targetSiteIds!.includes(sid));
+        const relation = manager.createQueryBuilder().relation(Category, "sites").of(category.category_id);
 
-      if (toAdd.length > 0) {
-        await relation.add(toAdd);
-        for (const siteId of toAdd) {
-          await grantCategoriesToSiteUsers(siteId, [category]);
+        if (toAdd.length > 0) {
+          await relation.add(toAdd);
+          for (const siteId of toAdd) {
+            await grantCategoriesToSiteUsers(siteId, [category], manager);
+          }
+        }
+        if (toUnlink.length > 0) {
+          // data-loss-reviewed: unlinks the category from sites the Superadmin unticked; entries, factors, configs and units are kept.
+          await relation.remove(toUnlink);
         }
       }
-      if (toUnlink.length > 0) {
-        // data-loss-reviewed: unlinks the category from sites the Superadmin unticked; entries, factors, configs and units are kept.
-        await relation.remove(toUnlink);
-      }
-    }
+    });
 
     const updated = await repo.findOne({
       where: { category_id: category.category_id },
@@ -286,50 +312,38 @@ export const deleteCategory = async (req: Request, res: Response) => {
       });
     }
 
-    // 1b. Refuse to delete a category that is still in use unless force=true.
-    const force =
-      String(req.body?.force ?? "").toLowerCase() === "true" ||
-      String(req.query?.force ?? "").toLowerCase() === "true";
-    if (!force) {
-      const inUse = (await loadCategoryUsage([categoryId])).get(categoryId) ?? {
-        sites: 0, entries: 0, factors: 0, configs: 0, units: 0,
-      };
-      const parts = [
-        [inUse.sites, "site(s)"],
-        [inUse.entries, "entries"],
-        [inUse.factors, "emission factors"],
-        [inUse.configs, "column configs"],
-        [inUse.units, "units"],
-      ]
-        .filter(([n]) => (n as number) > 0)
-        .map(([n, label]) => `${n} ${label}`);
-      if (parts.length > 0) {
-        return res.status(409).json({
-          message: `This category is still in use: ${parts.join(", ")}.`,
-          in_use: inUse,
-        });
-      }
-    }
-
-    // 2️⃣ Delete category. Several FKs do not cascade and would block the delete
-    // (or the emission cascade), so unlink them first inside a transaction:
-    //   - site_categories.category_id  (NO ACTION)
-    //   - invoice.category_id          (NO ACTION)
-    //   - invoice.emission_id          (NO ACTION) — points at emissions that
-    //     get cascade-deleted with the category
-    // Uploaded invoices are preserved (only unlinked). Everything else
-    // (emission_factors, emissions, emission_document, column_config, unit,
-    // user_categories) cascades via its own FK.
-    await AppDataSource.transaction(async (manager) => {
-      await manager.query(
-        `UPDATE invoice SET emission_id = NULL
-           WHERE emission_id IN (SELECT pk_id FROM emission WHERE category_id = $1)`,
-        [categoryId]
-      );
-      await manager.query(`UPDATE invoice SET category_id = NULL WHERE category_id = $1`, [categoryId]);
-      await manager.query(`DELETE FROM site_categories WHERE category_id = $1`, [categoryId]);
+    // 2️⃣ Delete only a category nothing uses. The row is locked and the usage
+    // counted inside the transaction, so nothing can start using it in between.
+    // Unused means no site links, entries, factors, configs, units, client
+    // mappings or invoices, so nothing cascades with it.
+    const inUse = await AppDataSource.transaction(async (manager) => {
+      await manager.query(`SELECT category_id FROM category WHERE category_id = $1 FOR UPDATE`, [categoryId]);
+      const usage = (await loadCategoryUsage([categoryId], manager)).get(categoryId);
+      const parts = usage
+        ? ([
+            [usage.sites, "site(s)"],
+            [usage.entries, "entries"],
+            [usage.factors, "emission factors"],
+            [usage.configs, "column configs"],
+            [usage.units, "units"],
+            [usage.mappings, "client category mappings"],
+            [usage.invoices, "invoices"],
+          ] as [number, string][])
+            .filter(([n]) => n > 0)
+            .map(([n, label]) => `${n} ${label}`)
+        : [];
+      if (parts.length > 0) return { usage, parts };
+      // data-loss-reviewed: deletes only a category with no usage counted above (Shyam: delete only when unused).
       await manager.delete(Category, { category_id: categoryId });
+      return null;
     });
+
+    if (inUse) {
+      return res.status(409).json({
+        message: `This category is still in use: ${inUse.parts.join(", ")}.`,
+        in_use: inUse.usage,
+      });
+    }
 
     return res.status(200).json({
       message: "Category deleted successfully",

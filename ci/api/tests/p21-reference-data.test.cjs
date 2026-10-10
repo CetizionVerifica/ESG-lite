@@ -12,6 +12,7 @@ const WHO = "superadmin";
 //   countries 900 (used by sites 900 + 901) and 901 (unused)
 //   category 900: on site 900, 1 factor, 1 column config, 2 units, 3 entries
 //   category 901: unused
+//   category 902: only a client category mapping; 903: only an invoice
 //   users 900 (site 900) and 901 (site 901) have a non-empty category grant
 test.before(async () => {
   await withDb(async (db) => {
@@ -21,7 +22,12 @@ test.before(async () => {
       (900, 'CI P21 Plant', 'Plot 900', 'CI', 2, 900),
       (901, 'CI P21 Plant Two', 'Plot 901', 'CI', 2, 900)`);
     await db.query(`INSERT INTO category (category_id, category_name, scope) VALUES
-      (900, 'CI P21 Fuel', 'Scope 1'), (901, 'CI P21 Unused', NULL)`);
+      (900, 'CI P21 Fuel', 'Scope 1'), (901, 'CI P21 Unused', NULL),
+      (902, 'CI P21 Mapped', 'Scope 3'), (903, 'CI P21 Invoiced', 'Scope 2')`);
+    await db.query(`INSERT INTO emission_category_mapping (company_id, company_name, category_id, company_category_name, global_category_name)
+      VALUES (2, 'CI client', 902, 'CI local name', 'CI P21 Mapped')`);
+    await db.query(`INSERT INTO invoice (invoice_id, file_name, cloudinary_url, cloudinary_public_id, category_id)
+      VALUES (900, 'ci-p21.pdf', 'https://res.cloudinary.example.invalid/raw/upload/ci-p21.pdf', 'ci-p21', 903)`);
     await db.query(`INSERT INTO site_categories (site_id, category_id) VALUES (900, 900), (900, 1), (901, 1)`);
     await db.query(`INSERT INTO "user" (user_id, name, email, password, role, site_id) VALUES
       (900, 'CI P21 User', 'ci-p21-a@example.invalid', 'x', 'User', 900),
@@ -42,6 +48,8 @@ test.before(async () => {
 
 test.after(async () => {
   await withDb(async (db) => {
+    await db.query(`DELETE FROM invoice WHERE invoice_id = 900`);
+    await db.query(`DELETE FROM emission_category_mapping WHERE category_id IN (900, 901, 902, 903)`);
     await db.query(`DELETE FROM emission WHERE site_id IN (900, 901) OR category_id IN (900, 901)`);
     await db.query(`DELETE FROM unit WHERE site_id IN (900, 901) OR category_id IN (900, 901)`);
     await db.query(`DELETE FROM column_config WHERE site_id IN (900, 901) OR category_id IN (900, 901)`);
@@ -50,7 +58,7 @@ test.after(async () => {
     await db.query(`DELETE FROM "user" WHERE user_id IN (900, 901)`);
     await db.query(`DELETE FROM site_categories WHERE site_id IN (900, 901) OR category_id IN (900, 901)`);
     await db.query(`DELETE FROM site WHERE site_id IN (900, 901)`);
-    await db.query(`DELETE FROM category WHERE category_id IN (900, 901)`);
+    await db.query(`DELETE FROM category WHERE category_id IN (900, 901, 902, 903)`);
     await db.query(`DELETE FROM country WHERE country_id IN (900, 901)`);
   });
 });
@@ -167,28 +175,35 @@ test("DELETE /admin/countries/:id refuses a country sites use", async () => {
   });
 });
 
-test("DELETE /admin/categories/:id refuses a category in use unless forced", async () => {
+test("DELETE /admin/categories/:id deletes only a category nothing uses", async () => {
   const used = await call("DELETE", "/admin/categories/900", WHO);
   assert.equal(used.status, 409);
-  assert.deepEqual(used.json.in_use, { sites: 2, entries: 4, factors: 1, configs: 1, units: 2 });
+  assert.deepEqual(used.json.in_use, { sites: 2, entries: 4, factors: 1, configs: 1, units: 2, mappings: 0, invoices: 0 });
   assert.match(used.json.message, /^This category is still in use: /);
-  await withDb(async (db) => {
-    const n = await db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE category_id = 900`);
-    assert.equal(n.rows[0].n, 4);
-  });
+
+  // force=true no longer bypasses the check.
+  assert.equal((await call("DELETE", "/admin/categories/900?force=true", WHO)).status, 409);
+  assert.equal((await call("DELETE", "/admin/categories/900", WHO, { force: true })).status, 409);
+
+  // Mappings and invoices have no cascading FK, so they count as use too.
+  const mapped = await call("DELETE", "/admin/categories/902", WHO);
+  assert.equal(mapped.status, 409);
+  assert.equal(mapped.json.in_use.mappings, 1);
+  assert.match(mapped.json.message, /1 client category mappings/);
+  const invoiced = await call("DELETE", "/admin/categories/903", WHO);
+  assert.equal(invoiced.status, 409);
+  assert.equal(invoiced.json.in_use.invoices, 1);
 
   // Fixture category 1 is used by fixture data and stays.
   assert.equal((await call("DELETE", "/admin/categories/1", WHO)).status, 409);
 
   const unused = await call("DELETE", "/admin/categories/901", WHO);
   assert.equal(unused.status, 200);
-
-  // force=true keeps the old behaviour (cascading delete).
-  const forced = await call("DELETE", "/admin/categories/900?force=true", WHO);
-  assert.equal(forced.status, 200);
   await withDb(async (db) => {
-    const n = await db.query(`SELECT COUNT(*)::int AS n FROM category WHERE category_id IN (900, 901)`);
-    assert.equal(n.rows[0].n, 0);
+    const left = await db.query(`SELECT category_id FROM category WHERE category_id IN (900, 901, 902, 903) ORDER BY 1`);
+    assert.deepEqual(left.rows.map((r) => r.category_id), [900, 902, 903]);
+    const n = await db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE category_id = 900`);
+    assert.equal(n.rows[0].n, 4);
   });
 });
 
