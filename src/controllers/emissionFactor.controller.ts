@@ -62,6 +62,8 @@ export const getEmissionFactors = async (req: Request, res: Response) => {
     const siteId = req.query.site_id ? parseInt(req.query.site_id as string) : undefined;
     const categoryId = req.query.category_id ? parseInt(req.query.category_id as string) : undefined;
     const search = (req.query.search as string)?.trim() || undefined;
+    const companyId = req.query.company_id ? parseInt(req.query.company_id as string) : undefined;
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
     const qb = repo
       .createQueryBuilder("ef")
@@ -70,6 +72,8 @@ export const getEmissionFactors = async (req: Request, res: Response) => {
 
     if (siteId) qb.andWhere("ef.site_id = :siteId", { siteId });
     if (categoryId) qb.andWhere("ef.category_id = :categoryId", { categoryId });
+    if (companyId) qb.andWhere("site.company_id = :companyId", { companyId });
+    if (year) qb.andWhere("ef.year = :year", { year });
     if (search) {
       qb.andWhere(
         "(ef.emission_category_name ILIKE :search OR ef.source ILIKE :search OR site.name ILIKE :search OR category.category_name ILIKE :search)",
@@ -550,7 +554,7 @@ export const bulkDeleteEmissionFactors = async (req: Request, res: Response) => 
 // List upload batches with aggregated info
 export const getEmissionFactorBatches = async (req: Request, res: Response) => {
   try {
-    const { site_id, category_id } = req.query;
+    const { site_id, category_id, company_id } = req.query;
 
     const qb = repo
       .createQueryBuilder("ef")
@@ -576,6 +580,9 @@ export const getEmissionFactorBatches = async (req: Request, res: Response) => {
     }
     if (category_id) {
       qb.andWhere("ef.category_id = :categoryId", { categoryId: parseInt(category_id as string) });
+    }
+    if (company_id) {
+      qb.andWhere("site.company_id = :companyId", { companyId: parseInt(company_id as string) });
     }
 
     const batches = await qb.getRawMany();
