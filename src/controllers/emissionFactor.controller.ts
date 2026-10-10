@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import { AppDataSource } from "../config/data-source";
+import { IsNull } from "typeorm";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
@@ -62,6 +63,8 @@ export const getEmissionFactors = async (req: Request, res: Response) => {
     const siteId = req.query.site_id ? parseInt(req.query.site_id as string) : undefined;
     const categoryId = req.query.category_id ? parseInt(req.query.category_id as string) : undefined;
     const search = (req.query.search as string)?.trim() || undefined;
+    const companyId = req.query.company_id ? parseInt(req.query.company_id as string) : undefined;
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
     const qb = repo
       .createQueryBuilder("ef")
@@ -70,6 +73,8 @@ export const getEmissionFactors = async (req: Request, res: Response) => {
 
     if (siteId) qb.andWhere("ef.site_id = :siteId", { siteId });
     if (categoryId) qb.andWhere("ef.category_id = :categoryId", { categoryId });
+    if (companyId) qb.andWhere("site.company_id = :companyId", { companyId });
+    if (year) qb.andWhere("ef.year = :year", { year });
     if (search) {
       qb.andWhere(
         "(ef.emission_category_name ILIKE :search OR ef.source ILIKE :search OR site.name ILIKE :search OR category.category_name ILIKE :search)",
@@ -248,23 +253,27 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
       emissionFactor.category = { category_id } as any;
     }
 
-    // Check for duplicate if updating site, category, or year
-    if (site_id !== undefined || category_id !== undefined || year !== undefined) {
+    // Check for duplicate if updating site, category, year or name. A site+category+year may hold one
+    // factor per emission category name (as create allows), so the name is part of the key.
+    if (site_id !== undefined || category_id !== undefined || year !== undefined || emission_category_name !== undefined) {
       const checkSiteId = site_id ?? emissionFactor.site.site_id;
       const checkCategoryId = category_id ?? emissionFactor.category.category_id;
       const checkYear = year ?? emissionFactor.year;
+      const checkName =
+        emission_category_name !== undefined ? emission_category_name?.trim() || null : emissionFactor.emission_category_name ?? null;
 
       const existing = await repo.findOne({
         where: {
           site: { site_id: checkSiteId },
           category: { category_id: checkCategoryId },
           year: checkYear,
+          emission_category_name: checkName === null ? IsNull() : checkName,
         },
       });
 
       if (existing && existing.emission_factor_id !== emissionFactor.emission_factor_id) {
         return res.status(400).json({
-          message: "Emission factor already exists for this site, category, and year",
+          message: "Emission factor already exists for this site, category, year and name",
         });
       }
     }
@@ -550,7 +559,7 @@ export const bulkDeleteEmissionFactors = async (req: Request, res: Response) => 
 // List upload batches with aggregated info
 export const getEmissionFactorBatches = async (req: Request, res: Response) => {
   try {
-    const { site_id, category_id } = req.query;
+    const { site_id, category_id, company_id } = req.query;
 
     const qb = repo
       .createQueryBuilder("ef")
@@ -576,6 +585,10 @@ export const getEmissionFactorBatches = async (req: Request, res: Response) => {
     }
     if (category_id) {
       qb.andWhere("ef.category_id = :categoryId", { categoryId: parseInt(category_id as string) });
+    }
+    const companyId = company_id ? parseInt(company_id as string) : NaN;
+    if (Number.isFinite(companyId)) {
+      qb.andWhere("site.company_id = :companyId", { companyId });
     }
 
     const batches = await qb.getRawMany();
