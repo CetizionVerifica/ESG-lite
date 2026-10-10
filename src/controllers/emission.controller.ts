@@ -14,6 +14,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
+import { aiServiceHeaders } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
@@ -3611,11 +3612,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
             address: destination.address || null,
           },
         },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
+        { headers: aiServiceHeaders() },
       );
 
       const data = response.data?.data;
