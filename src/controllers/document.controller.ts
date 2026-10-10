@@ -377,20 +377,10 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Delete from Cloudinary, unless the file belongs to an AI-service invoice
-    // (the invoice library still shows it, and other documents may link it).
-    if (document.ai_invoice_id == null) {
-      try {
-        await cloudinary.uploader.destroy(document.cloudinary_public_id, {
-          resource_type: "raw",
-        });
-      } catch (cloudinaryError) {
-        console.error("Cloudinary delete error:", cloudinaryError);
-        // Continue with database deletion even if Cloudinary delete fails
-      }
-    }
-
     const { filesDeleted } = await deleteDocumentRows([document.document_id]);
+    // The document's own file goes once no other document links it; an
+    // AI-service invoice's file is handled by deleteDocumentRows.
+    await removeDeletedDocumentFiles(ownFiles([document]));
 
     return res.status(200).json({
       message: "Document deleted successfully",
@@ -422,19 +412,8 @@ export const bulkDeleteDocuments = async (req: AuthRequest, res: Response) => {
       where: await scopedDocumentWhere(req, { document_id: In(ids.map((id: unknown) => Number(id)).filter(Number.isInteger)) }),
     });
 
-    // Delete from Cloudinary (files of AI-service invoices stay with the invoice)
-    for (const doc of documents) {
-      if (doc.ai_invoice_id != null) continue;
-      try {
-        await cloudinary.uploader.destroy(doc.cloudinary_public_id, {
-          resource_type: "raw",
-        });
-      } catch (cloudinaryError) {
-        console.error("Cloudinary delete error:", cloudinaryError);
-      }
-    }
-
     const { affected, filesDeleted } = await deleteDocumentRows(documents.map((d) => d.document_id));
+    await removeDeletedDocumentFiles(ownFiles(documents));
 
     return res.status(200).json({
       message: `Successfully deleted ${affected} document(s)`,
@@ -513,6 +492,9 @@ const deleteDocumentRows = async (ids: number[]): Promise<{ affected: number; fi
 };
 
 type StoredFile = Pick<EmissionDocument, "cloudinary_public_id" | "ai_invoice_id">;
+
+/** Files the documents uploaded themselves (not an AI-service invoice's file). */
+const ownFiles = (docs: StoredFile[]): StoredFile[] => docs.filter((d) => d.ai_invoice_id == null);
 
 /** The stored files of the documents on these entries, read before the entries are deleted. */
 export const documentFilesForEmissions = async (emissionIds: number[], m: EntityManager = AppDataSource.manager): Promise<StoredFile[]> => {
