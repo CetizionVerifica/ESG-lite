@@ -11,6 +11,7 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
+import { pcfDataChanged } from "../pcf/staleness";
 
 const repo = AppDataSource.getRepository(ProductionData);
 const productRepo = AppDataSource.getRepository(Product);
@@ -231,6 +232,7 @@ export const updateProductionData = async (req: AuthRequest, res: Response) => {
     }
 
     await repo.save(data);
+    await pcfDataChanged("production", [data.production_id]);
 
     // Create audit log for user edit
     try {
@@ -615,6 +617,7 @@ export const approveProductionData = async (req: AuthRequest, res: Response) => 
     data.review_comment = null as any;
 
     await repo.save(data);
+    await pcfDataChanged("production", [data.production_id]);
 
     const updated = await repo.findOne({
       where: { production_id: data.production_id },
@@ -780,6 +783,7 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
         review_comment: null as any,
       }
     );
+    await pcfDataChanged("production", eligibleIds);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1010,6 +1014,7 @@ export const managerUpdateProductionData = async (req: AuthRequest, res: Respons
     if (notes !== undefined) data.notes = notes?.trim() || null;
 
     await repo.save(data);
+    await pcfDataChanged("production", [data.production_id]);
 
     // Write audit log
     const auditRepo = AppDataSource.getRepository(AuditLog);
