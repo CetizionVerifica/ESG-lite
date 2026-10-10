@@ -27,6 +27,7 @@ import {
   computeGhgDetails,
   type GhgFilters,
 } from "../reporting/ghg-data";
+import { pcfDataChanged } from "../pcf/staleness";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -482,6 +483,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         .where("emission_id IN (:...ids)", { ids: idsToDelete })
         .execute();
       await repo.delete(idsToDelete);
+      await pcfDataChanged("emission", idsToDelete);
     }
 
     let calculatedEmission = total_emission || 0;
@@ -984,6 +986,7 @@ const targetYear = reportingDate.getFullYear() - 1;
     if (extra_data !== undefined) emission.extra_data = extra_data;
 
     await repo.save(emission);
+    await pcfDataChanged("emission", [emission.pk_id]);
 
     // Recalculate linked FERA emission if activity data changed
     let updatedFeraEmission: Emission | null = null;
@@ -1202,6 +1205,7 @@ export const deleteEmission = async (req: Request, res: Response) => {
       .execute();
 
     await repo.delete(idsToDelete);
+    await pcfDataChanged("emission", idsToDelete);
 
     log.info("Emission", "Deleted", { ids: idsToDelete, userId: (req as AuthRequest).user?.userId });
 
@@ -1284,6 +1288,7 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
         totalDeleted += result.affected || 0;
       }
     });
+    await pcfDataChanged("emission", idsArray);
 
     return res.status(200).json({
       message: `Successfully deleted ${totalDeleted} emission(s)`,
@@ -1396,6 +1401,9 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
         .execute();
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
+
+    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1521,6 +1529,9 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
         .execute();
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
+
+    // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1722,6 +1733,7 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
     }
 
     const result = await repo.delete({ upload_batch_id: batchId });
+    await pcfDataChanged("emission", idsToDelete);
 
     return res.status(200).json({
       message: `Deleted ${result.affected} emission(s) from batch`,
@@ -1815,6 +1827,8 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
         await repo.save(feraEmission);
       }
     }
+
+    await pcfDataChanged("emission", [emission.pk_id, ...feraLinkedIds]);
 
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -1928,6 +1942,8 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
         await repo.save(feraEmission);
       }
     }
+
+    await pcfDataChanged("emission", [emission.pk_id, ...feraLinkedIds]);
 
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -2045,6 +2061,9 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         .execute();
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
+
+    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -2175,6 +2194,9 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
         .execute();
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
+
+    // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
+    await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -3490,6 +3512,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
 
     await repo.save(emission);
+    await pcfDataChanged("emission", [emission.pk_id]);
 
     // Write audit log
     const auditRepo = AppDataSource.getRepository(AuditLog);

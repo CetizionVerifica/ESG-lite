@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
+import { pcfDataChanged } from "../pcf/staleness";
 
 const repo = AppDataSource.getRepository(Category);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -160,9 +161,16 @@ export const updateCategory = async (req: Request, res: Response) => {
     // 4️⃣ Update category
     if (category_name) category.category_name = category_name.trim();
     // Allow scope to be set to null or a value
+    const oldScope = category.scope;
     if (scope !== undefined) category.scope = scope ? scope.trim() : null;
 
     await repo.save(category);
+
+    // A scope change moves this category's emissions in or out of plant Scope 1+2 (PCF A3 energy).
+    if (category.scope !== oldScope) {
+      const rows: { pk_id: number }[] = await AppDataSource.query(`SELECT pk_id FROM emission WHERE category_id = $1`, [category.category_id]);
+      await pcfDataChanged("emission", rows.map((r) => r.pk_id));
+    }
 
     return res.status(200).json({
       message: "Category updated successfully",
@@ -200,6 +208,10 @@ export const deleteCategory = async (req: Request, res: Response) => {
     // Uploaded invoices are preserved (only unlinked). Everything else
     // (emission_factors, emissions, emission_document, column_config, unit,
     // user_categories) cascades via its own FK.
+    // Emissions go with the category; footprints that used them go stale.
+    const emissionIds: number[] = (
+      await AppDataSource.query(`SELECT pk_id FROM emission WHERE category_id = $1`, [categoryId])
+    ).map((r: { pk_id: number }) => r.pk_id);
     await AppDataSource.transaction(async (manager) => {
       await manager.query(
         `UPDATE invoice SET emission_id = NULL
@@ -210,6 +222,8 @@ export const deleteCategory = async (req: Request, res: Response) => {
       await manager.query(`DELETE FROM site_categories WHERE category_id = $1`, [categoryId]);
       await manager.delete(Category, { category_id: categoryId });
     });
+
+    await pcfDataChanged("emission", emissionIds);
 
     return res.status(200).json({
       message: "Category deleted successfully",
