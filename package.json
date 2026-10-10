@@ -14,7 +14,11 @@
     "migrate:brand-theme": "ts-node src/scripts/addBrandThemeColumns.ts",
     "migrate:user-appearance": "ts-node src/scripts/addUserAppearanceColumn.ts",
     "migrate:document-ai-invoice": "ts-node src/scripts/addDocumentAiInvoiceColumn.ts",
-    "test:api": "node ci/api/run.cjs"
+    "migrate:pcf": "ts-node src/scripts/createPcfTables.ts",
+    "migrate:notification-meta": "ts-node src/scripts/addNotificationMetaColumn.ts",
+    "migrate:user-last-login": "ts-node src/scripts/addUserLastLoginColumn.ts",
+    "test:api": "node ci/api/run.cjs",
+    "test:unit": "node --test ci/unit/*.test.cjs"
   },
   "keywords": [],
   "author": "",

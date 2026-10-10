@@ -47,6 +47,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run build
+      - name: Unit tests (PCF engine, golden pilot)
+        run: npm run test:unit
 
   data-safety:
     name: Data safety

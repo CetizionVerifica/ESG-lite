@@ -1,5 +1,5 @@
 import { AppDataSource } from "../config/data-source";
-import { Notification } from "../entities/Notification";
+import { Notification, NotificationMeta } from "../entities/Notification";
 import { User } from "../entities/User";
 import { pushToUser } from "./sseManager";
 
@@ -16,7 +16,8 @@ export const createNotification = async (
   type: string,
   title: string,
   message: string,
-  link?: string | null
+  link?: string | null,
+  meta?: NotificationMeta | null
 ): Promise<Notification> => {
   const notification = notificationRepo.create({
     user: { user_id: userId } as any,
@@ -24,6 +25,7 @@ export const createNotification = async (
     title,
     message,
     link: link || null,
+    meta: meta ?? null,
     read: false,
   });
   const saved = await notificationRepo.save(notification);
@@ -36,6 +38,7 @@ export const createNotification = async (
       title,
       message,
       link: link || null,
+      meta: meta ?? null,
       read: false,
       created_at: saved.created_at,
     });
@@ -52,23 +55,45 @@ export const createNotification = async (
 };
 
 /**
+ * Type groups for the Notifications tabs (P13). "reminders" covers
+ * REMINDER, DEADLINE and ESCALATION types alike.
+ */
+export const NOTIFICATION_GROUPS = {
+  approvals: ["APPROVED"],
+  rejections: ["REJECTED"],
+  reminders: ["REMINDER", "DEADLINE", "ESCALATION"],
+} as const;
+export type NotificationGroup = keyof typeof NOTIFICATION_GROUPS;
+
+export const isNotificationGroup = (v: unknown): v is NotificationGroup =>
+  typeof v === "string" && Object.prototype.hasOwnProperty.call(NOTIFICATION_GROUPS, v);
+
+/**
  * Get paginated notifications for a user (newest first).
- * Pass unreadOnly=true to get only unread notifications.
+ * Pass unreadOnly=true to get only unread notifications, and a group to
+ * filter by type across every page.
  */
 export const getNotifications = async (
   userId: number,
   page = 1,
   limit = 20,
-  unreadOnly = false
+  unreadOnly = false,
+  group: NotificationGroup | null = null
 ): Promise<{ notifications: Notification[]; total: number }> => {
-  const where: any = { user: { user_id: userId } };
-  if (unreadOnly) where.read = false;
-  const [notifications, total] = await notificationRepo.findAndCount({
-    where,
-    order: { created_at: "DESC" },
-    skip: (page - 1) * limit,
-    take: limit,
-  });
+  const qb = notificationRepo
+    .createQueryBuilder("n")
+    .where("n.user_id = :userId", { userId })
+    .orderBy("n.created_at", "DESC")
+    .addOrderBy("n.id", "DESC")
+    .skip((page - 1) * limit)
+    .take(limit);
+  if (unreadOnly) qb.andWhere("n.read = false");
+  if (group) {
+    const parts = NOTIFICATION_GROUPS[group].map((_, i) => `n.type LIKE :t${i}`);
+    const params = Object.fromEntries(NOTIFICATION_GROUPS[group].map((t, i) => [`t${i}`, `%${t}%`]));
+    qb.andWhere(`(${parts.join(" OR ")})`, params);
+  }
+  const [notifications, total] = await qb.getManyAndCount();
   return { notifications, total };
 };
 
