@@ -115,3 +115,64 @@ test("data approved during review blocks approval until the draft is recalculate
   assert.equal((await call("POST", `/pcf/studies/${v3}/submit`, "manager")).status, 200);
   assert.equal((await call("POST", `/pcf/studies/${v3}/approve`, "superadmin")).status, 200);
 });
+
+// Site 2 in 2017: non-mass keys, category scope changes and product deletes.
+test("only the product's own production counts under a non-mass key; scope changes and deletes count too", async () => {
+  const made = { products: [], production: [], emissions: [], category: null };
+  try {
+    await withDb(async (db) => {
+      made.category = (await db.query(`INSERT INTO category (category_name, scope) VALUES ('Stale 2017 fuel', 'Scope 3') RETURNING category_id`)).rows[0].category_id;
+      made.products = (await db.query(
+        `INSERT INTO product (name, unit, site_id, declared_unit, declared_unit_qty, mass_per_unit_kg) VALUES
+           ('Stale17 rod', 't', 2, 'kg', 1, 1), ('Stale17 other', 't', 2, NULL, NULL, NULL), ('Stale17 gone', 't', 2, NULL, NULL, NULL)
+         RETURNING product_id`,
+      )).rows.map((r) => r.product_id);
+      made.production = (await db.query(
+        `INSERT INTO production_data (product_id, site_id, quantity, unit, start_date, end_date, status, created_by) VALUES
+           ($1, 2, 100, 't', '2017-01-01', '2017-12-31', 'approved', 7),
+           ($2, 2, 300, 't', '2017-01-01', '2017-12-31', 'pending', 7),
+           ($3, 2, 100, 't', '2017-01-01', '2017-12-31', 'approved', 7)
+         RETURNING production_id`, made.products,
+      )).rows.map((r) => r.production_id);
+      made.emissions = (await db.query(
+        `INSERT INTO emission (activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period) VALUES
+           ('{}', 1000, 'tCO2e', '2017-06-30', 'approved', 7, 1, 2, 'monthly'),
+           ('{}', 300,  'tCO2e', '2017-06-30', 'approved', 7, $1, 2, 'monthly')
+         RETURNING pk_id`, [made.category],
+      )).rows.map((r) => r.pk_id);
+    });
+    const [rod17, , gone] = made.products;
+    const period = { product_id: rod17, reference_start: "2017-01-01", reference_end: "2017-12-31" };
+
+    // Manual key: another product's production approval leaves it alone; a change to its own counts.
+    const manual = (await call("POST", "/pcf/studies", "manager", { ...period, allocation_key: "manual" })).json.pcf_study_id;
+    await call("PUT", `/pcf/studies/${manual}/inputs`, "manager", { inputs: [{ stage: "A1", name: "Aluminium", unit: "kg", quantity: 1, material_factor_id: alu }] });
+    assert.equal((await call("POST", `/pcf/studies/${manual}/calculate`, "manager", { key_value_product: 1, key_value_site_total: 4 })).status, 200);
+    assert.equal((await call("POST", `/pcf/studies/${manual}/submit`, "manager")).status, 200);
+    assert.equal((await call("PUT", `/user/production-data/${made.production[1]}/approve`, "manager", {})).status, 200);
+    assert.equal(await staleOf(manual), false);
+    // Back to pending so the mass studies below see the same site total as before.
+    await withDb((db) => db.query("UPDATE production_data SET status = 'pending' WHERE production_id = $1", [made.production[1]]));
+
+    // Mass key: a category moving into Scope 1 adds to A3 energy.
+    const byScope = await approvedStudy(period);
+    assert.equal((await call("PUT", `/admin/categories/${made.category}`, "superadmin", { scope: "Scope 1" })).status, 200);
+    assert.equal(await staleOf(byScope), true);
+
+    // Mass key: deleting another product takes its production out of the site total.
+    const byDelete = await approvedStudy(period);
+    assert.equal(await staleOf(byDelete), false);
+    assert.equal((await call("DELETE", `/admin/products/${gone}`, "superadmin")).status, 200);
+    assert.equal(await staleOf(byDelete), true);
+    // (Category delete isn't exercised here: the CI fixture's invoice table has no
+    // emission_id column, so DELETE /admin/categories fails in this environment.)
+  } finally {
+    await withDb(async (db) => {
+      await db.query("DELETE FROM pcf_study WHERE product_id = ANY($1)", [made.products]);
+      await db.query("DELETE FROM emission WHERE pk_id = ANY($1)", [made.emissions]);
+      await db.query("DELETE FROM production_data WHERE production_id = ANY($1)", [made.production]);
+      await db.query("DELETE FROM product WHERE product_id = ANY($1)", [made.products]);
+      if (made.category) await db.query("DELETE FROM category WHERE category_id = $1", [made.category]);
+    });
+  }
+});

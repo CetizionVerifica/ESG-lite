@@ -1530,7 +1530,7 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
 
-    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
@@ -2195,7 +2195,7 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
 
-    // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
+    // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details

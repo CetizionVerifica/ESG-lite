@@ -24,7 +24,7 @@ const SQL: Record<Kind, string> = {
          OR EXISTS (
            SELECT 1 FROM emission e JOIN category c ON c.category_id = e.category_id
             WHERE e.pk_id = ANY($1::int[]) AND e.status = 'approved' AND e.site_id = s.site_id
-              AND c.scope ~ '[12]'
+              AND substring(c.scope from '[123]') IN ('1', '2')
               AND e.date_of_reporting <= s.reference_end
               AND (CASE WHEN e.reporting_period = 'yearly'
                         THEN (e.date_of_reporting - INTERVAL '1 year' + INTERVAL '1 day')::date
@@ -35,10 +35,19 @@ const SQL: Record<Kind, string> = {
      WHERE s.stale = false
        AND s.status IN ('in_review', 'approved', 'published')
        AND (
-         EXISTS (SELECT 1 FROM pcf_result r WHERE r.pcf_study_id = s.pcf_study_id AND r.production_ids_used && $1::int[])
+         -- Under a non-mass key only the product's own production feeds the
+         -- result (its output units), so other products' rows don't count.
+         -- A row that no longer exists can't be told apart, so it counts.
+         EXISTS (
+           SELECT 1 FROM pcf_result r
+             CROSS JOIN unnest($1::int[]) AS x(id)
+             LEFT JOIN production_data p ON p.production_id = x.id
+            WHERE r.pcf_study_id = s.pcf_study_id AND x.id = ANY(r.production_ids_used)
+              AND (s.allocation_key = 'mass' OR p.production_id IS NULL OR p.product_id = s.product_id))
          OR EXISTS (
            SELECT 1 FROM production_data p
             WHERE p.production_id = ANY($1::int[]) AND p.status = 'approved' AND p.site_id = s.site_id
+              AND (s.allocation_key = 'mass' OR p.product_id = s.product_id)
               AND p.start_date >= s.reference_start AND p.end_date <= s.reference_end))
     RETURNING s.pcf_study_id, s.created_by, s.version, s.product_id`,
 };
@@ -74,7 +83,7 @@ export async function pcfDataChanged(kind: Kind, ids: Array<number | null | unde
     }
     return rows.map((r) => r.pcf_study_id);
   } catch (err) {
-    console.error("pcfDataChanged", err);
+    console.error("pcfDataChanged failed; footprints may not be marked stale", kind, clean, err);
     return [];
   }
 }

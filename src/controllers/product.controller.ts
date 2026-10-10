@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Product } from "../entities/Product";
 import { Site } from "../entities/Site";
+import { pcfDataChanged } from "../pcf/staleness";
 
 const repo = AppDataSource.getRepository(Product);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -130,7 +131,12 @@ export const deleteProduct = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    // Its production goes with it, which changes the site's mass total for other products' footprints.
+    const productionIds: number[] = (
+      await AppDataSource.query(`SELECT production_id FROM production_data WHERE product_id = $1`, [product.product_id])
+    ).map((r: { production_id: number }) => r.production_id);
     await repo.delete({ product_id: parseInt(id) });
+    await pcfDataChanged("production", productionIds);
 
     return res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {

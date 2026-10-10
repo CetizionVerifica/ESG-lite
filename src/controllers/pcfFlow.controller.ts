@@ -220,9 +220,7 @@ export const calculateStudy = async (req: AuthRequest, res: Response) => {
         }),
       );
       // A fresh calculation reads today's plant data, so the draft is no longer stale.
-      if (study.stale) {
-        await m.createQueryBuilder().update(PcfStudy).set({ stale: false }).where("pcf_study_id = :id", { id: study.pcf_study_id }).execute();
-      }
+      await m.createQueryBuilder().update(PcfStudy).set({ stale: false }).where("pcf_study_id = :id", { id: study.pcf_study_id }).execute();
       await m.delete(PcfAllocation, { study: { pcf_study_id: study.pcf_study_id } });
       if (plant.allocation) {
         await m.save(
