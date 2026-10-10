@@ -1229,7 +1229,7 @@ export const deleteEmission = async (req: Request, res: Response) => {
     const linkedBack = await repo.findOne({
       where: { fera_linked_id: emission.pk_id },
     });
-    if (linkedBack) {
+    if (linkedBack && !idsToDelete.includes(linkedBack.pk_id)) {
       idsToDelete.push(linkedBack.pk_id);
     }
 
@@ -3399,6 +3399,14 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       return res.status(200).json({ message: "No changes detected", emission });
     }
 
+    // An approved row stays approved after a manager edit (P07: "Changes are
+    // logged"), so it must keep a category: without one there is no factor
+    // and its total would silently drop to 0 (audit F-05/F-07).
+    if (emission.status === EmissionStatus.APPROVED && activity_data !== undefined && !activity_data.emission_category) {
+      return res.status(400).json({ message: "An approved entry must keep its emission category" });
+    }
+    const oldTotal = emission.total_emission;
+
     // Apply changes (do NOT change approval status)
     if (activity_data_unit !== undefined) {
       emission.activity_data_unit = activity_data_unit;
@@ -3561,10 +3569,10 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // the row back to review, so the twin keeps the parent's review state.
     let feraEmission: Emission | null = null;
     if (activity_data !== undefined) {
-      const [twinBefore] = await repo.query(
-        `SELECT total_emission FROM emission WHERE pk_id = $1 OR fera_linked_id = $2 ORDER BY pk_id LIMIT 1`,
-        [emission.fera_linked_id ?? 0, emission.pk_id]
-      );
+      // The same twin recalculateLinkedFera picks: the forward link first.
+      const [twinBefore] = emission.fera_linked_id
+        ? await repo.query(`SELECT total_emission FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
+        : await repo.query(`SELECT total_emission FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
       feraEmission = await recalculateLinkedFera(emission, activity_data);
       if (feraEmission) {
         await repo.query(
@@ -3574,7 +3582,12 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
           [feraEmission.pk_id, emission.pk_id]
         );
         changedFields.fera_total_emission = { old: twinBefore?.total_emission ?? null, new: feraEmission.total_emission };
+        // Return the twin as stored, with the review state just copied over.
+        feraEmission = await repo.findOne({ where: { pk_id: feraEmission.pk_id } });
       }
+    }
+    if (Number(oldTotal) !== Number(emission.total_emission)) {
+      changedFields.total_emission = { old: oldTotal, new: emission.total_emission };
     }
 
     // Write audit log

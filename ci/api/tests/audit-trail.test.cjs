@@ -127,6 +127,15 @@ test("a manager edit recalculates the FERA twin and keeps it in step with the pa
     assert.equal(audit.action, "manager_edit");
     assert.equal(audit.reason, "Meter re-read");
     assert.deepEqual(audit.changed_fields.fera_total_emission, { old: "0.5", new: 1.22 });
+    assert.deepEqual(audit.changed_fields.total_emission, { old: "4.29", new: 5.36 });
+    assert.equal(r.json.fera_emission.status, "approved"); // the twin as stored
+
+    // An approved row can't lose its category: its total would drop to 0.
+    const noCategory = await call("PUT", "/user/emissions/manager-edit/1", "manager", {
+      activity_data: { activity_value: 2000 }, reason: "Drop category",
+    });
+    assert.equal(noCategory.status, 400);
+    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=1"))[0].total_emission), 5.36);
   } finally {
     for (const b of before) {
       await q(
