@@ -2,17 +2,28 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Product } from "../entities/Product";
 import { Site } from "../entities/Site";
+import { ProductionData } from "../entities/ProductionData";
 import { pcfDataChanged } from "../pcf/staleness";
 
 const repo = AppDataSource.getRepository(Product);
 const siteRepo = AppDataSource.getRepository(Site);
+
+/** A product with its site's client cut down to id and name. */
+const withClient = (p: Product | null) => {
+  if (!p?.site?.company) return p;
+  const { company_id, name } = p.site.company;
+  return { ...p, site: { ...p.site, company: { company_id, name } } };
+};
+
+/** Trimmed string, or "" for anything that isn't one. */
+const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
 // Admin: Create product (Superadmin only)
 export const createProduct = async (req: Request, res: Response) => {
   try {
     const { name, description, unit, site_id } = req.body;
 
-    if (!name || !unit || !site_id) {
+    if (!text(name) || !text(unit) || !site_id) {
       return res.status(400).json({
         message: "name, unit, and site_id are required",
       });
@@ -20,13 +31,13 @@ export const createProduct = async (req: Request, res: Response) => {
 
     const site = await siteRepo.findOne({ where: { site_id } });
     if (!site) {
-      return res.status(404).json({ message: "Site not found" });
+      return res.status(400).json({ message: "Choose a site that exists." });
     }
 
     const product = repo.create({
-      name: name.trim(),
+      name: text(name),
       description: description?.trim() || null,
-      unit: unit.trim(),
+      unit: text(unit),
       site: { site_id },
     });
 
@@ -34,12 +45,12 @@ export const createProduct = async (req: Request, res: Response) => {
 
     const savedProduct = await repo.findOne({
       where: { product_id: product.product_id },
-      relations: ["site"],
+      relations: ["site", "site.company"],
     });
 
     return res.status(201).json({
       message: "Product created successfully",
-      product: savedProduct,
+      product: withClient(savedProduct),
     });
   } catch (error) {
     console.error("Create product error:", error);
@@ -47,16 +58,66 @@ export const createProduct = async (req: Request, res: Response) => {
   }
 };
 
-// Admin: Get all products
+// Admin: Get all products, with each one's client and production record count
+// and latest period (P25 list).
 export const getProducts = async (_req: Request, res: Response) => {
   try {
     const products = await repo.find({
-      relations: ["site"],
+      relations: ["site", "site.company"],
       order: { name: "ASC" },
     });
-    return res.status(200).json(products);
+    const stats: { product_id: number; production_count: number; last_period_end: string | null }[] = await AppDataSource.query(
+      `SELECT product_id, COUNT(*)::int AS production_count, to_char(MAX(end_date), 'YYYY-MM-DD') AS last_period_end
+         FROM production_data
+        GROUP BY product_id`
+    );
+    const byId = new Map(stats.map((r) => [Number(r.product_id), r]));
+    return res.status(200).json(
+      products.map((p) => ({
+        ...withClient(p),
+        production_count: byId.get(p.product_id)?.production_count ?? 0,
+        last_period_end: byId.get(p.product_id)?.last_period_end ?? null,
+      }))
+    );
   } catch (error) {
     console.error("Fetch products error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Admin: A product's most recent production records, newest period first (P25 drawer).
+export const getProductProduction = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid product id" });
+    const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 100);
+    const product = await repo.findOne({ where: { product_id: id } });
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const records = await AppDataSource.getRepository(ProductionData)
+      .createQueryBuilder("pd")
+      .leftJoin("pd.site", "site")
+      .select([
+        "pd.production_id",
+        "pd.quantity",
+        "pd.unit",
+        "pd.start_date",
+        "pd.end_date",
+        "pd.status",
+        "pd.created_at",
+        "site.site_id",
+        "site.name",
+      ])
+      .where("pd.product_id = :id", { id })
+      .orderBy("pd.end_date", "DESC")
+      .addOrderBy("pd.production_id", "DESC")
+      .take(limit)
+      .getMany();
+    const total = await AppDataSource.getRepository(ProductionData).count({ where: { product: { product_id: id } } });
+
+    return res.status(200).json({ total, records });
+  } catch (error) {
+    console.error("Fetch product production error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -81,7 +142,8 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 };
 
-// Admin: Update product
+// Admin: Update product. Moving it to another site moves its production
+// records with it, so they keep counting for the site the product is on.
 export const updateProduct = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
@@ -96,21 +158,45 @@ export const updateProduct = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    if (name) product.name = name.trim();
-    if (description !== undefined) product.description = description?.trim() || null;
-    if (unit) product.unit = unit.trim();
-    if (site_id) product.site = { site_id } as Site;
+    if (name !== undefined && !text(name)) return res.status(400).json({ message: "Name can't be empty." });
+    if (unit !== undefined && !text(unit)) return res.status(400).json({ message: "Default unit can't be empty." });
 
-    await repo.save(product);
+    const fromSite = product.site?.site_id;
+    const moving = site_id !== undefined && site_id !== null && Number(site_id) !== fromSite;
+    if (moving && !(await siteRepo.findOne({ where: { site_id: Number(site_id) } }))) {
+      return res.status(400).json({ message: "Choose a site that exists." });
+    }
+
+    if (text(name)) product.name = text(name);
+    if (description !== undefined) product.description = description?.trim() || null;
+    if (text(unit)) product.unit = text(unit);
+    if (moving) product.site = { site_id: Number(site_id) } as Site;
+
+    let movedIds: number[] = [];
+    await AppDataSource.transaction(async (m) => {
+      await m.getRepository(Product).save(product);
+      if (moving) {
+        const raw = await m.query(`UPDATE production_data SET site_id = $1 WHERE product_id = $2 RETURNING production_id`, [
+          Number(site_id),
+          product.product_id,
+        ]);
+        // node-postgres returns [rows, count] for UPDATE ... RETURNING through TypeORM
+        const rows: { production_id: number }[] = Array.isArray(raw[0]) ? raw[0] : raw;
+        movedIds = rows.map((r) => r.production_id);
+      }
+    });
+    // Footprints at the old site that used these rows are now out of date.
+    if (movedIds.length) await pcfDataChanged("production", movedIds);
 
     const updatedProduct = await repo.findOne({
       where: { product_id: product.product_id },
-      relations: ["site"],
+      relations: ["site", "site.company"],
     });
 
     return res.status(200).json({
       message: "Product updated successfully",
-      product: updatedProduct,
+      product: withClient(updatedProduct),
+      moved_production_count: movedIds.length,
     });
   } catch (error) {
     console.error("Update product error:", error);
