@@ -35,10 +35,21 @@ test("a file that is gone reports false after trying every type", async () => {
 });
 
 test("two uploads of one file name in the same millisecond get different names", () => {
-  let n = 0;
-  const random = () => [0.123456789, 0.987654321][n++];
-  const a = uniqueFileName("Bill May (1).pdf", 1700000000000, random);
-  const b = uniqueFileName("Bill May (1).pdf", 1700000000000, random);
+  const a = uniqueFileName("Bill May (1).pdf", 1700000000000);
+  const b = uniqueFileName("Bill May (1).pdf", 1700000000000);
   assert.notEqual(a, b);
-  assert.match(a, /^1700000000000_[a-z0-9]+_Bill_May__1_\.pdf$/);
+  assert.match(a, /^1700000000000_[0-9a-f]{10}_Bill_May__1_\.pdf$/);
+});
+
+test("a very long file name is cut to fit, keeping its extension", () => {
+  const name = uniqueFileName(`${"x".repeat(300)}.xlsx`, 1700000000000, () => "0123456789");
+  assert.ok(`emission_docs/${name}`.length <= 255);
+  assert.match(name, /^1700000000000_0123456789_x+\.xlsx$/);
+  assert.equal(name.length, "1700000000000_0123456789_".length + 150);
+});
+
+test("deletes ask the CDN to drop its cached copy", async () => {
+  const seen = [];
+  await destroyStoredFile({ destroy: async (_id, opts) => (seen.push(opts.invalidate), { result: "ok" }) }, "emission_docs/x.pdf");
+  assert.deepEqual(seen, [true]);
 });
