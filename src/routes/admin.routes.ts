@@ -9,6 +9,7 @@ import {
   updateCompany,
   deleteCompany,
 } from "../controllers/company.controller";
+import { getConsole } from "../controllers/console.controller";
 import { onboardCompany } from "../controllers/onboarding.controller";
 import { createSite, deleteSite, getSites, updateSite } from "../controllers/site.controller";
 import { getUsers, deleteUser, updateUser, createUser } from "../controllers/user.controller";
@@ -108,6 +109,9 @@ router.post(
   ),
   onboardCompany
 );
+
+// Console (P16): summary across every client
+router.get("/console", getConsole);
 
 // Company
 router.post("/companies", createCompany);

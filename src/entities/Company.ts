@@ -50,6 +50,13 @@ export class Company {
   @Column({ name: "esg_mitra_access", default: false })
   esgMitraAccess!: boolean;
 
+  // When the client was onboarded (redesign P16 Console activity); NULL for
+  // clients that predate migrate:company-created-at. The database default
+  // fills it: select: false and insert: false keep every company read and
+  // insert working on a database where the migration has not run yet.
+  @Column({ type: "timestamp", nullable: true, default: () => "now()", select: false, insert: false, update: false })
+  created_at?: Date | null;
+
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];
 }
