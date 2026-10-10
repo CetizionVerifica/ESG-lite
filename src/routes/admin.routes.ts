@@ -48,6 +48,7 @@ import {
   createProduct,
   getProducts,
   getProductById,
+  getProductProduction,
   updateProduct,
   deleteProduct,
 } from "../controllers/product.controller";
@@ -187,6 +188,7 @@ router.delete("/units/:id", deleteUnit);
 router.post("/products", createProduct);
 router.get("/products", getProducts);
 router.get("/products/:id", getProductById);
+router.get("/products/:id/production", getProductProduction);
 router.put("/products/:id", updateProduct);
 router.delete("/products/:id", deleteProduct);
 
