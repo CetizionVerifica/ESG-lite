@@ -24,7 +24,15 @@ test.before(async () => {
   });
 });
 
-test.after(() => withDb((db) => db.query(`DELETE FROM product WHERE product_id = ANY($1)`, [[product, other]])));
+test.after(() =>
+  withDb(async (db) => {
+    await db.query(
+      `DELETE FROM audit_log WHERE action = 'product_site_move' AND entity_id IN (SELECT production_id FROM production_data WHERE product_id = $1)`,
+      [product],
+    );
+    await db.query(`DELETE FROM product WHERE product_id = ANY($1)`, [[product, other]]);
+  }),
+);
 
 test("GET /admin/products carries client, record count and latest period", async () => {
   const res = await call("GET", "/admin/products", "superadmin");
@@ -61,6 +69,18 @@ test("create and update need a name, a unit and a real site", async () => {
   assert.equal((await call("POST", "/admin/products", "superadmin", { name: "X", unit: "t", site_id: 999999 })).status, 400);
   assert.equal((await call("PUT", `/admin/products/${other}`, "superadmin", { name: " " })).status, 400);
   assert.equal((await call("PUT", `/admin/products/${other}`, "superadmin", { site_id: 999999 })).status, 400);
+  assert.equal((await call("POST", "/admin/products", "superadmin", { name: "X", unit: "t", site_id: "abc" })).status, 400);
+  assert.equal((await call("PUT", `/admin/products/${other}`, "superadmin", { site_id: "1.5" })).status, 400);
+  assert.equal((await call("PUT", "/admin/products/abc", "superadmin", { name: "X" })).status, 400);
+});
+
+test("a product can't move to another client's site, and nothing moves", async () => {
+  const res = await call("PUT", `/admin/products/${product}`, "superadmin", { site_id: 3, name: "Renamed" });
+  assert.equal(res.status, 400);
+  const row = await withDb((db) => db.query(`SELECT name, site_id FROM product WHERE product_id = $1`, [product]));
+  assert.deepEqual(row.rows[0], { name: "P25 billet", site_id: 1 });
+  const sites = await withDb((db) => db.query(`SELECT DISTINCT site_id FROM production_data WHERE product_id = $1`, [product]));
+  assert.deepEqual(sites.rows.map((r) => r.site_id), [1]);
 });
 
 test("moving a product to another site moves its production records", async () => {
@@ -71,6 +91,16 @@ test("moving a product to another site moves its production records", async () =
   assert.equal(res.json.product.unit, "t");
   const sites = await withDb((db) => db.query(`SELECT DISTINCT site_id FROM production_data WHERE product_id = $1`, [product]));
   assert.deepEqual(sites.rows.map((r) => r.site_id), [2]);
+  const audit = await withDb((db) =>
+    db.query(
+      `SELECT a.changed_fields, a.changed_by FROM audit_log a JOIN production_data p ON p.production_id = a.entity_id
+        WHERE a.entity_type = 'production_data' AND a.action = 'product_site_move' AND p.product_id = $1`,
+      [product],
+    ),
+  );
+  assert.equal(audit.rows.length, 3);
+  assert.deepEqual(audit.rows[0].changed_fields, { site_id: { old: 1, new: 2 } });
+  assert.equal(audit.rows[0].changed_by, 5);
 
   // Saving without a site change moves nothing.
   const again = await call("PUT", `/admin/products/${product}`, "superadmin", { site_id: 2, description: "Billets" });

@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Product } from "../entities/Product";
 import { Site } from "../entities/Site";
+import { AuditLog } from "../entities/AuditLog";
 import { ProductionData } from "../entities/ProductionData";
+import { AuthRequest } from "../middlewares/auth.middleware";
 import { pcfDataChanged } from "../pcf/staleness";
 
 const repo = AppDataSource.getRepository(Product);
@@ -13,6 +15,12 @@ const withClient = (p: Product | null) => {
   if (!p?.site?.company) return p;
   const { company_id, name } = p.site.company;
   return { ...p, site: { ...p.site, company: { company_id, name } } };
+};
+
+/** A positive integer id from a body or URL value, else null. */
+const idOf = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v.trim()) ? Number(v) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : null;
 };
 
 /** Trimmed string, or "" for anything that isn't one. */
@@ -28,8 +36,9 @@ export const createProduct = async (req: Request, res: Response) => {
         message: "name, unit, and site_id are required",
       });
     }
+    if (!idOf(site_id)) return res.status(400).json({ message: "Choose a site that exists." });
 
-    const site = await siteRepo.findOne({ where: { site_id } });
+    const site = await siteRepo.findOne({ where: { site_id: idOf(site_id)! } });
     if (!site) {
       return res.status(400).json({ message: "Choose a site that exists." });
     }
@@ -38,7 +47,7 @@ export const createProduct = async (req: Request, res: Response) => {
       name: text(name),
       description: description?.trim() || null,
       unit: text(unit),
-      site: { site_id },
+      site: { site_id: idOf(site_id)! },
     });
 
     await repo.save(product);
@@ -142,54 +151,76 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 };
 
-// Admin: Update product. Moving it to another site moves its production
-// records with it, so they keep counting for the site the product is on.
-export const updateProduct = async (req: Request, res: Response) => {
+// Admin: Update product. Moving it to another site of the same client moves
+// its production records with it, so they keep counting for the site the
+// product is on. Each moved record gets an audit row.
+export const updateProduct = async (req: AuthRequest, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = idOf(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid product id" });
     const { name, description, unit, site_id } = req.body;
-
-    const product = await repo.findOne({
-      where: { product_id: parseInt(id) },
-      relations: ["site"],
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
 
     if (name !== undefined && !text(name)) return res.status(400).json({ message: "Name can't be empty." });
     if (unit !== undefined && !text(unit)) return res.status(400).json({ message: "Default unit can't be empty." });
-
-    const fromSite = product.site?.site_id;
-    const moving = site_id !== undefined && site_id !== null && Number(site_id) !== fromSite;
-    if (moving && !(await siteRepo.findOne({ where: { site_id: Number(site_id) } }))) {
-      return res.status(400).json({ message: "Choose a site that exists." });
-    }
-
-    if (text(name)) product.name = text(name);
-    if (description !== undefined) product.description = description?.trim() || null;
-    if (text(unit)) product.unit = text(unit);
-    if (moving) product.site = { site_id: Number(site_id) } as Site;
+    const toSite = site_id === undefined || site_id === null ? null : idOf(site_id);
+    if (site_id !== undefined && site_id !== null && !toSite) return res.status(400).json({ message: "Choose a site that exists." });
 
     let movedIds: number[] = [];
-    await AppDataSource.transaction(async (m) => {
-      await m.getRepository(Product).save(product);
+    let fromSiteId: number | null = null;
+    // Returned from the transaction as an HTTP error instead of throwing.
+    const problem = await AppDataSource.transaction(async (m): Promise<[number, string] | null> => {
+      // Lock the product so two moves can't interleave.
+      const product = await m.getRepository(Product).findOne({
+        where: { product_id: id },
+        relations: ["site", "site.company"],
+        lock: { mode: "pessimistic_write", tables: ["product"] },
+      });
+      if (!product) return [404, "Product not found"];
+      fromSiteId = product.site?.site_id ?? null;
+      const moving = toSite !== null && toSite !== fromSiteId;
       if (moving) {
-        const raw = await m.query(`UPDATE production_data SET site_id = $1 WHERE product_id = $2 RETURNING production_id`, [
-          Number(site_id),
-          product.product_id,
-        ]);
+        const target = await m.getRepository(Site).findOne({ where: { site_id: toSite }, relations: ["company"] });
+        if (!target) return [400, "Choose a site that exists."];
+        if (target.company?.company_id !== product.site?.company?.company_id) {
+          return [400, "A product can only move to another site of the same client."];
+        }
+        product.site = { site_id: toSite } as Site;
+      }
+      if (text(name)) product.name = text(name);
+      if (description !== undefined) product.description = description?.trim() || null;
+      if (text(unit)) product.unit = text(unit);
+      await m.getRepository(Product).save(product);
+
+      if (moving) {
+        const raw = await m.query(`UPDATE production_data SET site_id = $1 WHERE product_id = $2 RETURNING production_id`, [toSite, id]);
         // node-postgres returns [rows, count] for UPDATE ... RETURNING through TypeORM
         const rows: { production_id: number }[] = Array.isArray(raw[0]) ? raw[0] : raw;
         movedIds = rows.map((r) => r.production_id);
+        if (movedIds.length) {
+          const audit = m.getRepository(AuditLog);
+          await audit.save(
+            movedIds.map((pid) =>
+              audit.create({
+                entity_type: "production_data",
+                entity_id: pid,
+                action: "product_site_move",
+                changed_fields: { site_id: { old: fromSiteId, new: toSite } },
+                reason: `Product ${id} moved to another site`,
+                changed_by: (req.user?.userId ? { user_id: req.user.userId } : null) as any,
+              }),
+            ),
+          );
+        }
       }
+      return null;
     });
+    if (problem) return res.status(problem[0]).json({ message: problem[1] });
+
     // Footprints at the old site that used these rows are now out of date.
     if (movedIds.length) await pcfDataChanged("production", movedIds);
 
     const updatedProduct = await repo.findOne({
-      where: { product_id: product.product_id },
+      where: { product_id: id },
       relations: ["site", "site.company"],
     });
 
