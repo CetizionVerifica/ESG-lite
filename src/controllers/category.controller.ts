@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
+import { pcfDataChanged } from "../pcf/staleness";
 
 const repo = AppDataSource.getRepository(Category);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -254,6 +255,7 @@ export const updateCategory = async (req: Request, res: Response) => {
     const currentSiteIds = (category.sites || []).map((s) => s.site_id);
     if (category_name) category.category_name = category_name.trim();
     // Allow scope to be set to null or a value
+    const oldScope = category.scope;
     if (scope !== undefined) category.scope = scope ? scope.trim() : null;
 
     // Columns, site links and user grants change together or not at all.
@@ -290,6 +292,12 @@ export const updateCategory = async (req: Request, res: Response) => {
       relations: ["sites"],
     });
 
+    // A scope change moves this category's emissions in or out of plant Scope 1+2 (PCF A3 energy).
+    if (category.scope !== oldScope) {
+      const rows: { pk_id: number }[] = await AppDataSource.query(`SELECT pk_id FROM emission WHERE category_id = $1`, [category.category_id]);
+      await pcfDataChanged("emission", rows.map((r) => r.pk_id));
+    }
+
     return res.status(200).json({
       message: "Category updated successfully",
       category: updated,
@@ -321,6 +329,7 @@ export const deleteCategory = async (req: Request, res: Response) => {
     // counted inside the transaction, so nothing can start using it in between.
     // Unused means no site links, entries, factors, configs, units, client
     // mappings or invoices, so nothing cascades with it.
+    let emissionIds: number[] = [];
     const inUse = await AppDataSource.transaction(async (manager) => {
       await manager.query(`SELECT category_id FROM category WHERE category_id = $1 FOR UPDATE`, [categoryId]);
       const usage = (await loadCategoryUsage([categoryId], manager)).get(categoryId);
@@ -339,6 +348,11 @@ export const deleteCategory = async (req: Request, res: Response) => {
             .map(([n, label]) => `${n} ${label}`)
         : [];
       if (parts.length > 0) return { usage, parts };
+      // The guard means no entries, but collect them anyway so footprints that
+      // used any go stale if the rule ever changes.
+      emissionIds = (
+        await manager.query(`SELECT pk_id FROM emission WHERE category_id = $1`, [categoryId])
+      ).map((r: { pk_id: number }) => r.pk_id);
       // data-loss-reviewed: deletes only a category with no usage counted above (Shyam: delete only when unused).
       await manager.delete(Category, { category_id: categoryId });
       return null;
@@ -350,6 +364,8 @@ export const deleteCategory = async (req: Request, res: Response) => {
         in_use: inUse.usage,
       });
     }
+
+    await pcfDataChanged("emission", emissionIds);
 
     return res.status(200).json({
       message: "Category deleted successfully",
