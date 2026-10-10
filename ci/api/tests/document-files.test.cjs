@@ -62,3 +62,24 @@ test("deleting an entry keeps a bill file the AI service still owns", async () =
     await q("DELETE FROM emission WHERE pk_id = 954");
   }
 });
+
+test("deleting an entry keeps a file another document still uses", async () => {
+  await q(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period)
+           VALUES (955, '{"activity_value": 5}', 5, 'tCO2e', '2025-05-31', 'pending', 1, 1, 1, 'monthly'),
+                  (956, '{"activity_value": 6}', 6, 'tCO2e', '2025-05-31', 'pending', 1, 2, 1, 'monthly')`);
+  try {
+    const file = await upload(955, "shared.pdf");
+    const publicId = path.relative(UPLOADS, file);
+    await q(`INSERT INTO emission_document (emission_id, file_name, original_name, cloudinary_public_id, cloudinary_url, file_type, document_type, uploaded_by)
+             SELECT 956, file_name, original_name, cloudinary_public_id, cloudinary_url, file_type, document_type, uploaded_by
+               FROM emission_document WHERE emission_id = 955`);
+    assert.equal((await call("DELETE", "/user/emissions/955", "user")).status, 200);
+    assert.ok(fs.existsSync(file), "file still used by entry 956 stays");
+    assert.equal((await q("SELECT COUNT(*)::int AS n FROM emission_document WHERE cloudinary_public_id = $1", [publicId]))[0].n, 1);
+    assert.equal((await call("DELETE", "/user/emissions/956", "user")).status, 200);
+    assert.equal(fs.existsSync(file), false, "last user removes the file");
+  } finally {
+    await q("DELETE FROM emission_document WHERE emission_id IN (955, 956)");
+    await q("DELETE FROM emission WHERE pk_id IN (955, 956)");
+  }
+});

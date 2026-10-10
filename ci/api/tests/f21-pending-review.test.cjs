@@ -24,6 +24,13 @@ test("pending_review_count folds twins of pending entries only", async () => {
     assert.equal(list.json.summary.pending_count, 4);
     assert.equal(list.json.summary.pending_review_count, 3);
 
+    // The list tells each FERA twin whether its partner entry is pending.
+    const rows = await call("GET", "/user/emissions?siteId=1&page=1&limit=50", "manager");
+    const partner = Object.fromEntries(rows.json.data.filter((r) => r.pk_id === 5 || r.pk_id === 962).map((r) => [r.pk_id, r.fera_partner_status]));
+    assert.deepEqual(partner, { 5: "approved", 962: "pending" });
+    const plain = await call("GET", "/user/emissions?siteId=1", "manager");
+    assert.equal(plain.json.find((r) => r.pk_id === 962).fera_partner_status, "pending");
+
     const overview = await call("GET", "/manager/overview?period=2025-09&siteId=1", "manager");
     assert.equal(overview.status, 200);
     assert.equal(overview.json.kpis.pending_count, 4);

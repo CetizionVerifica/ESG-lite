@@ -534,10 +534,28 @@ export const documentFilesForEmissions = async (emissionIds: number[], m: Entity
  * deleting documents one by one. Failures are logged; the entries stay deleted.
  */
 export const removeDeletedDocumentFiles = async (files: StoredFile[]): Promise<void> => {
-  for (const f of files) {
-    if (f.ai_invoice_id != null || !f.cloudinary_public_id) continue;
+  const own = [
+    ...new Set(files.filter((f) => f.ai_invoice_id == null && f.cloudinary_public_id).map((f) => f.cloudinary_public_id as string)),
+  ];
+  // A file another document row still points at stays. If that can't be
+  // checked, every file stays: a leftover file is safer than a missing one.
+  let stillLinked: Set<string> | null = new Set();
+  if (own.length) {
     try {
-      await cloudinary.uploader.destroy(f.cloudinary_public_id, { resource_type: "raw" });
+      const rows: { cloudinary_public_id: string }[] = await AppDataSource.query(
+        "SELECT DISTINCT cloudinary_public_id FROM emission_document WHERE cloudinary_public_id = ANY($1)",
+        [own],
+      );
+      stillLinked = new Set(rows.map((r) => r.cloudinary_public_id));
+    } catch (error) {
+      console.error("Document file check error:", error);
+      stillLinked = null;
+    }
+  }
+  for (const publicId of stillLinked ? own : []) {
+    if (stillLinked?.has(publicId)) continue;
+    try {
+      await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
     } catch (cloudinaryError) {
       console.error("Cloudinary delete error:", cloudinaryError);
     }

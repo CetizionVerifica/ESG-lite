@@ -31,7 +31,7 @@ import {
   type GhgFilters,
 } from "../reporting/ghg-data";
 import { pcfDataChanged } from "../pcf/staleness";
-import { pendingReviewCountSql } from "../utils/feraFold";
+import { enrichFeraRows, pendingReviewCountSql } from "../utils/feraFold";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -274,22 +274,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         summaryQb.getRawOne(),
       ]);
 
-      // Enrich FERA rows with parent category name
-      const feraRows = data.filter(
-        (e: any) => e.category?.category_name?.toLowerCase() === "fera" && e.fera_linked_id
-      );
-      if (feraRows.length > 0) {
-        const parentIds = feraRows.map((e: any) => e.fera_linked_id);
-        const parents = await repo
-          .createQueryBuilder("e")
-          .leftJoinAndSelect("e.category", "c")
-          .where("e.pk_id IN (:...parentIds)", { parentIds })
-          .getMany();
-        const parentMap = new Map(parents.map((p: any) => [p.pk_id, p.category?.category_name]));
-        for (const row of feraRows) {
-          (row as any).parent_category_name = parentMap.get(row.fera_linked_id) || null;
-        }
-      }
+      // FERA rows: parent category name and the partner entry's status.
+      await enrichFeraRows(data as any[], (sql, params) => AppDataSource.query(sql, params));
 
       return res.status(200).json({
         data,
@@ -309,22 +295,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     // Backwards compatible: return plain array when no pagination params
     const emissions = await qb.getMany();
 
-    // Enrich FERA rows with parent category name
-    const feraEmissions = emissions.filter(
-      (e: any) => e.category?.category_name?.toLowerCase() === "fera" && e.fera_linked_id
-    );
-    if (feraEmissions.length > 0) {
-      const parentIds = feraEmissions.map((e: any) => e.fera_linked_id);
-      const parents = await repo
-        .createQueryBuilder("e")
-        .leftJoinAndSelect("e.category", "c")
-        .where("e.pk_id IN (:...parentIds)", { parentIds })
-        .getMany();
-      const parentMap = new Map(parents.map((p: any) => [p.pk_id, p.category?.category_name]));
-      for (const row of feraEmissions) {
-        (row as any).parent_category_name = parentMap.get(row.fera_linked_id) || null;
-      }
-    }
+    // FERA rows: parent category name and the partner entry's status.
+    await enrichFeraRows(emissions as any[], (sql, params) => AppDataSource.query(sql, params));
 
     return res.status(200).json(emissions);
   } catch (error) {
