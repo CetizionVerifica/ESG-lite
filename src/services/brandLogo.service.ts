@@ -3,7 +3,7 @@
 // company onboarding, which accepts a logo in the same multipart payload.
 import { AppDataSource } from "../config/data-source";
 import { Brand } from "../entities/Brand";
-import { uploadToR2, r2Enabled, brandLogoKey, brandDarkLogoKey, brandGuidelineKey } from "../config/r2";
+import { uploadToR2, deleteFromR2, r2Enabled, brandLogoKey, brandDarkLogoKey, brandGuidelineKey } from "../config/r2";
 
 const EXT_BY_MIME: Record<string, string> = {
   "image/png": "png",
@@ -52,18 +52,40 @@ export const saveCompanyLogo = async (
   );
 };
 
-// Colour guidelines arrive as a PDF or an image of the brand sheet.
-const GUIDELINE_EXT_BY_MIME: Record<string, string> = { "application/pdf": "pdf", ...EXT_BY_MIME };
+// Colour guidelines arrive as a PDF or an image of the brand sheet. No SVG:
+// the file is opened straight from the public bucket, and an SVG can carry script.
+const GUIDELINE_EXT_BY_MIME: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/webp": "webp",
+};
 
 export const SUPPORTED_GUIDELINE_MIMES = Object.keys(GUIDELINE_EXT_BY_MIME);
 
 export const isSupportedGuidelineMime = (mimetype: string): boolean =>
   mimetype in GUIDELINE_EXT_BY_MIME;
 
+// Multer reads multipart file names as latin1; browsers send UTF-8.
+const fileName = (originalname?: string): string | null =>
+  originalname ? Buffer.from(originalname, "latin1").toString("utf8") : null;
+
+/** Deletes a stored guideline object; a failure is logged, never thrown (the row no longer points at it). */
+export const deleteGuidelineObject = async (key: string | null | undefined): Promise<void> => {
+  if (!key || !r2Enabled()) return;
+  try {
+    await deleteFromR2(key);
+  } catch (error) {
+    console.error(`Could not delete old colour guideline ${key}:`, error);
+  }
+};
+
 /**
- * Uploads a colour-guideline file to R2 and upserts the brand row with its URL
- * and original name. Callers must check `isSupportedGuidelineMime` and
- * `isAssetStorageConfigured` first.
+ * Uploads a colour-guideline file to R2 under a new random key, upserts the
+ * brand row with its URL and original name, then deletes the file it replaced.
+ * Callers must check `isSupportedGuidelineMime` and `isAssetStorageConfigured`
+ * first.
  */
 export const saveCompanyGuideline = async (
   companyId: number,
@@ -76,8 +98,9 @@ export const saveCompanyGuideline = async (
   const repo = AppDataSource.getRepository(Brand);
   const existing = await repo.findOne({ where: { companyId } });
   const brand = existing || repo.create({ companyId, name: companyName });
+  const previousKey = existing?.guidelinePublicId;
 
-  // The key is reused on replace and R2 serves it as immutable, so the version
-  // parameter makes a replaced file show up instead of a cached old one.
-  return repo.save({ ...brand, guidelineUrl: `${url}?v=${Date.now()}`, guidelinePublicId: key, guidelineName: file.originalname || null });
+  const saved = await repo.save({ ...brand, guidelineUrl: url, guidelinePublicId: key, guidelineName: fileName(file.originalname) });
+  if (previousKey && previousKey !== key) await deleteGuidelineObject(previousKey);
+  return saved;
 };

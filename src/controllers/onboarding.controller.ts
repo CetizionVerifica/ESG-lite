@@ -160,7 +160,7 @@ const storeGuideline = async (req: Request, company: Company): Promise<string[]>
         return [`Colour guideline was not saved: unsupported file type (allowed: ${SUPPORTED_GUIDELINE_MIMES.join(", ")})`];
     }
     if (!isAssetStorageConfigured()) {
-        return ["Colour guideline was not saved: asset storage (R2) is not configured on the server"];
+        return ["Colour guideline was not saved: asset storage (R2) is not configured on the server. Upload it in the client's Brand tab."];
     }
 
     try {
@@ -168,6 +168,6 @@ const storeGuideline = async (req: Request, company: Company): Promise<string[]>
         return [];
     } catch (error) {
         console.error("Onboarding colour guideline upload error:", error);
-        return ["Colour guideline was not saved: upload failed"];
+        return ["Colour guideline was not saved: upload failed. Upload it in the client's Brand tab."];
     }
 };

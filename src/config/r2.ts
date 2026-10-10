@@ -8,6 +8,7 @@
 //   R2_BUCKET              bucket name
 //   R2_PUBLIC_BASE_URL     public base URL for reads (r2.dev URL or custom
 //                          domain), e.g. https://pub-xxxx.r2.dev  — no trailing slash
+import { randomUUID } from "crypto";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 const {
@@ -50,9 +51,13 @@ export const brandLogoKey = (companyId: number, ext: string): string =>
 export const brandDarkLogoKey = (companyId: number, ext: string): string =>
   `${BRAND_PREFIX}/company_${companyId}_dark.${ext}`;
 
-// The client's colour-guideline file (PDF or image), next to its logos.
+// The client's colour-guideline file (PDF or image), next to its logos. Unlike
+// the logos, which every signed-in user of the client sees anyway, the bucket is
+// public, so the key carries a random part: knowing the bucket URL and a company
+// id must not be enough to fetch another client's guideline. A new key per
+// upload also means a replaced file is never served from cache.
 export const brandGuidelineKey = (companyId: number, ext: string): string =>
-  `${BRAND_PREFIX}/company_${companyId}_guideline.${ext}`;
+  `${BRAND_PREFIX}/company_${companyId}_guideline_${randomUUID()}.${ext}`;
 
 // Upload bytes at `key` (overwrites) and return { url, key }.
 export async function uploadToR2(

@@ -6,6 +6,7 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import {
   saveCompanyLogo,
   saveCompanyGuideline,
+  deleteGuidelineObject,
   isSupportedGuidelineMime,
   SUPPORTED_GUIDELINE_MIMES,
   isSupportedLogoMime,
@@ -141,6 +142,8 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
       brand.logoOnDarkUrl = null;
       brand.logoOnDarkPublicId = null;
     }
+    // Removing the guideline also deletes the file, once the row no longer points at it.
+    const removedGuidelineKey = guidelineUrl === null ? brand.guidelinePublicId : null;
     if (guidelineUrl === null) {
       brand.guidelineUrl = null;
       brand.guidelinePublicId = null;
@@ -148,6 +151,7 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
     }
 
     await repo.save(brand);
+    await deleteGuidelineObject(removedGuidelineKey);
     return res.status(200).json({ message: "Brand saved", brand });
   } catch (error) {
     console.error("Upsert brand error:", error);
