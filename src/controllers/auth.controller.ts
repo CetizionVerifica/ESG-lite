@@ -69,6 +69,13 @@ export const login = async (req: Request, res: Response) => {
     siteId: primarySiteId,
   });
 
+  // Best effort: a missing column (migration not run yet) must not block login.
+  try {
+    await userRepo.update(user.user_id, { last_login_at: new Date() });
+  } catch (err) {
+    log.warn("Auth", "Could not record last login", { userId: user.user_id, error: String(err) });
+  }
+
   log.info("Auth", "Login success", { email: emailLower, userId: user.user_id, role: user.role });
   res.json({ token, role: user.role, user: user });
 };
