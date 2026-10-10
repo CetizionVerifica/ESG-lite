@@ -655,7 +655,6 @@ function readFactor(body: any, partial: boolean): [Partial<MaterialFactor>, stri
   return [f, null];
 }
 
-// POST /pcf/material-factors  (company_id: null = global, superadmin only)
 // Which company a new factor belongs to: superadmins pick one (null = global),
 // managers add to their own. Returns [companyId, status, message] on refusal.
 async function targetCompany(scope: PcfScope, raw: unknown): Promise<[number | null, number?, string?]> {
@@ -674,6 +673,7 @@ async function targetCompany(scope: PcfScope, raw: unknown): Promise<[number | n
 
 const LICENSED_ADD = "Only a superadmin can add licensed (ecoinvent) factors";
 
+// POST /pcf/material-factors  (company_id: null = global, superadmin only)
 export const createMaterialFactor = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await pcfScope(req);
@@ -700,9 +700,11 @@ export const createMaterialFactor = async (req: AuthRequest, res: Response) => {
 
 const MAX_IMPORT = 1000;
 
-// POST /pcf/material-factors/import  { company_id?, rows: [...] }
+// POST /pcf/material-factors/import[?dry_run=1]  { company_id?, rows: [...] }
 // Every row is checked first (same rules as one factor, plus duplicates within
 // the sheet and against the library); then all rows are saved, or none.
+// dry_run=1 saves nothing and returns 200 { valid, errors } with every problem
+// at once, so the review step can show invalid and existing rows together.
 export const importMaterialFactors = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await pcfScope(req);
@@ -726,6 +728,17 @@ export const importMaterialFactors = async (req: AuthRequest, res: Response) => 
       seen.set(key, index);
       parsed[index] = fields;
     });
+    const dryRun = req.query.dry_run === "1" || req.query.dry_run === "true";
+    if (dryRun) {
+      for (let index = 0; index < rows.length; index++) {
+        const f = parsed[index];
+        if (!f) continue;
+        const dup = await findDuplicate(AppDataSource.manager, { name: f.name!, geography: f.geography ?? null, source_year: f.source_year ?? null, companyId }, null);
+        if (dup) errors.push({ index, message: DUPLICATE, existing_id: dup });
+      }
+      errors.sort((a, b) => a.index - b.index);
+      return res.json({ valid: errors.length === 0, rows: rows.length, errors });
+    }
     if (errors.length) return res.status(400).json({ message: "Some rows are not valid; nothing was imported", errors });
 
     const saved = await AppDataSource.transaction(async (m) => {
@@ -809,13 +822,15 @@ export const updateMaterialFactor = async (req: AuthRequest, res: Response) => {
     }
     await AppDataSource.transaction(async (m) => {
       await m.query("SELECT pg_advisory_xact_lock($1, 0)", [FACTOR_LOCK]);
-      if (fields.name !== undefined || fields.geography !== undefined || fields.source_year !== undefined) {
-        const key = {
-          name: fields.name ?? f.name,
-          geography: fields.geography !== undefined ? fields.geography : f.geography,
-          source_year: fields.source_year !== undefined ? fields.source_year : f.source_year,
-          companyId: f.company?.company_id ?? null,
-        };
+      const companyId = f.company?.company_id ?? null;
+      const key = {
+        name: fields.name ?? f.name,
+        geography: fields.geography !== undefined ? fields.geography : f.geography,
+        source_year: fields.source_year !== undefined ? fields.source_year : f.source_year,
+        companyId,
+      };
+      // Only a change of key is checked, so rows that were duplicates before C04 stay editable.
+      if (keyOf(key) !== keyOf({ name: f.name, geography: f.geography, source_year: f.source_year, companyId })) {
         const dup = await findDuplicate(m, key, f.material_factor_id);
         if (dup) throw new DuplicateFactor(dup);
       }

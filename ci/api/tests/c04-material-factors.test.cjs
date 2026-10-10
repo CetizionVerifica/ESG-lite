@@ -131,3 +131,34 @@ test("used by counts and lists only footprints the caller can see", async () => 
   assert.equal((await call("GET", `/pcf/material-factors/${own}`, "otherManager")).status, 404);
   assert.equal((await call("GET", "/pcf/material-factors/abc", "manager")).status, 404);
 });
+
+test("rows that were duplicates before C04 stay editable", async () => {
+  const ids = await withDb(async (db) =>
+    (
+      await db.query(
+        `INSERT INTO material_factor (company_id, name, material_group, unit, value_kgco2e, geography, source_year)
+         VALUES (1, 'C04 legacy twin', 'steel', 'kg', 2, 'IN', 2020), (1, 'C04 legacy twin', 'steel', 'kg', 2.1, 'IN', 2020)
+         RETURNING material_factor_id`,
+      )
+    ).rows.map((r) => r.material_factor_id),
+  );
+  // A full-form save that repeats the unchanged key goes through.
+  const full = await call("PATCH", `/pcf/material-factors/${ids[1]}`, "manager", { name: "C04 legacy twin", geography: "in", source_year: 2020, value_kgco2e: 2.2 });
+  assert.equal(full.status, 200);
+  assert.equal(full.json.value_kgco2e, 2.2);
+});
+
+test("a dry run reports invalid and existing rows together and saves nothing", async () => {
+  await call("POST", "/pcf/material-factors", "manager", factor({ name: "C04 dry existing" }));
+  const before = await withDb(async (db) => Number((await db.query("SELECT count(*) FROM material_factor")).rows[0].count));
+  const res = await call("POST", "/pcf/material-factors/import?dry_run=1", "manager", {
+    rows: [factor({ name: "C04 dry new" }), factor({ name: "C04 dry bad", unit: "" }), factor({ name: "c04 DRY existing" })],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.valid, false);
+  assert.deepEqual(res.json.errors.map((e) => [e.index, !!e.existing_id]), [[1, false], [2, true]]);
+  const ok = await call("POST", "/pcf/material-factors/import?dry_run=1", "manager", { rows: [factor({ name: "C04 dry new" })] });
+  assert.deepEqual(ok.json, { valid: true, rows: 1, errors: [] });
+  const after = await withDb(async (db) => Number((await db.query("SELECT count(*) FROM material_factor")).rows[0].count));
+  assert.equal(after, before);
+});
