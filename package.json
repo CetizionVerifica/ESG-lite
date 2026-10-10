@@ -36,6 +36,8 @@
     "@types/node": "^25.0.10",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.9",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "amqplib": "^0.10.9",
     "axios": "1.13.6",
     "bcrypt": "^6.0.0",

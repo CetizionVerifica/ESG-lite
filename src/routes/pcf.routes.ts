@@ -24,6 +24,7 @@ import {
   publishStudy,
   reconciliation,
 } from "../controllers/pcfFlow.controller";
+import { exportStudy } from "../controllers/pcfExport.controller";
 
 // Product carbon footprints (E1). Managers (own sites) and superadmins only;
 // every other role gets 403.
@@ -38,6 +39,7 @@ router.patch("/studies/:id", updateStudy);
 router.delete("/studies/:id", deleteStudy);
 router.put("/studies/:id/inputs", replaceInputs);
 router.get("/studies/:id/allocation-preview", allocationPreview);
+router.get("/studies/:id/export", exportStudy);
 router.post("/studies/:id/calculate", calculateStudy);
 router.post("/studies/:id/submit", submitStudy);
 router.post("/studies/:id/approve", approveStudy);
