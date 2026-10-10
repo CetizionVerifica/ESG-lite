@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { issueInvite, unusablePasswordHash } from "../services/invite";
 import bcrypt from "bcrypt";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
@@ -53,9 +54,11 @@ export const onboardCompany = async (req: Request, res: Response) => {
         const cinNumber = trimmed(body.cinNumber);
         const address = trimmed(body.address);
         const esgMitraAccess = isTruthyFlag(body.esgMitraAccess);
+        // Invite the admin by email instead of setting their password here.
+        const sendInvite = isTruthyFlag(body.sendInvite);
 
         // 1. Validate required input
-        const missing = Object.entries({ companyName, contactPerson, email, password })
+        const missing = Object.entries({ companyName, contactPerson, email, ...(sendInvite ? {} : { password }) })
             .filter(([, value]) => !value)
             .map(([field]) => field);
         if (missing.length) {
@@ -99,7 +102,7 @@ export const onboardCompany = async (req: Request, res: Response) => {
         const savedSite = await siteRepo.save(site);
 
         // 5. Create Company Admin User
-        const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        const hashedPassword = sendInvite ? await unusablePasswordHash() : await bcrypt.hash(password, BCRYPT_ROUNDS);
         const user = userRepo.create({
             name: contactPerson,
             email,
@@ -116,6 +119,16 @@ export const onboardCompany = async (req: Request, res: Response) => {
         // after the other: both upsert the same brand row.
         const warnings = [...(await storeLogo(req, savedCompany)), ...(await storeGuideline(req, savedCompany))];
 
+        // 7. Email the invite last, so a slow mail server can't leave the
+        // client half set up. A failure is a warning: "Send invite" on the
+        // client's People tab tries again.
+        let invite: { sent: boolean; expiresAt?: Date } | undefined;
+        if (sendInvite) {
+            const result = await issueInvite(user, savedCompany.name);
+            invite = result.sent ? { sent: true, expiresAt: result.expiresAt } : { sent: false };
+            if (!result.sent) warnings.push(result.reason);
+        }
+
         return res.status(201).json({
             message: "Company onboarded successfully",
             company: savedCompany,
@@ -125,6 +138,7 @@ export const onboardCompany = async (req: Request, res: Response) => {
                 email: user.email,
                 role: user.role,
             },
+            ...(invite ? { invite } : {}),
             warnings,
         });
 

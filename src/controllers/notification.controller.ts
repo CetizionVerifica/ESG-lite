@@ -3,6 +3,7 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import * as notificationService from "../services/notificationService";
 import { addConnection, pushToUser } from "../services/sseManager";
 import { verifyToken } from "../utils/jwt";
+import { CLIENT_INACTIVE_CODE, CLIENT_INACTIVE_MESSAGE, isUserClientInactive } from "../services/clientStatus";
 
 export const getNotifications = async (req: AuthRequest, res: Response) => {
   try {
@@ -116,12 +117,24 @@ export const streamNotifications = async (req: Request, res: Response) => {
   if (!token) return res.status(401).json({ message: "Unauthorized" });
 
   let userId: number;
+  let role: string | undefined;
   try {
     const decoded = verifyToken(token) as any;
     userId = decoded.userId;
+    role = decoded.role;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
   } catch {
     return res.status(401).json({ message: "Invalid token" });
+  }
+
+  // Same rule as authenticate: a deactivated client's people get no stream.
+  // Fails open like authenticate if the lookup itself errors.
+  try {
+    if (await isUserClientInactive(userId, role)) {
+      return res.status(403).json({ code: CLIENT_INACTIVE_CODE, message: CLIENT_INACTIVE_MESSAGE });
+    }
+  } catch (error) {
+    console.error("Client status check failed for notification stream:", error);
   }
 
   // Set SSE headers
