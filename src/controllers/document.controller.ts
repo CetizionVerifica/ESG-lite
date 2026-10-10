@@ -4,6 +4,7 @@ import { EmissionDocument, DocumentType } from "../entities/EmissionDocument";
 import { Emission } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import cloudinary from "../config/cloudinary";
+import { destroyStoredFile, uniqueFileName } from "../utils/storedFiles";
 import { Readable } from "stream";
 import { accessibleSiteIds } from "../utils/companyScope";
 import { EntityManager, In } from "typeorm";
@@ -97,9 +98,8 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
     }
 
     // Generate unique filename
-    const timestamp = Date.now();
-    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const publicId = `emission_docs/${timestamp}_${sanitizedName}`;
+    const fileName = uniqueFileName(file.originalname);
+    const publicId = `emission_docs/${fileName}`;
 
     // Upload to Cloudinary with auto resource type to support all file types
     const result = await uploadToCloudinary(file.buffer, {
@@ -110,7 +110,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
 
     // Create document record
     const document = documentRepo.create({
-      file_name: `${timestamp}_${sanitizedName}`,
+      file_name: fileName,
       original_name: file.originalname,
       cloudinary_public_id: result.public_id,
       cloudinary_url: result.url,
@@ -174,9 +174,8 @@ export const uploadMultipleDocuments = async (req: AuthRequest, res: Response) =
     const uploadedDocuments = [];
 
     for (const file of files) {
-      const timestamp = Date.now();
-      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
-      const publicId = `emission_docs/${timestamp}_${sanitizedName}`;
+      const fileName = uniqueFileName(file.originalname);
+      const publicId = `emission_docs/${fileName}`;
 
       const result = await uploadToCloudinary(file.buffer, {
         folder: "emission_documents",
@@ -185,7 +184,7 @@ export const uploadMultipleDocuments = async (req: AuthRequest, res: Response) =
       });
 
       const document = documentRepo.create({
-        file_name: `${timestamp}_${sanitizedName}`,
+        file_name: fileName,
         original_name: file.originalname,
         cloudinary_public_id: result.public_id,
         cloudinary_url: result.url,
@@ -440,8 +439,7 @@ const invoiceTablePresent = async (m: EntityManager): Promise<boolean> => {
 // "image" as its delete_file does.
 const destroyInvoiceFile = async (publicId: string) => {
   try {
-    const result = await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
-    if (result?.result !== "ok") await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+    await destroyStoredFile(cloudinary.uploader, publicId);
   } catch (cloudinaryError) {
     console.error("Cloudinary delete error:", cloudinaryError);
   }
@@ -537,7 +535,7 @@ export const removeDeletedDocumentFiles = async (files: StoredFile[]): Promise<v
   for (const publicId of stillLinked ? own : []) {
     if (stillLinked?.has(publicId)) continue;
     try {
-      await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
+      await destroyStoredFile(cloudinary.uploader, publicId);
     } catch (cloudinaryError) {
       console.error("Cloudinary delete error:", cloudinaryError);
     }
