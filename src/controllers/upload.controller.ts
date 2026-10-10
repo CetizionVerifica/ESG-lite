@@ -11,6 +11,15 @@ import { Country } from "../entities/Country";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import { log } from "../utils/logger";
+import { issueInvite, unusablePasswordHash } from "../services/invite";
+import {
+  type HistoricalRow,
+  activityDataFor,
+  factorDenominator,
+  factorUnitToTonnes,
+  periodDate,
+  planHistoricalRows,
+} from "../services/historicalImport";
 
 // Users created by this import get a random password that nobody sees; they
 // set their own through "Forgot password". A shared fixed password would let
@@ -48,22 +57,6 @@ interface ExcelRow {
   email?: string;
 }
 
-// tCO2e per (activity x factor) for the factor units this file format uses,
-// e.g. "kgCO2e/litre" -> 0.001, "tCO2e/MWh" -> 1. null when the unit is unknown.
-const factorUnitToTonnes = (unit: unknown): number | null => {
-  const u = String(unit ?? "").toLowerCase().replace(/\s/g, "").replace(/₂/g, "2");
-  if (/^kgco2/.test(u)) return 0.001;
-  if (/^gco2/.test(u)) return 0.000001;
-  if (/^(t|tonne|tonnes|ton|tons)co2/.test(u)) return 1;
-  return null;
-};
-
-// "kgCO2e/kWh" -> "kWh"; null when the factor unit has no denominator.
-const factorDenominator = (unit: unknown): string | null => {
-  const parts = String(unit ?? "").split("/");
-  return parts.length === 2 ? parts[1] : null;
-};
-
 const normUnit = (u: unknown) => String(u ?? "").toLowerCase().replace(/\s/g, "");
 const sameUnit = (a: unknown, b: unknown) => normUnit(a) !== "" && normUnit(a) === normUnit(b);
 
@@ -82,11 +75,157 @@ const monthToNumber: Record<string, number> = {
   December: 11,
 };
 
+const PREVIEW_ROWS = 200;
+const positiveInt = (v: unknown): number | null => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+/**
+ * The redesigned historical import (P27): the request names an existing
+ * client, site and category by id, nothing is created from free text, and
+ * `dryRun=true` returns the plan without saving. New people get an invite
+ * email to choose a password; no password is ever returned.
+ */
+const uploadHistorical = async (req: Request, res: Response) => {
+  const companyId = positiveInt(req.body.companyId);
+  const siteId = positiveInt(req.body.siteId);
+  const categoryId = positiveInt(req.body.categoryId);
+  const dryRun = req.body.dryRun === "true" || req.body.dryRun === "1";
+  if (!companyId || !siteId || !categoryId) {
+    return res.status(400).json({ message: "Choose a client, a site and a category." });
+  }
+
+  const site = await AppDataSource.getRepository(Site).findOne({
+    where: { site_id: siteId },
+    relations: ["company", "categories"],
+  });
+  if (!site || site.company?.company_id !== companyId) {
+    return res.status(400).json({ message: "That site doesn't belong to the chosen client." });
+  }
+  const category = site.categories?.find((c) => c.category_id === categoryId);
+  if (!category) {
+    return res.status(400).json({ message: "That category isn't set up for this site. Add it to the site first." });
+  }
+
+  const workbook = XLSX.read(req.file!.buffer, { type: "buffer" });
+  const rows: HistoricalRow[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+  if (rows.length === 0) return res.status(400).json({ message: "The sheet has no rows under the header." });
+
+  const existing: { date_of_reporting: Date | string }[] = await AppDataSource.query(
+    `SELECT date_of_reporting FROM emission WHERE site_id = $1 AND category_id = $2`,
+    [siteId, categoryId],
+  );
+  const monthOf = (d: Date | string) => {
+    const date = new Date(d);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  };
+  // Only the 15th counts as taken, as in the old import: an entry on another
+  // day of that month was made some other way and doesn't block this one.
+  const existingPeriods = new Set(existing.map((e) => new Date(e.date_of_reporting)).filter((d) => d.getDate() === 15).map(monthOf));
+  const emails = [...new Set(rows.map((r) => String(r.email ?? "").trim().toLowerCase()).filter(Boolean))];
+  const existingEmails = new Set<string>(
+    emails.length
+      ? (await AppDataSource.query(`SELECT lower(email) AS email FROM "user" WHERE lower(email) = ANY($1)`, [emails])).map(
+          (u: { email: string }) => u.email,
+        )
+      : [],
+  );
+  const plan = planHistoricalRows(rows, existingPeriods, existingEmails);
+  const summary = {
+    totalRows: rows.length,
+    toImport: plan.toImport,
+    toSkip: plan.toSkip,
+    newPeople: plan.people.filter((p) => !p.exists).length,
+    existingPeople: plan.people.filter((p) => p.exists).length,
+    site: { id: site.site_id, name: site.name },
+    category: { id: category.category_id, name: category.category_name },
+  };
+
+  if (dryRun) {
+    return res.json({
+      dryRun: true,
+      summary,
+      rows: plan.rows.slice(0, PREVIEW_ROWS),
+      people: plan.people,
+      invalidEmails: plan.invalidEmails,
+    });
+  }
+
+  // Entries and accounts are saved together: a failure saves nothing.
+  const created = await AppDataSource.transaction(async (m) => {
+    const newUsers: User[] = [];
+    for (const person of plan.people.filter((p) => !p.exists)) {
+      newUsers.push(
+        await m.getRepository(User).save(
+          m.getRepository(User).create({
+            email: person.email,
+            name: person.name,
+            password: await unusablePasswordHash(),
+            role: UserRole.USER,
+            site,
+          }),
+        ),
+      );
+    }
+    const repo = m.getRepository(Emission);
+    for (const p of plan.rows.filter((r) => r.status === "import")) {
+      const row = rows[p.row - 1];
+      await repo.save(
+        repo.create({
+          activity_data: activityDataFor(row),
+          total_emission: p.total!,
+          unit: "tCO2e",
+          activity_data_unit: p.unit,
+          date_of_reporting: periodDate(p.period!),
+          status: EmissionStatus.PENDING,
+          site,
+          category,
+          review_comment: row.notes ? String(row.notes) : undefined,
+        }),
+      );
+    }
+    return newUsers;
+  });
+
+  let invitesSent = 0;
+  let inviteWarning: string | null = null;
+  for (const user of created) {
+    const result = await issueInvite(user, site.company?.name);
+    if (result.sent) invitesSent++;
+    else inviteWarning = result.reason;
+  }
+
+  log.info("Upload", "Historical import complete", {
+    totalRows: rows.length,
+    imported: plan.toImport,
+    skipped: plan.toSkip,
+    usersCreated: created.length,
+    invitesSent,
+    siteId,
+    categoryId,
+  });
+  return res.json({
+    dryRun: false,
+    summary: {
+      ...summary,
+      emissionsCreated: plan.toImport,
+      emissionsSkipped: plan.toSkip,
+      usersCreated: created.length,
+      createdUsers: created.map((u) => u.email),
+      invitesSent,
+      inviteWarning,
+    },
+    skippedRows: plan.rows.filter((r) => r.status === "skip").map(({ row, period, reason }) => ({ row, period, reason })),
+  });
+};
+
 export const uploadEmissionsExcel = async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
+    if (req.body.siteId !== undefined) return await uploadHistorical(req, res);
 
     const { siteName, categoryName } = req.body;
 
