@@ -9,6 +9,7 @@ import {
   updateCompany,
   deleteCompany,
 } from "../controllers/company.controller";
+import { getConsole } from "../controllers/console.controller";
 import { onboardCompany } from "../controllers/onboarding.controller";
 import { createSite, deleteSite, getSites, updateSite } from "../controllers/site.controller";
 import { getUsers, deleteUser, updateUser, createUser } from "../controllers/user.controller";
@@ -48,6 +49,7 @@ import {
   createProduct,
   getProducts,
   getProductById,
+  getProductProduction,
   updateProduct,
   deleteProduct,
 } from "../controllers/product.controller";
@@ -110,6 +112,9 @@ router.post(
   ),
   onboardCompany
 );
+
+// Console (P16): summary across every client
+router.get("/console", getConsole);
 
 // Company
 router.post("/companies", createCompany);
@@ -190,6 +195,7 @@ router.delete("/units/:id", deleteUnit);
 router.post("/products", createProduct);
 router.get("/products", getProducts);
 router.get("/products/:id", getProductById);
+router.get("/products/:id/production", getProductProduction);
 router.put("/products/:id", updateProduct);
 router.delete("/products/:id", deleteProduct);
 

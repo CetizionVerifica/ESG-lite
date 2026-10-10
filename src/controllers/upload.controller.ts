@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import * as XLSX from "xlsx";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { Site } from "../entities/Site";
@@ -11,7 +12,10 @@ import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import { log } from "../utils/logger";
 
-const DEFAULT_PASSWORD = "Welcome@123";
+// Users created by this import get a random password that nobody sees; they
+// set their own through "Forgot password". A shared fixed password would let
+// anyone who knows it sign in as every imported user.
+const randomPassword = () => crypto.randomBytes(24).toString("base64url");
 
 interface ExcelRow {
   _id?: string;
@@ -181,7 +185,7 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
     for (const [email, userData] of uniqueUsers) {
       const existingUser = await userRepo.findOne({ where: { email } });
       if (!existingUser) {
-        const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+        const hashedPassword = await bcrypt.hash(randomPassword(), 10);
         const user = userRepo.create({
           email: userData.email,
           name: userData.name,
@@ -306,7 +310,6 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
         createdUsers,
         site: { id: site.site_id, name: site.name },
         category: { id: category.category_id, name: category.category_name },
-        defaultPassword: usersCreated > 0 ? DEFAULT_PASSWORD : undefined,
       },
     });
   } catch (error) {

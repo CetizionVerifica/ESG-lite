@@ -14,13 +14,14 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
-import { aiServiceHeaders } from "../utils/aiServiceHeaders";
+import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
 import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
 import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
+import { computeBreakdown, type BreakdownSourceRow } from "../services/emissionBreakdown";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, siteFilterSql, SITE_ACCESS_DENIED } from "../utils/companyScope";
 import {
@@ -325,6 +326,71 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+// GET /user/emissions/breakdown?categoryId=… (+ siteIds, year, month, status,
+// search as on GET /user/emissions): consumption and tCO₂e per emission
+// category for one category, computed here instead of paging every row to
+// the browser. FERA rows have their own category, so they never mix in.
+export const getEmissionBreakdown = async (req: AuthRequest, res: Response) => {
+  try {
+    const { year, month, status } = req.query;
+    const categoryId = /^\d+$/.test(String(req.query.categoryId ?? "")) ? Number(req.query.categoryId) : NaN;
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ message: "categoryId is required" });
+    }
+    if ((year !== undefined && !/^\d{4}$/.test(String(year))) || (month !== undefined && !/^(0?[1-9]|1[0-2])$/.test(String(month)))) {
+      return res.status(400).json({ message: "year must be YYYY and month 1-12" });
+    }
+    if (status !== undefined && !["pending", "approved", "rejected"].includes(String(status))) {
+      return res.status(400).json({ message: "status must be pending, approved or rejected" });
+    }
+    const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
+    const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, siteIds);
+    if (scoped.forbidden) return res.status(403).json(SITE_ACCESS_DENIED);
+
+    const searchText = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+
+    const qb = repo
+      .createQueryBuilder("emission")
+      .select(["emission.pk_id", "emission.activity_data", "emission.activity_data_unit", "emission.total_emission"])
+      .leftJoin("emission.site", "site")
+      .leftJoin("emission.category", "category")
+      .leftJoin("emission.created_by", "created_by")
+      .where("category.category_id = :categoryId", { categoryId });
+    if (scoped.siteIds) qb.andWhere(siteFilterSql("site.site_id", scoped.siteIds), { scopedSiteIds: scoped.siteIds });
+    if (status) qb.andWhere("emission.status = :status", { status: String(status) });
+    if (year) qb.andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", { year: parseInt(String(year)) });
+    if (month) qb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", { month: parseInt(String(month)) });
+    if (searchText) {
+      qb.andWhere(emissionSearchSql({ e: "emission", c: "category", s: "site", u: "created_by" }), {
+        search: `%${searchText.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`,
+        searchExact: searchText,
+      });
+    }
+
+    // Number columns of the category's capture forms: the fallback activity value.
+    const configQb = columnConfigRepo
+      .createQueryBuilder("config")
+      .leftJoin("config.category", "c")
+      .leftJoin("config.site", "s")
+      .leftJoinAndSelect("config.columns", "col")
+      .where("c.category_id = :categoryId", { categoryId })
+      // Same config first as getCalculationSpec, so the fallback column order is stable.
+      .orderBy("config.config_name", "ASC")
+      .addOrderBy("col.pk_id", "ASC");
+    if (scoped.siteIds) configQb.andWhere(siteFilterSql("s.site_id", scoped.siteIds), { scopedSiteIds: scoped.siteIds });
+
+    const [rows, configs] = await Promise.all([qb.getMany(), configQb.getMany()]);
+    const numberColumns = [
+      ...new Set(configs.flatMap((cfg) => (cfg.columns ?? []).filter((c) => c.column_type === "number").map((c) => c.column_name))),
+    ];
+    const groups = computeBreakdown(rows as BreakdownSourceRow[], numberColumns);
+    return res.status(200).json({ category_id: categoryId, entries: rows.length, groups });
+  } catch (error) {
+    console.error("Emission breakdown error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -717,19 +783,15 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
             }
 
             if (feraActivityValue > 0) {
-              // Calculate FERA emission (use fallback-to-raw like frontend)
-              let feraCalculated = 0;
-              const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, activity_data_unit);
-              if (feraUnitsMatch) {
-                feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-              } else {
-                const conv = getConversionFactor(activity_data_unit, feraFactor.denominator_unit);
-                if (conv) {
-                  feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
-                } else {
-                  // Fallback to raw (FERA factors account for fuel energy content)
-                  feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-                }
+              // Calculate FERA emission. With no unit conversion the raw value
+              // would give a wrong total (audit F-12), so skip the twin instead,
+              // as the parent refuses a unit it cannot convert.
+              const feraCalculated = feraTotal(feraActivityValue, activity_data_unit, feraFactor);
+              if (feraCalculated === null) {
+                console.warn(
+                  `FERA auto-create skipped: cannot convert "${activity_data_unit}" to the FERA factor unit "${feraFactor.denominator_unit}" (site ${site_id}).`,
+                );
+                throw Object.assign(new Error("fera-unit-skip"), { nonFatal: true });
               }
 
               // The FERA twin must carry the same reporting period as its
@@ -1054,6 +1116,18 @@ const targetYear = reportingDate.getFullYear() - 1;
 };
 
 /**
+ * FERA twin total in tCO2e, converting the activity unit to the factor's unit.
+ * null when there is no conversion: the raw value would give a wrong total.
+ */
+function feraTotal(activityValue: number, activityUnit: string | null | undefined, factor: EmissionFactor): number | null {
+  const conv = unitsMatchExact(factor.denominator_unit, activityUnit)
+    ? 1
+    : getConversionFactor(activityUnit as any, factor.denominator_unit);
+  if (!conv) return null;
+  return Math.round((activityValue * conv * factor.factor_value) / 1000 * 100) / 100;
+}
+
+/**
  * Re-derive the FERA twin of an edited parent row from the parent's new
  * activity data, and send it back to pending. Returns the updated twin, or
  * null when there is none or no factor matches. Non-fatal on error: the
@@ -1163,17 +1237,20 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
         }
 
         if (feraActivityValue > 0) {
-          const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, emission.activity_data_unit);
-          let feraCalculated = 0;
-          if (feraUnitsMatch) {
-            feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-          } else {
-            const conv = getConversionFactor(emission.activity_data_unit, feraFactor.denominator_unit);
-            if (conv) {
-              feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
-            } else {
-              feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-            }
+          // No unit conversion: don't store a total from the raw value (audit
+          // F-12). Keep the twin's numbers but send it back to review with a
+          // note, so a stale total is never left approved.
+          const feraCalculated = feraTotal(feraActivityValue, emission.activity_data_unit, feraFactor);
+          if (feraCalculated === null) {
+            console.warn(
+              `FERA recalculation skipped for emission ${linkedFera.pk_id}: cannot convert "${emission.activity_data_unit}" to the FERA factor unit "${feraFactor.denominator_unit}".`,
+            );
+            linkedFera.status = EmissionStatus.PENDING;
+            linkedFera.reviewed_by = null as any;
+            linkedFera.reviewed_at = null as any;
+            linkedFera.review_comment = `Not recalculated: "${emission.activity_data_unit}" can't be converted to the FERA factor unit "${feraFactor.denominator_unit}". Check and edit this entry.`;
+            await repo.save(linkedFera);
+            return Object.assign(linkedFera, { recalcSkipped: true });
           }
 
           linkedFera.activity_data = activity_data;
@@ -3428,45 +3505,14 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
           : new Date(emission.date_of_reporting);
         const targetYear = reportingDate.getFullYear() - 1;
 
-        let emissionFactor = await emissionFactorRepo.findOne({
-          where: {
-            site: { site_id: emission.site.site_id },
-            category: { category_id: emission.category.category_id },
-            emission_category_name: activity_data.emission_category,
-            year: targetYear,
-          },
+        // Same lookup as createEmission (exact name/global match with year,
+        // then any year, newest first, then case/space-insensitive).
+        const emissionFactor = await findEmissionFactorForCategory(emissionFactorRepo, {
+          site_id: emission.site.site_id,
+          category_id: emission.category.category_id,
+          emissionCategory: activity_data.emission_category,
+          year: targetYear,
         });
-
-        if (!emissionFactor) {
-          emissionFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id: emission.site.site_id },
-              category: { category_id: emission.category.category_id },
-              global_category_name: activity_data.emission_category,
-              year: targetYear,
-            },
-          });
-        }
-
-        if (!emissionFactor) {
-          emissionFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id: emission.site.site_id },
-              category: { category_id: emission.category.category_id },
-              emission_category_name: activity_data.emission_category,
-            },
-          });
-        }
-
-        if (!emissionFactor) {
-          emissionFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id: emission.site.site_id },
-              category: { category_id: emission.category.category_id },
-              global_category_name: activity_data.emission_category,
-            },
-          });
-        }
 
         if (emissionFactor) {
           const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
@@ -3569,13 +3615,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // Keep the FERA twin in step (audit F-07). A manager edit does not send
     // the row back to review, so the twin keeps the parent's review state.
     let feraEmission: Emission | null = null;
+    let feraWarning: string | undefined;
     if (activity_data !== undefined) {
       // The same twin recalculateLinkedFera picks: the forward link first.
       const [twinBefore] = emission.fera_linked_id
-        ? await repo.query(`SELECT total_emission FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
-        : await repo.query(`SELECT total_emission FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
+        ? await repo.query(`SELECT total_emission, status FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
+        : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
       feraEmission = await recalculateLinkedFera(emission, activity_data);
-      if (feraEmission) {
+      if (feraEmission && (feraEmission as Emission & { recalcSkipped?: boolean }).recalcSkipped) {
+        // The twin couldn't be recalculated and went back to review.
+        changedFields.fera_status = { old: twinBefore?.status ?? null, new: EmissionStatus.PENDING };
+        feraWarning = feraEmission.review_comment;
+      } else if (feraEmission) {
         await repo.query(
           `UPDATE emission t SET status = p.status, reviewed_by = p.reviewed_by, reviewed_at = p.reviewed_at,
              review_comment = p.review_comment
@@ -3607,6 +3658,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       message: "Emission updated by manager",
       emission,
       fera_emission: feraEmission || undefined,
+      warning: feraWarning,
     });
   } catch (error) {
     console.error("Manager update emission error:", error);
@@ -3721,7 +3773,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
             address: destination.address || null,
           },
         },
-        { headers: aiServiceHeaders() },
+        { headers: aiServiceHeaders(), timeout: routeServiceTimeoutMs() },
       );
 
       const data = response.data?.data;
@@ -3787,6 +3839,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
         "X-Goog-FieldMask":
           "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
       },
+      timeout: routeServiceTimeoutMs(),
     });
 
     const route = response.data?.routes?.[0];
@@ -3878,6 +3931,7 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
           address: normalizedQuery,
           key: apiKey,
         },
+        timeout: routeServiceTimeoutMs(),
       },
     );
 

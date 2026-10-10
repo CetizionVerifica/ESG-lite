@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { unlink } from "fs";
 import { AppDataSource } from "../config/data-source";
 import { generateGhgReport } from "../reporting/ghg";
 import type { GhgFilters, YearType, Frequency } from "../reporting/ghg-data";
@@ -84,13 +85,18 @@ export const ghgReport = async (req: Request, res: Response) => {
     };
 
     const r = await generateGhgReport(filters, companyId);
+    // Each request renders its own file; remove it once it has been sent.
+    const cleanup = (err?: Error) => {
+      unlink(r.path, () => {});
+      if (err && !res.headersSent) res.status(500).json({ error: "Could not send the report" });
+    };
 
     if (req.query.download === "1" || req.query.download === "true") {
-      return res.download(r.path, r.filename);
+      return res.download(r.path, r.filename, cleanup);
     }
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${r.filename}"`);
-    return res.sendFile(r.path);
+    return res.sendFile(r.path, cleanup);
   } catch (e: any) {
     console.error("GHG report error:", e);
     return res.status(500).json({ error: String(e?.message ?? e) });

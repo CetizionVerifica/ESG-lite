@@ -18,9 +18,28 @@ import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
+import { assertJwtSecret } from "./utils/jwt";
 dotenv.config();
 
+// Refuse to start without a signing secret (there is no built-in fallback).
+try {
+    assertJwtSecret();
+} catch {
+    console.error("❌ JWT_SECRET is not set. Set it in the environment or .env before starting the server.");
+    process.exit(1);
+}
+
 const app = express();
+// Behind a load balancer or reverse proxy, set TRUST_PROXY (e.g. "1" for one
+// hop) so req.ip is the client's address; the sign-in rate limit keys on it.
+if (process.env.TRUST_PROXY) {
+    const hops = Number(process.env.TRUST_PROXY);
+    app.set("trust proxy", Number.isInteger(hops) ? hops : process.env.TRUST_PROXY === "true" ? true : process.env.TRUST_PROXY);
+} else if (process.env.NODE_ENV === "production") {
+    console.warn(
+        "⚠️ TRUST_PROXY is not set. Behind a load balancer every client then shares one sign-in rate limit; set TRUST_PROXY to the number of proxy hops (1 for a single ALB).",
+    );
+}
 app.use(express.json({ limit: "10mb" }));
 app.use(
     cors({

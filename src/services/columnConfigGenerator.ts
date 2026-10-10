@@ -28,7 +28,7 @@ import { Unit } from "../entities/Unit";
 import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { IsNull } from "typeorm";
-import { aiServiceHeaders } from "../utils/aiServiceHeaders";
+import { aiServiceHeaders, aiServiceTimeoutMs } from "../utils/aiServiceHeaders";
 
 const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || "http://localhost:8000";
 
@@ -687,6 +687,7 @@ async function callLLMInferColumns(
     method: "POST",
     headers: aiServiceHeaders(),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(aiServiceTimeoutMs()),
   });
 
   if (!response.ok) {
@@ -720,6 +721,7 @@ async function callLLMInferAllColumns(
     method: "POST",
     headers: aiServiceHeaders(),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(aiServiceTimeoutMs()),
   });
 
   if (!response.ok) {

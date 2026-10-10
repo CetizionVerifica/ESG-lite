@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
+import { stampCompanyOnboarded } from "../utils/companyOnboarded";
 import { Site } from "../entities/Site";
 import { clearClientStatusCache, closeInactiveClientStreams } from "../services/clientStatus";
 import { deleteClient, describeHistory } from "../services/clientDelete";
@@ -12,8 +13,9 @@ import { resolveUserCompanyId } from "../utils/companyScope";
 const repo = AppDataSource.getRepository(Company);
 
 export const createCompany = async (req: Request, res: Response) => {
-  const company = repo.create(req.body);
+  const company = repo.create(req.body as Partial<Company>);
   await repo.save(company);
+  await stampCompanyOnboarded(company.company_id);
   res.status(201).json(company);
 };
 
