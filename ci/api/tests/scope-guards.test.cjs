@@ -127,3 +127,13 @@ test("reference reads, companies and audit logs stay inside the company", async 
     await withDb((db) => db.query("DELETE FROM audit_log WHERE entity_type='emission' AND entity_id=1 AND action='user_edit'"));
   }
 });
+
+test("another company can't edit or delete an entry by id", async () => {
+  const before = await withDb(async (db) => (await db.query("SELECT date_of_reporting, status FROM emission WHERE pk_id=4")).rows[0]);
+  for (const who of ["otherUser", "otherManager"]) {
+    assert.ok(denied((await call("PUT", "/user/emissions/4", who, { date_of_reporting: "2020-01-31" })).status), who);
+    assert.ok(denied((await call("DELETE", "/user/emissions/4", who)).status), who);
+  }
+  const after = await withDb(async (db) => (await db.query("SELECT date_of_reporting, status FROM emission WHERE pk_id=4")).rows[0]);
+  assert.deepEqual(after, before);
+});
