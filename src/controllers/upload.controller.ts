@@ -44,6 +44,25 @@ interface ExcelRow {
   email?: string;
 }
 
+// tCO2e per (activity x factor) for the factor units this file format uses,
+// e.g. "kgCO2e/litre" -> 0.001, "tCO2e/MWh" -> 1. null when the unit is unknown.
+const factorUnitToTonnes = (unit: unknown): number | null => {
+  const u = String(unit ?? "").toLowerCase().replace(/\s/g, "").replace(/₂/g, "2");
+  if (/^kgco2/.test(u)) return 0.001;
+  if (/^gco2/.test(u)) return 0.000001;
+  if (/^(t|tonne|tonnes|ton|tons)co2/.test(u)) return 1;
+  return null;
+};
+
+// "kgCO2e/kWh" -> "kWh"; null when the factor unit has no denominator.
+const factorDenominator = (unit: unknown): string | null => {
+  const parts = String(unit ?? "").split("/");
+  return parts.length === 2 ? parts[1] : null;
+};
+
+const normUnit = (u: unknown) => String(u ?? "").toLowerCase().replace(/\s/g, "");
+const sameUnit = (a: unknown, b: unknown) => normUnit(a) !== "" && normUnit(a) === normUnit(b);
+
 const monthToNumber: Record<string, number> = {
   January: 0,
   February: 1,
@@ -209,7 +228,28 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
           spend: row.spend,
         };
 
-        const totalEmission = row.calculatedEmission;
+        // Recompute the total from activity x factor rather than trusting the
+        // file's calculatedEmission (audit F-05). Only when the file has no usable
+        // activity/factor/unit do we fall back to its value: these rows have no
+        // category-level factor to look up (fuelType is free text) and they are
+        // stored as Pending, so a manager still reviews them before they count.
+        // The activity unit must be the factor's denominator ("kWh" with
+        // "kgCO2e/kWh"); otherwise kWh x tCO2e/MWh would be off by 1000.
+        const activity = Number(row.activity);
+        const factor = Number(row.emissionFactor);
+        const toTonnes = factorUnitToTonnes(row.emissionFactorUnit);
+        const canCompute =
+          row.activity != null && row.emissionFactor != null && Number.isFinite(activity) && Number.isFinite(factor) &&
+          toTonnes !== null && sameUnit(row.unit, factorDenominator(row.emissionFactorUnit));
+        const totalEmission = canCompute ? Math.round(activity * factor * toTonnes! * 100) / 100 : row.calculatedEmission;
+        if (!canCompute) {
+          log.warn("Upload", "Row total taken from file: no usable activity, factor, or matching units", {
+            year: row.year,
+            month: row.month,
+            unit: row.unit,
+            emissionFactorUnit: row.emissionFactorUnit,
+          });
+        }
         // Always set status to PENDING for uploaded data (requires manual approval)
         const status = EmissionStatus.PENDING;
 
