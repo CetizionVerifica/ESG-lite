@@ -20,11 +20,11 @@ export const CLIENT_INACTIVE_MESSAGE =
   "Your organisation's ESGLite account is inactive. Contact your ESGLite administrator.";
 
 const CACHE_MS = 60_000;
-const cache = new Map<number, { inactive: boolean; at: number }>();
+let cache = new Map<number, { inactive: boolean; at: number }>();
 
 /** Drop every cached answer (call after any change to a company's status). */
 export const clearClientStatusCache = (): void => {
-  cache.clear();
+  cache = new Map();
 };
 
 const lookup = async (userId: number): Promise<boolean> => {

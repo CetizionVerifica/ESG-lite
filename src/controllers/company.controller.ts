@@ -3,6 +3,7 @@ import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
 import { clearClientStatusCache } from "../services/clientStatus";
+import { deleteClient, describeHistory } from "../services/clientDelete";
 import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
 
 const repo = AppDataSource.getRepository(Company);
@@ -29,9 +30,25 @@ export const updateCompany = async (req: Request, res: Response) => {
   res.json({ message: "Company updated" });
 };
 
+/**
+ * DELETE /admin/companies/:id — deletes a client and its setup, only while it
+ * has no reporting history (see services/clientDelete). 409 with the counts
+ * otherwise, so the page can offer deactivation instead.
+ */
 export const deleteCompany = async (req: Request, res: Response) => {
-  await repo.delete(req.params.id);
-  res.json({ message: "Company deleted" });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "Invalid client id" });
+  const result = await deleteClient(id);
+  if (result.status === "not_found") return res.status(404).json({ message: "Client not found" });
+  if (result.status === "has_history") {
+    return res.status(409).json({
+      code: "CLIENT_HAS_HISTORY",
+      message: `This client has reporting history (${describeHistory(result.history)}), so it can't be deleted. Deactivate it instead.`,
+      history: result.history,
+    });
+  }
+  clearClientStatusCache();
+  return res.json({ message: "Client deleted", removed: result.removed });
 };
 
 /**

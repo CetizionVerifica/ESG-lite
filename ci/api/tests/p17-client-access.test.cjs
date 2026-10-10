@@ -80,3 +80,74 @@ test("POST /admin/users/:id/invite: Superadmin only, 404 for unknown, 400 for a 
   assert.equal(res.status, 503);
   assert.match(res.json.message, /Email isn't configured/);
 });
+
+test("a client with reporting history can't be deleted: 409 with the counts", async () => {
+  const res = await call("DELETE", "/admin/companies/1", "superadmin");
+  assert.equal(res.status, 409);
+  assert.equal(res.json.code, "CLIENT_HAS_HISTORY");
+  assert.ok(res.json.history.entries > 0);
+  assert.match(res.json.message, /^This client has reporting history \(\d+ entr/);
+  assert.equal((await call("GET", "/admin/companies", "superadmin")).json.some((c) => c.company_id === 1), true);
+  assert.equal((await call("DELETE", "/admin/companies/999999", "superadmin")).status, 404);
+  assert.equal((await call("DELETE", "/admin/companies/abc", "superadmin")).status, 400);
+  assert.equal((await call("DELETE", "/admin/companies/1", "admin")).status, 403);
+});
+
+async function deleteWithoutHistory() {
+  const created = await onboard("delete-admin@ci.example", { password: "Delete-pass-1" });
+  assert.equal(created.status, 201, JSON.stringify(created.json));
+  const companyId = created.json.company.company_id;
+  const siteId = created.json.site.site_id;
+  const adminId = created.json.admin.id;
+
+  const shared = await withDb(async (db) => {
+    // A second site, a person who also works at client 1 (kept, unlinked) and
+    // one whose own site is here but who manages a client-1 site (kept too).
+    const s2 = (await db.query(
+      `INSERT INTO site (name, address, contact_person, company_id) VALUES ('Delete Plant 2', 'x', 'x', $1) RETURNING site_id`,
+      [companyId],
+    )).rows[0].site_id;
+    const both = (await db.query(
+      `INSERT INTO "user" (name, email, password, role) VALUES ('Both', 'delete-both@ci.example', 'x', 'Manager') RETURNING user_id`,
+    )).rows[0].user_id;
+    await db.query(`INSERT INTO user_sites (user_id, site_id) VALUES ($1, $2), ($1, 1)`, [both, s2]);
+    const own = (await db.query(
+      `INSERT INTO "user" (name, email, password, role, site_id) VALUES ('Own', 'delete-own@ci.example', 'x', 'User', $1) RETURNING user_id`,
+      [siteId],
+    )).rows[0].user_id;
+    await db.query(`INSERT INTO user_sites (user_id, site_id) VALUES ($1, 2)`, [own]);
+    await db.query(
+      `INSERT INTO emission_category_mapping (company_id, company_name, site_id, category_id, company_category_name, global_category_name) VALUES ($1, 'Delete Co', $2, 1, 'Fuel here', 'Fuel')`,
+      [companyId, siteId],
+    );
+    await db.query(`INSERT INTO brand (company_id, name) VALUES ($1, 'Delete Co')`, [companyId]);
+    return { both, own };
+  });
+
+  const res = await call("DELETE", `/admin/companies/${companyId}`, "superadmin");
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.deepEqual(res.json.removed, { sites: 2, people: 1, mappings: 1, brand: true });
+
+  await withDb(async (db) => {
+    const left = async (sql, params) => Number((await db.query(sql, params)).rows[0].n);
+    assert.equal(await left(`SELECT count(*) AS n FROM company WHERE company_id = $1`, [companyId]), 0);
+    assert.equal(await left(`SELECT count(*) AS n FROM site WHERE company_id = $1`, [companyId]), 0);
+    assert.equal(await left(`SELECT count(*) AS n FROM "user" WHERE user_id = $1`, [adminId]), 0);
+    assert.equal(await left(`SELECT count(*) AS n FROM brand WHERE company_id = $1`, [companyId]), 0);
+    assert.equal(await left(`SELECT count(*) AS n FROM emission_category_mapping WHERE company_id = $1`, [companyId]), 0);
+    const both = (await db.query(`SELECT site_id FROM user_sites WHERE user_id = $1`, [shared.both])).rows.map((r) => r.site_id);
+    assert.deepEqual(both, [1]);
+    const own = (await db.query(`SELECT site_id FROM "user" WHERE user_id = $1`, [shared.own])).rows;
+    assert.deepEqual(own, [{ site_id: null }]);
+  });
+}
+
+test("deleting a client without history removes its setup and only its own people", async () => {
+  // The extra people are linked to client 1's sites; never leave them behind
+  // for the reminder tests.
+  try {
+    await deleteWithoutHistory();
+  } finally {
+    await withDb((db) => db.query(`DELETE FROM "user" WHERE email IN ('delete-both@ci.example', 'delete-own@ci.example')`));
+  }
+});
