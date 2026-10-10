@@ -120,3 +120,18 @@ test("create still requires email and role", async () => {
   assert.equal((await call("POST", "/admin/users", "superadmin", { role: "User" })).status, 400);
   assert.equal((await call("POST", "/admin/users", "superadmin", { email: "x@example.invalid" })).status, 400);
 });
+
+test("removing someone with entries is refused with 409 and keeps them", async () => {
+  const res = await call("DELETE", "/admin/users/1", "superadmin");
+  assert.equal(res.status, 409);
+  assert.match(res.json.message, /can't be removed/);
+  const row = await withDb((db) => db.query(`SELECT user_id FROM "user" WHERE user_id = 1`));
+  assert.equal(row.rows.length, 1);
+});
+
+test("removing someone without history works", async () => {
+  const created = await call("POST", "/admin/users", "superadmin", { email: "p20-remove@example.invalid", role: "Admin" });
+  assert.equal(created.status, 201);
+  const res = await call("DELETE", `/admin/users/${created.json.user.user_id}`, "superadmin");
+  assert.equal(res.status, 200);
+});

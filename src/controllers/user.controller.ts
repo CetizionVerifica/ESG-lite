@@ -406,6 +406,13 @@ export const deleteUser = async (req: Request, res: Response) => {
       message: "User deleted successfully",
     });
   } catch (error) {
+    // Postgres foreign_key_violation: their entries, reviews or history still
+    // point at them. Nothing was deleted; say why instead of a bare 500.
+    if ((error as { code?: string })?.code === "23503" || (error as { driverError?: { code?: string } })?.driverError?.code === "23503") {
+      return res.status(409).json({
+        message: "This person has entries, reviews or history in ESGLite, so they can't be removed. Change their role or sites instead.",
+      });
+    }
     console.error("Delete user error:", error);
     return res.status(500).json({
       message: "Internal server error",
