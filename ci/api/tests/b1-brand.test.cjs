@@ -104,3 +104,48 @@ test("GET /brands/:companyId: company members read their own brand only, without
   assert.equal(staff.status, 200);
   assert.equal(staff.json.logoPublicId, "brand-assets/company_1.png");
 });
+
+test("colour guideline: upload validates the file, needs R2, and can only be cleared through PUT", async () => {
+  for (const who of ["manager", "admin", "user"]) {
+    assert.equal((await call("POST", "/brands/1/guideline", who)).status, 403, who);
+  }
+
+  assert.equal((await call("POST", "/brands/1/guideline", "superadmin", new FormData())).status, 400);
+
+  const notAllowed = new FormData();
+  notAllowed.append("guideline", new Blob(["hello"], { type: "text/plain" }), "guide.txt");
+  assert.equal((await call("POST", "/brands/1/guideline", "superadmin", notAllowed)).status, 400);
+
+  const wrongField = new FormData();
+  wrongField.append("logo", new Blob(["%PDF-1.4"], { type: "application/pdf" }), "guide.pdf");
+  assert.equal((await call("POST", "/brands/1/guideline", "superadmin", wrongField)).status, 400);
+
+  // CI has no R2 credentials, so a valid PDF stops at the storage check.
+  const pdf = new FormData();
+  pdf.append("guideline", new Blob(["%PDF-1.4"], { type: "application/pdf" }), "guide.pdf");
+  assert.equal((await call("POST", "/brands/1/guideline", "superadmin", pdf)).status, 503);
+  assert.equal((await call("POST", "/brands/999999/guideline", "superadmin", pdf)).status, 404);
+
+  assert.equal((await call("PUT", "/brands/1", "superadmin", { guidelineUrl: "https://x" })).status, 400);
+  const cleared = await call("PUT", "/brands/1", "superadmin", { guidelineUrl: null });
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.json.brand.guidelineUrl, null);
+  assert.equal(cleared.json.brand.guidelineName, null);
+});
+
+test("colour guideline fields: null by default, storage key only for superadmins", async () => {
+  const fallback = await call("GET", "/brands/999998", "superadmin");
+  assert.equal(fallback.status, 404);
+
+  const staff = await call("GET", "/brands/1", "superadmin");
+  assert.equal(staff.json.guidelineUrl, null);
+  assert.ok("guidelinePublicId" in staff.json);
+
+  const own = await call("GET", "/brands/1", "manager");
+  assert.ok(!("guidelinePublicId" in own.json));
+  const mine = await call("GET", "/brands/mine", "user");
+  assert.ok(!("guidelinePublicId" in mine.json));
+
+  const noRow = await call("GET", "/brands/2", "superadmin");
+  assert.equal(noRow.json.guidelineUrl, null);
+});
