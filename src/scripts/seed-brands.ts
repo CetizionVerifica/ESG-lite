@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS brand (
   logo_public_id  varchar,
   logo_on_dark_url       varchar,
   logo_on_dark_public_id varchar,
+  guideline_url          varchar,
+  guideline_public_id    varchar,
+  guideline_name         varchar,
   default_look    varchar(10) NOT NULL DEFAULT 'classic',
   scope3_colour   varchar,
   updated_at      timestamp NOT NULL DEFAULT now()

@@ -42,6 +42,17 @@ export class Brand {
   @Column({ name: "logo_on_dark_public_id", type: "varchar", nullable: true })
   logoOnDarkPublicId!: string | null;
 
+  // Client's colour-guideline file (PDF or image) kept for whoever builds the
+  // theme. Same R2 flow as the logos; the original file name is kept for display.
+  @Column({ name: "guideline_url", type: "varchar", nullable: true })
+  guidelineUrl!: string | null;
+
+  @Column({ name: "guideline_public_id", type: "varchar", nullable: true })
+  guidelinePublicId!: string | null;
+
+  @Column({ name: "guideline_name", type: "varchar", nullable: true })
+  guidelineName!: string | null;
+
   @Column({ name: "default_look", type: "varchar", length: 10, default: "classic" })
   defaultLook!: BrandLook;
 
