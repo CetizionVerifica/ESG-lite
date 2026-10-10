@@ -179,3 +179,45 @@ test("legacy Excel import computes the total from activity x factor, not the fil
     await q("DELETE FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01'");
   }
 });
+
+test("a FERA factor in a unit that cannot be converted gives no twin total from the raw value (F-12)", async () => {
+  const before = await q("SELECT pk_id, activity_data, total_emission, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+  await q(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id)
+           VALUES (903, 'Diesel', 2.68, 'litre', 2024, 1, 1), (904, 'Diesel', 0.3, 'kWh', 2024, 1, 5)`);
+  await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id IN (1, 5)");
+  let created;
+  try {
+    // Manager edit: the parent is recalculated, the twin is left as it was.
+    const r = await call("PUT", "/user/emissions/manager-edit/1", "manager", {
+      activity_data: { activity_value: 2000, emission_category: "Diesel" }, reason: "Meter re-read",
+    });
+    assert.equal(r.status, 200);
+    const rows = await q("SELECT pk_id, total_emission FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+    assert.equal(Number(rows[0].total_emission), 5.36);
+    assert.equal(Number(rows[1].total_emission), 0.5); // the raw value would give 0.6
+
+    // Create: the parent is saved, no twin is made.
+    created = await call("POST", "/user/emissions", "user", {
+      site_id: 1, category_id: 1, activity_data: { activity_value: 1000, emission_category: "Diesel" }, activity_data_unit: "litre",
+      date_of_reporting: "2025-05-31", reporting_period: "monthly",
+    });
+    assert.equal(created.status, 201);
+    const [parent] = await q("SELECT total_emission, fera_linked_id FROM emission WHERE pk_id=$1", [created.json.emission.pk_id]);
+    assert.equal(Number(parent.total_emission), 2.68);
+    assert.equal(parent.fera_linked_id, null);
+    assert.equal((await q("SELECT 1 FROM emission WHERE fera_linked_id=$1", [created.json.emission.pk_id])).length, 0);
+  } finally {
+    if (created?.json?.emission?.pk_id) {
+      await q("DELETE FROM emission WHERE fera_linked_id=$1 OR pk_id=$1", [created.json.emission.pk_id]);
+      await clearAudit("emission", [created.json.emission.pk_id]);
+    }
+    for (const b of before) {
+      await q(
+        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7 WHERE pk_id=$1",
+        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by]
+      );
+    }
+    await q("DELETE FROM emission_factors WHERE emission_factor_id IN (903, 904)");
+    await clearAudit("emission", [1, 5]);
+  }
+});
