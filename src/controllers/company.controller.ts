@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
-import { clearClientStatusCache } from "../services/clientStatus";
+import { clearClientStatusCache, closeInactiveClientStreams } from "../services/clientStatus";
 import { deleteClient, describeHistory } from "../services/clientDelete";
 import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
 
@@ -27,6 +27,13 @@ export const updateCompany = async (req: Request, res: Response) => {
   await repo.update(req.params.id, body);
   // Deactivating (or reactivating) a client takes effect on the next request.
   if ("status" in body) clearClientStatusCache();
+  if (body.status === false) {
+    const id = Number(req.params.id);
+    // Live notification streams don't pass through authenticate; end them.
+    void closeInactiveClientStreams(id).catch((error) =>
+      console.error(`Could not close notification streams of deactivated client ${id}:`, error),
+    );
+  }
   res.json({ message: "Company updated" });
 };
 
@@ -45,6 +52,12 @@ export const deleteCompany = async (req: Request, res: Response) => {
       code: "CLIENT_HAS_HISTORY",
       message: `This client has reporting history (${describeHistory(result.history)}), so it can't be deleted. Deactivate it instead.`,
       history: result.history,
+    });
+  }
+  if (result.status === "blocked") {
+    return res.status(409).json({
+      code: "CLIENT_DELETE_BLOCKED",
+      message: "Other records still refer to this client's people or sites, so it wasn't deleted. Deactivate it instead.",
     });
   }
   clearClientStatusCache();

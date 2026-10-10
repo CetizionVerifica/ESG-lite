@@ -55,8 +55,15 @@ export const login = async (req: Request, res: Response) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  // People of a deactivated client can't sign in (same rule as authenticate).
-  if (await isUserClientInactive(user.user_id, user.role)) {
+  // People of a deactivated client can't sign in (same rule as authenticate,
+  // which also fails open if the lookup itself errors).
+  let inactive = false;
+  try {
+    inactive = await isUserClientInactive(user.user_id, user.role);
+  } catch (error) {
+    log.error("Auth", "Client status check failed at login", { userId: user.user_id, error: String(error) });
+  }
+  if (inactive) {
     log.warn("Auth", "Login refused — client is inactive", { email: emailLower, userId: user.user_id });
     return res.status(403).json({ code: CLIENT_INACTIVE_CODE, message: CLIENT_INACTIVE_MESSAGE });
   }

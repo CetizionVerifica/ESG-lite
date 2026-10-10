@@ -50,6 +50,30 @@ test("a deactivated client's admin can't sign in or keep using a session; reacti
   assert.equal((await call("GET", "/auth/me", null, undefined, session)).status, 200);
 });
 
+test("a deactivated client's notification stream is ended and can't be reopened", async () => {
+  const created = await onboard("stream-admin@ci.example", { password: "Stream-pass-1" });
+  assert.equal(created.status, 201, JSON.stringify(created.json));
+  const companyId = created.json.company.company_id;
+  const token = jwt.sign({ userId: created.json.admin.id, role: "Admin" }, process.env.JWT_SECRET);
+  const url = `${process.env.API_BASE}/notifications/stream?token=${token}`;
+
+  const open = await fetch(url);
+  assert.equal(open.status, 200);
+  const reader = open.body.getReader();
+  await reader.read(); // the initial unread count
+  const ended = (async () => {
+    for (;;) if ((await reader.read()).done) return true;
+  })();
+
+  assert.equal((await call("PUT", `/admin/companies/${companyId}`, "superadmin", { status: false })).status, 200);
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(false), 5000));
+  assert.equal(await Promise.race([ended, timeout]), true, "the open stream ends on deactivation");
+
+  const again = await call("GET", `/notifications/stream?token=${token}`, null);
+  assert.equal(again.status, 403);
+  assert.equal(again.json.code, "CLIENT_INACTIVE");
+});
+
 test("status must be a boolean", async () => {
   assert.equal((await call("PUT", "/admin/companies/1", "superadmin", { status: "false" })).status, 400);
 });
@@ -116,12 +140,17 @@ async function deleteWithoutHistory() {
       [siteId],
     )).rows[0].user_id;
     await db.query(`INSERT INTO user_sites (user_id, site_id) VALUES ($1, 2)`, [own]);
+    // A Superadmin linked only to this client's site is never deleted with it.
+    const admin = (await db.query(
+      `INSERT INTO "user" (name, email, password, role, site_id) VALUES ('Super', 'delete-super@ci.example', 'x', 'Superadmin', $1) RETURNING user_id`,
+      [siteId],
+    )).rows[0].user_id;
     await db.query(
       `INSERT INTO emission_category_mapping (company_id, company_name, site_id, category_id, company_category_name, global_category_name) VALUES ($1, 'Delete Co', $2, 1, 'Fuel here', 'Fuel')`,
       [companyId, siteId],
     );
     await db.query(`INSERT INTO brand (company_id, name) VALUES ($1, 'Delete Co')`, [companyId]);
-    return { both, own };
+    return { both, own, admin };
   });
 
   const res = await call("DELETE", `/admin/companies/${companyId}`, "superadmin");
@@ -137,8 +166,11 @@ async function deleteWithoutHistory() {
     assert.equal(await left(`SELECT count(*) AS n FROM emission_category_mapping WHERE company_id = $1`, [companyId]), 0);
     const both = (await db.query(`SELECT site_id FROM user_sites WHERE user_id = $1`, [shared.both])).rows.map((r) => r.site_id);
     assert.deepEqual(both, [1]);
+    // A kept person whose own site was here moves to a site they still have.
     const own = (await db.query(`SELECT site_id FROM "user" WHERE user_id = $1`, [shared.own])).rows;
-    assert.deepEqual(own, [{ site_id: null }]);
+    assert.deepEqual(own, [{ site_id: 2 }]);
+    const admin = (await db.query(`SELECT site_id FROM "user" WHERE user_id = $1`, [shared.admin])).rows;
+    assert.deepEqual(admin, [{ site_id: null }]);
   });
 }
 
@@ -148,6 +180,6 @@ test("deleting a client without history removes its setup and only its own peopl
   try {
     await deleteWithoutHistory();
   } finally {
-    await withDb((db) => db.query(`DELETE FROM "user" WHERE email IN ('delete-both@ci.example', 'delete-own@ci.example')`));
+    await withDb((db) => db.query(`DELETE FROM "user" WHERE email IN ('delete-both@ci.example', 'delete-own@ci.example', 'delete-super@ci.example')`));
   }
 });
