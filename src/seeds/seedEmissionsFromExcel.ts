@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import * as XLSX from "xlsx";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { Site } from "../entities/Site";
@@ -11,7 +12,8 @@ import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 
 // Default password for seeded users (they should change this on first login)
-const DEFAULT_PASSWORD = "Welcome@123";
+// Seeded users get a random password; they set their own with "Forgot password".
+const randomPassword = () => crypto.randomBytes(24).toString("base64url");
 
 interface ExcelRow {
   _id?: string;
@@ -196,7 +198,7 @@ async function seedEmissionsFromExcel() {
       }
 
       // Hash the default password
-      const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+      const hashedPassword = await bcrypt.hash(randomPassword(), 10);
 
       // Create user with role "User" and assign to this site
       const user = userRepo.create({
@@ -221,8 +223,7 @@ async function seedEmissionsFromExcel() {
   console.log(`   ✅ Created: ${usersCreated} users`);
   console.log(`   ⚠️ Skipped: ${usersSkipped} users`);
   if (createdUsers.length > 0) {
-    console.log(`   🔑 Default password: ${DEFAULT_PASSWORD}`);
-    console.log(`   ⚠️ Users should change their password on first login!\n`);
+    console.log(`   🔑 New users set their password with "Forgot password" on the sign-in page.`);
   }
 
   // Process each row and create emissions

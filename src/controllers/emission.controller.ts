@@ -14,7 +14,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
-import { aiServiceHeaders } from "../utils/aiServiceHeaders";
+import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
@@ -783,19 +783,15 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
             }
 
             if (feraActivityValue > 0) {
-              // Calculate FERA emission (use fallback-to-raw like frontend)
-              let feraCalculated = 0;
-              const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, activity_data_unit);
-              if (feraUnitsMatch) {
-                feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-              } else {
-                const conv = getConversionFactor(activity_data_unit, feraFactor.denominator_unit);
-                if (conv) {
-                  feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
-                } else {
-                  // Fallback to raw (FERA factors account for fuel energy content)
-                  feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-                }
+              // Calculate FERA emission. With no unit conversion the raw value
+              // would give a wrong total (audit F-12), so skip the twin instead,
+              // as the parent refuses a unit it cannot convert.
+              const feraCalculated = feraTotal(feraActivityValue, activity_data_unit, feraFactor);
+              if (feraCalculated === null) {
+                console.warn(
+                  `FERA auto-create skipped: cannot convert "${activity_data_unit}" to the FERA factor unit "${feraFactor.denominator_unit}" (site ${site_id}).`,
+                );
+                throw Object.assign(new Error("fera-unit-skip"), { nonFatal: true });
               }
 
               // The FERA twin must carry the same reporting period as its
@@ -1120,6 +1116,18 @@ const targetYear = reportingDate.getFullYear() - 1;
 };
 
 /**
+ * FERA twin total in tCO2e, converting the activity unit to the factor's unit.
+ * null when there is no conversion: the raw value would give a wrong total.
+ */
+function feraTotal(activityValue: number, activityUnit: string | null | undefined, factor: EmissionFactor): number | null {
+  const conv = unitsMatchExact(factor.denominator_unit, activityUnit)
+    ? 1
+    : getConversionFactor(activityUnit as any, factor.denominator_unit);
+  if (!conv) return null;
+  return Math.round((activityValue * conv * factor.factor_value) / 1000 * 100) / 100;
+}
+
+/**
  * Re-derive the FERA twin of an edited parent row from the parent's new
  * activity data, and send it back to pending. Returns the updated twin, or
  * null when there is none or no factor matches. Non-fatal on error: the
@@ -1229,17 +1237,20 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
         }
 
         if (feraActivityValue > 0) {
-          const feraUnitsMatch = unitsMatchExact(feraFactor.denominator_unit, emission.activity_data_unit);
-          let feraCalculated = 0;
-          if (feraUnitsMatch) {
-            feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-          } else {
-            const conv = getConversionFactor(emission.activity_data_unit, feraFactor.denominator_unit);
-            if (conv) {
-              feraCalculated = Math.round((feraActivityValue * conv * feraFactor.factor_value) / 1000 * 100) / 100;
-            } else {
-              feraCalculated = Math.round((feraActivityValue * feraFactor.factor_value) / 1000 * 100) / 100;
-            }
+          // No unit conversion: don't store a total from the raw value (audit
+          // F-12). Keep the twin's numbers but send it back to review with a
+          // note, so a stale total is never left approved.
+          const feraCalculated = feraTotal(feraActivityValue, emission.activity_data_unit, feraFactor);
+          if (feraCalculated === null) {
+            console.warn(
+              `FERA recalculation skipped for emission ${linkedFera.pk_id}: cannot convert "${emission.activity_data_unit}" to the FERA factor unit "${feraFactor.denominator_unit}".`,
+            );
+            linkedFera.status = EmissionStatus.PENDING;
+            linkedFera.reviewed_by = null as any;
+            linkedFera.reviewed_at = null as any;
+            linkedFera.review_comment = `Not recalculated: "${emission.activity_data_unit}" can't be converted to the FERA factor unit "${feraFactor.denominator_unit}". Check and edit this entry.`;
+            await repo.save(linkedFera);
+            return Object.assign(linkedFera, { recalcSkipped: true });
           }
 
           linkedFera.activity_data = activity_data;
@@ -3494,45 +3505,14 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
           : new Date(emission.date_of_reporting);
         const targetYear = reportingDate.getFullYear() - 1;
 
-        let emissionFactor = await emissionFactorRepo.findOne({
-          where: {
-            site: { site_id: emission.site.site_id },
-            category: { category_id: emission.category.category_id },
-            emission_category_name: activity_data.emission_category,
-            year: targetYear,
-          },
+        // Same lookup as createEmission (exact name/global match with year,
+        // then any year, newest first, then case/space-insensitive).
+        const emissionFactor = await findEmissionFactorForCategory(emissionFactorRepo, {
+          site_id: emission.site.site_id,
+          category_id: emission.category.category_id,
+          emissionCategory: activity_data.emission_category,
+          year: targetYear,
         });
-
-        if (!emissionFactor) {
-          emissionFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id: emission.site.site_id },
-              category: { category_id: emission.category.category_id },
-              global_category_name: activity_data.emission_category,
-              year: targetYear,
-            },
-          });
-        }
-
-        if (!emissionFactor) {
-          emissionFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id: emission.site.site_id },
-              category: { category_id: emission.category.category_id },
-              emission_category_name: activity_data.emission_category,
-            },
-          });
-        }
-
-        if (!emissionFactor) {
-          emissionFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id: emission.site.site_id },
-              category: { category_id: emission.category.category_id },
-              global_category_name: activity_data.emission_category,
-            },
-          });
-        }
 
         if (emissionFactor) {
           const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
@@ -3635,13 +3615,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // Keep the FERA twin in step (audit F-07). A manager edit does not send
     // the row back to review, so the twin keeps the parent's review state.
     let feraEmission: Emission | null = null;
+    let feraWarning: string | undefined;
     if (activity_data !== undefined) {
       // The same twin recalculateLinkedFera picks: the forward link first.
       const [twinBefore] = emission.fera_linked_id
-        ? await repo.query(`SELECT total_emission FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
-        : await repo.query(`SELECT total_emission FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
+        ? await repo.query(`SELECT total_emission, status FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
+        : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
       feraEmission = await recalculateLinkedFera(emission, activity_data);
-      if (feraEmission) {
+      if (feraEmission && (feraEmission as Emission & { recalcSkipped?: boolean }).recalcSkipped) {
+        // The twin couldn't be recalculated and went back to review.
+        changedFields.fera_status = { old: twinBefore?.status ?? null, new: EmissionStatus.PENDING };
+        feraWarning = feraEmission.review_comment;
+      } else if (feraEmission) {
         await repo.query(
           `UPDATE emission t SET status = p.status, reviewed_by = p.reviewed_by, reviewed_at = p.reviewed_at,
              review_comment = p.review_comment
@@ -3673,6 +3658,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       message: "Emission updated by manager",
       emission,
       fera_emission: feraEmission || undefined,
+      warning: feraWarning,
     });
   } catch (error) {
     console.error("Manager update emission error:", error);
@@ -3787,7 +3773,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
             address: destination.address || null,
           },
         },
-        { headers: aiServiceHeaders() },
+        { headers: aiServiceHeaders(), timeout: routeServiceTimeoutMs() },
       );
 
       const data = response.data?.data;
@@ -3853,6 +3839,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
         "X-Goog-FieldMask":
           "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
       },
+      timeout: routeServiceTimeoutMs(),
     });
 
     const route = response.data?.routes?.[0];
@@ -3944,6 +3931,7 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
           address: normalizedQuery,
           key: apiKey,
         },
+        timeout: routeServiceTimeoutMs(),
       },
     );
 

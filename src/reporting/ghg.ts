@@ -7,7 +7,8 @@
 // "Download PDF" use (computeGhgTables in ./ghg-data — the `Emission` entity,
 // status=APPROVED, filtered by site/category/date range), so the branded PDF
 // matches the screen exactly. OpenRouter writes only prose + a cover image.
-import { mkdirSync, writeFileSync } from "fs";
+import { mkdirSync } from "fs";
+import { randomBytes } from "crypto";
 import { join } from "path";
 import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
@@ -390,9 +391,12 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
 
   const outDir = join(process.cwd(), "generated-reports");
   mkdirSync(outDir, { recursive: true });
+  // The download name stays readable; the file on disk gets a random suffix so
+  // two requests with different sites, categories or compare year (which the
+  // slug does not encode) never write to or serve the same file. The caller
+  // deletes it once it has been sent.
   const filename = `${slug}.pdf`;
-  const path = join(outDir, filename);
-  writeFileSync(join(outDir, `${slug}.html`), html, "utf8");
+  const path = join(outDir, `${slug}-${randomBytes(8).toString("hex")}.pdf`);
   const res = await htmlToPdf(html, path, []);
   return { path, filename, pages: res.pageCount, companyName, total, year: selectedYear };
 }
