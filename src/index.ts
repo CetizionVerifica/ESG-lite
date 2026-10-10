@@ -30,6 +30,12 @@ try {
 }
 
 const app = express();
+// Behind a load balancer or reverse proxy, set TRUST_PROXY (e.g. "1" for one
+// hop) so req.ip is the client's address; the sign-in rate limit keys on it.
+if (process.env.TRUST_PROXY) {
+    const hops = Number(process.env.TRUST_PROXY);
+    app.set("trust proxy", Number.isInteger(hops) ? hops : process.env.TRUST_PROXY === "true" ? true : process.env.TRUST_PROXY);
+}
 app.use(express.json({ limit: "10mb" }));
 app.use(
     cors({
