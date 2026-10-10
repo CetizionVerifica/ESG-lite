@@ -3,6 +3,8 @@ import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
 import { stampCompanyOnboarded } from "../utils/companyOnboarded";
 import { Site } from "../entities/Site";
+import { clearClientStatusCache, closeInactiveClientStreams } from "../services/clientStatus";
+import { deleteClient, describeHistory } from "../services/clientDelete";
 import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
@@ -27,13 +29,48 @@ export const getCompanies = async (req: AuthRequest, res: Response) => {
 };
 
 export const updateCompany = async (req: Request, res: Response) => {
-  await repo.update(req.params.id, req.body);
+  const body = req.body ?? {};
+  if ("status" in body && typeof body.status !== "boolean") {
+    return res.status(400).json({ message: "status must be true or false" });
+  }
+  await repo.update(req.params.id, body);
+  // Deactivating (or reactivating) a client takes effect on the next request.
+  if ("status" in body) clearClientStatusCache();
+  if (body.status === false) {
+    const id = Number(req.params.id);
+    // Live notification streams don't pass through authenticate; end them.
+    void closeInactiveClientStreams(id).catch((error) =>
+      console.error(`Could not close notification streams of deactivated client ${id}:`, error),
+    );
+  }
   res.json({ message: "Company updated" });
 };
 
+/**
+ * DELETE /admin/companies/:id — deletes a client and its setup, only while it
+ * has no reporting history (see services/clientDelete). 409 with the counts
+ * otherwise, so the page can offer deactivation instead.
+ */
 export const deleteCompany = async (req: Request, res: Response) => {
-  await repo.delete(req.params.id);
-  res.json({ message: "Company deleted" });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "Invalid client id" });
+  const result = await deleteClient(id);
+  if (result.status === "not_found") return res.status(404).json({ message: "Client not found" });
+  if (result.status === "has_history") {
+    return res.status(409).json({
+      code: "CLIENT_HAS_HISTORY",
+      message: `This client has reporting history (${describeHistory(result.history)}), so it can't be deleted. Deactivate it instead.`,
+      history: result.history,
+    });
+  }
+  if (result.status === "blocked") {
+    return res.status(409).json({
+      code: "CLIENT_DELETE_BLOCKED",
+      message: "Other records still refer to this client's people or sites, so it wasn't deleted. Deactivate it instead.",
+    });
+  }
+  clearClientStatusCache();
+  return res.json({ message: "Client deleted", removed: result.removed });
 };
 
 /**

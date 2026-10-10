@@ -95,6 +95,8 @@ const onboardingUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit, matches the form hint
 });
 
+import { sendUserInvite } from "../controllers/invite.controller";
+
 const router = Router();
 
 router.use(authenticate, requireSuperAdmin);
@@ -131,6 +133,7 @@ router.get("/users", getUsers);
 router.delete("/users/:id", deleteUser);
 router.post("/users", createUser);
 router.patch("/users/:id", updateUser);
+router.post("/users/:id/invite", sendUserInvite);
 
 //Country
 router.post("/countries", createCountry);

@@ -30,6 +30,21 @@ export const addConnection = (userId: number, res: Response) => {
 };
 
 /**
+ * End every open stream of a user (e.g. their client was deactivated). The
+ * browser's EventSource reconnects, and the stream endpoint refuses it then.
+ */
+export const closeConnections = (userId: number) => {
+  for (const res of connections.get(userId) ?? []) {
+    try {
+      res.end();
+    } catch {
+      // already gone
+    }
+  }
+  connections.delete(userId);
+};
+
+/**
  * Push an event to all active connections for a user.
  */
 export const pushToUser = (userId: number, event: string, data: any) => {

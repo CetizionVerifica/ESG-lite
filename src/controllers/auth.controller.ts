@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { CLIENT_INACTIVE_CODE, CLIENT_INACTIVE_MESSAGE, isUserClientInactive } from "../services/clientStatus";
 import bcrypt from "bcrypt";
 import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
@@ -52,6 +53,19 @@ export const login = async (req: Request, res: Response) => {
   if (!valid) {
     log.warn("Auth", "Login failed — wrong password", { email: emailLower, userId: user.user_id });
     return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  // People of a deactivated client can't sign in (same rule as authenticate,
+  // which also fails open if the lookup itself errors).
+  let inactive = false;
+  try {
+    inactive = await isUserClientInactive(user.user_id, user.role);
+  } catch (error) {
+    log.error("Auth", "Client status check failed at login", { userId: user.user_id, error: String(error) });
+  }
+  if (inactive) {
+    log.warn("Auth", "Login refused — client is inactive", { email: emailLower, userId: user.user_id });
+    return res.status(403).json({ code: CLIENT_INACTIVE_CODE, message: CLIENT_INACTIVE_MESSAGE });
   }
 
   // Filter each site's categories to only include ones the user has access to.

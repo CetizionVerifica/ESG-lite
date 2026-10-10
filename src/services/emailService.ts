@@ -124,3 +124,38 @@ export const sendEmailForApprove = async ({ to, subject, html }: EmailPayload) =
         html,
     });
 };
+/** The ESGLite invitation: a link to choose a password (see services/invite.ts). */
+export const sendInviteEmail = async (
+    email: string,
+    inviteToken: string,
+    userName: string | undefined,
+    companyName: string | undefined,
+    validDays: number,
+): Promise<void> => {
+    const frontendUrl = (process.env.FRONTEND_URL || "").replace(/\/+$/, "");
+    const inviteUrl = `${frontendUrl}/reset-password?token=${inviteToken}&invite=1`;
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const greeting = userName ? ` ${esc(userName)}` : "";
+    const org = companyName ? ` for ${esc(companyName)}` : "";
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="font-size: 20px;">You're invited to ESGLite</h1>
+        <p>Hello${greeting},</p>
+        <p>An ESGLite account has been set up${org}. Choose a password to sign in.</p>
+        <p style="text-align: center;">
+          <a href="${inviteUrl}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px;">Choose a password</a>
+        </p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; background-color: #e5e7eb; padding: 10px; border-radius: 4px;">${inviteUrl}</p>
+        <p>This link expires in ${validDays} days. If it has expired, ask your administrator to send a new invite.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+    await sendEmail({ to: email, subject: "You're invited to ESGLite", html });
+};

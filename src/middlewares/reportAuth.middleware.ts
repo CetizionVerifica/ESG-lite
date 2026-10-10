@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import { verifyToken } from "../utils/jwt";
-import { AuthRequest } from "./auth.middleware";
+import { AuthRequest, rejectInactiveClient } from "./auth.middleware";
 
 
 // Report PDFs are opened/downloaded directly in a browser tab, which cannot
@@ -20,8 +20,8 @@ export const authenticateReport = (
 
   try {
     req.user = verifyToken(token);
-    next();
   } catch {
     return res.status(401).json({ message: "Invalid token" });
   }
+  return rejectInactiveClient(req, res, next);
 };
