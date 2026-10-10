@@ -1,8 +1,7 @@
+import { EntityManager } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Category } from "../entities/Category";
-
-const userRepo = AppDataSource.getRepository(User);
 
 /**
  * When categories are newly assigned to a site, propagate them to the per-user
@@ -15,12 +14,16 @@ const userRepo = AppDataSource.getRepository(User);
  * Users with an empty grant set are treated as full-access (legacy) and are
  * left untouched — they already see every site category. Existing grants are
  * preserved; we only append the newly added categories.
+ *
+ * Pass `manager` to run inside the caller's transaction.
  */
 export const grantCategoriesToSiteUsers = async (
   siteId: number,
-  newlyAddedCategories: Category[]
+  newlyAddedCategories: Category[],
+  manager: EntityManager = AppDataSource.manager
 ): Promise<void> => {
   if (newlyAddedCategories.length === 0) return;
+  const userRepo = manager.getRepository(User);
 
   // Users on this site via single-site assignment OR multi-site (manager) link.
   const users = await userRepo
