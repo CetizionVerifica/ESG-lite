@@ -10,6 +10,8 @@ import {
   replaceInputs,
   listMaterialFactors,
   createMaterialFactor,
+  importMaterialFactors,
+  getMaterialFactor,
   updateMaterialFactor,
   deleteMaterialFactor,
 } from "../controllers/pcf.controller";
@@ -45,6 +47,8 @@ router.get("/reconciliation", reconciliation);
 
 router.get("/material-factors", listMaterialFactors);
 router.post("/material-factors", createMaterialFactor);
+router.post("/material-factors/import", importMaterialFactors);
+router.get("/material-factors/:id", getMaterialFactor);
 router.patch("/material-factors/:id", updateMaterialFactor);
 router.delete("/material-factors/:id", deleteMaterialFactor);
 
