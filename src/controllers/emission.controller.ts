@@ -3402,8 +3402,9 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // An approved row stays approved after a manager edit (P07: "Changes are
     // logged"), so it must keep a category: without one there is no factor
     // and its total would silently drop to 0 (audit F-05/F-07).
-    if (emission.status === EmissionStatus.APPROVED && activity_data !== undefined && !activity_data.emission_category) {
-      return res.status(400).json({ message: "An approved entry must keep its emission category" });
+    const nextUnit = activity_data_unit !== undefined ? activity_data_unit : emission.activity_data_unit;
+    if (emission.status === EmissionStatus.APPROVED && activity_data !== undefined && (!activity_data.emission_category || !nextUnit)) {
+      return res.status(400).json({ message: "An approved entry must keep its emission category and unit" });
     }
     const oldTotal = emission.total_emission;
 
@@ -3613,6 +3614,15 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   }
 };
 
+// An AxiosError carries the request config, including the X-Service-Key and
+// Google API key headers, so log only what helps debugging.
+const outboundErrorSummary = (error: any) => ({
+  message: error?.message,
+  code: error?.code,
+  status: error?.response?.status,
+  data: error?.response?.data,
+});
+
 type DistanceMode = "road" | "sea";
 
 interface DistanceLocationInput {
@@ -3811,7 +3821,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error("Calculate distance error:", error?.response?.data || error);
+    console.error("Calculate distance error:", outboundErrorSummary(error));
 
     return res.status(500).json({
       message:
@@ -3901,7 +3911,7 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error("Geocode location error:", error?.response?.data || error);
+    console.error("Geocode location error:", outboundErrorSummary(error));
 
     return res.status(500).json({
       message:

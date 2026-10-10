@@ -135,6 +135,8 @@ test("a manager edit recalculates the FERA twin and keeps it in step with the pa
       activity_data: { activity_value: 2000 }, reason: "Drop category",
     });
     assert.equal(noCategory.status, 400);
+    const noUnit = await call("PUT", "/user/emissions/manager-edit/1", "manager", { activity_data_unit: "", reason: "Drop unit" });
+    assert.equal(noUnit.status, 400);
     assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=1"))[0].total_emission), 5.36);
   } finally {
     for (const b of before) {
@@ -152,6 +154,8 @@ test("legacy Excel import computes the total from activity x factor, not the fil
   const XLSX = require("xlsx");
   const sheet = XLSX.utils.json_to_sheet([
     { year: "2018", month: "March", fuelType: "Diesel", unit: "litre", activity: 400, emissionFactor: 2.5, emissionFactorUnit: "kg CO₂e/litre", calculatedEmission: 999 },
+    // Activity in kWh, factor per MWh: no conversion here, so the file's value is kept.
+    { year: "2018", month: "April", fuelType: "Grid", unit: "kWh", activity: 2000, emissionFactor: 1, emissionFactorUnit: "tCO2e/MWh", calculatedEmission: 2 },
   ]);
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Sheet1");
@@ -166,9 +170,11 @@ test("legacy Excel import computes the total from activity x factor, not the fil
   try {
     const r = await call("POST", "/admin/upload/emissions", "superadmin", form);
     assert.equal(r.status, 200);
-    assert.equal(r.json.summary.emissionsCreated, 1);
+    assert.equal(r.json.summary.emissionsCreated, 2);
     const [row] = await q("SELECT total_emission FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-03-01' AND date_of_reporting < '2018-04-01'");
     assert.equal(Number(row.total_emission), 1); // 400 x 2.5 kg = 1 t
+    const [kwh] = await q("SELECT total_emission FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-04-01' AND date_of_reporting < '2018-05-01'");
+    assert.equal(Number(kwh.total_emission), 2); // not 2000
   } finally {
     await q("DELETE FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01'");
   }
