@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
+import { clearClientStatusCache } from "../services/clientStatus";
 import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
 
 const repo = AppDataSource.getRepository(Company);
@@ -18,7 +19,13 @@ export const getCompanies = async (_: Request, res: Response) => {
 };
 
 export const updateCompany = async (req: Request, res: Response) => {
-  await repo.update(req.params.id, req.body);
+  const body = req.body ?? {};
+  if ("status" in body && typeof body.status !== "boolean") {
+    return res.status(400).json({ message: "status must be true or false" });
+  }
+  await repo.update(req.params.id, body);
+  // Deactivating (or reactivating) a client takes effect on the next request.
+  if ("status" in body) clearClientStatusCache();
   res.json({ message: "Company updated" });
 };
 

@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { AuthRequest } from "./auth.middleware";
+import { AuthRequest, rejectInactiveClient } from "./auth.middleware";
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
@@ -21,8 +21,8 @@ export const authenticateReport = (
 
   try {
     req.user = jwt.verify(token, JWT_SECRET);
-    next();
   } catch {
     return res.status(401).json({ message: "Invalid token" });
   }
+  return rejectInactiveClient(req, res, next);
 };
