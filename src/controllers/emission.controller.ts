@@ -1449,7 +1449,8 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
         "BULK_APPROVED",
         "Emissions Approved",
         `${totalCount} emission(s) approved by ${mgrName}`,
-        `/my-emissions`
+        `/my-emissions`,
+        { reviewer: mgrName }
       );
     }
 
@@ -1573,7 +1574,8 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
         "BULK_REJECTED",
         "Emissions Rejected",
         `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
-        `/my-emissions`
+        `/my-emissions`,
+        { reviewer: mgrName, reason: comment || null }
       );
     }
 
@@ -1855,7 +1857,8 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
         "APPROVED",
         "Emission Approved",
         `Your ${catName} emission for ${siteName} was approved by ${mgrName}`,
-        `/my-emissions`
+        `/my-emissions`,
+        { reviewer: mgrName }
       );
     }
 
@@ -1968,7 +1971,8 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
         "REJECTED",
         "Emission Rejected",
         `Your ${catName} emission for ${siteName} was rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
-        `/my-emissions`
+        `/my-emissions`,
+        { reviewer: mgrName, reason: comment || null }
       );
     }
 
@@ -2092,7 +2096,8 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         "BULK_APPROVED",
         "Emissions Approved",
         `${totalCount} emission(s) approved by ${mgrName}`,
-        `/my-emissions`
+        `/my-emissions`,
+        { reviewer: mgrName }
       );
     }
 
@@ -2222,7 +2227,8 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
         "BULK_REJECTED",
         "Emissions Rejected",
         `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
-        `/my-emissions`
+        `/my-emissions`,
+        { reviewer: mgrName, reason: comment || null }
       );
     }
 

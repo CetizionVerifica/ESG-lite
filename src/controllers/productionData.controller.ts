@@ -646,7 +646,8 @@ export const approveProductionData = async (req: AuthRequest, res: Response) => 
         "PRODUCTION_APPROVED",
         "Production Data Approved",
         `Your ${(updated?.product as any)?.name || ""} production data was approved by ${mgrName}`,
-        `/production-data`
+        `/production-data`,
+        { reviewer: mgrName }
       );
     }
 
@@ -728,7 +729,8 @@ export const rejectProductionData = async (req: AuthRequest, res: Response) => {
         "PRODUCTION_REJECTED",
         "Production Data Rejected",
         `Your ${(updated?.product as any)?.name || ""} production data was rejected by ${mgrName}${updated?.review_comment ? `. Reason: ${updated.review_comment}` : ""}`,
-        `/production-data`
+        `/production-data`,
+        { reviewer: mgrName, reason: updated?.review_comment || null }
       );
     }
 
@@ -825,7 +827,8 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
         "BULK_PRODUCTION_APPROVED",
         "Production Data Approved",
         `${totalCount} production data entries approved by ${mgrName}`,
-        `/production-data`
+        `/production-data`,
+        { reviewer: mgrName }
       );
     }
 
@@ -926,7 +929,8 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
         "BULK_PRODUCTION_REJECTED",
         "Production Data Rejected",
         `${totalCount} production data entries rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
-        `/production-data`
+        `/production-data`,
+        { reviewer: mgrName, reason: comment || null }
       );
     }
 

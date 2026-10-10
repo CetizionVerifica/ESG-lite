@@ -9,6 +9,11 @@ import {
 } from "typeorm";
 import { User } from "./User";
 
+export interface NotificationMeta {
+  reviewer?: string;
+  reason?: string | null;
+}
+
 @Entity()
 export class Notification {
   @PrimaryGeneratedColumn()
@@ -31,6 +36,11 @@ export class Notification {
   // Deep link path, e.g. "/data-entry?site=3&category=5"
   @Column({ type: "varchar", nullable: true })
   link!: string | null;
+
+  // Structured details shown on the notification (P13): who reviewed and why.
+  // Null on rows written before the column existed; clients fall back to the message.
+  @Column({ type: "jsonb", nullable: true })
+  meta!: NotificationMeta | null;
 
   @Index()
   @Column({ default: false })

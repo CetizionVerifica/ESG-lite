@@ -12,8 +12,14 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const unreadOnly = req.query.unread === "true";
+    // Optional tab filter (P13): approvals | rejections | reminders. Anything else is a 400.
+    const type = req.query.type;
+    if (type !== undefined && type !== "" && !notificationService.isNotificationGroup(type)) {
+      return res.status(400).json({ message: "type must be approvals, rejections or reminders" });
+    }
+    const group = notificationService.isNotificationGroup(type) ? type : null;
 
-    const result = await notificationService.getNotifications(userId, page, limit, unreadOnly);
+    const result = await notificationService.getNotifications(userId, page, limit, unreadOnly, group);
     return res.json(result);
   } catch (error) {
     console.error("Get notifications error:", error);
