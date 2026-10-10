@@ -7,6 +7,7 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import { In } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
+import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
 import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
 import { getUsdRate } from "../services/fxRate";
 import * as XLSX from "xlsx";
@@ -30,6 +31,7 @@ import {
   type GhgFilters,
 } from "../reporting/ghg-data";
 import { pcfDataChanged } from "../pcf/staleness";
+import { pendingReviewCountSql } from "../utils/feraFold";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -229,6 +231,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         .createQueryBuilder("emission")
         .select("COALESCE(SUM(emission.total_emission), 0)", "total_emission")
         .addSelect("COUNT(*) FILTER (WHERE emission.status = 'pending')", "pending_count")
+        .addSelect(pendingReviewCountSql("emission", "c"), "pending_review_count")
         .addSelect("COUNT(*) FILTER (WHERE emission.status = 'approved')", "approved_count")
         .addSelect("COUNT(*) FILTER (WHERE emission.status = 'rejected')", "rejected_count")
         .leftJoin("emission.site", "s")
@@ -294,6 +297,9 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         summary: {
           total_emission: parseFloat(summaryRow?.total_emission) || 0,
           pending_count: parseInt(summaryRow?.pending_count) || 0,
+          // Pending entries as the approvals list shows them (FERA twins of a
+          // pending entry fold into it).
+          pending_review_count: parseInt(summaryRow?.pending_review_count) || 0,
           approved_count: parseInt(summaryRow?.approved_count) || 0,
           rejected_count: parseInt(summaryRow?.rejected_count) || 0,
         },
@@ -544,7 +550,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       if (linkedBack) {
         idsToDelete.push(linkedBack.pk_id);
       }
-      // Delete related documents first
+      // Delete related documents first, then their stored files
+      const replacedFiles = await documentFilesForEmissions(idsToDelete);
       const docRepo = AppDataSource.getRepository(EmissionDocument);
       await docRepo
         .createQueryBuilder()
@@ -552,6 +559,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         .where("emission_id IN (:...ids)", { ids: idsToDelete })
         .execute();
       await repo.delete(idsToDelete);
+      await removeDeletedDocumentFiles(replacedFiles);
       await pcfDataChanged("emission", idsToDelete);
     }
 
@@ -1311,6 +1319,7 @@ export const deleteEmission = async (req: Request, res: Response) => {
     }
 
     // Delete related documents first (in case DB cascade is not set)
+    const files = await documentFilesForEmissions(idsToDelete);
     const docRepo = AppDataSource.getRepository(EmissionDocument);
     await docRepo
       .createQueryBuilder()
@@ -1319,6 +1328,7 @@ export const deleteEmission = async (req: Request, res: Response) => {
       .execute();
 
     await repo.delete(idsToDelete);
+    await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
 
     log.info("Emission", "Deleted", { ids: idsToDelete, userId: (req as AuthRequest).user?.userId });
@@ -1384,6 +1394,7 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
 
     const idsArray = Array.from(allIds);
     let totalDeleted = 0;
+    const files: Awaited<ReturnType<typeof documentFilesForEmissions>> = [];
 
     // Delete in chunks within a transaction
     await AppDataSource.transaction(async (manager) => {
@@ -1391,7 +1402,8 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
       const emRepo = manager.getRepository(Emission);
 
       for (const batch of chunk(idsArray, CHUNK_SIZE)) {
-        // Delete related documents first
+        // Delete related documents first; their files go once the transaction commits
+        files.push(...(await documentFilesForEmissions(batch, manager)));
         await docRepo
           .createQueryBuilder()
           .delete()
@@ -1402,6 +1414,7 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
         totalDeleted += result.affected || 0;
       }
     });
+    await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsArray);
 
     return res.status(200).json({
@@ -1837,8 +1850,10 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
     // Delete related documents first (in case DB cascade is not set)
     const docRepo = AppDataSource.getRepository(EmissionDocument);
     const CHUNK_SIZE = 5000;
+    const files: Awaited<ReturnType<typeof documentFilesForEmissions>> = [];
     for (let i = 0; i < idsToDelete.length; i += CHUNK_SIZE) {
       const chunk = idsToDelete.slice(i, i + CHUNK_SIZE);
+      files.push(...(await documentFilesForEmissions(chunk)));
       await docRepo
         .createQueryBuilder()
         .delete()
@@ -1847,6 +1862,7 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
     }
 
     const result = await repo.delete({ upload_batch_id: batchId });
+    await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
 
     return res.status(200).json({
