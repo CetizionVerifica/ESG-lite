@@ -35,12 +35,17 @@ export const ghgReport = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "siteIds (or siteId) required" });
     }
 
-    // Resolve companyId from the first site (or explicit path param).
-    let companyId = Number(req.params.companyId);
-    if (!companyId) {
-      const rows = await AppDataSource.query("SELECT company_id FROM site WHERE site_id=$1", [siteIds[0]]);
-      companyId = rows[0]?.company_id;
+    // Resolve companyId from the sites; every site must belong to one company,
+    // and to the path's company when one is given.
+    const siteCompanies: { company_id: number | null }[] = await AppDataSource.query(
+      "SELECT DISTINCT company_id FROM site WHERE site_id = ANY($1::int[])",
+      [siteIds]
+    );
+    const pathCompanyId = Number(req.params.companyId) || null;
+    if (siteCompanies.length !== 1 || (pathCompanyId && siteCompanies[0].company_id !== pathCompanyId)) {
+      return res.status(400).json({ error: "siteIds must all belong to one company" });
     }
+    const companyId = pathCompanyId ?? Number(siteCompanies[0].company_id);
     if (!companyId) return res.status(400).json({ error: "could not resolve company for the given site" });
 
     const categoryIds = parseIds(req.query.categoryIds);
