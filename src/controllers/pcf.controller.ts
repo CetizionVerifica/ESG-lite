@@ -16,6 +16,8 @@ import { Site } from "../entities/Site";
 import { Company } from "../entities/Company";
 import { User } from "../entities/User";
 import { canSeeCompany, canSeeSite, pcfScope, PcfScope } from "../pcf/access";
+import { licensedLineIds, redactAggregates, redactStages } from "../pcf/redact";
+import type { PcfEngineInput } from "../pcf/engine/computePcf";
 
 const studyRepo = () => AppDataSource.getRepository(PcfStudy);
 const inputRepo = () => AppDataSource.getRepository(PcfInput);
@@ -58,7 +60,7 @@ const idParam = (v: unknown) => {
 
 // ---------------------------------------------------------------- loading ---
 
-async function loadStudy(id: number, scope: PcfScope) {
+export async function loadStudy(id: number, scope: PcfScope) {
   const study = await studyRepo().findOne({
     where: { pcf_study_id: id },
     relations: ["company", "product", "site", "parent_version", "created_by", "reviewed_by"],
@@ -69,7 +71,8 @@ async function loadStudy(id: number, scope: PcfScope) {
 
 const userRef = (u: User | null | undefined) => (u ? { user_id: u.user_id, name: u.name } : null);
 
-function studyJson(s: PcfStudy, result?: PcfResult | null) {
+// Pass the viewer's scope so licensed values are hidden from non-superadmins.
+export function studyJson(s: PcfStudy, result: PcfResult | null | undefined, scope: PcfScope) {
   return {
     pcf_study_id: s.pcf_study_id,
     company_id: s.company?.company_id ?? null,
@@ -97,16 +100,20 @@ function studyJson(s: PcfStudy, result?: PcfResult | null) {
     review_comment: s.review_comment,
     created_at: s.created_at,
     updated_at: s.updated_at,
-    result: result === undefined ? undefined : result ? resultSummary(result) : null,
+    result: result === undefined ? undefined : result ? resultSummary(result, scope) : null,
   };
 }
 
-function resultSummary(r: PcfResult) {
+function resultSummary(r: PcfResult, scope: PcfScope) {
+  const input = (r.factor_snapshot as unknown as { input?: PcfEngineInput } | null)?.input;
+  const hidden = scope.all ? new Set<string>() : licensedLineIds(input);
+  const { by_stage, hidden_stages } = redactStages(r.by_stage, input?.inputs ?? [], hidden);
   return {
     total_kg_per_unit: Number(r.total_kg_per_unit),
-    by_stage: r.by_stage,
-    primary_data_share_pct: Number(r.primary_data_share_pct),
-    dqr_overall: Number(r.dqr_overall),
+    by_stage,
+    hidden_stages,
+    ...redactAggregates({ primary_data_share_pct: Number(r.primary_data_share_pct), dqr_overall: Number(r.dqr_overall) }, hidden),
+    warnings: ((r.cut_off as { warnings?: string[] } | null)?.warnings ?? []) as string[],
     is_draft: r.is_draft,
     calculated_at: r.calculated_at,
     engine_version: r.engine_version,
@@ -179,7 +186,7 @@ export const listStudies = async (req: AuthRequest, res: Response) => {
       ? await resultRepo().find({ where: { study: { pcf_study_id: In(studies.map((s) => s.pcf_study_id)) } }, relations: ["study"] })
       : [];
     const byStudy = new Map(results.map((r) => [r.study.pcf_study_id, r]));
-    res.json(studies.map((s) => studyJson(s, byStudy.get(s.pcf_study_id) ?? null)));
+    res.json(studies.map((s) => studyJson(s, byStudy.get(s.pcf_study_id) ?? null, scope)));
   } catch (err) {
     console.error("listStudies", err);
     res.status(500).json({ message: "Could not load footprints" });
@@ -292,7 +299,7 @@ export const createStudy = async (req: AuthRequest, res: Response) => {
       return study;
     });
     const study = await loadStudy(saved.pcf_study_id, scope);
-    res.status(201).json(studyJson(study!, null));
+    res.status(201).json(studyJson(study!, null, scope));
   } catch (err) {
     console.error("createStudy", err);
     res.status(500).json({ message: "Could not create the footprint" });
@@ -310,7 +317,7 @@ export const getStudy = async (req: AuthRequest, res: Response) => {
       loadInputs(study.pcf_study_id),
       resultRepo().findOne({ where: { study: { pcf_study_id: study.pcf_study_id } } }),
     ]);
-    res.json({ ...studyJson(study, result), inputs: inputs.map(inputJson) });
+    res.json({ ...studyJson(study, result, scope), inputs: inputs.map(inputJson) });
   } catch (err) {
     console.error("getStudy", err);
     res.status(500).json({ message: "Could not load the footprint" });
@@ -336,7 +343,7 @@ export const updateStudy = async (req: AuthRequest, res: Response) => {
     const upd = await studyRepo().update({ pcf_study_id: study.pcf_study_id, status: "draft" }, fields);
     if (!upd.affected) return res.status(409).json({ message: "Only a draft can be edited; create a new version instead" });
     const fresh = await loadStudy(study.pcf_study_id, scope);
-    res.json(studyJson(fresh!));
+    res.json(studyJson(fresh!, undefined, scope));
   } catch (err) {
     console.error("updateStudy", err);
     res.status(500).json({ message: "Could not save the footprint" });
