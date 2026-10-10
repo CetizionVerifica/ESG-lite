@@ -3,6 +3,9 @@ import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
 import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
+import { AuthRequest } from "../middlewares/auth.middleware";
+import { UserRole } from "../types/type";
+import { resolveUserCompanyId } from "../utils/companyScope";
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -12,9 +15,13 @@ export const createCompany = async (req: Request, res: Response) => {
   res.status(201).json(company);
 };
 
-export const getCompanies = async (_: Request, res: Response) => {
-  const companies = await repo.find();
-  res.json(companies);
+/** Superadmins see every company; everyone else only their own. */
+export const getCompanies = async (req: AuthRequest, res: Response) => {
+  if (req.user?.role === UserRole.SUPERADMIN) {
+    return res.json(await repo.find());
+  }
+  const companyId = await resolveUserCompanyId(req.user?.userId);
+  res.json(companyId ? await repo.find({ where: { company_id: companyId } }) : []);
 };
 
 export const updateCompany = async (req: Request, res: Response) => {
