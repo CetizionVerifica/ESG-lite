@@ -147,3 +147,29 @@ test("a manager edit recalculates the FERA twin and keeps it in step with the pa
     await clearAudit("emission", [1, 5]);
   }
 });
+
+test("legacy Excel import computes the total from activity x factor, not the file's calculatedEmission", async () => {
+  const XLSX = require("xlsx");
+  const sheet = XLSX.utils.json_to_sheet([
+    { year: "2018", month: "March", fuelType: "Diesel", unit: "litre", activity: 400, emissionFactor: 2.5, emissionFactorUnit: "kg CO₂e/litre", calculatedEmission: 999 },
+  ]);
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, "Sheet1");
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([XLSX.write(book, { type: "buffer", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+    "import.xlsx",
+  );
+  form.append("siteName", "CI Plant A");
+  form.append("categoryName", "Stationary Combustion");
+  try {
+    const r = await call("POST", "/admin/upload/emissions", "superadmin", form);
+    assert.equal(r.status, 200);
+    assert.equal(r.json.summary.emissionsCreated, 1);
+    const [row] = await q("SELECT total_emission FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-03-01' AND date_of_reporting < '2018-04-01'");
+    assert.equal(Number(row.total_emission), 1); // 400 x 2.5 kg = 1 t
+  } finally {
+    await q("DELETE FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01'");
+  }
+});
