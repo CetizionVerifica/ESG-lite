@@ -49,8 +49,8 @@ test("totals, per-client month counts and activity", async () => {
   try {
     const res = await call("GET", "/admin/console", "superadmin");
     assert.equal(res.status, 200, JSON.stringify(res.json));
-    const now = new Date();
-    assert.equal(res.json.month, `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`);
+    const dbMonth = await withDb(async (db) => (await db.query(`SELECT to_char(LOCALTIMESTAMP, 'YYYY-MM') m`)).rows[0].m);
+    assert.equal(res.json.month, dbMonth);
 
     const expected = await withDb(async (db) => {
       const one = async (sql) => Number((await db.query(sql)).rows[0].n);
@@ -60,7 +60,7 @@ test("totals, per-client month counts and activity", async () => {
         sites: await one(`SELECT COUNT(*) n FROM site`),
         users: await one(`SELECT COUNT(*) n FROM "user" WHERE role <> 'Superadmin'`),
         emission_factors: await one(`SELECT COUNT(*) n FROM emission_factors`),
-        entries_this_month: await one(`SELECT COUNT(*) n FROM emission WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'UTC')`),
+        entries_this_month: await one(`SELECT COUNT(*) n FROM emission WHERE created_at >= date_trunc('month', LOCALTIMESTAMP)`),
         pending_entries: await one(`SELECT COUNT(*) n FROM emission WHERE status = 'pending'`),
       };
     });
@@ -104,5 +104,36 @@ test("totals, per-client month counts and activity", async () => {
     assert.deepEqual(limited.json.activity.map((a) => a.kind), ["onboarding", "factor_upload"]);
   } finally {
     await withDb(cleanup);
+  }
+});
+
+test("new clients get an onboarding date, and saves work before the migration", async () => {
+  const body = (name) => ({ name, address: "CI street", contact_person: "CI" });
+  const ids = [];
+  try {
+    const created = await call("POST", "/admin/companies", "superadmin", body("CI P16 onboarded"));
+    assert.equal(created.status, 201, JSON.stringify(created.json));
+    ids.push(created.json.company_id);
+    const stamped = await withDb(async (db) =>
+      (await db.query(`SELECT created_at FROM company WHERE company_id = $1`, [created.json.company_id])).rows[0].created_at,
+    );
+    assert.ok(stamped instanceof Date);
+
+    // A database where migrate:company-created-at has not run: no column at all.
+    await withDb((db) => db.query(`ALTER TABLE company RENAME COLUMN created_at TO ci_p16_created_at`));
+    try {
+      const early = await call("POST", "/admin/companies", "superadmin", body("CI P16 before migration"));
+      assert.equal(early.status, 201, JSON.stringify(early.json));
+      ids.push(early.json.company_id);
+      const renamed = await call("PUT", `/admin/companies/${early.json.company_id}`, "superadmin", { contact_person: "CI 2" });
+      assert.equal(renamed.status, 200, JSON.stringify(renamed.json));
+      const console_ = await call("GET", "/admin/console", "superadmin");
+      assert.equal(console_.status, 200, JSON.stringify(console_.json));
+      assert.equal(console_.json.activity.filter((a) => a.kind === "onboarding").length, 0);
+    } finally {
+      await withDb((db) => db.query(`ALTER TABLE company RENAME COLUMN ci_p16_created_at TO created_at`));
+    }
+  } finally {
+    await withDb((db) => db.query(`DELETE FROM company WHERE company_id = ANY($1)`, [ids]));
   }
 });

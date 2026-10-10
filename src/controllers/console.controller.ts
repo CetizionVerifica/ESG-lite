@@ -4,7 +4,7 @@ import { AppDataSource } from "../config/data-source";
 // P16 Console: one summary across every client for the Superadmin home.
 //
 // GET /admin/console?limit=20
-//   month     the current calendar month (UTC), "YYYY-MM"
+//   month     the current calendar month (database time zone), "YYYY-MM"
 //   totals    clients, active clients, sites, users (not Superadmins),
 //             emission factors, entries entered this month, pending entries
 //   clients   per company: entries entered this month, of those still
@@ -113,7 +113,7 @@ export const getConsole = async (req: Request, res: Response) => {
   if (limit === null) return res.status(400).json({ message: "limit must be a whole number from 1 to 100" });
   try {
     const [[month], [totals], perClient, bulk, factors, onboarding] = await Promise.all([
-      AppDataSource.query(`SELECT to_char(date_trunc('month', now() AT TIME ZONE 'UTC'), 'YYYY-MM') AS month`),
+      AppDataSource.query(`SELECT to_char(date_trunc('month', LOCALTIMESTAMP), 'YYYY-MM') AS month`),
       AppDataSource.query(
         `SELECT
            (SELECT COUNT(*) FROM company)::int AS clients,
@@ -122,13 +122,13 @@ export const getConsole = async (req: Request, res: Response) => {
            (SELECT COUNT(*) FROM "user" WHERE role <> 'Superadmin')::int AS users,
            (SELECT COUNT(*) FROM emission_factors)::int AS emission_factors,
            (SELECT COUNT(*) FROM emission
-             WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'UTC'))::int AS entries_this_month,
+             WHERE created_at >= date_trunc('month', LOCALTIMESTAMP))::int AS entries_this_month,
            (SELECT COUNT(*) FROM emission WHERE status = 'pending')::int AS pending_entries`,
       ),
       AppDataSource.query(
         `SELECT s.company_id,
-                COUNT(*) FILTER (WHERE e.created_at >= date_trunc('month', now() AT TIME ZONE 'UTC'))::int AS entries_this_month,
-                COUNT(*) FILTER (WHERE e.created_at >= date_trunc('month', now() AT TIME ZONE 'UTC')
+                COUNT(*) FILTER (WHERE e.created_at >= date_trunc('month', LOCALTIMESTAMP))::int AS entries_this_month,
+                COUNT(*) FILTER (WHERE e.created_at >= date_trunc('month', LOCALTIMESTAMP)
                                    AND e.status = 'pending')::int AS pending_this_month,
                 COUNT(*) FILTER (WHERE e.status = 'pending')::int AS pending
            FROM emission e

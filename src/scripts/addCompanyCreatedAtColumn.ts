@@ -1,24 +1,23 @@
-// Adds company.created_at (timestamp, default now()): when a client was
+// Adds company.created_at (nullable timestamp): when a client was
 // onboarded, for the Console's recent activity (redesign P16). Clients that
 // exist before this runs keep NULL: their onboarding date is unknown, and
 // stamping them with today would show every old client as just onboarded.
 //
 //   npm run migrate:company-created-at
 //
-// The entity maps the column with select: false and insert: false, so the
-// backend keeps working if this runs after the deploy; until it runs the
-// Console just shows no onboarding rows.
+// There is no column default: the backend stamps new clients itself
+// (stampCompanyOnboarded), and the entity maps the column with select, insert
+// and update false, so the backend keeps working if this runs after the
+// deploy; until it runs the Console just shows no onboarding rows.
 //
-// Idempotent (IF NOT EXISTS, SET DEFAULT) and additive.
+// Idempotent (IF NOT EXISTS) and additive.
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 
 async function main() {
   await AppDataSource.initialize();
   try {
-    // Added without a default first, so existing rows stay NULL; then new rows get now().
     await AppDataSource.query(`ALTER TABLE company ADD COLUMN IF NOT EXISTS created_at timestamp NULL`);
-    await AppDataSource.query(`ALTER TABLE company ALTER COLUMN created_at SET DEFAULT now()`);
     console.log("company.created_at present.");
   } finally {
     await AppDataSource.destroy();

@@ -1,14 +1,16 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Company } from "../entities/Company";
+import { stampCompanyOnboarded } from "../utils/companyOnboarded";
 import { Site } from "../entities/Site";
 import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
 
 const repo = AppDataSource.getRepository(Company);
 
 export const createCompany = async (req: Request, res: Response) => {
-  const company = repo.create(req.body);
+  const company = repo.create(req.body as Partial<Company>);
   await repo.save(company);
+  await stampCompanyOnboarded(company.company_id);
   res.status(201).json(company);
 };
 
