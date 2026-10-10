@@ -68,6 +68,13 @@ const isValidTimezone = (tz: string) => {
   }
 };
 
+/** Account with this address, whatever its stored case. */
+const findByEmail = (email: string) =>
+  repo.createQueryBuilder("u").where("LOWER(u.email) = :email", { email: email.trim().toLowerCase() }).getOne();
+
+/** The signed-in user's id from the JWT. */
+const callerId = (req: Request) => Number((req as any).user?.userId);
+
 /** A readable one-time password for accounts created without one. */
 const temporaryPassword = () => crypto.randomBytes(9).toString("base64url");
 
@@ -188,7 +195,7 @@ export const createUser = async (req: Request, res: Response) => {
       });
     }
 
-    const existingUser = await repo.findOne({ where: { email } });
+    const existingUser = await findByEmail(email);
     if (existingUser) {
       return res.status(400).json({
         message: "User with this email already exists",
@@ -207,7 +214,7 @@ export const createUser = async (req: Request, res: Response) => {
       const user = repo.create({
         ...profile.fields,
         name: name?.trim(),
-        email: email.toLowerCase(),
+        email: email.trim().toLowerCase(),
         password: hashedPassword,
         role,
         sites: sites,
@@ -299,13 +306,13 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     if (email) {
-      const existingUser = await repo.findOne({ where: { email } });
+      const existingUser = await findByEmail(email);
       if (existingUser && existingUser.user_id !== user.user_id) {
         return res.status(400).json({
           message: "User with this email already exists",
         });
       }
-      user.email = email.toLowerCase();
+      user.email = email.trim().toLowerCase();
     }
 
 
@@ -314,6 +321,10 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     if (role) {
+      // A Superadmin demoting themselves would lock everyone out of this page.
+      if (user.user_id === callerId(req) && role !== user.role) {
+        return res.status(400).json({ message: "You can't change your own role." });
+      }
       if (!Object.values(UserRole).includes(role)) {
         return res.status(400).json({
           message: `Invalid role. Must be one of: ${Object.values(UserRole).join(", ")}`,
@@ -398,6 +409,10 @@ export const deleteUser = async (req: Request, res: Response) => {
       return res.status(404).json({
         message: "User not found",
       });
+    }
+
+    if (user.user_id === callerId(req)) {
+      return res.status(400).json({ message: "You can't remove your own account." });
     }
 
     await repo.delete({ user_id: parseInt(id) });

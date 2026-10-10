@@ -79,8 +79,10 @@ export class User {
 
   // Set on every successful login; shown as "Last active" on the Users page
   // (redesign P20). select: false so ordinary user reads (login included)
-  // keep working on a database where migrate:user-last-login has not run yet.
-  @Column({ type: "timestamp", nullable: true, select: false })
+  // keep working on a database where migrate:user-last-login has not run yet;
+  // insert: false keeps it out of every INSERT, so creating users also works
+  // before the migration; only login (an UPDATE) writes it.
+  @Column({ type: "timestamp", nullable: true, select: false, insert: false })
   last_login_at?: Date | null;
 
   // Per-user category access control (managed by Manager role)

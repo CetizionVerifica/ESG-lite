@@ -135,3 +135,22 @@ test("removing someone without history works", async () => {
   const res = await call("DELETE", `/admin/users/${created.json.user.user_id}`, "superadmin");
   assert.equal(res.status, 200);
 });
+
+test("a superadmin can't change their own role or remove themselves", async () => {
+  const demote = await call("PATCH", "/admin/users/5", "superadmin", { role: "User" });
+  assert.equal(demote.status, 400);
+  assert.match(demote.json.message, /own role/);
+  // Saving their own profile with the same role is fine.
+  assert.equal((await call("PATCH", "/admin/users/5", "superadmin", { role: "Superadmin", name: "CI Superadmin" })).status, 200);
+  const removed = await call("DELETE", "/admin/users/5", "superadmin");
+  assert.equal(removed.status, 400);
+  assert.match(removed.json.message, /own account/);
+});
+
+test("an address differing only in case or spaces is a duplicate, not a 500", async () => {
+  const dup = await call("POST", "/admin/users", "superadmin", { email: "  CI-User@Example.Invalid ", role: "User" });
+  assert.equal(dup.status, 400);
+  assert.match(dup.json.message, /already exists/);
+  const clash = await call("PATCH", "/admin/users/7", "superadmin", { email: "CI-USER@example.invalid" });
+  assert.equal(clash.status, 400);
+});
