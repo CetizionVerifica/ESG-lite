@@ -187,14 +187,22 @@ test("a FERA factor in a unit that cannot be converted gives no twin total from 
   await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id IN (1, 5)");
   let created;
   try {
-    // Manager edit: the parent is recalculated, the twin is left as it was.
+    // Manager edit: the parent is recalculated; the twin keeps its total but
+    // goes back to review with a note, and the response says why.
+    await q("UPDATE emission SET status='approved', reviewed_by=2 WHERE pk_id=5");
     const r = await call("PUT", "/user/emissions/manager-edit/1", "manager", {
       activity_data: { activity_value: 2000, emission_category: "Diesel" }, reason: "Meter re-read",
     });
     assert.equal(r.status, 200);
-    const rows = await q("SELECT pk_id, total_emission FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+    const rows = await q("SELECT pk_id, total_emission, status, review_comment FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
     assert.equal(Number(rows[0].total_emission), 5.36);
+    assert.equal(rows[0].status, "approved");
     assert.equal(Number(rows[1].total_emission), 0.5); // the raw value would give 0.6
+    assert.equal(rows[1].status, "pending");
+    assert.match(rows[1].review_comment, /can't be converted/);
+    assert.match(r.json.warning, /can't be converted/);
+    const [audit] = await auditRows("emission", 1);
+    assert.deepEqual(audit.changed_fields.fera_status, { old: "approved", new: "pending" });
 
     // Create: the parent is saved, no twin is made.
     created = await call("POST", "/user/emissions", "user", {
@@ -213,7 +221,7 @@ test("a FERA factor in a unit that cannot be converted gives no twin total from 
     }
     for (const b of before) {
       await q(
-        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7 WHERE pk_id=$1",
+        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7, review_comment=NULL WHERE pk_id=$1",
         [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by]
       );
     }

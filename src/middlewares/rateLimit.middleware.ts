@@ -4,11 +4,15 @@ import { log } from "../utils/logger";
 /**
  * Small in-memory rate limit for the sign-in and password-reset endpoints
  * (audit finding F-20): at most AUTH_RATE_LIMIT_MAX attempts (default 10) per
- * client IP and route in AUTH_RATE_LIMIT_WINDOW_MS (default 15 min), then 429.
+ * client IP, route and account (the normalised `email` in the body, when the
+ * route has one) in AUTH_RATE_LIMIT_WINDOW_MS (default 15 min), then 429.
+ * Each IP also has a looser cap across all accounts, AUTH_RATE_LIMIT_IP_MAX
+ * (default 5 x the per-account limit), so one office behind a NAT address is
+ * not locked out by a single person's typos.
  *
- * - "failures" counts only attempts that end in an error, so a team behind one
- *   office IP is not blocked by normal sign-ins; requests still in flight
- *   count too, so a burst of parallel attempts can't slip past the limit;
+ * - "failures" counts only attempts that end in an error, so normal sign-ins
+ *   never use up the limit; on the per-account bucket requests still in
+ *   flight count too, so a burst of parallel guesses can't slip past it;
  *   "all" counts every request (forgot-password always answers 200).
  * - Counts live in this process only; with several instances each has its own.
  * - Behind a load balancer set TRUST_PROXY so req.ip is the client, not the
@@ -34,25 +38,33 @@ const startSweeper = (windowMs: number) => {
   sweeper.unref?.();
 };
 
+const takeBucket = (key: string, now: number, windowMs: number): Bucket => {
+  let bucket = buckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, inFlight: 0, resetAt: now + windowMs };
+    buckets.set(key, bucket);
+  }
+  return bucket;
+};
+
 export const authRateLimit = (name: string, count: "all" | "failures" = "failures") =>
   (req: Request, res: Response, next: NextFunction) => {
     if (process.env.AUTH_RATE_LIMIT_DISABLED === "true") return next();
 
     const max = envNumber("AUTH_RATE_LIMIT_MAX", 10);
+    const ipMax = envNumber("AUTH_RATE_LIMIT_IP_MAX", max * 5);
     const windowMs = envNumber("AUTH_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000);
     startSweeper(windowMs);
 
     const now = Date.now();
-    const key = `${name}:${req.ip}`;
-    let bucket = buckets.get(key);
-    if (!bucket || bucket.resetAt <= now) {
-      bucket = { count: 0, inFlight: 0, resetAt: now + windowMs };
-      buckets.set(key, bucket);
-    }
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const account = takeBucket(`${name}:${req.ip}:${email}`, now, windowMs);
+    const ip = takeBucket(`${name}:${req.ip}`, now, windowMs);
 
-    if (bucket.count + bucket.inFlight >= max) {
-      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-      log.warn("Auth", "Rate limit hit", { route: name, ip: req.ip });
+    const full = account.count + account.inFlight >= max ? account : ip.count >= ipMax ? ip : null;
+    if (full) {
+      const retryAfter = Math.max(1, Math.ceil((full.resetAt - now) / 1000));
+      log.warn("Auth", "Rate limit hit", { route: name, ip: req.ip, perAccount: full === account });
       res.setHeader("Retry-After", String(retryAfter));
       return res.status(429).json({
         message: `Too many attempts. Please try again in ${Math.ceil(retryAfter / 60)} minute(s).`,
@@ -60,13 +72,16 @@ export const authRateLimit = (name: string, count: "all" | "failures" = "failure
     }
 
     if (count === "all") {
-      bucket.count++;
+      account.count++;
+      ip.count++;
     } else {
-      const counted = bucket;
-      counted.inFlight++;
+      account.inFlight++;
       res.once("close", () => {
-        counted.inFlight--;
-        if (res.statusCode >= 400) counted.count++;
+        account.inFlight--;
+        if (res.statusCode >= 400) {
+          account.count++;
+          ip.count++;
+        }
       });
     }
     next();

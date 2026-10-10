@@ -35,6 +35,10 @@ const app = express();
 if (process.env.TRUST_PROXY) {
     const hops = Number(process.env.TRUST_PROXY);
     app.set("trust proxy", Number.isInteger(hops) ? hops : process.env.TRUST_PROXY === "true" ? true : process.env.TRUST_PROXY);
+} else if (process.env.NODE_ENV === "production") {
+    console.warn(
+        "⚠️ TRUST_PROXY is not set. Behind a load balancer every client then shares one sign-in rate limit; set TRUST_PROXY to the number of proxy hops (1 for a single ALB).",
+    );
 }
 app.use(express.json({ limit: "10mb" }));
 app.use(

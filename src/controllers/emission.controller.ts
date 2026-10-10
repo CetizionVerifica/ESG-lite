@@ -1171,14 +1171,20 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
         }
 
         if (feraActivityValue > 0) {
-          // No unit conversion: leave the twin as it is rather than store a
-          // total from the raw value (audit F-12), as when no factor matches.
+          // No unit conversion: don't store a total from the raw value (audit
+          // F-12). Keep the twin's numbers but send it back to review with a
+          // note, so a stale total is never left approved.
           const feraCalculated = feraTotal(feraActivityValue, emission.activity_data_unit, feraFactor);
           if (feraCalculated === null) {
             console.warn(
               `FERA recalculation skipped for emission ${linkedFera.pk_id}: cannot convert "${emission.activity_data_unit}" to the FERA factor unit "${feraFactor.denominator_unit}".`,
             );
-            return null;
+            linkedFera.status = EmissionStatus.PENDING;
+            linkedFera.reviewed_by = null as any;
+            linkedFera.reviewed_at = null as any;
+            linkedFera.review_comment = `Not recalculated: "${emission.activity_data_unit}" can't be converted to the FERA factor unit "${feraFactor.denominator_unit}". Check and edit this entry.`;
+            await repo.save(linkedFera);
+            return Object.assign(linkedFera, { recalcSkipped: true });
           }
 
           linkedFera.activity_data = activity_data;
@@ -3543,13 +3549,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // Keep the FERA twin in step (audit F-07). A manager edit does not send
     // the row back to review, so the twin keeps the parent's review state.
     let feraEmission: Emission | null = null;
+    let feraWarning: string | undefined;
     if (activity_data !== undefined) {
       // The same twin recalculateLinkedFera picks: the forward link first.
       const [twinBefore] = emission.fera_linked_id
-        ? await repo.query(`SELECT total_emission FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
-        : await repo.query(`SELECT total_emission FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
+        ? await repo.query(`SELECT total_emission, status FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
+        : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
       feraEmission = await recalculateLinkedFera(emission, activity_data);
-      if (feraEmission) {
+      if (feraEmission && (feraEmission as Emission & { recalcSkipped?: boolean }).recalcSkipped) {
+        // The twin couldn't be recalculated and went back to review.
+        changedFields.fera_status = { old: twinBefore?.status ?? null, new: EmissionStatus.PENDING };
+        feraWarning = feraEmission.review_comment;
+      } else if (feraEmission) {
         await repo.query(
           `UPDATE emission t SET status = p.status, reviewed_by = p.reviewed_by, reviewed_at = p.reviewed_at,
              review_comment = p.review_comment
@@ -3581,6 +3592,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       message: "Emission updated by manager",
       emission,
       fera_emission: feraEmission || undefined,
+      warning: feraWarning,
     });
   } catch (error) {
     console.error("Manager update emission error:", error);

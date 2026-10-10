@@ -29,3 +29,16 @@ test("failed reset attempts beyond the limit get 429 with Retry-After", { skip: 
   const login = await call("POST", "/auth/login", null, { email: "nobody@example.invalid", password: "wrong" });
   assert.equal(login.status, 401);
 });
+
+test("sign-in is limited per account, so one person's failures don't lock out the office", { skip: disabled && "AUTH_RATE_LIMIT_DISABLED" }, async () => {
+  const statuses = [];
+  for (let i = 0; i <= MAX; i++) {
+    statuses.push((await call("POST", "/auth/login", null, { email: " CI-Locked@Example.invalid ", password: `wrong-${i}` })).status);
+  }
+  assert.ok(statuses.slice(0, MAX).every((s) => s === 401), `statuses: ${statuses}`);
+  assert.equal(statuses[MAX], 429, `statuses: ${statuses}`);
+  // The same address in another case is the same account.
+  assert.equal((await call("POST", "/auth/login", null, { email: "ci-locked@example.invalid", password: "x" })).status, 429);
+  // Someone else on the same IP is still answered normally.
+  assert.equal((await call("POST", "/auth/login", null, { email: "ci-colleague@example.invalid", password: "x" })).status, 401);
+});
