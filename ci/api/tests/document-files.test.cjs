@@ -83,3 +83,33 @@ test("deleting an entry keeps a file another document still uses", async () => {
     await q("DELETE FROM emission WHERE pk_id IN (955, 956)");
   }
 });
+
+test("deleting a document keeps a file another document still uses", async () => {
+  await q(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period)
+           VALUES (957, '{"activity_value": 7}', 7, 'tCO2e', '2025-05-31', 'pending', 1, 1, 1, 'monthly'),
+                  (958, '{"activity_value": 8}', 8, 'tCO2e', '2025-05-31', 'pending', 1, 2, 1, 'monthly'),
+                  (959, '{"activity_value": 9}', 9, 'tCO2e', '2025-05-31', 'pending', 1, 3, 1, 'monthly')`);
+  try {
+    const file = await upload(957, "shared-doc.pdf");
+    await q(`INSERT INTO emission_document (emission_id, file_name, original_name, cloudinary_public_id, cloudinary_url, file_type, document_type, uploaded_by)
+             SELECT e, file_name, original_name, cloudinary_public_id, cloudinary_url, file_type, document_type, uploaded_by
+               FROM emission_document, (VALUES (958), (959)) AS t(e) WHERE emission_id = 957`);
+    const ids = async (emissionIds) =>
+      (await q("SELECT document_id FROM emission_document WHERE emission_id = ANY($1) ORDER BY document_id", [emissionIds])).map((r) => r.document_id);
+
+    const [first] = await ids([957]);
+    assert.equal((await call("DELETE", `/user/documents/${first}`, "user")).status, 200);
+    assert.ok(fs.existsSync(file), "single delete keeps a file two documents still use");
+
+    const [second] = await ids([958]);
+    assert.equal((await call("DELETE", "/user/documents/bulk-delete", "user", { ids: [second] })).status, 200);
+    assert.ok(fs.existsSync(file), "bulk delete keeps a file one document still uses");
+
+    const [last] = await ids([959]);
+    assert.equal((await call("DELETE", `/user/documents/${last}`, "user")).status, 200);
+    assert.equal(fs.existsSync(file), false, "deleting the last document removes the file");
+  } finally {
+    await q("DELETE FROM emission_document WHERE emission_id IN (957, 958, 959)");
+    await q("DELETE FROM emission WHERE pk_id IN (957, 958, 959)");
+  }
+});
