@@ -16,12 +16,15 @@ type CategoryUsage = {
   units: number;
   mappings: number;
   invoices: number;
+  users: number;
 };
 
 // Per-category usage counts in one statement (correlated subqueries, no N+1).
 // Units link to a category through unit.category_id (no inverse relation on
 // Category), entries are emission rows. Client category mappings and invoices
-// point at a category without a cascading FK, so they count as use too.
+// point at a category without a cascading FK, so they count as use too. So
+// does a user's category grant: deleting it could empty the grant set, and an
+// empty set means full access.
 const loadCategoryUsage = async (
   categoryIds?: number[],
   manager: EntityManager = AppDataSource.manager
@@ -40,7 +43,8 @@ const loadCategoryUsage = async (
             (SELECT COUNT(*) FROM column_config cc WHERE cc.category_id = c.category_id)::int AS configs,
             (SELECT COUNT(*) FROM unit u WHERE u.category_id = c.category_id)::int AS units,
             (SELECT COUNT(*) FROM emission_category_mapping m WHERE m.category_id = c.category_id)::int AS mappings,
-            (SELECT COUNT(*) FROM invoice i WHERE i.category_id = c.category_id)::int AS invoices
+            (SELECT COUNT(*) FROM invoice i WHERE i.category_id = c.category_id)::int AS invoices,
+            (SELECT COUNT(*) FROM user_categories uc WHERE uc.category_id = c.category_id)::int AS users
        FROM category c ${where}`,
     params
   );
@@ -55,6 +59,7 @@ const loadCategoryUsage = async (
         units: r.units,
         mappings: r.mappings,
         invoices: r.invoices,
+        users: r.users,
       },
     ])
   );
@@ -328,6 +333,7 @@ export const deleteCategory = async (req: Request, res: Response) => {
             [usage.units, "units"],
             [usage.mappings, "client category mappings"],
             [usage.invoices, "invoices"],
+            [usage.users, "user category grants"],
           ] as [number, string][])
             .filter(([n]) => n > 0)
             .map(([n, label]) => `${n} ${label}`)

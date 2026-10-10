@@ -178,7 +178,7 @@ test("DELETE /admin/countries/:id refuses a country sites use", async () => {
 test("DELETE /admin/categories/:id deletes only a category nothing uses", async () => {
   const used = await call("DELETE", "/admin/categories/900", WHO);
   assert.equal(used.status, 409);
-  assert.deepEqual(used.json.in_use, { sites: 2, entries: 4, factors: 1, configs: 1, units: 2, mappings: 0, invoices: 0 });
+  assert.deepEqual(used.json.in_use, { sites: 2, entries: 4, factors: 1, configs: 1, units: 2, mappings: 0, invoices: 0, users: 2 });
   assert.match(used.json.message, /^This category is still in use: /);
 
   // force=true no longer bypasses the check.
@@ -193,6 +193,15 @@ test("DELETE /admin/categories/:id deletes only a category nothing uses", async 
   const invoiced = await call("DELETE", "/admin/categories/903", WHO);
   assert.equal(invoiced.status, 409);
   assert.equal(invoiced.json.in_use.invoices, 1);
+
+  // A user's grant counts as use: deleting it could leave them with an empty
+  // grant set, which means access to every category.
+  await withDb((db) => db.query(`INSERT INTO user_categories (user_id, category_id) VALUES (901, 901)`));
+  const granted = await call("DELETE", "/admin/categories/901", WHO);
+  assert.equal(granted.status, 409);
+  assert.equal(granted.json.in_use.users, 1);
+  assert.match(granted.json.message, /1 user category grants/);
+  await withDb((db) => db.query(`DELETE FROM user_categories WHERE user_id = 901 AND category_id = 901`));
 
   // Fixture category 1 is used by fixture data and stays.
   assert.equal((await call("DELETE", "/admin/categories/1", WHO)).status, 409);
