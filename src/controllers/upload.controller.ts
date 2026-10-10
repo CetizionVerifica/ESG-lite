@@ -12,8 +12,12 @@ import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import { log } from "../utils/logger";
 import { issueInvite, unusablePasswordHash } from "../services/invite";
+import { EntityManager } from "typeorm";
 import {
+  type FiledEntry,
+  type HistoricalPlan,
   type HistoricalRow,
+  filedMonths,
   activityDataFor,
   factorDenominator,
   factorUnitToTonnes,
@@ -75,23 +79,43 @@ const monthToNumber: Record<string, number> = {
   December: 11,
 };
 
-const PREVIEW_ROWS = 200;
+const PREVIEW_ROWS = 100;
 const positiveInt = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
+/** The plan for this sheet, read through `m` (inside the import's transaction, or the pool for a preview). */
+const planFor = async (m: EntityManager, rows: HistoricalRow[], siteId: number, categoryId: number) => {
+  const existing: FiledEntry[] = await m.query(
+    `SELECT date_of_reporting, reporting_period, year_type FROM emission WHERE site_id = $1 AND category_id = $2`,
+    [siteId, categoryId],
+  );
+  const emails = [...new Set(rows.map((r) => String(r.email ?? "").trim().toLowerCase()).filter(Boolean))];
+  const existingEmails = new Set<string>(
+    emails.length
+      ? (await m.query(`SELECT lower(email) AS email FROM "user" WHERE lower(email) = ANY($1)`, [emails])).map(
+          (u: { email: string }) => u.email,
+        )
+      : [],
+  );
+  return planHistoricalRows(rows, filedMonths(existing), existingEmails);
+};
+
 /**
  * The redesigned historical import (P27): the request names an existing
- * client, site and category by id, nothing is created from free text, and
- * `dryRun=true` returns the plan without saving. New people get an invite
- * email to choose a password; no password is ever returned.
+ * client, site and category by id, and nothing is created from free text.
+ * It previews by default and saves only with `commit=true`. New people get
+ * an invite email to choose a password; no password is ever returned.
  */
 const uploadHistorical = async (req: Request, res: Response) => {
   const companyId = positiveInt(req.body.companyId);
   const siteId = positiveInt(req.body.siteId);
   const categoryId = positiveInt(req.body.categoryId);
-  const dryRun = req.body.dryRun === "true" || req.body.dryRun === "1";
+  const commit = req.body.commit;
+  if (commit !== undefined && commit !== "true" && commit !== "false") {
+    return res.status(400).json({ message: "commit must be true or false." });
+  }
   if (!companyId || !siteId || !categoryId) {
     return res.status(400).json({ message: "Choose a client, a site and a category." });
   }
@@ -108,31 +132,16 @@ const uploadHistorical = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "That category isn't set up for this site. Add it to the site first." });
   }
 
-  const workbook = XLSX.read(req.file!.buffer, { type: "buffer" });
-  const rows: HistoricalRow[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+  let rows: HistoricalRow[];
+  try {
+    const workbook = XLSX.read(req.file!.buffer, { type: "buffer" });
+    rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+  } catch {
+    return res.status(400).json({ message: "The file couldn't be read as a spreadsheet." });
+  }
   if (rows.length === 0) return res.status(400).json({ message: "The sheet has no rows under the header." });
 
-  const existing: { date_of_reporting: Date | string }[] = await AppDataSource.query(
-    `SELECT date_of_reporting FROM emission WHERE site_id = $1 AND category_id = $2`,
-    [siteId, categoryId],
-  );
-  const monthOf = (d: Date | string) => {
-    const date = new Date(d);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-  };
-  // Only the 15th counts as taken, as in the old import: an entry on another
-  // day of that month was made some other way and doesn't block this one.
-  const existingPeriods = new Set(existing.map((e) => new Date(e.date_of_reporting)).filter((d) => d.getDate() === 15).map(monthOf));
-  const emails = [...new Set(rows.map((r) => String(r.email ?? "").trim().toLowerCase()).filter(Boolean))];
-  const existingEmails = new Set<string>(
-    emails.length
-      ? (await AppDataSource.query(`SELECT lower(email) AS email FROM "user" WHERE lower(email) = ANY($1)`, [emails])).map(
-          (u: { email: string }) => u.email,
-        )
-      : [],
-  );
-  const plan = planHistoricalRows(rows, existingPeriods, existingEmails);
-  const summary = {
+  const summaryOf = (plan: HistoricalPlan) => ({
     totalRows: rows.length,
     toImport: plan.toImport,
     toSkip: plan.toSkip,
@@ -140,20 +149,26 @@ const uploadHistorical = async (req: Request, res: Response) => {
     existingPeople: plan.people.filter((p) => p.exists).length,
     site: { id: site.site_id, name: site.name },
     category: { id: category.category_id, name: category.category_name },
-  };
+  });
 
-  if (dryRun) {
+  if (commit !== "true") {
+    const plan = await planFor(AppDataSource.manager, rows, siteId, categoryId);
     return res.json({
       dryRun: true,
-      summary,
+      summary: summaryOf(plan),
       rows: plan.rows.slice(0, PREVIEW_ROWS),
       people: plan.people,
       invalidEmails: plan.invalidEmails,
     });
   }
 
-  // Entries and accounts are saved together: a failure saves nothing.
-  const created = await AppDataSource.transaction(async (m) => {
+  // Entries and accounts are saved together: a failure saves nothing. The
+  // lock makes a second import for the same site and category wait, and the
+  // plan is made again inside the transaction, so a double submit skips the
+  // months the first one filed instead of saving them twice.
+  const { plan, created } = await AppDataSource.transaction(async (m) => {
+    await m.query(`SELECT pg_advisory_xact_lock($1, $2)`, [siteId, categoryId]);
+    const plan = await planFor(m, rows, siteId, categoryId);
     const newUsers: User[] = [];
     for (const person of plan.people.filter((p) => !p.exists)) {
       newUsers.push(
@@ -185,7 +200,7 @@ const uploadHistorical = async (req: Request, res: Response) => {
         }),
       );
     }
-    return newUsers;
+    return { plan, created: newUsers };
   });
 
   let invitesSent = 0;
@@ -208,7 +223,7 @@ const uploadHistorical = async (req: Request, res: Response) => {
   return res.json({
     dryRun: false,
     summary: {
-      ...summary,
+      ...summaryOf(plan),
       emissionsCreated: plan.toImport,
       emissionsSkipped: plan.toSkip,
       usersCreated: created.length,

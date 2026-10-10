@@ -50,7 +50,9 @@ test("the site must belong to the client and the category must be set up for the
 
 test("a dry run returns the plan and saves nothing; the import saves it and invites new people", async () => {
   const before = await entries();
-  const preview = await call("POST", "/admin/upload/emissions", "superadmin", form({ companyId: 1, siteId: 2, categoryId: 2, dryRun: true }));
+  // Without commit=true it only previews; an unknown value is refused.
+  assert.equal((await call("POST", "/admin/upload/emissions", "superadmin", form({ companyId: 1, siteId: 2, categoryId: 2, commit: "yes" }))).status, 400);
+  const preview = await call("POST", "/admin/upload/emissions", "superadmin", form({ companyId: 1, siteId: 2, categoryId: 2 }));
   assert.equal(preview.status, 200, JSON.stringify(preview.json));
   assert.equal(preview.json.dryRun, true);
   assert.deepEqual(
@@ -71,8 +73,15 @@ test("a dry run returns the plan and saves nothing; the import saves it and invi
   assert.equal(await entries(), before);
   await withDb(async (db) => assert.equal((await db.query(`SELECT 1 FROM "user" WHERE email = 'hist-new@ci.example'`)).rowCount, 0));
 
-  const done = await call("POST", "/admin/upload/emissions", "superadmin", form({ companyId: 1, siteId: 2, categoryId: 2 }));
+  // A double submit: the second import waits for the first and skips what it filed.
+  const [done, twice] = await Promise.all([
+    call("POST", "/admin/upload/emissions", "superadmin", form({ companyId: 1, siteId: 2, categoryId: 2, commit: true })),
+    call("POST", "/admin/upload/emissions", "superadmin", form({ companyId: 1, siteId: 2, categoryId: 2, commit: true })),
+  ]).then((both) => both.sort((a, b) => b.json.summary.emissionsCreated - a.json.summary.emissionsCreated));
   assert.equal(done.status, 200, JSON.stringify(done.json));
+  assert.equal(twice.status, 200, JSON.stringify(twice.json));
+  assert.equal(twice.json.summary.emissionsCreated, 0);
+  assert.equal(twice.json.summary.usersCreated, 0);
   assert.equal(done.json.summary.emissionsCreated, 2);
   assert.equal(done.json.summary.usersCreated, 1);
   assert.equal(done.json.summary.invitesSent, 0);

@@ -102,6 +102,33 @@ export const rowTotal = (row: HistoricalRow): { total: number; from: "calculated
   return null;
 };
 
+export type FiledEntry = { date_of_reporting: Date | string; reporting_period?: string | null };
+
+const monthKey = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, "0")}`;
+
+/**
+ * The months already reported for a site and category, each with why. A
+ * monthly entry takes its month whatever its day; a yearly entry's date is
+ * its period end and it covers that month and the eleven before it (CY or FY).
+ */
+export const filedMonths = (entries: FiledEntry[]): Map<string, string> => {
+  const filed = new Map<string, string>();
+  for (const e of entries) {
+    const d = new Date(e.date_of_reporting);
+    if (Number.isNaN(d.getTime())) continue;
+    if (e.reporting_period === "yearly") {
+      for (let i = 0; i < 12; i++) {
+        const k = new Date(d.getFullYear(), d.getMonth() - i, 1);
+        const key = monthKey(k.getFullYear(), k.getMonth());
+        if (!filed.has(key)) filed.set(key, "A yearly entry for this site and category already covers this month.");
+      }
+    } else {
+      filed.set(monthKey(d.getFullYear(), d.getMonth()), "This site already has an entry for this category and month.");
+    }
+  }
+  return filed;
+};
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type PlannedRow = {
@@ -129,13 +156,13 @@ export type HistoricalPlan = {
 };
 
 /**
- * @param existingPeriods months ("2025-01") that already have an entry for the
- *   chosen site and category: those rows are skipped, as the old import did.
+ * @param filed months ("2025-01") already reported for the chosen site and
+ *   category, with the reason to show (see filedMonths): those rows are skipped.
  * @param existingEmails lower-case emails that already have an account.
  */
 export const planHistoricalRows = (
   rows: HistoricalRow[],
-  existingPeriods: ReadonlySet<string>,
+  filed: ReadonlyMap<string, string>,
   existingEmails: ReadonlySet<string>,
 ): HistoricalPlan => {
   const firstRowFor = new Map<string, number>();
@@ -155,7 +182,8 @@ export const planHistoricalRows = (
     const skip = (reason: string): PlannedRow => ({ ...base, status: "skip", reason });
 
     if (!period) return skip("Year or month is missing or not recognised.");
-    if (existingPeriods.has(period)) return skip("This site already has an entry for this category and month.");
+    const filedReason = filed.get(period);
+    if (filedReason) return skip(filedReason);
     const first = firstRowFor.get(period);
     if (first !== undefined) return skip(`Same month as row ${first}; only one entry per month is kept.`);
     if (!total) return skip("No total: the activity, factor and units don't give one and the sheet has no calculatedEmission.");
