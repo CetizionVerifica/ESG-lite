@@ -3,7 +3,7 @@
 // Every route sits behind requirePcfAccess (Manager or Superadmin) and is
 // scoped to the manager's own sites. Only drafts can be edited or deleted.
 import { Response } from "express";
-import { In } from "typeorm";
+import { EntityManager, In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { PcfStudy, PcfAllocationKey, PcfStudyStatus } from "../entities/PcfStudy";
@@ -492,7 +492,7 @@ export const replaceInputs = async (req: AuthRequest, res: Response) => {
 // -------------------------------------------------------- material factors ---
 
 // Licensed (ecoinvent) values are never shown to clients, only to superadmins.
-function factorJson(f: MaterialFactor, scope: PcfScope) {
+function factorJson(f: MaterialFactor, scope: PcfScope, usage?: FactorUsage) {
   const hidden = f.licence === "ecoinvent" && !scope.all;
   return {
     material_factor_id: f.material_factor_id,
@@ -511,7 +511,82 @@ function factorJson(f: MaterialFactor, scope: PcfScope) {
     recycled_variant: f.recycled_variant,
     valid_from: f.valid_from,
     valid_to: f.valid_to,
+    used_by: usage?.used_by ?? 0,
+    used_by_approved: usage?.used_by_approved ?? 0,
   };
+}
+
+// C04 "Used by": footprints (studies) with a line on the factor, as virgin or
+// recycled factor. Counted only over studies the caller can see, so a global
+// factor never reveals other companies' footprints. Approved counts approved
+// and published ones, which keep their snapshot when the factor changes.
+interface FactorUsage {
+  used_by: number;
+  used_by_approved: number;
+}
+
+const USES_SQL = `
+  SELECT u.factor_id, s.pcf_study_id, s.status, s.version, s.site_id, p.product_id, p.name AS product_name
+    FROM (SELECT material_factor_id AS factor_id, pcf_study_id FROM pcf_input WHERE material_factor_id IS NOT NULL
+          UNION
+          SELECT recycled_material_factor_id, pcf_study_id FROM pcf_input WHERE recycled_material_factor_id IS NOT NULL) u
+    JOIN pcf_study s ON s.pcf_study_id = u.pcf_study_id
+    JOIN product p ON p.product_id = s.product_id
+   WHERE u.factor_id = ANY($1::int[]) AND ($2::int[] IS NULL OR s.site_id = ANY($2::int[]))`;
+
+interface FactorUse {
+  factor_id: number;
+  pcf_study_id: number;
+  status: PcfStudyStatus;
+  version: number;
+  site_id: number;
+  product_id: number;
+  product_name: string;
+}
+
+async function factorUses(ids: number[], scope: PcfScope): Promise<FactorUse[]> {
+  if (!ids.length) return [];
+  return AppDataSource.query(USES_SQL + " ORDER BY p.name, s.version DESC", [ids, scope.all ? null : scope.siteIds]);
+}
+
+function usageById(uses: FactorUse[]): Map<number, FactorUsage> {
+  const out = new Map<number, FactorUsage>();
+  for (const u of uses) {
+    const n = out.get(u.factor_id) ?? { used_by: 0, used_by_approved: 0 };
+    n.used_by += 1;
+    if (u.status === "approved" || u.status === "published") n.used_by_approved += 1;
+    out.set(u.factor_id, n);
+  }
+  return out;
+}
+
+// One factor per name × geography × source year × company (C04). Names and
+// geographies compare trimmed and case-insensitively; empty geography or year
+// match each other. Run inside the transaction holding FACTOR_LOCK.
+const FACTOR_LOCK = 7103;
+type FactorKey = { name: string; geography: string | null; source_year: number | null; companyId: number | null };
+const keyOf = (k: FactorKey) =>
+  [k.name.trim().toLowerCase(), (k.geography ?? "").trim().toLowerCase(), k.source_year ?? "", k.companyId ?? ""].join("|");
+
+async function findDuplicate(m: EntityManager, k: FactorKey, excludeId: number | null): Promise<number | null> {
+  const rows: { material_factor_id: number }[] = await m.query(
+    `SELECT material_factor_id FROM material_factor
+      WHERE lower(trim(name)) = lower(trim($1))
+        AND lower(trim(coalesce(geography, ''))) = lower(trim(coalesce($2::varchar, '')))
+        AND source_year IS NOT DISTINCT FROM $3::int
+        AND company_id IS NOT DISTINCT FROM $4::int
+        AND material_factor_id <> $5
+      ORDER BY material_factor_id LIMIT 1`,
+    [k.name, k.geography, k.source_year, k.companyId, excludeId ?? 0],
+  );
+  return rows[0]?.material_factor_id ?? null;
+}
+
+const DUPLICATE = "A factor with this name, geography and year already exists";
+class DuplicateFactor extends Error {
+  constructor(public existingId: number) {
+    super(DUPLICATE);
+  }
 }
 
 // GET /pcf/material-factors?group=&q=&companyId=
@@ -530,7 +605,8 @@ export const listMaterialFactors = async (req: AuthRequest, res: Response) => {
     if (typeof req.query.group === "string" && req.query.group) qb.andWhere("f.material_group = :g", { g: req.query.group });
     if (typeof req.query.q === "string" && req.query.q.trim()) qb.andWhere("f.name ILIKE :q", { q: `%${req.query.q.trim()}%` });
     const factors = await qb.getMany();
-    res.json(factors.map((f) => factorJson(f, scope)));
+    const usage = usageById(await factorUses(factors.map((f) => f.material_factor_id), scope));
+    res.json(factors.map((f) => factorJson(f, scope, usage.get(f.material_factor_id))));
   } catch (err) {
     console.error("listMaterialFactors", err);
     res.status(500).json({ message: "Could not load material factors" });
@@ -561,7 +637,9 @@ function readFactor(body: any, partial: boolean): [Partial<MaterialFactor>, stri
     if (!["open", "ecoinvent", "supplier"].includes(body.licence)) return [f, "licence must be open, ecoinvent or supplier"];
     f.licence = body.licence;
   }
-  for (const k of ["geography", "source", "dataset_ref"] as const) if (body[k] !== undefined) f[k] = body[k] === null ? null : String(body[k]);
+  for (const k of ["geography", "source", "dataset_ref"] as const) {
+    if (body[k] !== undefined) f[k] = body[k] === null || String(body[k]).trim() === "" ? null : String(body[k]).trim();
+  }
   if (body.source_year !== undefined) {
     const y = body.source_year === null ? null : Number(body.source_year);
     if (y !== null && !Number.isInteger(y)) return [f, "source_year must be a year"];
@@ -577,36 +655,137 @@ function readFactor(body: any, partial: boolean): [Partial<MaterialFactor>, stri
   return [f, null];
 }
 
+// Which company a new factor belongs to: superadmins pick one (null = global),
+// managers add to their own. Returns [companyId, status, message] on refusal.
+async function targetCompany(scope: PcfScope, raw: unknown): Promise<[number | null, number?, string?]> {
+  if (scope.all) {
+    const companyId = raw == null ? null : idParam(raw);
+    if (raw != null && companyId === null) return [null, 400, "company_id must be an id, or null for the global library"];
+    if (companyId !== null && !(await AppDataSource.getRepository(Company).exist({ where: { company_id: companyId } }))) {
+      return [null, 404, "Company not found"];
+    }
+    return [companyId];
+  }
+  const companyId = idParam(raw) ?? (scope.companyIds.length === 1 ? scope.companyIds[0] : null);
+  if (companyId === null || !scope.companyIds.includes(companyId)) return [null, 403, "Managers add factors to their own company"];
+  return [companyId];
+}
+
+const LICENSED_ADD = "Only a superadmin can add licensed (ecoinvent) factors";
+
 // POST /pcf/material-factors  (company_id: null = global, superadmin only)
 export const createMaterialFactor = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await pcfScope(req);
     const body = req.body ?? {};
-    let companyId: number | null;
-    if (scope.all) {
-      companyId = body.company_id == null ? null : idParam(body.company_id);
-      if (body.company_id != null && companyId === null) return res.status(400).json({ message: "company_id must be an id, or null for the global library" });
-      if (companyId !== null && !(await AppDataSource.getRepository(Company).exist({ where: { company_id: companyId } }))) {
-        return res.status(404).json({ message: "Company not found" });
-      }
-    }
-    else companyId = idParam(body.company_id) ?? (scope.companyIds.length === 1 ? scope.companyIds[0] : null);
-    if (!scope.all && (companyId === null || !scope.companyIds.includes(companyId))) {
-      return res.status(403).json({ message: "Managers add factors to their own company" });
-    }
+    const [companyId, status, message] = await targetCompany(scope, body.company_id);
+    if (status) return res.status(status).json({ message });
     const [fields, error] = readFactor(body, false);
     if (error) return res.status(400).json({ message: error });
-    if (!scope.all && fields.licence === "ecoinvent") {
-      return res.status(403).json({ message: "Only a superadmin can add licensed (ecoinvent) factors" });
-    }
-    const saved = await factorRepo().save(
-      factorRepo().create({ ...fields, company: companyId === null ? null : ({ company_id: companyId } as any) }),
-    );
+    if (!scope.all && fields.licence === "ecoinvent") return res.status(403).json({ message: LICENSED_ADD });
+    const saved = await AppDataSource.transaction(async (m) => {
+      await m.query("SELECT pg_advisory_xact_lock($1, 0)", [FACTOR_LOCK]);
+      const dup = await findDuplicate(m, { name: fields.name!, geography: fields.geography ?? null, source_year: fields.source_year ?? null, companyId }, null);
+      if (dup) throw new DuplicateFactor(dup);
+      return m.save(m.create(MaterialFactor, { ...fields, company: companyId === null ? null : ({ company_id: companyId } as any) }));
+    });
     const fresh = await factorRepo().findOne({ where: { material_factor_id: saved.material_factor_id }, relations: ["company"] });
     res.status(201).json(factorJson(fresh!, scope));
   } catch (err) {
+    if (err instanceof DuplicateFactor) return res.status(409).json({ message: DUPLICATE, existing_id: err.existingId });
     console.error("createMaterialFactor", err);
     res.status(500).json({ message: "Could not add the factor" });
+  }
+};
+
+const MAX_IMPORT = 1000;
+
+// POST /pcf/material-factors/import[?dry_run=1]  { company_id?, rows: [...] }
+// Every row is checked first (same rules as one factor, plus duplicates within
+// the sheet and against the library); then all rows are saved, or none.
+// dry_run=1 saves nothing and returns 200 { valid, errors } with every problem
+// at once, so the review step can show invalid and existing rows together.
+export const importMaterialFactors = async (req: AuthRequest, res: Response) => {
+  try {
+    const scope = await pcfScope(req);
+    const body = req.body ?? {};
+    const [companyId, status, message] = await targetCompany(scope, body.company_id);
+    if (status) return res.status(status).json({ message });
+    const rows = body.rows;
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ message: "rows must be a non-empty list" });
+    if (rows.length > MAX_IMPORT) return res.status(400).json({ message: `At most ${MAX_IMPORT} rows per import` });
+
+    const errors: { index: number; message: string; existing_id?: number; duplicate_of_row?: number }[] = [];
+    const parsed: Partial<MaterialFactor>[] = [];
+    const seen = new Map<string, number>();
+    rows.forEach((row: unknown, index: number) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) return errors.push({ index, message: "Each row must be an object" });
+      const [fields, error] = readFactor(row, false);
+      if (error) return errors.push({ index, message: error });
+      if (!scope.all && fields.licence === "ecoinvent") return errors.push({ index, message: LICENSED_ADD });
+      const key = keyOf({ name: fields.name!, geography: fields.geography ?? null, source_year: fields.source_year ?? null, companyId });
+      if (seen.has(key)) return errors.push({ index, message: "Repeats an earlier row in this sheet", duplicate_of_row: seen.get(key) });
+      seen.set(key, index);
+      parsed[index] = fields;
+    });
+    const dryRun = req.query.dry_run === "1" || req.query.dry_run === "true";
+    if (dryRun) {
+      for (let index = 0; index < rows.length; index++) {
+        const f = parsed[index];
+        if (!f) continue;
+        const dup = await findDuplicate(AppDataSource.manager, { name: f.name!, geography: f.geography ?? null, source_year: f.source_year ?? null, companyId }, null);
+        if (dup) errors.push({ index, message: DUPLICATE, existing_id: dup });
+      }
+      errors.sort((a, b) => a.index - b.index);
+      return res.json({ valid: errors.length === 0, rows: rows.length, errors });
+    }
+    if (errors.length) return res.status(400).json({ message: "Some rows are not valid; nothing was imported", errors });
+
+    const saved = await AppDataSource.transaction(async (m) => {
+      await m.query("SELECT pg_advisory_xact_lock($1, 0)", [FACTOR_LOCK]);
+      for (let index = 0; index < parsed.length; index++) {
+        const f = parsed[index];
+        const dup = await findDuplicate(m, { name: f.name!, geography: f.geography ?? null, source_year: f.source_year ?? null, companyId }, null);
+        if (dup) errors.push({ index, message: DUPLICATE, existing_id: dup });
+      }
+      if (errors.length) return null;
+      const company = companyId === null ? null : ({ company_id: companyId } as any);
+      return m.save(parsed.map((f) => m.create(MaterialFactor, { ...f, company })));
+    });
+    if (!saved) return res.status(409).json({ message: "Some rows are already in the library; nothing was imported", errors });
+    const fresh = await factorRepo().find({
+      where: { material_factor_id: In(saved.map((f) => f.material_factor_id)) },
+      relations: ["company"],
+      order: { material_factor_id: "ASC" },
+    });
+    res.status(201).json({ created: fresh.length, factors: fresh.map((f) => factorJson(f, scope)) });
+  } catch (err) {
+    console.error("importMaterialFactors", err);
+    res.status(500).json({ message: "Could not import the factors" });
+  }
+};
+
+// GET /pcf/material-factors/:id  the factor and the footprints that use it.
+export const getMaterialFactor = async (req: AuthRequest, res: Response) => {
+  try {
+    const scope = await pcfScope(req);
+    const id = idParam(req.params.id);
+    const f = id ? await factorRepo().findOne({ where: { material_factor_id: id }, relations: ["company"] }) : null;
+    if (!f || !canSeeCompany(scope, f.company?.company_id ?? null)) return res.status(404).json({ message: "Factor not found" });
+    const uses = await factorUses([f.material_factor_id], scope);
+    res.json({
+      ...factorJson(f, scope, usageById(uses).get(f.material_factor_id)),
+      used_in: uses.map((u) => ({
+        pcf_study_id: u.pcf_study_id,
+        product: { product_id: u.product_id, name: u.product_name },
+        version: u.version,
+        status: u.status,
+        site_id: u.site_id,
+      })),
+    });
+  } catch (err) {
+    console.error("getMaterialFactor", err);
+    res.status(500).json({ message: "Could not load the factor" });
   }
 };
 
@@ -641,10 +820,27 @@ export const updateMaterialFactor = async (req: AuthRequest, res: Response) => {
     if (!scope.all && fields.licence === "ecoinvent") {
       return res.status(403).json({ message: "Only a superadmin can mark a factor as licensed (ecoinvent)" });
     }
-    await factorRepo().update({ material_factor_id: f.material_factor_id }, fields);
+    await AppDataSource.transaction(async (m) => {
+      await m.query("SELECT pg_advisory_xact_lock($1, 0)", [FACTOR_LOCK]);
+      const companyId = f.company?.company_id ?? null;
+      const key = {
+        name: fields.name ?? f.name,
+        geography: fields.geography !== undefined ? fields.geography : f.geography,
+        source_year: fields.source_year !== undefined ? fields.source_year : f.source_year,
+        companyId,
+      };
+      // Only a change of key is checked, so rows that were duplicates before C04 stay editable.
+      if (keyOf(key) !== keyOf({ name: f.name, geography: f.geography, source_year: f.source_year, companyId })) {
+        const dup = await findDuplicate(m, key, f.material_factor_id);
+        if (dup) throw new DuplicateFactor(dup);
+      }
+      await m.update(MaterialFactor, { material_factor_id: f.material_factor_id }, fields);
+    });
     const fresh = await factorRepo().findOne({ where: { material_factor_id: f.material_factor_id }, relations: ["company"] });
-    res.json(factorJson(fresh!, scope));
+    const usage = usageById(await factorUses([f.material_factor_id], scope));
+    res.json(factorJson(fresh!, scope, usage.get(f.material_factor_id)));
   } catch (err) {
+    if (err instanceof DuplicateFactor) return res.status(409).json({ message: DUPLICATE, existing_id: err.existingId });
     console.error("updateMaterialFactor", err);
     res.status(500).json({ message: "Could not save the factor" });
   }
