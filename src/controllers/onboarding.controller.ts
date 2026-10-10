@@ -7,6 +7,9 @@ import { Site } from "../entities/Site";
 import { UserRole } from "../types/type";
 import {
     saveCompanyLogo,
+    saveCompanyGuideline,
+    isSupportedGuidelineMime,
+    SUPPORTED_GUIDELINE_MIMES,
     isSupportedLogoMime,
     isAssetStorageConfigured,
     SUPPORTED_LOGO_MIMES,
@@ -105,10 +108,11 @@ export const onboardCompany = async (req: Request, res: Response) => {
         });
         await userRepo.save(user);
 
-        // 6. Store the brand logo, if one came with the form. The company is
-        // already onboarded at this point, so a logo failure is reported as a
-        // warning rather than failing the whole request.
-        const warnings = await storeLogo(req, savedCompany);
+        // 6. Store the brand logo and colour guideline, if they came with the
+        // form. The company is already onboarded at this point, so a failure is
+        // reported as a warning rather than failing the whole request. One
+        // after the other: both upsert the same brand row.
+        const warnings = [...(await storeLogo(req, savedCompany)), ...(await storeGuideline(req, savedCompany))];
 
         return res.status(201).json({
             message: "Company onboarded successfully",
@@ -145,5 +149,25 @@ const storeLogo = async (req: Request, company: Company): Promise<string[]> => {
     } catch (error) {
         console.error("Onboarding logo upload error:", error);
         return ["Logo was not saved: upload failed"];
+    }
+};
+
+const storeGuideline = async (req: Request, company: Company): Promise<string[]> => {
+    const file = uploadedFile(req, "colorGuideline");
+    if (!file) return [];
+
+    if (!isSupportedGuidelineMime(file.mimetype)) {
+        return [`Colour guideline was not saved: unsupported file type (allowed: ${SUPPORTED_GUIDELINE_MIMES.join(", ")})`];
+    }
+    if (!isAssetStorageConfigured()) {
+        return ["Colour guideline was not saved: asset storage (R2) is not configured on the server"];
+    }
+
+    try {
+        await saveCompanyGuideline(company.company_id, company.name, file);
+        return [];
+    } catch (error) {
+        console.error("Onboarding colour guideline upload error:", error);
+        return ["Colour guideline was not saved: upload failed"];
     }
 };

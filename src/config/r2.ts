@@ -50,6 +50,10 @@ export const brandLogoKey = (companyId: number, ext: string): string =>
 export const brandDarkLogoKey = (companyId: number, ext: string): string =>
   `${BRAND_PREFIX}/company_${companyId}_dark.${ext}`;
 
+// The client's colour-guideline file (PDF or image), next to its logos.
+export const brandGuidelineKey = (companyId: number, ext: string): string =>
+  `${BRAND_PREFIX}/company_${companyId}_guideline.${ext}`;
+
 // Upload bytes at `key` (overwrites) and return { url, key }.
 export async function uploadToR2(
   buffer: Buffer,

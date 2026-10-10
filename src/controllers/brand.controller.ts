@@ -5,6 +5,9 @@ import { Company } from "../entities/Company";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import {
   saveCompanyLogo,
+  saveCompanyGuideline,
+  isSupportedGuidelineMime,
+  SUPPORTED_GUIDELINE_MIMES,
   isSupportedLogoMime,
   isAssetStorageConfigured,
   SUPPORTED_LOGO_MIMES,
@@ -36,6 +39,9 @@ const loadBrandOrDefaults = async (companyId: number) => {
     logoPublicId: null,
     logoOnDarkUrl: null,
     logoOnDarkPublicId: null,
+    guidelineUrl: null,
+    guidelinePublicId: null,
+    guidelineName: null,
     defaultLook: "classic",
     scope3Colour: null,
   };
@@ -59,7 +65,7 @@ export const getBrand = async (req: AuthRequest, res: Response) => {
     const brand = await loadBrandOrDefaults(companyId);
     if (!brand) return res.status(404).json({ message: "Company not found" });
     if (isSuperAdmin) return res.status(200).json(brand);
-    const { logoPublicId, logoOnDarkPublicId, ...kit } = brand as any;
+    const { logoPublicId, logoOnDarkPublicId, guidelinePublicId, ...kit } = brand as any;
     return res.status(200).json(kit);
   } catch (error) {
     console.error("Get brand error:", error);
@@ -81,7 +87,7 @@ export const getMyBrand = async (req: AuthRequest, res: Response) => {
 
     const brand = await loadBrandOrDefaults(companyId);
     if (!brand) return res.status(404).json({ message: "Company not found" });
-    const { logoPublicId, logoOnDarkPublicId, ...kit } = brand as any;
+    const { logoPublicId, logoOnDarkPublicId, guidelinePublicId, ...kit } = brand as any;
     return res.status(200).json(kit);
   } catch (error) {
     console.error("Get my brand error:", error);
@@ -98,7 +104,7 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
     const company = await companyRepo().findOne({ where: { company_id: companyId } });
     if (!company) return res.status(404).json({ message: "Company not found" });
 
-    const { name, primary, accent, coverFrom, coverTo, defaultLook, scope3Colour, logoOnDarkUrl } = req.body;
+    const { name, primary, accent, coverFrom, coverTo, defaultLook, scope3Colour, logoOnDarkUrl, guidelineUrl } = req.body;
     for (const [k, v] of Object.entries({ primary, accent, coverFrom, coverTo })) {
       if (v !== undefined && !HEX.test(String(v))) {
         return res.status(400).json({ message: `${k} must be a 6-digit hex color like #1f2a44` });
@@ -113,6 +119,10 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
     // The dark logo is set by upload only; null removes it.
     if (logoOnDarkUrl !== undefined && logoOnDarkUrl !== null) {
       return res.status(400).json({ message: "logoOnDarkUrl can only be cleared (null); upload via POST /brands/:companyId/logo-dark" });
+    }
+    // Same for the colour guideline.
+    if (guidelineUrl !== undefined && guidelineUrl !== null) {
+      return res.status(400).json({ message: "guidelineUrl can only be cleared (null); upload via POST /brands/:companyId/guideline" });
     }
 
     const repo = brandRepo();
@@ -130,6 +140,11 @@ export const upsertBrand = async (req: AuthRequest, res: Response) => {
     if (logoOnDarkUrl === null) {
       brand.logoOnDarkUrl = null;
       brand.logoOnDarkPublicId = null;
+    }
+    if (guidelineUrl === null) {
+      brand.guidelineUrl = null;
+      brand.guidelinePublicId = null;
+      brand.guidelineName = null;
     }
 
     await repo.save(brand);
@@ -174,6 +189,34 @@ const handleLogoUpload = async (req: AuthRequest, res: Response, variant: "defau
     return res.status(200).json({ message: "Logo uploaded", brand });
   } catch (error) {
     console.error("Upload brand logo error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// POST /brands/:companyId/guideline — multipart "guideline" file (PDF or
+// image) → R2, stored as the client's colour guideline
+export const uploadBrandGuideline = async (req: AuthRequest, res: Response) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    if (!Number.isInteger(companyId) || companyId < 1) return res.status(400).json({ message: "companyId must be a positive integer" });
+
+    const file = req.file;
+    if (!file) return res.status(400).json({ message: "No file uploaded (field name: guideline)" });
+    if (!isSupportedGuidelineMime(file.mimetype)) {
+      return res.status(400).json({ message: `Colour guideline must be a PDF or an image (${SUPPORTED_GUIDELINE_MIMES.join(", ")})` });
+    }
+
+    const company = await companyRepo().findOne({ where: { company_id: companyId } });
+    if (!company) return res.status(404).json({ message: "Company not found" });
+
+    if (!isAssetStorageConfigured()) {
+      return res.status(503).json({ message: "Asset storage (R2) is not configured on the server" });
+    }
+
+    const brand = await saveCompanyGuideline(companyId, company.name, file);
+    return res.status(200).json({ message: "Colour guideline uploaded", brand });
+  } catch (error) {
+    console.error("Upload brand guideline error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

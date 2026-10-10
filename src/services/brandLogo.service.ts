@@ -3,7 +3,7 @@
 // company onboarding, which accepts a logo in the same multipart payload.
 import { AppDataSource } from "../config/data-source";
 import { Brand } from "../entities/Brand";
-import { uploadToR2, r2Enabled, brandLogoKey, brandDarkLogoKey } from "../config/r2";
+import { uploadToR2, r2Enabled, brandLogoKey, brandDarkLogoKey, brandGuidelineKey } from "../config/r2";
 
 const EXT_BY_MIME: Record<string, string> = {
   "image/png": "png",
@@ -50,4 +50,34 @@ export const saveCompanyLogo = async (
       ? { ...brand, logoOnDarkUrl: url, logoOnDarkPublicId: key }
       : { ...brand, logoUrl: url, logoPublicId: key }
   );
+};
+
+// Colour guidelines arrive as a PDF or an image of the brand sheet.
+const GUIDELINE_EXT_BY_MIME: Record<string, string> = { "application/pdf": "pdf", ...EXT_BY_MIME };
+
+export const SUPPORTED_GUIDELINE_MIMES = Object.keys(GUIDELINE_EXT_BY_MIME);
+
+export const isSupportedGuidelineMime = (mimetype: string): boolean =>
+  mimetype in GUIDELINE_EXT_BY_MIME;
+
+/**
+ * Uploads a colour-guideline file to R2 and upserts the brand row with its URL
+ * and original name. Callers must check `isSupportedGuidelineMime` and
+ * `isAssetStorageConfigured` first.
+ */
+export const saveCompanyGuideline = async (
+  companyId: number,
+  companyName: string,
+  file: LogoFile & { originalname?: string }
+): Promise<Brand> => {
+  const key = brandGuidelineKey(companyId, GUIDELINE_EXT_BY_MIME[file.mimetype] || "pdf");
+  const { url } = await uploadToR2(file.buffer, key, file.mimetype);
+
+  const repo = AppDataSource.getRepository(Brand);
+  const existing = await repo.findOne({ where: { companyId } });
+  const brand = existing || repo.create({ companyId, name: companyName });
+
+  // The key is reused on replace and R2 serves it as immutable, so the version
+  // parameter makes a replaced file show up instead of a cached old one.
+  return repo.save({ ...brand, guidelineUrl: `${url}?v=${Date.now()}`, guidelinePublicId: key, guidelineName: file.originalname || null });
 };
