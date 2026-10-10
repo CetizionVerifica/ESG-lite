@@ -17,7 +17,9 @@ INSERT INTO site_categories (site_id, category_id) VALUES
 INSERT INTO "user" (user_id, name, email, password, role, site_id) VALUES
   (1, 'CI User', 'ci-user@example.invalid', 'x', 'User', 1),
   (2, 'CI Manager', 'ci-manager@example.invalid', 'x', 'Manager', NULL);
-INSERT INTO user_sites (user_id, site_id) VALUES (2, 1), (2, 2);
+-- The contributor (user 1) files for both plants: since the client-isolation
+-- guards (audit F-02) a user can only create entries on sites they belong to.
+INSERT INTO user_sites (user_id, site_id) VALUES (1, 1), (1, 2), (2, 1), (2, 2);
 
 -- factor_value is kgCO2e per denominator_unit; the engine divides by 1000.
 INSERT INTO emission_factors

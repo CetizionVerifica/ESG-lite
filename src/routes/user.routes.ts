@@ -67,6 +67,23 @@ import { getAuditLogs } from "../controllers/auditLog.controller";
 import { exportEmissions } from "../controllers/emissionExport.controller";
 import { getThresholdByCompany } from "../controllers/threshold.controller";
 import { getMyMonth } from "../controllers/myMonth.controller";
+import {
+  requireReviewer,
+  guardSiteParam,
+  guardBodySites,
+  guardBodyEntrySites,
+  guardQuerySites,
+  guardCompanyParam,
+  guardEmissionParam,
+  guardEmissionIds,
+  guardEmissionReview,
+  guardEmissionIdsReview,
+  guardProductionParam,
+  guardProductionReview,
+  guardProductionIdsReview,
+  guardBatch,
+  guardAuditEntity,
+} from "../middlewares/scope.middleware";
 
 const router = Router();
 
@@ -83,71 +100,71 @@ router.use(authenticate);
 router.get("/my-month", getMyMonth);
 
 // Get site by ID (user can access their own site's data)
-router.get("/sites/:id", getSiteById);
+router.get("/sites/:id", guardSiteParam("id"), getSiteById);
 
 // Get column configs for a site and category
-router.get("/column-configs/site/:siteId/category/:categoryId", getColumnConfigsBySiteAndCategory);
+router.get("/column-configs/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getColumnConfigsBySiteAndCategory);
 
 // Emission routes
 router.get("/emissions", getEmissions);
 router.get("/emissions/site/:siteId/category/:categoryId", getEmissionsBySiteAndCategory);
 router.get("/emissions/pending", getPendingEmissions);
-router.post("/emissions", createEmission);
+router.post("/emissions", guardBodySites("site_id"), createEmission);
 
 // Download emissions as Excel (must come before :id routes)
 router.get("/emissions/download", downloadEmissions);
 router.get("/emissions/export", exportEmissions);
 
 // Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
-router.put("/emissions/bulk-approve", bulkApproveEmissions);
-router.put("/emissions/bulk-reject", bulkRejectEmissions);
-router.delete("/emissions/bulk-delete", bulkDeleteEmissions);
-router.put("/emissions/batch/:batchId/approve", approveEmissionsByBatch);
-router.put("/emissions/batch/:batchId/reject", rejectEmissionsByBatch);
-router.delete("/emissions/batch/:batchId", deleteEmissionsByBatch);
-router.get("/emissions/batches", getEmissionBatches);
+router.put("/emissions/bulk-approve", requireReviewer, guardEmissionIdsReview, bulkApproveEmissions);
+router.put("/emissions/bulk-reject", requireReviewer, guardEmissionIdsReview, bulkRejectEmissions);
+router.delete("/emissions/bulk-delete", guardEmissionIds, bulkDeleteEmissions);
+router.put("/emissions/batch/:batchId/approve", requireReviewer, guardBatch(true), approveEmissionsByBatch);
+router.put("/emissions/batch/:batchId/reject", requireReviewer, guardBatch(true), rejectEmissionsByBatch);
+router.delete("/emissions/batch/:batchId", guardBatch(), deleteEmissionsByBatch);
+router.get("/emissions/batches", guardQuerySites("siteIds"), getEmissionBatches);
 
 // Manager edit routes (must come BEFORE :id routes)
-router.put("/emissions/manager-edit/:id", managerUpdateEmission);
+router.put("/emissions/manager-edit/:id", requireReviewer, guardEmissionParam(), managerUpdateEmission);
 
 // Routes with :id parameter
-router.get("/emissions/:id/factor", getEmissionFactorForEmission);
-router.put("/emissions/:id/approve", approveEmission);
-router.put("/emissions/:id/reject", rejectEmission);
-router.put("/emissions/:id", updateEmission);
-router.delete("/emissions/:id", deleteEmission);
+router.get("/emissions/:id/factor", guardEmissionParam(), getEmissionFactorForEmission);
+router.put("/emissions/:id/approve", requireReviewer, guardEmissionReview(), approveEmission);
+router.put("/emissions/:id/reject", requireReviewer, guardEmissionReview(), rejectEmission);
+router.put("/emissions/:id", guardEmissionParam(), updateEmission);
+router.delete("/emissions/:id", guardEmissionParam(), deleteEmission);
 
 // Emission factor routes
-router.get("/emission-factors/site/:siteId/category/:categoryId", getEmissionFactorsBySiteAndCategory);
+router.get("/emission-factors/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getEmissionFactorsBySiteAndCategory);
 
 // Unit routes
-router.get("/units/site/:siteId/category/:categoryId", getUnitsBySiteAndCategory);
+router.get("/units/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getUnitsBySiteAndCategory);
 
 // Product routes (read-only for users)
-router.get("/products/site/:siteId", getProductsBySite);
+router.get("/products/site/:siteId", guardSiteParam("siteId"), getProductsBySite);
 
 // Production data routes
-router.get("/production-data/site/:siteId", getProductionDataBySite);
-router.get("/production-data/manager", getProductionDataForManager);
-router.post("/production-data", createProductionData);
-router.post("/production-data/bulk-create", bulkCreateProductionData);
+router.get("/production-data/site/:siteId", guardSiteParam("siteId"), getProductionDataBySite);
+router.get("/production-data/manager", guardQuerySites("siteIds"), getProductionDataForManager);
+router.post("/production-data", guardBodySites("site_id"), createProductionData);
+router.post("/production-data/bulk-create", guardBodyEntrySites, bulkCreateProductionData);
 
 // Bulk routes must come BEFORE :id routes
-router.put("/production-data/bulk-approve", bulkApproveProductionData);
-router.put("/production-data/bulk-reject", bulkRejectProductionData);
+router.put("/production-data/bulk-approve", requireReviewer, guardProductionIdsReview, bulkApproveProductionData);
+router.put("/production-data/bulk-reject", requireReviewer, guardProductionIdsReview, bulkRejectProductionData);
 
 // Manager edit routes (must come BEFORE :id routes)
-router.put("/production-data/manager-edit/:id", managerUpdateProductionData);
+router.put("/production-data/manager-edit/:id", requireReviewer, guardProductionParam(), managerUpdateProductionData);
 
 // Routes with :id parameter
-router.put("/production-data/:id/approve", approveProductionData);
-router.put("/production-data/:id/reject", rejectProductionData);
-router.put("/production-data/:id", updateProductionData);
-router.delete("/production-data/:id", deleteProductionData);
+router.put("/production-data/:id/approve", requireReviewer, guardProductionReview(), approveProductionData);
+router.put("/production-data/:id/reject", requireReviewer, guardProductionReview(), rejectProductionData);
+router.put("/production-data/:id", guardProductionParam(), updateProductionData);
+router.delete("/production-data/:id", guardProductionParam(), deleteProductionData);
 
 // Emission intensity routes
-router.get("/emission-intensity/site/:siteId", getEmissionIntensity);
-router.get("/emission-intensity/comparison", getEmissionIntensityComparison);
+router.get("/emission-intensity/site/:siteId", guardSiteParam("siteId"), getEmissionIntensity);
+router.get("/emission-intensity/comparison", guardQuerySites(), getEmissionIntensityComparison);
 
 // Document routes
 router.get("/documents", getDocuments);
@@ -159,23 +176,23 @@ router.post("/documents/from-invoice", linkInvoiceDocuments);
 router.put("/documents/:id", updateDocument);
 router.delete("/documents/bulk-delete", bulkDeleteDocuments);
 router.delete("/documents/:id", deleteDocument);
-router.post("/emissions/approved", getApprovedEmissionsReport);
-router.post("/reports/ede", getEdeReport)
+router.post("/emissions/approved", guardBodySites("siteIds"), getApprovedEmissionsReport);
+router.post("/reports/ede", guardBodySites("siteIds"), getEdeReport)
 router.get("/companies", getCompanies)
-router.post("/companies/by-sites", getCompanyNameBySites)
+router.post("/companies/by-sites", guardBodySites("siteIds"), getCompanyNameBySites)
 router.get("/reporting-calendar", getReportingCalendar)
-router.get("/category-mappings/company/:companyId", getMappingsByCompany)
-router.post("/ghg/tables", getGhgReportTables);
-router.post("/ghg/details",getGhgReportDetails)
-router.post("/targets/tables",getNearTermTargetTables)
-router.post("/targets/long-term-chart",getLongTermTargetChart)
+router.get("/category-mappings/company/:companyId", guardCompanyParam("companyId"), getMappingsByCompany)
+router.post("/ghg/tables", guardBodySites("siteIds"), getGhgReportTables);
+router.post("/ghg/details", guardBodySites("siteIds"), getGhgReportDetails)
+router.post("/targets/tables", guardBodySites("siteIds"), getNearTermTargetTables)
+router.post("/targets/long-term-chart", guardBodySites("siteIds"), getLongTermTargetChart)
 router.post("/emissions/calculate-distance", calculateDistance);
 router.post("/emissions/geocode-location", geocodeLocation);
-router.get("/emissions/period-total", getPeriodTotal);
+router.get("/emissions/period-total", guardQuerySites(), getPeriodTotal);
 // Audit trail
-router.get("/audit-logs", getAuditLogs);
+router.get("/audit-logs", guardAuditEntity, getAuditLogs);
 
 //threshold routes
-router.get("/thresholds/company/:companyId", getThresholdByCompany);
+router.get("/thresholds/company/:companyId", guardCompanyParam("companyId"), getThresholdByCompany);
 
 export default router;
