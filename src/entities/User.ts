@@ -77,6 +77,12 @@ export class User {
   @Column({ type: "varchar", length: 10, default: "system" })
   appearance!: UserAppearance;
 
+  // Set on every successful login; shown as "Last active" on the Users page
+  // (redesign P20). select: false so ordinary user reads (login included)
+  // keep working on a database where migrate:user-last-login has not run yet.
+  @Column({ type: "timestamp", nullable: true, select: false })
+  last_login_at?: Date | null;
+
   // Per-user category access control (managed by Manager role)
   @ManyToMany(() => Category)
   @JoinTable({
