@@ -51,7 +51,7 @@ test("search matches category, comment, submitter, activity values and id; summa
   assert.equal(travel.json.total, 3);
   assert.deepEqual(
     { ...travel.json.summary, total_emission: undefined },
-    { total_emission: undefined, pending_count: 0, approved_count: 2, rejected_count: 1 },
+    { total_emission: undefined, pending_count: 0, pending_review_count: 0, approved_count: 2, rejected_count: 1 },
   );
   assert.equal(travel.json.summary.total_emission, 14);
 

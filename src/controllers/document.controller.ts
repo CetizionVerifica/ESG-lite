@@ -512,6 +512,85 @@ const deleteDocumentRows = async (ids: number[]): Promise<{ affected: number; fi
   return { affected, filesDeleted: orphanFiles.length };
 };
 
+type StoredFile = Pick<EmissionDocument, "cloudinary_public_id" | "ai_invoice_id">;
+
+/** The stored files of the documents on these entries, read before the entries are deleted. */
+export const documentFilesForEmissions = async (emissionIds: number[], m: EntityManager = AppDataSource.manager): Promise<StoredFile[]> => {
+  if (!emissionIds.length) return [];
+  return m
+    .getRepository(EmissionDocument)
+    .createQueryBuilder("d")
+    .select(["d.cloudinary_public_id", "d.ai_invoice_id"])
+    .where("d.emission_id IN (:...ids)", { ids: emissionIds })
+    .getMany();
+};
+
+/**
+ * Removes the stored files of documents whose rows were deleted together with
+ * their entries (entry delete, bulk delete, batch delete, replace). Call it
+ * after that delete has committed. A file the documents uploaded themselves is
+ * removed. A file linked from an AI-service invoice is removed only when the
+ * invoice is gone and no other document still links it, the same rule as
+ * deleting documents one by one. Failures are logged; the entries stay deleted.
+ */
+export const removeDeletedDocumentFiles = async (files: StoredFile[]): Promise<void> => {
+  const own = [
+    ...new Set(files.filter((f) => f.ai_invoice_id == null && f.cloudinary_public_id).map((f) => f.cloudinary_public_id as string)),
+  ];
+  // A file another document row still points at stays. If that can't be
+  // checked, every file stays: a leftover file is safer than a missing one.
+  let stillLinked: Set<string> | null = new Set();
+  if (own.length) {
+    try {
+      const rows: { cloudinary_public_id: string }[] = await AppDataSource.query(
+        "SELECT DISTINCT cloudinary_public_id FROM emission_document WHERE cloudinary_public_id = ANY($1)",
+        [own],
+      );
+      stillLinked = new Set(rows.map((r) => r.cloudinary_public_id));
+    } catch (error) {
+      console.error("Document file check error:", error);
+      stillLinked = null;
+    }
+  }
+  for (const publicId of stillLinked ? own : []) {
+    if (stillLinked?.has(publicId)) continue;
+    try {
+      await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
+    } catch (cloudinaryError) {
+      console.error("Cloudinary delete error:", cloudinaryError);
+    }
+  }
+  const byInvoice = new Map<number, string>();
+  for (const f of files) if (f.ai_invoice_id != null && f.cloudinary_public_id) byInvoice.set(f.ai_invoice_id, f.cloudinary_public_id);
+  if (!byInvoice.size) return;
+  const orphanFiles: string[] = [];
+  try {
+    await AppDataSource.transaction(async (m) => {
+      const invoiceIds = [...byInvoice.keys()].sort((a, b) => a - b);
+      for (const invoiceId of invoiceIds) {
+        await m.query("SELECT pg_advisory_xact_lock($1, $2)", [AI_INVOICE_LOCK, invoiceId]);
+      }
+      const live = new Set<number>();
+      if (await invoiceTablePresent(m)) {
+        const rows = await m.query(
+          "SELECT invoice_id FROM invoice WHERE invoice_id = ANY($1) ORDER BY invoice_id FOR SHARE",
+          [invoiceIds],
+        );
+        rows.forEach((r: { invoice_id: number }) => live.add(Number(r.invoice_id)));
+      }
+      for (const invoiceId of invoiceIds) {
+        if (live.has(invoiceId)) continue;
+        const [{ n }] = await m.query("SELECT COUNT(*)::int AS n FROM emission_document WHERE ai_invoice_id = $1", [invoiceId]);
+        if (n === 0) orphanFiles.push(byInvoice.get(invoiceId)!);
+      }
+    });
+  } catch (error) {
+    console.error("Invoice file cleanup error:", error);
+    return;
+  }
+  for (const publicId of orphanFiles) await destroyInvoiceFile(publicId);
+};
+
 class LinkError extends Error {
   constructor(public status: number, message: string) {
     super(message);

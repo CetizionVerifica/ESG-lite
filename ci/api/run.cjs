@@ -55,7 +55,7 @@ async function waitForServer(server, logs) {
   const logs = [];
   const server = spawn(process.execPath, [path.join(ROOT, "dist/index.js")], {
     cwd: ROOT,
-    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1" },
+    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (d) => logs.push(d.toString()));
