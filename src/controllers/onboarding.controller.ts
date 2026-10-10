@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
+import { stampCompanyOnboarded } from "../utils/companyOnboarded";
 import { Company } from "../entities/Company";
 import { Site } from "../entities/Site";
 import { UserRole } from "../types/type";
@@ -85,6 +86,7 @@ export const onboardCompany = async (req: Request, res: Response) => {
             isEmailVerified: true, // Assuming onboarded companies are verified
         });
         const savedCompany = await companyRepo.save(company);
+        await stampCompanyOnboarded(savedCompany.company_id);
 
         // 4. Create Default Site for the Company
         const site = siteRepo.create({

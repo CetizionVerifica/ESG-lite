@@ -18,6 +18,7 @@
     "migrate:notification-meta": "ts-node src/scripts/addNotificationMetaColumn.ts",
     "migrate:brand-guideline": "ts-node src/scripts/addBrandGuidelineColumns.ts",
     "migrate:user-last-login": "ts-node src/scripts/addUserLastLoginColumn.ts",
+    "migrate:company-created-at": "ts-node src/scripts/addCompanyCreatedAtColumn.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs"
   },
