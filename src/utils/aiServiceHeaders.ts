@@ -10,3 +10,16 @@ export function aiServiceHeaders(): Record<string, string> {
   if (key) headers["X-Service-Key"] = key;
   return headers;
 }
+
+const envMs = (name: string, fallback: number): number => {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+};
+
+/**
+ * Time limits for outbound calls, so a hung service cannot hold a request
+ * open forever (audit finding F-14). LLM-backed AI service calls get longer
+ * than route and geocode lookups.
+ */
+export const aiServiceTimeoutMs = () => envMs("AI_SERVICE_TIMEOUT_MS", 30000);
+export const routeServiceTimeoutMs = () => envMs("ROUTE_SERVICE_TIMEOUT_MS", 15000);

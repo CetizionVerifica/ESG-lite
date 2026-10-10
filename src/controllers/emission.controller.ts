@@ -14,7 +14,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import axios from "axios";
-import { aiServiceHeaders } from "../utils/aiServiceHeaders";
+import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
@@ -3695,7 +3695,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
             address: destination.address || null,
           },
         },
-        { headers: aiServiceHeaders() },
+        { headers: aiServiceHeaders(), timeout: routeServiceTimeoutMs() },
       );
 
       const data = response.data?.data;
@@ -3761,6 +3761,7 @@ export const calculateDistance = async (req: AuthRequest, res: Response) => {
         "X-Goog-FieldMask":
           "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
       },
+      timeout: routeServiceTimeoutMs(),
     });
 
     const route = response.data?.routes?.[0];
@@ -3852,6 +3853,7 @@ export const geocodeLocation = async (req: AuthRequest, res: Response) => {
           address: normalizedQuery,
           key: apiKey,
         },
+        timeout: routeServiceTimeoutMs(),
       },
     );
 
