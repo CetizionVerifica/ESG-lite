@@ -17,7 +17,6 @@ import { getBrandTheme } from "./brands";
 import { renderDocument } from "./render";
 import { htmlToPdf } from "./print";
 import { buildVariety } from "./variety";
-import { generateImage, brandImagePrompt } from "./imagery";
 import { writeNarrative } from "./ai-narrative";
 import { computeGhgTables, computeGhgByFuelType, getPeriodRange, type GhgFilters, type Frequency } from "./ghg-data";
 import type { Block, Report } from "./types";
@@ -29,6 +28,25 @@ const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` 
 export interface GhgResult { path: string; filename: string; pages: number; companyName: string; total: number; year: number; }
 
 const RENEW_RE = /renew|solar|wind|hydro|geotherm/i;
+
+/** Mix two #rrggbb colours; `t` is the weight of `a`. */
+function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => { const n = parseInt(h.replace("#", "").slice(0, 6), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const [x, y] = [p(a), p(b)];
+  return "#" + x.map((v, i) => Math.round(v * t + y[i] * (1 - t)).toString(16).padStart(2, "0")).join("");
+}
+
+const SCOPE_LABEL: Record<string, string> = { "scope 1": "Direct emissions", "scope 2": "Energy indirect", "scope 3": "Value chain" };
+const scopeLabel = (sc: string) => SCOPE_LABEL[sc.toLowerCase()] ?? sc;
+
+/** Drop a repeated category prefix: ("Stationary Combustion - Diesel", "Stationary Combustion") → "Diesel". */
+function fuelName(fuel: string, category: string): string {
+  const prefix = `${category.toLowerCase()} - `;
+  return fuel.toLowerCase().startsWith(prefix) && fuel.length > prefix.length ? fuel.slice(prefix.length) : fuel;
+}
+
+/** "Stationary Combustion - Natural gas" → "Natural gas" for headlines. */
+const shortLabel = (s: string) => (s.includes(" - ") ? s.split(" - ").pop()!.trim() : s);
 
 /**
  * Build the branded GHG PDF for a set of on-screen filters. `companyId` is used
@@ -171,209 +189,247 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     missingSites, renewable, months: monthsWithData,
   }).catch(() => null);
 
-  const summary = nar?.summary ?? [
-    `In ${yearLabel}, ${companyName} reported total greenhouse-gas emissions of ${fmt1(total)} tCO₂e across Scope 1, 2 and 3, based on ${sitesWithData.size} of ${allSiteNames.length} selected site(s).`,
-    `Scope 2 (purchased electricity) contributes ${fmt(s2)} tCO₂e (${pct(s2, total)}), Scope 1 (direct combustion and fugitive sources) ${fmt(s1)} tCO₂e (${pct(s1, total)}) and Scope 3 ${fmt(s3)} tCO₂e (${pct(s3, total)}), showing where reduction effort is best focused.`,
-    `Data coverage stands at ${coverage}%${missingSites.length ? `, with ${missingSites.length} site(s) yet to report` : ""}, which the recommendations address.`,
-  ];
   const note = (v: string | undefined, fb: string) => (v && v.length > 4 ? v : fb);
 
-  // Theme + all report imagery up-front, generated IN PARALLEL so the two
-  // section banners (used to fill short pages tastefully) add no extra latency
-  // over the single cover image we already waited for.
   const theme = await getBrandTheme(companyId, companyName);
-  const heroPrompt = brandImagePrompt(
-    `A clean, professional, photographic cover image representing corporate sustainability and clean energy for ${companyName} — solar panels, wind turbines or a modern industrial facility at golden hour, calm and premium`,
-    theme
-  );
-  const sitesPrompt = brandImagePrompt(
-    `A wide cinematic aerial photograph of a modern industrial campus and logistics site at dawn, clean architecture, calm premium mood, no text`,
-    theme
-  );
-  const renewPrompt = brandImagePrompt(
-    `A wide serene photograph of renewable energy infrastructure — solar farm rows and distant wind turbines in soft morning light, hopeful and premium, no text`,
-    theme
-  );
-  const [hero, sitesImg, renewImg] = await Promise.all([
-    generateImage(heroPrompt).catch(() => null),
-    generateImage(sitesPrompt).catch(() => null),
-    generateImage(renewPrompt).catch(() => null),
-  ]);
+
+  // One colour per scope on every chart: brand primary, accent, and a light tint
+  // of the accent. The comparison period is always neutral grey.
+  const SCOPE_COLOR: Record<string, string> = {
+    "Scope 1": theme.colors.primary,
+    "Scope 2": theme.colors.accent,
+    "Scope 3": mixHex(theme.colors.accent, "#ffffff", 0.5),
+  };
+  const PRIOR_GREY = "#B9C1CC";
+  const unit = "tCO₂e";
+  const source = `Source: ESGLite, approved emission entries, ${yearLabel}.`;
+  const siteCount = `${sitesWithData.size} of ${allSiteNames.length}`;
 
   const B: Block[] = [];
 
-  const coverSubtitle = siteNames.length === 1
-    ? `Greenhouse Gas Emissions Inventory · ${siteNames[0]} · ${yearLabel}`
-    : `Greenhouse Gas Emissions Inventory · ${allSiteNames.length} site(s) · ${yearLabel}`;
-
+  // ---- Cover ----
+  const coverSites = allSiteNames.length <= 3
+    ? allSiteNames.join(", ").replace(/, ([^,]*)$/, " and $1")
+    : `${allSiteNames.length} sites`;
   B.push({
-    type: "cover", style: "document", title: `${companyName} Carbon Accounting Report`,
-    subtitle: coverSubtitle,
-    caption: `${freqLabel} · ${periodName} · ${catText} · Prepared to the GHG Protocol Corporate Standard`,
-    infoCards: [
-      { label: "Reporting Period", value: periodName },
-      { label: "Sites Covered", value: `${sitesWithData.size} of ${allSiteNames.length} site(s)` },
-      { label: "Categories", value: catText },
-      { label: "Standard & Boundary", value: "GHG Protocol · Operational Control" },
+    type: "cover", style: "band",
+    kicker: "Greenhouse Gas Emissions Report",
+    eyebrow: `${freqLabel} report · ${periodName}`,
+    title: "Carbon Accounting Report",
+    subtitle: `Scope 1, 2 and 3 emissions across ${coverSites}${catCount > 0 ? ` · ${catText.toLowerCase()}` : ""}`,
+    hero: {
+      value: fmt(total),
+      unit: `${unit} total emissions`,
+      delta: yoy !== null ? `${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}% vs ${compLabel}` : undefined,
+    },
+    meta: [
+      { label: "Sites covered", value: siteCount },
+      { label: "Boundary", value: "Operational control" },
+      { label: "Standard", value: "GHG Protocol Corporate" },
+      { label: "Issued", value: new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }) },
     ],
   });
 
-  B.push({ type: "section", title: "Contents", kicker: "REPORT STRUCTURE" });
+  // ---- 01 Executive summary ----
+  const topScope = scopes.slice().sort((a, b) => b.t - a.t)[0];
+  const scopeWhat: Record<string, string> = { "Scope 1": "direct combustion", "Scope 2": "purchased electricity", "Scope 3": "the value chain" };
+  const headline = [
+    yoy !== null
+      ? `Emissions ${yoy <= 0 ? "fell" : "rose"} ${Math.abs(yoy).toFixed(1)}% to ${fmt(total)} ${unit}.`
+      : `Total emissions were ${fmt(total)} ${unit}.`,
+    topScope ? `${topScope.scope} (${scopeWhat[topScope.scope] ?? topScope.scope}) is ${pct(topScope.t, total)} of the footprint.` : "",
+  ].filter(Boolean).join(" ");
+  B.push({ type: "section", kicker: "01 · Executive summary", title: headline });
   B.push({
-    type: "table", columns: ["#", "Section"], align: ["left", "left"],
-    rows: [
-      ["01", "Introduction, Scope Definitions & Data Notes"],
-      ["02", "Executive Summary — Emissions at a Glance"],
-      ["03", "Emissions Overview by Location"],
-      ["04", "Detailed Analysis by Scope"],
-      ["05", "Results & Key Findings"],
-      ["06", "Data Availability & Renewables"],
-      ["07", "Conclusion & Recommended Actions"],
-    ],
-  });
-
-  B.push({ type: "section", title: "Introduction", kicker: "01 · ABOUT THIS REPORT" });
-  B.push({ type: "narrative", body: [
-    `This report presents the greenhouse gas (GHG) emissions inventory of ${companyName} for ${periodPhrase}. It quantifies direct and energy-indirect emissions across the selected operational boundary and is prepared in accordance with the GHG Protocol Corporate Accounting and Reporting Standard.`,
-    `Emissions are expressed in tonnes of carbon-dioxide equivalent (tCO₂e). Figures are aggregated from site-level activity data and applicable emission factors; all values in this report are drawn directly from the recorded, approved inventory for the selected filters.`,
-  ] });
-  B.push({
-    type: "table", title: "Scope Definitions", columns: ["Scope", "Definition"], align: ["left", "left"],
-    rows: [
-      ["Scope 1", "Direct emissions from owned or controlled sources — stationary and mobile combustion and fugitive releases."],
-      ["Scope 2", "Indirect emissions from the generation of purchased electricity, steam, heating and cooling consumed by the organisation."],
-      ["Scope 3", "Other indirect emissions occurring across the value chain (assessed where data is available)."],
-    ],
-  });
-  B.push({ type: "callout", variant: "info", title: "Notes on Data & Assumptions", body: `Emissions are calculated from metered/recorded activity data multiplied by recognised emission factors, restricted to approved entries. This inventory covers ${sitesWithData.size} of ${allSiteNames.length} selected site(s) for ${yearLabel}; any selected site without entered data is flagged in Section 06 and excluded from totals rather than estimated.` });
-
-  B.push({ type: "section", title: "Executive Summary", kicker: "02 · OVERVIEW" });
-  B.push({
-    type: "statBoard", badge: "EMISSIONS AT A GLANCE", title: `${yearLabel} Performance Summary`,
-    kpis: [
-      { value: fmt(total), label: "Total Emissions (tCO₂e)", sub: `${yearLabel} · all reported scopes` },
-      ...(yoy !== null ? [{ value: `${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}%`, label: "YoY Change", sub: `vs ${compLabel}` }] : []),
-      { value: fmt(s1), label: "Scope 1 · Direct", sub: pct(s1, total) },
-      { value: fmt(s2), label: "Scope 2 · Energy Indirect", sub: pct(s2, total) },
-      { value: fmt(s3), label: "Scope 3 · Value Chain", sub: pct(s3, total) },
-      { value: `${coverage}%`, label: "Data Coverage", sub: `${sitesWithData.size}/${allSiteNames.length} sites` },
-    ],
+    type: "kpiRow",
     tiles: [
-      { label: "Largest Site", value: topSite ? `${topSite.site_name} (${pct(topSite.t, total)})` : "—" },
-      { label: "Largest Source", value: topCat ? `${topCat.emission_category} (${pct(topCat.t, total)})` : "—" },
-      { label: "Renewable Energy", value: renewable > 0 ? `${fmt(renewable)} tCO₂e` : "Not entered" },
+      { label: "Total emissions", value: fmt(total), sub: yoy !== null ? `${unit} · ${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}% vs ${compLabel}` : unit },
+      { label: "Scope 1 · direct", value: fmt(s1), sub: `${pct(s1, total)} of total`, swatch: SCOPE_COLOR["Scope 1"] },
+      { label: "Scope 2 · electricity", value: fmt(s2), sub: `${pct(s2, total)} of total`, swatch: SCOPE_COLOR["Scope 2"] },
+      { label: "Scope 3 · value chain", value: fmt(s3), sub: `${pct(s3, total)} of total`, swatch: SCOPE_COLOR["Scope 3"] },
     ],
   });
-  B.push({ type: "narrative", body: summary });
-  B.push({ type: "chart", title: "Emissions by Scope", chartType: "pie", categories: scopes.map((s) => s.scope), series: [{ name: "tCO₂e", data: scopes.map((s) => Math.round(s.t)) }], caption: "Share of total emissions by GHG scope." });
-  B.push({ type: "chart", title: "Emissions by Category", chartType: "bar", unit: "tCO₂e", categories: cats.slice(0, 8).map((c) => c.emission_category || "—"), series: [{ name: "tCO₂e", data: cats.slice(0, 8).map((c) => Math.round(c.t)) }], caption: "Top emission sources across the selected boundary." });
-
-  B.push({ type: "section", title: "Emissions Overview by Location", kicker: "03 · SITES" });
-  B.push({ type: "narrative", body: [note(nar?.siteNote, `Emissions are distributed across ${sitesWithData.size} reporting site(s), led by ${siteNames[0] ?? "—"}. Site-level visibility lets management prioritise the highest-impact locations.`)] });
-  B.push({ type: "chart", title: "Total emissions — site-wise", chartType: "bar", unit: "tCO₂e", categories: siteNames, series: [{ name: "tCO₂e", data: bySite.map((r) => Math.round(r.t)) }], caption: "Gross emissions by site." });
-  B.push({ type: "narrative", body: [note(nar?.scopeNote, `Splitting each site by scope shows whether direct combustion (Scope 1) or purchased energy (Scope 2) dominates locally, guiding site-specific abatement.`)] });
-  B.push({
-    type: "chart", title: "Site-wise & scope-wise", chartType: "bar", unit: "tCO₂e", categories: siteNames,
-    series: scopeNames.map((sc) => ({ name: sc, data: siteNames.map((sn) => Math.round(siteScopeMap.get(`${sn}||${sc}`) ?? 0)) })),
-    caption: "Each site split by GHG scope.",
-  });
-  B.push({
-    type: "table", title: "Site × Scope (tCO₂e)", columns: ["Site", ...scopeNames, "Total"], align: ["left", ...scopeNames.map(() => "right" as const), "right"],
-    rows: siteNames.map((sn) => {
-      const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
-      return [sn, ...vals.map((v) => fmt(v)), fmt(vals.reduce((a, b) => a + b, 0))];
-    }),
-  });
-  if (sitesImg) B.push({ type: "image", prompt: sitesPrompt, layout: "banner", src: sitesImg, caption: "Operational sites — illustrative imagery." });
-
-  B.push({ type: "section", title: "Detailed Analysis by Scope", kicker: "04 · CATEGORIES & FUEL TYPES" });
-  B.push({ type: "narrative", body: [note(nar?.categoryNote, `Within each scope, emissions are broken down by category and fuel type (e.g. Diesel, Coal, Electricity, refrigerants), linking every figure to the activity that drives it — the basis for fuel-switching and efficiency decisions.`)] });
-  const scopeLabel: Record<string, string> = { "scope 1": "Direct GHG Emissions: Scope 1", "scope 2": "Indirect GHG Emissions: Scope 2", "scope 3": "Indirect GHG Emissions: Scope 3" };
-  for (const sc of scopeNames) {
-    const rows = scopeCat.filter((r) => r.scope === sc && r.t > 0).sort((a, b) => b.t - a.t);
-    if (!rows.length) continue;
-    const scTotal = rows.reduce((a, b) => a + b.t, 0);
-    B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e`, flow: true });
-    B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by emission category.` });
+  if (scopes.length > 1) {
     B.push({
-      type: "table", title: `${sc} category detail`, columns: ["Category", "Emissions", "Share of scope"], align: ["left", "right", "right"],
-      rows: rows.map((r) => [r.emission_category || "Unspecified", fmt(r.t), pct(r.t, scTotal)]),
+      type: "shareBar", title: topScope ? `${topScope.scope} drives the footprint` : "Emissions by scope", subtitle: `Share of total emissions by scope, ${unit}`,
+      parts: scopes.map((s) => ({ label: s.scope, value: s.t, color: SCOPE_COLOR[s.scope] })), unit, caption: source,
     });
+  }
+  if (prevTotal > 0) {
+    const diff = total - prevTotal;
+    B.push({
+      type: "hbar", title: `${diff <= 0 ? "Down" : "Up"} ${fmt(Math.abs(diff))} ${unit} on ${compLabel}`, subtitle: "Total emissions, same period prior year",
+      rows: [{ label: compLabel, value: prevTotal, color: PRIOR_GREY }, { label: yearLabel, value: total }], color: theme.colors.primary, unit,
+      caption: `${compLabel} uses the same sites, categories and period. ${source}`,
+    });
+  }
+  const messages: { lead?: string; text: string }[] = [];
+  if (topScope) messages.push({ lead: "Biggest lever.", text: `${topScope.scope} is ${fmt(topScope.t)} ${unit} (${pct(topScope.t, total)}), the largest reduction lever.` });
+  if (topSite && bySite.length > 1) messages.push({ lead: "Largest site.", text: `${topSite.site_name} emits ${fmt(topSite.t)} ${unit}, ${pct(topSite.t, total)} of the total.` });
+  if (topCat && !(topScope && Math.abs(topCat.t - topScope.t) < 0.5)) messages.push({ lead: "Largest source.", text: `${topCat.emission_category || "Unspecified"} accounts for ${pct(topCat.t, total)} of emissions.` });
+  messages.push(missingSites.length
+    ? { lead: "Coverage gap.", text: `${missingSites.length} of ${allSiteNames.length} selected site(s) have not reported for ${yearLabel}.` }
+    : { lead: "Complete coverage.", text: `All ${allSiteNames.length} selected site(s) reported${renewable > 0 ? "" : "; renewable energy has not been entered yet"}.` });
+  B.push({ type: "bullets", title: "Key messages", items: messages });
 
-    // One level deeper: the fuel type driving each category (e.g. Stationary
-    // Combustion -> Diesel / Coal), so every figure ties back to an activity.
-    const scopeFuels = fuelRows.filter((f) => f.scope === sc && f.emissions > 0);
-    if (scopeFuels.length) {
-      // Categories with no meaningful fuel-type breakdown (e.g. Purchased
-      // Electricity is a single energy stream, not a mix of fuels) are excluded
-      // from the fuel-type section in both the web report and the branded PDF.
-      const NO_FUEL_BREAKDOWN = /purchased electricity/i;
-      const fuelTableRows: string[][] = [];
-      for (const r of rows) {
-        const catName = r.emission_category || "Unspecified";
-        if (NO_FUEL_BREAKDOWN.test(catName)) continue;
-        const fuels = scopeFuels
-          .filter((f) => f.category.toLowerCase() === catName.toLowerCase())
-          .sort((a, b) => b.emissions - a.emissions);
-        if (!fuels.length) continue;
-        const catTotal = fuels.reduce((a, b) => a + b.emissions, 0);
-        fuels.forEach((f, i) => {
-          fuelTableRows.push([
-            i === 0 ? catName : "",
-            f.fuelType,
-            fmt(f.emissions),
-            pct(f.emissions, catTotal),
-          ]);
-        });
-      }
-      if (fuelTableRows.length) {
-        B.push({
-          type: "table",
-          title: `${sc} — fuel / source within each category`,
-          columns: ["Category", "Fuel / source", "Emissions", "Share of category"],
-          align: ["left", "left", "right", "right"],
-          rows: fuelTableRows,
-          caption: "Fuel or spend source driving each reporting category.",
-        });
-      }
+  // ---- 02 Emissions by site ----
+  const topSiteScope = topSite
+    ? scopeNames.map((sc) => ({ sc, v: siteScopeMap.get(`${topSite.site_name}||${sc}`) ?? 0 })).sort((a, b) => b.v - a.v)[0]
+    : undefined;
+  B.push({
+    type: "section", kicker: "02 · Emissions by site",
+    title: topSite && bySite.length > 1
+      ? `${topSite.site_name} accounts for ${pct(topSite.t, total)} of emissions${topSiteScope && topSiteScope.v > topSite.t / 2 ? `, mostly ${scopeWhat[topSiteScope.sc] ?? topSiteScope.sc}` : ""}.`
+      : `Emissions by site for ${yearLabel}.`,
+  });
+  const siteSum = bySite.reduce((a, r) => a + r.t, 0);
+  B.push({
+    type: "stackedBars", title: "Emissions by site and scope", subtitle: `${unit}; bar labels show each site's total and share`,
+    series: scopeNames.map((sc) => ({ name: sc, color: SCOPE_COLOR[sc] ?? theme.colors.primary })),
+    rows: siteNames.map((sn) => ({ label: sn, values: scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0) })),
+    total: siteSum, caption: source,
+  });
+  B.push({
+    type: "table", title: "Site × scope", subtitle: unit,
+    columns: ["Site", ...scopeNames, "Total", "Share"], align: ["left", ...scopeNames.map(() => "right" as const), "right", "right"],
+    rows: [
+      ...siteNames.map((sn) => {
+        const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
+        const t = vals.reduce((a, b) => a + b, 0);
+        return [sn, ...vals.map((v) => fmt(v)), fmt(t), pct(t, siteSum)];
+      }),
+      ...(siteNames.length > 1
+        ? [["Total", ...scopeNames.map((sc) => fmt(siteNames.reduce((a, sn) => a + (siteScopeMap.get(`${sn}||${sc}`) ?? 0), 0))), fmt(siteSum), "100.0%"]]
+        : []),
+    ],
+    totalRow: siteNames.length > 1,
+    caption: `${source} Rows are rounded, so totals can differ from their sum by 1.`,
+  });
+  B.push({ type: "paragraph", body: note(nar?.siteNote, `Splitting each site by scope shows where abatement belongs: whether on-site combustion (Scope 1) or purchased energy (Scope 2) dominates locally.`) });
+
+  // ---- 03 Detailed analysis by scope ----
+  // For each scope: the category mix, or (when the scope has one category) the
+  // fuel / source mix inside it, so every scope gets one ranked chart.
+  const NO_FUEL_BREAKDOWN = /purchased electricity/i;
+  const scopeParts = scopeNames.map((sc) => {
+    const rows = scopeCat.filter((r) => r.scope === sc && r.t > 0).sort((a, b) => b.t - a.t);
+    const scTotal = rows.reduce((a, b) => a + b.t, 0);
+    const fuels = fuelRows
+      .filter((f) => f.scope === sc && f.emissions > 0 && !NO_FUEL_BREAKDOWN.test(f.category))
+      .sort((a, b) => b.emissions - a.emissions);
+    let bars: { label: string; value: number }[];
+    let what: string;
+    if (rows.length > 1) {
+      bars = rows.map((r) => ({ label: r.emission_category || "Unspecified", value: r.t }));
+      what = "by category";
+    } else if (fuels.length > 1) {
+      bars = fuels.map((f) => ({ label: fuelName(f.fuelType, f.category), value: f.emissions }));
+      what = `${rows[0]?.emission_category ?? sc}, by fuel / source`;
+    } else if (sc === "Scope 2" && bySite.length > 1) {
+      bars = siteNames.map((sn) => ({ label: sn, value: siteScopeMap.get(`${sn}||${sc}`) ?? 0 })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+      what = `${rows[0]?.emission_category ?? "Purchased electricity"}, by site`;
+    } else {
+      bars = rows.map((r) => ({ label: r.emission_category || "Unspecified", value: r.t }));
+      what = "by category";
+    }
+    return { sc, rows, scTotal, fuels, bars, what };
+  }).filter((p) => p.scTotal > 0);
+
+  const leads = scopeParts
+    .filter((p) => p.bars.length > 1)
+    .map((p) => `${shortLabel(p.bars[0].label)} is ${pct(p.bars[0].value, p.scTotal)} of ${p.sc}`);
+  B.push({
+    type: "section", kicker: "03 · Detailed analysis by scope",
+    title: leads.length ? `${leads.slice(0, 2).join("; ")}.` : "Where each scope's emissions come from.",
+  });
+  for (const p of scopeParts) {
+    B.push({
+      type: "groupBars", name: p.sc, color: SCOPE_COLOR[p.sc] ?? theme.colors.primary,
+      subtitle: `${scopeLabel(p.sc)} · ${p.what}`, total: `${fmt(p.scTotal)} ${unit} · ${pct(p.scTotal, total)}`,
+      rows: p.bars, unit, caption: `Bar labels: ${unit} and share of ${p.sc}.`,
+    });
+  }
+  // Fuel / source detail for every category that has a breakdown.
+  const fuelTable: (string)[][] = [];
+  for (const p of scopeParts) {
+    let firstOfScope = true;
+    for (const r of p.rows) {
+      const catName = r.emission_category || "Unspecified";
+      if (NO_FUEL_BREAKDOWN.test(catName)) continue;
+      const fuels = p.fuels.filter((f) => f.category.toLowerCase() === catName.toLowerCase());
+      if (!fuels.length) continue;
+      const catTotal = fuels.reduce((a, b) => a + b.emissions, 0);
+      fuels.forEach((f, i) => {
+        fuelTable.push([firstOfScope ? p.sc : "", i === 0 ? catName : "", fuelName(f.fuelType, catName), fmt(f.emissions), pct(f.emissions, catTotal)]);
+        firstOfScope = false;
+      });
     }
   }
+  if (fuelTable.length) {
+    B.push({
+      type: "table", title: "Fuel and source detail", subtitle: unit,
+      columns: ["Scope", "Category", "Fuel / source", "Emissions", "Share of category"], align: ["left", "left", "left", "right", "right"],
+      rows: fuelTable, caption: note(nar?.categoryNote, "Fuel or spend source driving each reporting category. Purchased electricity is a single energy stream and has no fuel breakdown."),
+    });
+  }
 
-  B.push({ type: "section", title: "Results & Key Findings", kicker: "05 · WHAT THE DATA SHOWS" });
-  const findings = [
-    `Total ${yearLabel} emissions were ${fmt1(total)} tCO₂e${yoy !== null ? ` (${yoy >= 0 ? "up" : "down"} ${Math.abs(yoy).toFixed(1)}% vs ${compLabel})` : ""}.`,
-    topSite ? `${topSite.site_name} is the largest contributing site at ${fmt(topSite.t)} tCO₂e (${pct(topSite.t, total)} of total).` : "",
-    `${s2 >= s1 ? "Scope 2 (purchased energy)" : "Scope 1 (direct)"} dominates the footprint at ${pct(Math.max(s1, s2), total)}, indicating the highest-leverage reduction pathway.`,
-    topCat ? `${topCat.emission_category} is the single largest emission source (${pct(topCat.t, total)}).` : "",
-  ].filter(Boolean);
-  findings.forEach((f, i) => B.push({ type: "callout", variant: i === 0 ? "success" : "info", title: `Finding ${i + 1}`, body: f }));
-
-  B.push({ type: "section", title: "Data Availability & Renewables", kicker: "06 · COVERAGE" });
-  B.push({ type: "narrative", body: [note(nar?.coverageNote, `Data completeness determines the confidence management can place in these figures. Any selected site marked below has not been entered by the user and is excluded from totals.`)] });
-  B.push(renewable > 0
-    ? { type: "callout", variant: "success", title: "Renewable energy", body: `${fmt1(renewable)} tCO₂e of renewable-linked activity recorded in ${yearLabel}.` }
-    : { type: "callout", variant: "warning", title: "Renewable energy — data not available", body: "No renewable energy data has been entered for this period. Recording renewable consumption will let the report quantify avoided emissions." });
-  B.push({
-    type: "table", title: "Site reporting status", columns: ["Site", "Status", "Emissions (tCO₂e)"], align: ["left", "left", "right"],
-    rows: allSiteNames.map((n) => sitesWithData.has(n)
-      ? [n, "Reported ✓", fmt(siteTotals.get(n) ?? 0)]
-      : [n, "Not entered by user", "—"]),
-    caption: missingSites.length ? `${missingSites.length} selected site(s) have no data entered for ${yearLabel}.` : "All selected sites have reported data.",
-  });
-  if (renewImg) B.push({ type: "image", prompt: renewPrompt, layout: "banner", src: renewImg, caption: "Renewable energy — illustrative imagery." });
-
-  B.push({ type: "section", title: "Conclusion & Recommended Actions", kicker: "07 · NEXT STEPS" });
-  B.push({ type: "narrative", body: [
-    `This report provides a structured view of ${companyName}'s ${yearLabel} greenhouse-gas footprint across the selected sites, scopes and emission categories. The results give management a clear, defensible basis for prioritising reduction effort and improving data quality.`,
-    `The recommended actions below sequence the next steps by impact — closing data gaps first, then addressing the largest emission sources.`,
-  ] });
-  const recs = nar?.recommendations ?? [
+  // ---- 04 Findings and recommended actions ----
+  B.push({ type: "section", kicker: "04 · Findings and recommended actions", title: topScope ? `The findings point to ${scopeWhat[topScope.scope] ?? topScope.scope} as the first priority.` : "What the data shows, and where to act first." });
+  const findings: { value: string; text: string }[] = [];
+  if (yoy !== null) findings.push({ value: `${yoy >= 0 ? "+" : "−"}${Math.abs(yoy).toFixed(1)}%`, text: `Total emissions ${yoy <= 0 ? "fell" : "rose"} from ${fmt(prevTotal)} to ${fmt(total)} ${unit} against ${compLabel}.` });
+  if (topSite) findings.push({ value: pct(topSite.t, total), text: `${topSite.site_name} is the largest site at ${fmt(topSite.t)} ${unit}.` });
+  if (topScope) findings.push({ value: pct(topScope.t, total), text: `${topScope.scope} (${scopeWhat[topScope.scope] ?? topScope.scope}) dominates the footprint.` });
+  // The largest category often IS the largest scope (e.g. purchased electricity);
+  // then the fourth finding is the main source inside another scope instead.
+  const sameAsScope = topCat && topScope && Math.abs(topCat.t - topScope.t) < 0.5;
+  if (topCat && !sameAsScope) findings.push({ value: pct(topCat.t, total), text: `${topCat.emission_category || "Unspecified"} is the single largest emission source.` });
+  else {
+    const other = scopeParts.find((p) => p.sc !== topScope?.scope && p.bars.length > 1);
+    if (other) findings.push({ value: pct(other.bars[0].value, other.scTotal), text: `${shortLabel(other.bars[0].label)} is the main source in ${other.sc}, at ${fmt(other.bars[0].value)} ${unit}.` });
+  }
+  B.push({ type: "figures", items: findings.slice(0, 4) });
+  const recs = (nar?.recommendations ?? [
     "Close data gaps at non-reporting sites to reach full coverage before the next cycle.",
     "Prioritise Scope 2 reduction through renewable electricity procurement or on-site generation.",
     "Set a validated, science-based reduction target aligned to a 1.5 °C pathway.",
     "Begin capturing renewable-energy consumption to quantify avoided emissions.",
-  ];
-  recs.slice(0, 4).forEach((r, i) => B.push({ type: "callout", variant: i % 2 === 0 ? "info" : "success", title: `Action ${i + 1}`, body: r }));
+  ]).slice(0, 4);
+  B.push({
+    type: "table", title: "Recommended actions", subtitle: "ordered by expected impact",
+    columns: ["Priority", "Action"], align: ["left", "left"],
+    rows: recs.map((r, i) => [i < 2 ? { text: "High", pill: "high" as const } : { text: "Medium", pill: "medium" as const }, r]),
+  });
+
+  // ---- 05 Data availability and methodology ----
+  B.push({
+    type: "section", kicker: "05 · Data availability and methodology",
+    title: missingSites.length
+      ? `${missingSites.length} of ${allSiteNames.length} selected sites have not reported for ${yearLabel}.`
+      : `All selected sites reported.${renewable > 0 ? "" : " Renewable energy is the one open data gap."}`,
+  });
+  B.push({
+    type: "table", title: "Site reporting status", subtitle: yearLabel,
+    columns: ["Site / data stream", "Status", `Emissions (${unit})`], align: ["left", "left", "right"],
+    rows: [
+      ...allSiteNames.map((n) => sitesWithData.has(n)
+        ? [n, { text: "✓ Reported", pill: "ok" as const }, fmt(siteTotals.get(n) ?? 0)]
+        : [n, { text: "! Not entered", pill: "warn" as const }, "—"]),
+      renewable > 0
+        ? ["Renewable energy", { text: "✓ Reported", pill: "ok" as const }, `${fmt(renewable)} (not in totals)`]
+        : ["Renewable energy", { text: "! Not entered", pill: "warn" as const }, "—"],
+    ],
+    caption: note(nar?.coverageNote, missingSites.length ? `Sites without entered data are excluded from totals rather than estimated.` : "All selected sites have reported data."),
+  });
+  B.push({
+    type: "notes", items: [
+      { heading: "Boundary and scopes", body: `Operational control approach across ${siteCount} selected site(s). Scope 1 covers direct combustion and fugitive sources; Scope 2 covers purchased electricity; Scope 3 covers value-chain categories where data exists.` },
+      { heading: "Exclusions", body: "Sites without entered data are flagged above and excluded from totals rather than estimated. Renewable energy is reported separately and never netted from totals." },
+      { heading: "Calculation", body: "Recorded activity data multiplied by the emission factor assigned to each category, restricted to approved entries, reported in tonnes of CO₂-equivalent." },
+      prevTotal > 0
+        ? { heading: "Comparisons", body: `${compLabel} figures use the same sites, categories and period, so changes reflect activity rather than a change of scope.` }
+        : { heading: "Comparisons", body: `No approved data exists for ${compLabel}, so this report shows no year-on-year change.` },
+    ],
+  });
 
   // The period is part of the file identity — two months of the same year must
   // not overwrite each other in generated-reports/.
@@ -384,9 +440,13 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     : "";
   const slug = `ghg-${companyId}-${selectedYear}-${yearType}${periodSuffix}`;
 
-  const doc: Report = { client: `co-${companyId}`, slug, docTitle: `${companyName} — GHG Report ${yearLabel}`, blocks: B };
-  const variety = buildVariety(theme, companyId * 1000 + selectedYear, hero);
-  variety.docCoverMode = "split"; // clean, professional cover (real logo + hero panel)
+  const doc: Report = {
+    client: `co-${companyId}`, slug, docTitle: `GHG Emissions Report · ${yearLabel}`, blocks: B,
+    runningLeft: companyName,
+    runningFooter: "GHG Protocol Corporate Standard · approved data",
+  };
+  const variety = buildVariety(theme, companyId * 1000 + selectedYear);
+  variety.sectionStyle = "headline";
   const html = renderDocument(doc, theme, variety);
 
   const outDir = join(process.cwd(), "generated-reports");
