@@ -84,6 +84,8 @@ test("approving new plant data at the site in the period makes an approved footp
   const notes = await staleNotes();
   assert.equal(notes.length, 1);
   assert.match(notes[0], /Stale rod \(version 1\)/);
+  const link = await withDb(async (db) => (await db.query("SELECT link FROM notification WHERE user_id = 2 AND type = 'pcf_stale' ORDER BY id DESC LIMIT 1")).rows[0].link);
+  assert.equal(link, `/products/${rod}/footprints/${v1}`);
 
   // A stale footprint can't be published; its stored figures are untouched.
   assert.equal((await call("POST", `/pcf/studies/${v1}/publish`, "manager")).status, 409);
