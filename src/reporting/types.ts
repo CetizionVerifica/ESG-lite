@@ -173,6 +173,8 @@ export type Block =
       subtitle?: string;
       total: string;
       rows: { label: string; value: number }[];
+      /** Bar shares are computed against this (defaults to the sum of the rows). */
+      shareOf?: number;
       unit?: string;
       caption?: string;
     }

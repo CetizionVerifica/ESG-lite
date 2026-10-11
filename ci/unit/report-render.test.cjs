@@ -90,3 +90,18 @@ test("ruled tables render status cells as fixed-colour pills", () => {
   assert.match(html, /<span class="pill pill-ok">✓ Reported<\/span>/);
   assert.match(html, /<span class="pill pill-warn">! Not entered<\/span>/);
 });
+
+test("group bar shares use the given denominator, not the sum of the rows", () => {
+  const html = renderBlocks([{ type: "groupBars", name: "Scope 1", color: "#0B2E5C", total: "200", rows: [{ label: "Diesel", value: 50 }, { label: "LPG", value: 50 }], shareOf: 200 }], theme).html;
+  assert.match(html, />50  ·  25\.0%</);
+  assert.doesNotMatch(html, /50\.0%/);
+});
+
+test("running header text cannot close the stylesheet or the title", () => {
+  const { renderDocument } = require(path.resolve("dist/reporting/render.js"));
+  const evil = "Acme</style><script>x()</script>";
+  const html = renderDocument({ client: "c", slug: "s", docTitle: evil, runningLeft: evil, runningFooter: evil, blocks: [] }, theme);
+  const head = html.slice(0, html.indexOf("<body>"));
+  assert.equal((head.match(/<\/style>/g) || []).length, 1);
+  assert.doesNotMatch(head, /<script>x\(\)/);
+});

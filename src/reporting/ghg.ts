@@ -78,7 +78,10 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   const total = totalsSel.total;
   const s1 = totalsSel.scope1, s2 = totalsSel.scope2, s3 = totalsSel.scope3;
   const prevTotal = totalsComp.total;
-  const yoy = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
+  // Rounded to the one decimal every label prints, so a change shown as 0.0%
+  // reads as "unchanged" everywhere instead of "fell 0.0%" or "▲ +0.0%".
+  const yoy = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 1000) / 10 : null;
+  const yoyBadge = (v: number) => (v === 0 ? "unchanged" : `${v > 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(1)}%`);
 
   // Company name (brand row may still override inside getBrandTheme).
   const company = await AppDataSource.getRepository(Company)
@@ -220,7 +223,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     hero: {
       value: fmt(total),
       unit: `${unit} total emissions`,
-      delta: yoy !== null ? `${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}% vs ${compLabel}` : undefined,
+      delta: yoy !== null ? `${yoyBadge(yoy)} vs ${compLabel}` : undefined,
     },
     meta: [
       { label: "Sites covered", value: siteCount },
@@ -230,179 +233,197 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     ],
   });
 
-  // ---- 01 Executive summary ----
-  const topScope = scopes.slice().sort((a, b) => b.t - a.t)[0];
-  const scopeWhat: Record<string, string> = { "Scope 1": "direct combustion", "Scope 2": "purchased electricity", "Scope 3": "the value chain" };
-  const headline = [
-    yoy !== null
-      ? `Emissions ${yoy <= 0 ? "fell" : "rose"} ${Math.abs(yoy).toFixed(1)}% to ${fmt(total)} ${unit}.`
-      : `Total emissions were ${fmt(total)} ${unit}.`,
-    topScope ? `${topScope.scope} (${scopeWhat[topScope.scope] ?? topScope.scope}) is ${pct(topScope.t, total)} of the footprint.` : "",
-  ].filter(Boolean).join(" ");
-  B.push({ type: "section", kicker: "01 · Executive summary", title: headline });
-  B.push({
-    type: "kpiRow",
-    tiles: [
-      { label: "Total emissions", value: fmt(total), sub: yoy !== null ? `${unit} · ${yoy >= 0 ? "▲" : "▼"} ${Math.abs(yoy).toFixed(1)}% vs ${compLabel}` : unit },
-      { label: "Scope 1 · direct", value: fmt(s1), sub: `${pct(s1, total)} of total`, swatch: SCOPE_COLOR["Scope 1"] },
-      { label: "Scope 2 · electricity", value: fmt(s2), sub: `${pct(s2, total)} of total`, swatch: SCOPE_COLOR["Scope 2"] },
-      { label: "Scope 3 · value chain", value: fmt(s3), sub: `${pct(s3, total)} of total`, swatch: SCOPE_COLOR["Scope 3"] },
-    ],
-  });
-  if (scopes.length > 1) {
+  // A period with no approved emissions gets one plain page saying so, then the
+  // data-availability page, instead of empty charts and header-only tables.
+  const hasData = total > 0;
+  if (!hasData) {
+    B.push({ type: "section", kicker: "01 · Summary", title: `No approved emissions were found for ${yearLabel}.` });
     B.push({
-      type: "shareBar", title: topScope ? `${topScope.scope} drives the footprint` : "Emissions by scope", subtitle: `Share of total emissions by scope, ${unit}`,
-      parts: scopes.map((s) => ({ label: s.scope, value: s.t, color: SCOPE_COLOR[s.scope] })), unit, caption: source,
+      type: "paragraph",
+      body: `The selected sites and categories have no approved emission entries for ${periodName}. Entries that are still in draft or awaiting approval are not included in this report. The page that follows shows which sites have reported.`,
     });
-  }
-  if (prevTotal > 0) {
-    const diff = total - prevTotal;
+  } else {
+    // ---- 01 Executive summary ----
+    const topScope = scopes.slice().sort((a, b) => b.t - a.t)[0];
+    const scopeWhat: Record<string, string> = { "Scope 1": "direct combustion", "Scope 2": "purchased electricity", "Scope 3": "the value chain" };
+    const headline = [
+      yoy !== null
+        ? yoy === 0
+          ? `Emissions were unchanged at ${fmt(total)} ${unit}.`
+          : `Emissions ${yoy < 0 ? "fell" : "rose"} ${Math.abs(yoy).toFixed(1)}% to ${fmt(total)} ${unit}.`
+        : `Total emissions were ${fmt(total)} ${unit}.`,
+      topScope ? `${topScope.scope} (${scopeWhat[topScope.scope] ?? topScope.scope}) is ${pct(topScope.t, total)} of the footprint.` : "",
+    ].filter(Boolean).join(" ");
+    B.push({ type: "section", kicker: "01 · Executive summary", title: headline });
     B.push({
-      type: "hbar", title: `${diff <= 0 ? "Down" : "Up"} ${fmt(Math.abs(diff))} ${unit} on ${compLabel}`, subtitle: "Total emissions, same period prior year",
-      rows: [{ label: compLabel, value: prevTotal, color: PRIOR_GREY }, { label: yearLabel, value: total }], color: theme.colors.primary, unit,
-      caption: `${compLabel} uses the same sites, categories and period. ${source}`,
+      type: "kpiRow",
+      tiles: [
+        { label: "Total emissions", value: fmt(total), sub: yoy !== null ? `${unit} · ${yoyBadge(yoy)} vs ${compLabel}` : unit },
+        { label: "Scope 1 · direct", value: fmt(s1), sub: `${pct(s1, total)} of total`, swatch: SCOPE_COLOR["Scope 1"] },
+        { label: "Scope 2 · electricity", value: fmt(s2), sub: `${pct(s2, total)} of total`, swatch: SCOPE_COLOR["Scope 2"] },
+        { label: "Scope 3 · value chain", value: fmt(s3), sub: `${pct(s3, total)} of total`, swatch: SCOPE_COLOR["Scope 3"] },
+      ],
     });
-  }
-  const messages: { lead?: string; text: string }[] = [];
-  if (topScope) messages.push({ lead: "Biggest lever.", text: `${topScope.scope} is ${fmt(topScope.t)} ${unit} (${pct(topScope.t, total)}), the largest reduction lever.` });
-  if (topSite && bySite.length > 1) messages.push({ lead: "Largest site.", text: `${topSite.site_name} emits ${fmt(topSite.t)} ${unit}, ${pct(topSite.t, total)} of the total.` });
-  if (topCat && !(topScope && Math.abs(topCat.t - topScope.t) < 0.5)) messages.push({ lead: "Largest source.", text: `${topCat.emission_category || "Unspecified"} accounts for ${pct(topCat.t, total)} of emissions.` });
-  messages.push(missingSites.length
-    ? { lead: "Coverage gap.", text: `${missingSites.length} of ${allSiteNames.length} selected site(s) have not reported for ${yearLabel}.` }
-    : { lead: "Complete coverage.", text: `All ${allSiteNames.length} selected site(s) reported${renewable > 0 ? "" : "; renewable energy has not been entered yet"}.` });
-  B.push({ type: "bullets", title: "Key messages", items: messages });
-
-  // ---- 02 Emissions by site ----
-  const topSiteScope = topSite
-    ? scopeNames.map((sc) => ({ sc, v: siteScopeMap.get(`${topSite.site_name}||${sc}`) ?? 0 })).sort((a, b) => b.v - a.v)[0]
-    : undefined;
-  B.push({
-    type: "section", kicker: "02 · Emissions by site",
-    title: topSite && bySite.length > 1
-      ? `${topSite.site_name} accounts for ${pct(topSite.t, total)} of emissions${topSiteScope && topSiteScope.v > topSite.t / 2 ? `, mostly ${scopeWhat[topSiteScope.sc] ?? topSiteScope.sc}` : ""}.`
-      : `Emissions by site for ${yearLabel}.`,
-  });
-  const siteSum = bySite.reduce((a, r) => a + r.t, 0);
-  B.push({
-    type: "stackedBars", title: "Emissions by site and scope", subtitle: `${unit}; bar labels show each site's total and share`,
-    series: scopeNames.map((sc) => ({ name: sc, color: SCOPE_COLOR[sc] ?? theme.colors.primary })),
-    rows: siteNames.map((sn) => ({ label: sn, values: scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0) })),
-    total: siteSum, caption: source,
-  });
-  B.push({
-    type: "table", title: "Site × scope", subtitle: unit,
-    columns: ["Site", ...scopeNames, "Total", "Share"], align: ["left", ...scopeNames.map(() => "right" as const), "right", "right"],
-    rows: [
-      ...siteNames.map((sn) => {
-        const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
-        const t = vals.reduce((a, b) => a + b, 0);
-        return [sn, ...vals.map((v) => fmt(v)), fmt(t), pct(t, siteSum)];
-      }),
-      ...(siteNames.length > 1
-        ? [["Total", ...scopeNames.map((sc) => fmt(siteNames.reduce((a, sn) => a + (siteScopeMap.get(`${sn}||${sc}`) ?? 0), 0))), fmt(siteSum), "100.0%"]]
-        : []),
-    ],
-    totalRow: siteNames.length > 1,
-    caption: `${source} Rows are rounded, so totals can differ from their sum by 1.`,
-  });
-  B.push({ type: "paragraph", body: note(nar?.siteNote, `Splitting each site by scope shows where abatement belongs: whether on-site combustion (Scope 1) or purchased energy (Scope 2) dominates locally.`) });
-
-  // ---- 03 Detailed analysis by scope ----
-  // For each scope: the category mix, or (when the scope has one category) the
-  // fuel / source mix inside it, so every scope gets one ranked chart.
-  const NO_FUEL_BREAKDOWN = /purchased electricity/i;
-  const scopeParts = scopeNames.map((sc) => {
-    const rows = scopeCat.filter((r) => r.scope === sc && r.t > 0).sort((a, b) => b.t - a.t);
-    const scTotal = rows.reduce((a, b) => a + b.t, 0);
-    const fuels = fuelRows
-      .filter((f) => f.scope === sc && f.emissions > 0 && !NO_FUEL_BREAKDOWN.test(f.category))
-      .sort((a, b) => b.emissions - a.emissions);
-    let bars: { label: string; value: number }[];
-    let what: string;
-    if (rows.length > 1) {
-      bars = rows.map((r) => ({ label: r.emission_category || "Unspecified", value: r.t }));
-      what = "by category";
-    } else if (fuels.length > 1) {
-      bars = fuels.map((f) => ({ label: fuelName(f.fuelType, f.category), value: f.emissions }));
-      what = `${rows[0]?.emission_category ?? sc}, by fuel / source`;
-    } else if (sc === "Scope 2" && bySite.length > 1) {
-      bars = siteNames.map((sn) => ({ label: sn, value: siteScopeMap.get(`${sn}||${sc}`) ?? 0 })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
-      what = `${rows[0]?.emission_category ?? "Purchased electricity"}, by site`;
-    } else {
-      bars = rows.map((r) => ({ label: r.emission_category || "Unspecified", value: r.t }));
-      what = "by category";
-    }
-    return { sc, rows, scTotal, fuels, bars, what };
-  }).filter((p) => p.scTotal > 0);
-
-  const leads = scopeParts
-    .filter((p) => p.bars.length > 1)
-    .map((p) => `${shortLabel(p.bars[0].label)} is ${pct(p.bars[0].value, p.scTotal)} of ${p.sc}`);
-  B.push({
-    type: "section", kicker: "03 · Detailed analysis by scope",
-    title: leads.length ? `${leads.slice(0, 2).join("; ")}.` : "Where each scope's emissions come from.",
-  });
-  for (const p of scopeParts) {
-    B.push({
-      type: "groupBars", name: p.sc, color: SCOPE_COLOR[p.sc] ?? theme.colors.primary,
-      subtitle: `${scopeLabel(p.sc)} · ${p.what}`, total: `${fmt(p.scTotal)} ${unit} · ${pct(p.scTotal, total)}`,
-      rows: p.bars, unit, caption: `Bar labels: ${unit} and share of ${p.sc}.`,
-    });
-  }
-  // Fuel / source detail for every category that has a breakdown.
-  const fuelTable: (string)[][] = [];
-  for (const p of scopeParts) {
-    let firstOfScope = true;
-    for (const r of p.rows) {
-      const catName = r.emission_category || "Unspecified";
-      if (NO_FUEL_BREAKDOWN.test(catName)) continue;
-      const fuels = p.fuels.filter((f) => f.category.toLowerCase() === catName.toLowerCase());
-      if (!fuels.length) continue;
-      const catTotal = fuels.reduce((a, b) => a + b.emissions, 0);
-      fuels.forEach((f, i) => {
-        fuelTable.push([firstOfScope ? p.sc : "", i === 0 ? catName : "", fuelName(f.fuelType, catName), fmt(f.emissions), pct(f.emissions, catTotal)]);
-        firstOfScope = false;
+    if (scopes.length > 1) {
+      B.push({
+        type: "shareBar", title: topScope ? `${topScope.scope} drives the footprint` : "Emissions by scope", subtitle: `Share of total emissions by scope, ${unit}`,
+        parts: scopes.map((s) => ({ label: s.scope, value: s.t, color: SCOPE_COLOR[s.scope] })), unit, caption: source,
       });
     }
-  }
-  if (fuelTable.length) {
+    if (prevTotal > 0) {
+      const diff = total - prevTotal;
+      B.push({
+        type: "hbar", title: yoy === 0 ? `Unchanged on ${compLabel}` : `${diff < 0 ? "Down" : "Up"} ${fmt(Math.abs(diff))} ${unit} on ${compLabel}`, subtitle: "Total emissions, same period prior year",
+        rows: [{ label: compLabel, value: prevTotal, color: PRIOR_GREY }, { label: yearLabel, value: total }], color: theme.colors.primary, unit,
+        caption: `${compLabel} uses the same sites, categories and period. ${source}`,
+      });
+    }
+    const messages: { lead?: string; text: string }[] = [];
+    if (topScope) messages.push({ lead: "Biggest lever.", text: `${topScope.scope} is ${fmt(topScope.t)} ${unit} (${pct(topScope.t, total)}), the largest reduction lever.` });
+    if (topSite && bySite.length > 1) messages.push({ lead: "Largest site.", text: `${topSite.site_name} emits ${fmt(topSite.t)} ${unit}, ${pct(topSite.t, total)} of the total.` });
+    if (topCat && !(topScope && Math.abs(topCat.t - topScope.t) < 0.5)) messages.push({ lead: "Largest source.", text: `${topCat.emission_category || "Unspecified"} accounts for ${pct(topCat.t, total)} of emissions.` });
+    messages.push(missingSites.length
+      ? { lead: "Coverage gap.", text: `${missingSites.length} of ${allSiteNames.length} selected site(s) have not reported for ${yearLabel}.` }
+      : { lead: "Complete coverage.", text: `All ${allSiteNames.length} selected site(s) reported${renewable > 0 ? "" : "; renewable energy has not been entered yet"}.` });
+    B.push({ type: "bullets", title: "Key messages", items: messages });
+
+    // ---- 02 Emissions by site ----
+    const topSiteScope = topSite
+      ? scopeNames.map((sc) => ({ sc, v: siteScopeMap.get(`${topSite.site_name}||${sc}`) ?? 0 })).sort((a, b) => b.v - a.v)[0]
+      : undefined;
     B.push({
-      type: "table", title: "Fuel and source detail", subtitle: unit,
-      columns: ["Scope", "Category", "Fuel / source", "Emissions", "Share of category"], align: ["left", "left", "left", "right", "right"],
-      rows: fuelTable, caption: note(nar?.categoryNote, "Fuel or spend source driving each reporting category. Purchased electricity is a single energy stream and has no fuel breakdown."),
+      type: "section", kicker: "02 · Emissions by site",
+      title: topSite && bySite.length > 1
+        ? `${topSite.site_name} accounts for ${pct(topSite.t, total)} of emissions${topSiteScope && topSiteScope.v > topSite.t / 2 ? `, mostly ${scopeWhat[topSiteScope.sc] ?? topSiteScope.sc}` : ""}.`
+        : `Emissions by site for ${yearLabel}.`,
+    });
+    const siteSum = bySite.reduce((a, r) => a + r.t, 0);
+    B.push({
+      type: "stackedBars", title: "Emissions by site and scope", subtitle: `${unit}; bar labels show each site's total and share`,
+      series: scopeNames.map((sc) => ({ name: sc, color: SCOPE_COLOR[sc] ?? theme.colors.primary })),
+      rows: siteNames.map((sn) => ({ label: sn, values: scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0) })),
+      total: siteSum, caption: source,
+    });
+    B.push({
+      type: "table", title: "Site × scope", subtitle: unit,
+      columns: ["Site", ...scopeNames, "Total", "Share"], align: ["left", ...scopeNames.map(() => "right" as const), "right", "right"],
+      rows: [
+        ...siteNames.map((sn) => {
+          const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
+          const t = vals.reduce((a, b) => a + b, 0);
+          return [sn, ...vals.map((v) => fmt(v)), fmt(t), pct(t, siteSum)];
+        }),
+        ...(siteNames.length > 1
+          ? [["Total", ...scopeNames.map((sc) => fmt(siteNames.reduce((a, sn) => a + (siteScopeMap.get(`${sn}||${sc}`) ?? 0), 0))), fmt(siteSum), "100.0%"]]
+          : []),
+      ],
+      totalRow: siteNames.length > 1,
+      caption: `${source} Rows are rounded, so totals can differ from their sum by 1.`,
+    });
+    B.push({ type: "paragraph", body: note(nar?.siteNote, `Splitting each site by scope shows where abatement belongs: whether on-site combustion (Scope 1) or purchased energy (Scope 2) dominates locally.`) });
+
+    // ---- 03 Detailed analysis by scope ----
+    // For each scope: the category mix, or (when the scope has one category) the
+    // fuel / source mix inside it, so every scope gets one ranked chart.
+    const NO_FUEL_BREAKDOWN = /purchased electricity/i;
+    const scopeParts = scopeNames.map((sc) => {
+      const rows = scopeCat.filter((r) => r.scope === sc && r.t > 0).sort((a, b) => b.t - a.t);
+      const scTotal = rows.reduce((a, b) => a + b.t, 0);
+      const fuels = fuelRows
+        .filter((f) => f.scope === sc && f.emissions > 0 && !NO_FUEL_BREAKDOWN.test(f.category))
+        .sort((a, b) => b.emissions - a.emissions);
+      let bars: { label: string; value: number }[];
+      let what: string;
+      if (rows.length > 1) {
+        bars = rows.map((r) => ({ label: r.emission_category || "Unspecified", value: r.t }));
+        what = "by category";
+      } else if (fuels.length > 1) {
+        bars = fuels.map((f) => ({ label: fuelName(f.fuelType, f.category), value: f.emissions }));
+        what = `${rows[0]?.emission_category ?? sc}, by fuel / source`;
+      } else if (sc === "Scope 2" && bySite.length > 1) {
+        bars = siteNames.map((sn) => ({ label: sn, value: siteScopeMap.get(`${sn}||${sc}`) ?? 0 })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+        what = `${rows[0]?.emission_category ?? "Purchased electricity"}, by site`;
+      } else {
+        bars = rows.map((r) => ({ label: r.emission_category || "Unspecified", value: r.t }));
+        what = "by category";
+      }
+      return { sc, rows, scTotal, fuels, bars, what };
+    }).filter((p) => p.scTotal > 0);
+
+    const leads = scopeParts
+      .filter((p) => p.bars.length > 1)
+      .map((p) => `${shortLabel(p.bars[0].label)} is ${pct(p.bars[0].value, p.scTotal)} of ${p.sc}`);
+    B.push({
+      type: "section", kicker: "03 · Detailed analysis by scope",
+      title: leads.length ? `${leads.slice(0, 2).join("; ")}.` : "Where each scope's emissions come from.",
+    });
+    for (const p of scopeParts) {
+      B.push({
+        type: "groupBars", name: p.sc, color: SCOPE_COLOR[p.sc] ?? theme.colors.primary,
+        subtitle: `${scopeLabel(p.sc)} · ${p.what}`, total: `${fmt(p.scTotal)} ${unit} · ${pct(p.scTotal, total)}`,
+        rows: p.bars, shareOf: p.scTotal, unit, caption: `Bar labels: ${unit} and share of ${p.sc}.`,
+      });
+    }
+    // Fuel / source detail for every category that has a breakdown.
+    const fuelTable: (string)[][] = [];
+    for (const p of scopeParts) {
+      let firstOfScope = true;
+      for (const r of p.rows) {
+        const catName = r.emission_category || "Unspecified";
+        if (NO_FUEL_BREAKDOWN.test(catName)) continue;
+        const fuels = p.fuels.filter((f) => f.category.toLowerCase() === catName.toLowerCase());
+        if (!fuels.length) continue;
+        // Same denominator as the page headline and the scope bars: the category's total.
+      const catTotal = r.t;
+        fuels.forEach((f, i) => {
+          fuelTable.push([firstOfScope ? p.sc : "", i === 0 ? catName : "", fuelName(f.fuelType, catName), fmt(f.emissions), pct(f.emissions, catTotal)]);
+          firstOfScope = false;
+        });
+      }
+    }
+    if (fuelTable.length) {
+      B.push({
+        type: "table", title: "Fuel and source detail", subtitle: unit,
+        columns: ["Scope", "Category", "Fuel / source", "Emissions", "Share of category"], align: ["left", "left", "left", "right", "right"],
+        rows: fuelTable, caption: note(nar?.categoryNote, "Fuel or spend source driving each reporting category. Purchased electricity is a single energy stream and has no fuel breakdown."),
+      });
+    }
+
+    // ---- 04 Findings and recommended actions ----
+    B.push({ type: "section", kicker: "04 · Findings and recommended actions", title: topScope ? `The findings point to ${scopeWhat[topScope.scope] ?? topScope.scope} as the first priority.` : "What the data shows, and where to act first." });
+    const findings: { value: string; text: string }[] = [];
+    if (yoy !== null) {
+      findings.push(yoy === 0
+        ? { value: "0.0%", text: `Total emissions were unchanged at ${fmt(total)} ${unit} against ${compLabel}.` }
+        : { value: `${yoy > 0 ? "+" : "−"}${Math.abs(yoy).toFixed(1)}%`, text: `Total emissions ${yoy < 0 ? "fell" : "rose"} from ${fmt(prevTotal)} to ${fmt(total)} ${unit} against ${compLabel}.` });
+    }
+    if (topSite) findings.push({ value: pct(topSite.t, total), text: `${topSite.site_name} is the largest site at ${fmt(topSite.t)} ${unit}.` });
+    if (topScope) findings.push({ value: pct(topScope.t, total), text: `${topScope.scope} (${scopeWhat[topScope.scope] ?? topScope.scope}) dominates the footprint.` });
+    // The largest category often IS the largest scope (e.g. purchased electricity);
+    // then the fourth finding is the main source inside another scope instead.
+    const sameAsScope = topCat && topScope && Math.abs(topCat.t - topScope.t) < 0.5;
+    if (topCat && !sameAsScope) findings.push({ value: pct(topCat.t, total), text: `${topCat.emission_category || "Unspecified"} is the single largest emission source.` });
+    else {
+      const other = scopeParts.find((p) => p.sc !== topScope?.scope && p.bars.length > 1);
+      if (other) findings.push({ value: pct(other.bars[0].value, other.scTotal), text: `${shortLabel(other.bars[0].label)} is the main source in ${other.sc}, at ${fmt(other.bars[0].value)} ${unit}.` });
+    }
+    B.push({ type: "figures", items: findings.slice(0, 4) });
+    const recs = (nar?.recommendations ?? [
+      "Close data gaps at non-reporting sites to reach full coverage before the next cycle.",
+      "Prioritise Scope 2 reduction through renewable electricity procurement or on-site generation.",
+      "Set a validated, science-based reduction target aligned to a 1.5 °C pathway.",
+      "Begin capturing renewable-energy consumption to quantify avoided emissions.",
+    ]).slice(0, 4);
+    B.push({
+      type: "table", title: "Recommended actions", subtitle: "ordered by expected impact",
+      columns: ["Priority", "Action"], align: ["left", "left"],
+      rows: recs.map((r, i) => [i < 2 ? { text: "High", pill: "high" as const } : { text: "Medium", pill: "medium" as const }, r]),
     });
   }
-
-  // ---- 04 Findings and recommended actions ----
-  B.push({ type: "section", kicker: "04 · Findings and recommended actions", title: topScope ? `The findings point to ${scopeWhat[topScope.scope] ?? topScope.scope} as the first priority.` : "What the data shows, and where to act first." });
-  const findings: { value: string; text: string }[] = [];
-  if (yoy !== null) findings.push({ value: `${yoy >= 0 ? "+" : "−"}${Math.abs(yoy).toFixed(1)}%`, text: `Total emissions ${yoy <= 0 ? "fell" : "rose"} from ${fmt(prevTotal)} to ${fmt(total)} ${unit} against ${compLabel}.` });
-  if (topSite) findings.push({ value: pct(topSite.t, total), text: `${topSite.site_name} is the largest site at ${fmt(topSite.t)} ${unit}.` });
-  if (topScope) findings.push({ value: pct(topScope.t, total), text: `${topScope.scope} (${scopeWhat[topScope.scope] ?? topScope.scope}) dominates the footprint.` });
-  // The largest category often IS the largest scope (e.g. purchased electricity);
-  // then the fourth finding is the main source inside another scope instead.
-  const sameAsScope = topCat && topScope && Math.abs(topCat.t - topScope.t) < 0.5;
-  if (topCat && !sameAsScope) findings.push({ value: pct(topCat.t, total), text: `${topCat.emission_category || "Unspecified"} is the single largest emission source.` });
-  else {
-    const other = scopeParts.find((p) => p.sc !== topScope?.scope && p.bars.length > 1);
-    if (other) findings.push({ value: pct(other.bars[0].value, other.scTotal), text: `${shortLabel(other.bars[0].label)} is the main source in ${other.sc}, at ${fmt(other.bars[0].value)} ${unit}.` });
-  }
-  B.push({ type: "figures", items: findings.slice(0, 4) });
-  const recs = (nar?.recommendations ?? [
-    "Close data gaps at non-reporting sites to reach full coverage before the next cycle.",
-    "Prioritise Scope 2 reduction through renewable electricity procurement or on-site generation.",
-    "Set a validated, science-based reduction target aligned to a 1.5 °C pathway.",
-    "Begin capturing renewable-energy consumption to quantify avoided emissions.",
-  ]).slice(0, 4);
-  B.push({
-    type: "table", title: "Recommended actions", subtitle: "ordered by expected impact",
-    columns: ["Priority", "Action"], align: ["left", "left"],
-    rows: recs.map((r, i) => [i < 2 ? { text: "High", pill: "high" as const } : { text: "Medium", pill: "medium" as const }, r]),
-  });
 
   // ---- 05 Data availability and methodology ----
   B.push({
-    type: "section", kicker: "05 · Data availability and methodology",
+    type: "section", kicker: `${hasData ? "05" : "02"} · Data availability and methodology`,
     title: missingSites.length
       ? `${missingSites.length} of ${allSiteNames.length} selected sites have not reported for ${yearLabel}.`
       : `All selected sites reported.${renewable > 0 ? "" : " Renewable energy is the one open data gap."}`,
