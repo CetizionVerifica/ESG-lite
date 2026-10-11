@@ -9,7 +9,7 @@ import type { Theme } from "./types";
 
 export type CoverVariant = "gradient" | "mesh" | "geo";
 export type KpiStyle = "row" | "grid";
-export type SectionStyle = "plain" | "band";
+export type SectionStyle = "plain" | "band" | "headline";
 
 export interface Variety {
   seed: number;

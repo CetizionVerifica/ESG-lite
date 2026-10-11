@@ -4,7 +4,8 @@
 // that the browser renders before pagination.
 
 import { buildChartOption } from "./charts";
-import type { Block, Theme } from "./types";
+import { hbarSvg, shareBarSvg, stackedBarsSvg } from "./svgcharts";
+import type { Block, Cell, Theme } from "./types";
 import { makeRng, type Variety } from "./variety";
 
 export interface RenderedBlocks {
@@ -128,7 +129,65 @@ function renderBlock(block: Block, theme: Theme, charts: unknown[], variety: Var
       return renderStatBoard(block);
     case "image":
       return renderImage(block);
+    case "kpiRow":
+      return renderKpiRow(block);
+    case "hbar":
+      return figure(block.title, block.subtitle, hbarSvg(block.rows, { color: block.color ?? theme.colors.primary, unit: block.unit, total: block.total, showShare: block.showShare }), block.caption);
+    case "shareBar":
+      return figure(block.title, block.subtitle, shareBarSvg(block.parts, block.unit), block.caption);
+    case "stackedBars":
+      return figure(block.title, block.subtitle, stackedBarsSvg(block.series, block.rows, { total: block.total }), block.caption);
+    case "groupBars":
+      return renderGroupBars(block);
+    case "figures":
+      return `<div class="block figures">${block.items
+        .map((f) => `<div class="figure-item"><span class="figure-value">${esc(f.value)}</span><p>${esc(f.text)}</p></div>`)
+        .join("")}</div>`;
+    case "bullets":
+      return `<div class="block bullets">${block.title ? `<div class="eyebrow">${esc(block.title)}</div>` : ""}<ul>${block.items
+        .map((it) => `<li>${it.lead ? `<b>${esc(it.lead)}</b> ` : ""}${esc(it.text)}</li>`)
+        .join("")}</ul></div>`;
+    case "notes":
+      return `<div class="block notes">${block.items.map((n) => `<div><h3>${esc(n.heading)}</h3><p>${esc(n.body)}</p></div>`).join("")}</div>`;
+    case "paragraph":
+      return `<p class="block paragraph">${esc(block.body)}</p>`;
   }
+}
+
+/** Ruled figure: bold title + muted subtitle on a rule, the graphic, then a source/caption line. */
+function figure(title: string | undefined, subtitle: string | undefined, body: string, caption?: string): string {
+  const cap = title || subtitle
+    ? `<figcaption class="fig-head">${title ? `<b>${esc(title)}</b>` : ""}${subtitle ? `<span>${esc(subtitle)}</span>` : ""}</figcaption>`
+    : "";
+  return `<figure class="block fig">${cap}${body}${caption ? `<p class="fig-note">${esc(caption)}</p>` : ""}</figure>`;
+}
+
+function renderKpiRow(b: Extract<Block, { type: "kpiRow" }>): string {
+  const tiles = b.tiles
+    .map(
+      (t) => `<div class="kpi-tile">
+        <span class="kpi-tile-label">${t.swatch ? `<i style="background:${esc(t.swatch)}"></i>` : ""}${esc(t.label)}</span>
+        <span class="kpi-tile-value">${esc(t.value)}</span>
+        ${t.sub ? `<span class="kpi-tile-sub">${esc(t.sub)}</span>` : ""}
+      </div>`
+    )
+    .join("");
+  return `<div class="block kpi-row" style="--cols:${Math.min(4, Math.max(1, b.tiles.length))}">${tiles}</div>`;
+}
+
+function renderGroupBars(b: Extract<Block, { type: "groupBars" }>): string {
+  return `<figure class="block fig group">
+    <figcaption class="group-head"><i style="background:${esc(b.color)}"></i><b>${esc(b.name)}</b>${
+    b.subtitle ? `<span>${esc(b.subtitle)}</span>` : ""
+  }<em>${esc(b.total)}</em></figcaption>
+    ${hbarSvg(b.rows, { color: b.color, unit: b.unit, showShare: true, barH: 54 })}
+    ${b.caption ? `<p class="fig-note">${esc(b.caption)}</p>` : ""}
+  </figure>`;
+}
+
+function renderCell(c: Cell): string {
+  if (c !== null && typeof c === "object") return `<span class="pill pill-${c.pill}">${esc(c.text)}</span>`;
+  return esc(c);
 }
 
 function renderImage(b: Extract<Block, { type: "image" }>): string {
@@ -142,6 +201,7 @@ function renderImage(b: Extract<Block, { type: "image" }>): string {
 
 function renderCover(b: Extract<Block, { type: "cover" }>, theme: Theme, variety: Variety): string {
   if (b.style === "document") return renderDocCover(b, theme, variety);
+  if (b.style === "band") return renderBandCover(b, theme);
 
   const meta = (b.meta ?? [])
     .map(
@@ -171,6 +231,32 @@ function renderCover(b: Extract<Block, { type: "cover" }>, theme: Theme, variety
 </section>`;
 }
 
+/** Band cover: logo on white, then a brand-colour band with title, headline figure and meta row. */
+function renderBandCover(b: Extract<Block, { type: "cover" }>, theme: Theme): string {
+  const meta = (b.meta ?? [])
+    .map((m) => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`)
+    .join("");
+  const hero = b.hero
+    ? `<div class="band-hero"><span class="band-hero-value">${esc(b.hero.value)}</span><span class="band-hero-unit">${esc(b.hero.unit)}</span>${
+        b.hero.delta ? `<span class="band-hero-delta">${esc(b.hero.delta)}</span>` : ""
+      }</div>`
+    : "";
+  return `<section class="cover cover--band">
+  <div class="band-top">
+    <div class="band-logo">${theme.logoSvg ?? `<span class="band-logo-text">${esc(theme.name)}</span>`}</div>
+    ${b.kicker ? `<div class="band-kicker">${esc(b.kicker)}</div>` : ""}
+  </div>
+  <div class="band">
+    <div class="band-rings" aria-hidden="true"></div>
+    ${b.eyebrow ? `<p class="band-eyebrow">${esc(b.eyebrow)}</p>` : ""}
+    <h1 class="band-title">${esc(b.title)}</h1>
+    ${b.subtitle ? `<p class="band-sub">${esc(b.subtitle)}</p>` : ""}
+    ${hero}
+    ${meta ? `<dl class="band-meta">${meta}</dl>` : ""}
+  </div>
+</section>`;
+}
+
 /** Document-style cover: white, two-column — logo/title/cards left, hero right. */
 function renderDocCover(b: Extract<Block, { type: "cover" }>, theme: Theme, variety: Variety): string {
   const cards = (b.infoCards ?? [])
@@ -182,7 +268,7 @@ function renderDocCover(b: Extract<Block, { type: "cover" }>, theme: Theme, vari
     )
     .join("");
   const logo = theme.logoSvg ?? esc(theme.name);
-  const heroSrc = b.hero ?? variety.heroImage;
+  const heroSrc = b.heroImage ?? variety.heroImage;
   const bg = heroSrc ? `<img src="${heroSrc}" alt="">` : variety.heroPanelSvg;
   const titleBlock =
     `<h1 class="doc-title">${esc(b.title)}</h1>` +
@@ -245,7 +331,7 @@ function renderSection(b: Extract<Block, { type: "section" }>, variety: Variety)
   return `<section class="section-head section-head--${variety.sectionStyle}${flow}">
     ${b.kicker ? `<div class="section-kicker">${esc(b.kicker)}</div>` : ""}
     <h2 class="section-title">${esc(b.title)}</h2>
-    <div class="section-rule"></div>
+    ${variety.sectionStyle === "headline" ? "" : `<div class="section-rule"></div>`}
   </section>`;
 }
 
@@ -306,6 +392,7 @@ function renderChart(
 }
 
 function renderTable(b: Extract<Block, { type: "table" }>): string {
+  if (b.title || b.subtitle) return renderRuledTable(b);
   const align = b.align ?? [];
   const head = b.columns
     .map((c, i) => `<th style="text-align:${align[i] ?? "left"}">${esc(c)}</th>`)
@@ -314,7 +401,7 @@ function renderTable(b: Extract<Block, { type: "table" }>): string {
     .map(
       (row, r) =>
         `<tr${b.totalRow && r === b.rows.length - 1 ? ` class="total-row"` : ""}>${row
-          .map((cell, i) => `<td class="${align[i] === "right" ? "num" : ""}" style="text-align:${align[i] ?? "left"}">${esc(cell)}</td>`)
+          .map((cell, i) => `<td class="${align[i] === "right" ? "num" : ""}" style="text-align:${align[i] ?? "left"}">${renderCell(cell)}</td>`)
           .join("")}</tr>`
     )
     .join("");
@@ -323,6 +410,26 @@ function renderTable(b: Extract<Block, { type: "table" }>): string {
     <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     ${b.caption ? `<div class="chart-caption">${esc(b.caption)}</div>` : ""}
   </div>`;
+}
+
+/** Table under a ruled title (the report's figure style); cells may be status pills. */
+function renderRuledTable(b: Extract<Block, { type: "table" }>): string {
+  const align = b.align ?? [];
+  const cls = (i: number) => (align[i] === "right" ? "r" : align[i] === "center" ? "c" : "l");
+  const head = b.columns.map((c, i) => `<th class="${cls(i)}">${esc(c)}</th>`).join("");
+  const body = b.rows
+    .map(
+      (row, r) =>
+        `<tr${b.totalRow && r === b.rows.length - 1 ? ` class="total-row"` : ""}>${row
+          .map((cell, i) => `<td class="${cls(i)}">${renderCell(cell)}</td>`)
+          .join("")}</tr>`
+    )
+    .join("");
+  return `<figure class="block fig fig-table">
+    <figcaption class="fig-head">${b.title ? `<b>${esc(b.title)}</b>` : ""}${b.subtitle ? `<span>${esc(b.subtitle)}</span>` : ""}</figcaption>
+    <table class="ruled"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    ${b.caption ? `<p class="fig-note">${esc(b.caption)}</p>` : ""}
+  </figure>`;
 }
 
 function renderCallout(b: Extract<Block, { type: "callout" }>): string {

@@ -63,3 +63,30 @@ test("a flowing sub-section heading is kept with the block after it", () => {
   ], theme).html;
   assert.match(html, /<div class="lrow--keep"><section class="section-head[^"]*section-head--flow"/);
 });
+
+test("SVG charts label every bar with value, unit and share, at print-legible sizes", () => {
+  const { hbarSvg, shareBarSvg, stackedBarsSvg } = require(path.resolve("dist/reporting/svgcharts.js"));
+  const h = hbarSvg([{ label: "Purchased Electricity", value: 38481 }, { label: "Stationary Combustion", value: 8576 }], { color: "#0B2E5C", unit: "tCO₂e", total: 49662, showShare: true });
+  assert.match(h, />38,481 tCO₂e  ·  77\.5%</);
+  const s = shareBarSvg([{ label: "Scope 1", value: 25, color: "#000000" }, { label: "Scope 2", value: 75, color: "#2F6FB0" }], "tCO₂e");
+  assert.match(s, />75  ·  75\.0%</);
+  assert.match(s, /100% = 100 tCO₂e/);
+  const st = stackedBarsSvg([{ name: "Scope 1", color: "#0B2E5C" }, { name: "Scope 2", color: "#2F6FB0" }], [{ label: "Site A", values: [10, 30] }, { label: "Site B", values: [5, 5] }], { total: 50 });
+  assert.match(st, />40  ·  80\.0%</);
+  for (const svg of [h, s, st]) {
+    const sizes = [...svg.matchAll(/font-size="(\d+(?:\.\d+)?)"/g)].map((m) => Number(m[1]));
+    assert.ok(sizes.every((n) => n >= 25), `${sizes}`); // 25 = 2.5 mm ≈ 7 pt at print scale
+  }
+});
+
+test("long bar labels wrap to two lines instead of overflowing", () => {
+  const { hbarSvg } = require(path.resolve("dist/reporting/svgcharts.js"));
+  const h = hbarSvg([{ label: "Upstream Transportation and Distribution of purchased goods", value: 1 }], { color: "#000000" });
+  assert.equal((h.match(/text-anchor="end"/g) || []).length, 2);
+});
+
+test("ruled tables render status cells as fixed-colour pills", () => {
+  const html = renderBlocks([{ type: "table", title: "Site reporting status", columns: ["Site", "Status"], rows: [["A", { text: "✓ Reported", pill: "ok" }], ["B", { text: "! Not entered", pill: "warn" }]] }], theme).html;
+  assert.match(html, /<span class="pill pill-ok">✓ Reported<\/span>/);
+  assert.match(html, /<span class="pill pill-warn">! Not entered<\/span>/);
+});

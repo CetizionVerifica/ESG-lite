@@ -32,8 +32,15 @@ export type Align = "left" | "right" | "center";
 export type Block =
   | {
       type: "cover";
-      /** "fullbleed" (branded gradient) or "document" (white, two-column + hero). */
-      style?: "fullbleed" | "document";
+      /** "fullbleed" (branded gradient), "document" (white, two-column + hero) or
+       * "band" (logo on white over a brand-colour band carrying the headline figure). */
+      style?: "fullbleed" | "document" | "band";
+      /** Band style: small label above the band (e.g. the report type). */
+      kicker?: string;
+      /** Band style: line above the title (e.g. the reporting period). */
+      eyebrow?: string;
+      /** Band style: the headline figure, its unit and an optional change pill. */
+      hero?: { value: string; unit: string; delta?: string };
       title: string;
       subtitle?: string;
       /** Small muted line under the subtitle (document style). */
@@ -43,9 +50,17 @@ export type Block =
       /** Navy stacked info cards (document style). */
       infoCards?: { label: string; value: string }[];
       /** Hero image URL/data-URL (document style). Omit → procedural brand art. */
-      hero?: string;
+      heroImage?: string;
     }
-  | { type: "section"; title: string; kicker?: string; /** flow onto the current page instead of forcing a page break (for sub-sections) */ flow?: boolean }
+  | {
+      type: "section";
+      /** The page's headline: states the finding, not just the topic. */
+      title: string;
+      /** Small label above the title, e.g. "02 · Executive summary". */
+      kicker?: string;
+      /** flow onto the current page instead of forcing a page break (for sub-sections) */
+      flow?: boolean;
+    }
   | {
       type: "kpiTiles";
       title?: string;
@@ -78,9 +93,11 @@ export type Block =
       type: "table";
       title?: string;
       columns: string[];
-      rows: (string | number)[][];
+      rows: Cell[][];
       align?: Align[];
       caption?: string;
+      /** Small muted text after the column title, e.g. the unit. */
+      subtitle?: string;
       /** Style the last row as a totals row (bold, ruled above). */
       totalRow?: boolean;
     }
@@ -108,12 +125,73 @@ export type Block =
       kpis: { value: string; label: string; sub?: string }[];
       /** Dark stat tiles across the bottom. */
       tiles?: { label: string; value: string }[];
-    };
+    }
+  | {
+      type: "kpiRow";
+      /** Headline figures under a rule; `swatch` is a colour chip before the label. */
+      tiles: { label: string; value: string; sub?: string; swatch?: string }[];
+    }
+  | {
+      /** Ranked horizontal bars drawn as SVG, each labelled with its value (and share). */
+      type: "hbar";
+      title?: string;
+      subtitle?: string;
+      rows: { label: string; value: number; color?: string }[];
+      color?: string;
+      unit?: string;
+      /** Shares are computed against this (defaults to the sum of the rows). */
+      total?: number;
+      showShare?: boolean;
+      caption?: string;
+    }
+  | {
+      /** One 100% stacked bar with each part labelled above it (part-of-whole). */
+      type: "shareBar";
+      title?: string;
+      subtitle?: string;
+      parts: { label: string; value: number; color: string }[];
+      unit?: string;
+      caption?: string;
+    }
+  | {
+      /** Horizontal stacked bars: one row per item, one segment per series. */
+      type: "stackedBars";
+      title?: string;
+      subtitle?: string;
+      series: { name: string; color: string }[];
+      rows: { label: string; values: number[] }[];
+      unit?: string;
+      /** Each row's share is computed against this (defaults to the sum of all rows). */
+      total?: number;
+      caption?: string;
+    }
+  | {
+      /** A scope (or other group) heading with its colour chip, total and a ranked bar chart. */
+      type: "groupBars";
+      name: string;
+      color: string;
+      subtitle?: string;
+      total: string;
+      rows: { label: string; value: number }[];
+      unit?: string;
+      caption?: string;
+    }
+  | { type: "figures"; items: { value: string; text: string }[] }
+  | { type: "bullets"; title?: string; items: { lead?: string; text: string }[] }
+  | { type: "notes"; items: { heading: string; body: string }[] }
+  | { type: "paragraph"; body: string };
+
+/** A table cell: plain text, or text shown as a fixed-colour status pill. */
+export type Cell = string | number | { text: string; pill: "ok" | "warn" | "high" | "medium" };
 
 export interface Report {
   client: string;
   slug: string;
   /** Text shown in the running page header */
   docTitle?: string;
+  /** Left side of the running header (defaults to the theme name). */
+  runningLeft?: string;
+  /** Running footer line (defaults to the theme footer). */
+  runningFooter?: string;
   blocks: Block[];
 }
