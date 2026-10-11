@@ -52,8 +52,12 @@ function fontFaces(): string {
   return fontFaceCache;
 }
 
-/** Quote a value for a CSS `content:` string. */
-const cssString = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ")}"`;
+/** Quote a value for a CSS `content:` string. `<` is escaped too, so a value
+ * containing `</style>` cannot close the stylesheet it is embedded in. */
+const cssString = (v: string) =>
+  `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/</g, "\\3c ").replace(/\n/g, " ")}"`;
+
+const escHtml = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Map a friendly page size to a CSS @page size value. */
 function pageSizeCss(size: string): string {
@@ -382,7 +386,7 @@ export function renderDocument(report: Report, theme: Theme, variety?: Variety):
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${report.docTitle ?? report.slug}</title>
+<title>${escHtml(report.docTitle ?? report.slug)}</title>
 <style>${css(theme, report)}</style>
 </head>
 <body>

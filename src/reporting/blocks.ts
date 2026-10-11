@@ -180,7 +180,7 @@ function renderGroupBars(b: Extract<Block, { type: "groupBars" }>): string {
     <figcaption class="group-head"><i style="background:${esc(b.color)}"></i><b>${esc(b.name)}</b>${
     b.subtitle ? `<span>${esc(b.subtitle)}</span>` : ""
   }<em>${esc(b.total)}</em></figcaption>
-    ${hbarSvg(b.rows, { color: b.color, unit: b.unit, showShare: true, barH: 54 })}
+    ${hbarSvg(b.rows, { color: b.color, unit: b.unit, total: b.shareOf, showShare: true, barH: 54 })}
     ${b.caption ? `<p class="fig-note">${esc(b.caption)}</p>` : ""}
   </figure>`;
 }
