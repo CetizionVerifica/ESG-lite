@@ -60,7 +60,7 @@ function css(theme: Theme, report: Report): string {
 }
 *{ box-sizing:border-box; }
 html,body{ margin:0; padding:0; }
-body{ font-family:var(--font-body); color:var(--ink); font-size:10.5pt; line-height:1.55; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+body{ font-family:var(--font-body); color:var(--ink); font-size:10.5pt; line-height:1.55; font-feature-settings:"tnum" 1, "lnum" 1; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 h1,h2,h3{ font-family:var(--font-heading); font-weight:700; margin:0; }
 
 /* ---- Cover ---- */
@@ -139,10 +139,10 @@ h1,h2,h3{ font-family:var(--font-heading); font-weight:700; margin:0; }
 
 /* ---- Section header ---- */
 .section-head{ margin:0 0 16px; padding-top:0; break-before:page; break-inside:avoid; break-after:avoid-page; }
-.cover + .section-head, .section-head:first-child{ break-before:avoid; margin-top:0; }
+.cover + .section-head, .section-head:first-child:not(.section-head--flow){ break-before:avoid; margin-top:0; }
 /* Sub-section: flows onto the current page (no forced break) but stays glued to
    its following content, so short groups fill the page instead of orphaning. */
-.section-head--flow{ break-before:auto; margin-top:26px; }
+.section-head--flow{ break-before:auto; margin-top:22px; }
 .section-head--flow .section-title{ font-size:16pt; }
 .block-title{ break-after:avoid-page; }
 .section-head--band{ background:linear-gradient(135deg, var(--tint-strong), var(--tint-accent)); border:1px solid var(--border); border-radius:16px; padding:18px 20px; margin-bottom:16px; }
@@ -152,7 +152,7 @@ h1,h2,h3{ font-family:var(--font-heading); font-weight:700; margin:0; }
 
 /* ---- Generic block ---- */
 .block{ margin:0 0 16px; }
-.block-title{ font-size:12.5pt; color:var(--ink); margin-bottom:8px; }
+.block-title{ font-family:var(--font-heading); font-weight:700; font-size:12.5pt; color:var(--ink-brand); margin-bottom:10px; display:block; }
 .block-subtitle{ font-size:9.5pt; color:var(--muted); margin:-4px 0 8px; }
 
 /* ---- Narrative ---- */
@@ -174,19 +174,24 @@ h1,h2,h3{ font-family:var(--font-heading); font-weight:700; margin:0; }
 .kpi-delta.bad{ color:#B42318; background:#FEF3F2; }
 
 /* ---- Chart ---- */
-.chart-block{ break-inside:avoid; margin:0 0 18px; background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px 18px; }
-.chart{ width:100%; height:330px; }
-.chart-caption{ font-size:8.5pt; color:var(--muted); margin-top:6px; font-style:italic; }
+.chart-block{ break-inside:avoid; margin:0 0 18px; background:#fff; border:1px solid var(--border); border-top:3px solid var(--primary); border-radius:6px 6px 12px 12px; padding:16px 18px 14px; }
+.chart{ width:100%; height:320px; }
+.chart--pie{ height:360px; }
+.lrow--keep{ break-inside:avoid; }
+.chart-caption{ font-size:9pt; color:var(--muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
 
 /* ---- Table ---- */
-.table-block{ break-inside:avoid; background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px 18px; }
-table{ border-radius:10px; overflow:hidden; }
-table{ width:100%; border-collapse:collapse; font-size:9.5pt; }
+.table-block{ break-inside:avoid; background:#fff; border:1px solid var(--border); border-top:3px solid var(--primary); border-radius:6px 6px 12px 12px; padding:16px 18px; }
+table{ width:100%; border-collapse:separate; border-spacing:0; font-size:10pt; }
 thead th{ background:var(--primary); color:var(--onPrimary); font-family:var(--font-heading); font-weight:600;
-  font-size:8.5pt; text-transform:uppercase; letter-spacing:.04em; padding:10px 12px; }
-tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); }
+  font-size:9pt; letter-spacing:.01em; padding:9px 12px; vertical-align:bottom; }
+thead th:first-child{ border-top-left-radius:6px; }
+thead th:last-child{ border-top-right-radius:6px; }
+tbody td{ padding:8px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+tbody td.num{ font-variant-numeric:tabular-nums; white-space:nowrap; }
 tbody tr:nth-child(even){ background:var(--tint); }
-tbody tr:last-child td{ font-weight:700; color:var(--primary); border-top:1.5px solid var(--border); }
+/* Totals row: only where the table says it has one (never the last data row). */
+tbody tr.total-row td{ font-weight:700; color:var(--primary); background:var(--tint-strong); border-top:2px solid var(--primary); border-bottom:none; }
 
 /* ---- Dynamic layout rows ---- */
 .lrow{ margin:0 0 18px; }
@@ -197,7 +202,8 @@ tbody tr:last-child td{ font-weight:700; color:var(--primary); border-top:1.5px 
 .lrow--pair .block{ margin:0; }
 .lcol-text .narrative-grid{ display:block; }          /* single column inside a pair */
 .lcol-text .block-title{ margin-top:0; }
-.lcol-visual .chart{ height:280px; }
+.lcol-visual .chart{ height:340px; }
+.lcol-visual .chart--pie{ height:380px; }
 .lcol-visual .figure{ margin:0; }
 .lcol-visual .figure img{ max-height:none; height:100%; min-height:230px; object-fit:cover; }
 .lcol-visual .kpi-grid{ grid-template-columns:1fr 1fr; }

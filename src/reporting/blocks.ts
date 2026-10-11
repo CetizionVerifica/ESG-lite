@@ -41,9 +41,16 @@ const esc = (s: unknown): string =>
 type Row =
   | { kind: "full"; block: Block }
   | { kind: "twoup"; a: Block; b: Block }
+  | { kind: "keep"; a: Block; b: Block }
   | { kind: "pair"; left: Block; right: Block; textSide: "left" | "right"; variant: string };
 
 const VISUAL = new Set(["chart", "image", "table", "kpiTiles"]);
+
+// Bar/line charts and tables need the full text width for their labels and
+// columns to stay legible in print, so only compact visuals (donuts, images,
+// KPI tiles) are paired beside text.
+const pairable = (b: Block): boolean =>
+  VISUAL.has(b.type) && b.type !== "table" && !(b.type === "chart" && b.chartType !== "pie");
 
 function buildRows(blocks: Block[], rng: () => number): Row[] {
   const rows: Row[] = [];
@@ -54,7 +61,7 @@ function buildRows(blocks: Block[], rng: () => number): Row[] {
   while (i < blocks.length) {
     const b = blocks[i];
     const next = blocks[i + 1];
-    if (b.type === "narrative" && next && VISUAL.has(next.type) && rng() < pairBias) {
+    if (b.type === "narrative" && next && pairable(next) && rng() < pairBias) {
       // Side chosen independently per pair from the seed → charts/images scatter
       // left and right differently every generation.
       const textSide = rng() < 0.5 ? "left" : "right";
@@ -64,6 +71,14 @@ function buildRows(blocks: Block[], rng: () => number): Row[] {
     }
     if (b.type === "callout" && next && next.type === "callout") {
       rows.push({ kind: "twoup", a: b, b: next });
+      i += 2;
+      continue;
+    }
+    // A flowing sub-section heading travels with its first block: Paged.js
+    // doesn't honour break-after:avoid, so without this a heading can strand
+    // alone at the foot of a page.
+    if (b.type === "section" && b.flow && next && next.type !== "section") {
+      rows.push({ kind: "keep", a: b, b: next });
       i += 2;
       continue;
     }
@@ -79,6 +94,9 @@ export function renderBlocks(blocks: Block[], theme: Theme, variety: Variety = D
   const rows = buildRows(blocks, rng);
   const parts = rows.map((row) => {
     if (row.kind === "full") return renderBlock(row.block, theme, charts, variety);
+    if (row.kind === "keep") {
+      return `<div class="lrow--keep">${renderBlock(row.a, theme, charts, variety)}${renderBlock(row.b, theme, charts, variety)}</div>`;
+    }
     if (row.kind === "twoup") {
       return `<div class="lrow lrow--twoup">${renderBlock(row.a, theme, charts, variety)}${renderBlock(row.b, theme, charts, variety)}</div>`;
     }
@@ -274,10 +292,15 @@ function renderChart(
 ): string {
   const idx = charts.length;
   charts.push(buildChartOption(b, theme));
+  // Horizontal bars grow with the number of categories so each bar keeps a
+  // readable thickness; the container height is fixed before pagination.
+  const n = (b.categories ?? []).length;
+  const style = b.horizontal ? ` style="height:${Math.min(400, 24 + n * 52)}px"` : "";
+  const kind = b.horizontal ? "chart--hbar" : `chart--${b.chartType}`;
   return `<figure class="block chart-block">
     ${b.title ? `<figcaption class="block-title">${esc(b.title)}</figcaption>` : ""}
     ${b.subtitle ? `<div class="block-subtitle">${esc(b.subtitle)}</div>` : ""}
-    <div class="chart" id="chart-${idx}"></div>
+    <div class="chart ${kind}" id="chart-${idx}"${style}></div>
     ${b.caption ? `<div class="chart-caption">${esc(b.caption)}</div>` : ""}
   </figure>`;
 }
@@ -289,9 +312,9 @@ function renderTable(b: Extract<Block, { type: "table" }>): string {
     .join("");
   const body = b.rows
     .map(
-      (row) =>
-        `<tr>${row
-          .map((cell, i) => `<td style="text-align:${align[i] ?? "left"}">${esc(cell)}</td>`)
+      (row, r) =>
+        `<tr${b.totalRow && r === b.rows.length - 1 ? ` class="total-row"` : ""}>${row
+          .map((cell, i) => `<td class="${align[i] === "right" ? "num" : ""}" style="text-align:${align[i] ?? "left"}">${esc(cell)}</td>`)
           .join("")}</tr>`
     )
     .join("");

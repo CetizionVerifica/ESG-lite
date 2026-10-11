@@ -116,12 +116,12 @@ export async function getBrandTheme(companyId: number, companyName: string): Pro
     logoSvg,
     page: { size: "A4", margin: "18mm 16mm 18mm 16mm" },
     colors: {
-      primary: kit.primary, accent: kit.accent, ink: "#101828", muted: "#667085",
+      primary: kit.primary, accent: kit.accent, ink: "#101828", muted: "#475467",
       surface: "#F5F7FA", border: "#E4E9F0", onPrimary: "#FFFFFF",
       coverBgFrom: kit.coverBgFrom, coverBgTo: kit.coverBgTo,
     },
     chartPalette: [kit.accent, kit.primary, "#8db0d4", "#255789", "#c1d4e7", "#09254a"],
-    fonts: { heading: "'Segoe UI Semibold','Segoe UI',Arial,sans-serif", body: "'Segoe UI',Arial,sans-serif" },
+    fonts: { heading: "Inter,'Segoe UI Semibold','Segoe UI',Arial,sans-serif", body: "Inter,'Segoe UI',Arial,sans-serif" },
     footer: `Confidential — prepared for ${kit.name}`,
   };
 }

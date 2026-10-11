@@ -265,12 +265,12 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     ],
   });
   B.push({ type: "narrative", body: summary });
-  B.push({ type: "chart", title: "Emissions by Scope", chartType: "pie", categories: scopes.map((s) => s.scope), series: [{ name: "tCO₂e", data: scopes.map((s) => Math.round(s.t)) }], caption: "Share of total emissions by GHG scope." });
-  B.push({ type: "chart", title: "Emissions by Category", chartType: "bar", unit: "tCO₂e", categories: cats.slice(0, 8).map((c) => c.emission_category || "—"), series: [{ name: "tCO₂e", data: cats.slice(0, 8).map((c) => Math.round(c.t)) }], caption: "Top emission sources across the selected boundary." });
+  B.push({ type: "chart", title: "Emissions by Scope", chartType: "pie", unit: "tCO₂e", total, categories: scopes.map((s) => s.scope), series: [{ name: "tCO₂e", data: scopes.map((s) => Math.round(s.t)) }], caption: "Share of total emissions by GHG scope." });
+  B.push({ type: "chart", title: "Emissions by Category", chartType: "bar", horizontal: true, showShare: true, unit: "tCO₂e", total, categories: cats.slice(0, 8).map((c) => c.emission_category || "—"), series: [{ name: "tCO₂e", data: cats.slice(0, 8).map((c) => Math.round(c.t)) }], caption: "Top emission sources across the selected boundary." });
 
   B.push({ type: "section", title: "Emissions Overview by Location", kicker: "03 · SITES" });
   B.push({ type: "narrative", body: [note(nar?.siteNote, `Emissions are distributed across ${sitesWithData.size} reporting site(s), led by ${siteNames[0] ?? "—"}. Site-level visibility lets management prioritise the highest-impact locations.`)] });
-  B.push({ type: "chart", title: "Total emissions — site-wise", chartType: "bar", unit: "tCO₂e", categories: siteNames, series: [{ name: "tCO₂e", data: bySite.map((r) => Math.round(r.t)) }], caption: "Gross emissions by site." });
+  B.push({ type: "chart", title: "Total emissions — site-wise", chartType: "bar", horizontal: true, showShare: true, unit: "tCO₂e", total: bySite.reduce((a, r) => a + r.t, 0), categories: siteNames, series: [{ name: "tCO₂e", data: bySite.map((r) => Math.round(r.t)) }], caption: "Gross emissions by site." });
   B.push({ type: "narrative", body: [note(nar?.scopeNote, `Splitting each site by scope shows whether direct combustion (Scope 1) or purchased energy (Scope 2) dominates locally, guiding site-specific abatement.`)] });
   B.push({
     type: "chart", title: "Site-wise & scope-wise", chartType: "bar", unit: "tCO₂e", categories: siteNames,
@@ -279,10 +279,16 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   });
   B.push({
     type: "table", title: "Site × Scope (tCO₂e)", columns: ["Site", ...scopeNames, "Total"], align: ["left", ...scopeNames.map(() => "right" as const), "right"],
-    rows: siteNames.map((sn) => {
-      const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
-      return [sn, ...vals.map((v) => fmt(v)), fmt(vals.reduce((a, b) => a + b, 0))];
-    }),
+    rows: [
+      ...siteNames.map((sn) => {
+        const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
+        return [sn, ...vals.map((v) => fmt(v)), fmt(vals.reduce((a, b) => a + b, 0))];
+      }),
+      ...(siteNames.length > 1
+        ? [["Total", ...scopeNames.map((sc) => fmt(siteNames.reduce((a, sn) => a + (siteScopeMap.get(`${sn}||${sc}`) ?? 0), 0))), fmt(bySite.reduce((a, r) => a + r.t, 0))]]
+        : []),
+    ],
+    totalRow: siteNames.length > 1,
   });
   if (sitesImg) B.push({ type: "image", prompt: sitesPrompt, layout: "banner", src: sitesImg, caption: "Operational sites — illustrative imagery." });
 
@@ -294,10 +300,22 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     if (!rows.length) continue;
     const scTotal = rows.reduce((a, b) => a + b.t, 0);
     B.push({ type: "section", title: scopeLabel[(sc || "").toLowerCase()] ?? sc, kicker: `${sc.toUpperCase()} · ${fmt(scTotal)} tCO₂e`, flow: true });
-    B.push({ type: "chart", title: `${sc} — category distribution`, chartType: "pie", categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }], caption: `${sc} emissions by emission category.` });
+    // A single-category scope is 100% one slice: the table says it plainly, so
+    // the chart is skipped rather than drawing a full ring.
+    if (rows.length > 1) {
+      B.push({
+        type: "chart", title: `${sc} — category distribution`, chartType: rows.length > 5 ? "bar" : "pie", horizontal: rows.length > 5, showShare: true, unit: "tCO₂e", total: scTotal,
+        categories: rows.map((r) => r.emission_category || "—"), series: [{ name: "tCO₂e", data: rows.map((r) => Math.round(r.t)) }],
+        caption: `${sc} emissions by emission category.`,
+      });
+    }
     B.push({
-      type: "table", title: `${sc} category detail`, columns: ["Category", "Emissions", "Share of scope"], align: ["left", "right", "right"],
-      rows: rows.map((r) => [r.emission_category || "Unspecified", fmt(r.t), pct(r.t, scTotal)]),
+      type: "table", title: `${sc} category detail`, columns: ["Category", "Emissions (tCO₂e)", "Share of scope"], align: ["left", "right", "right"],
+      rows: [
+        ...rows.map((r) => [r.emission_category || "Unspecified", fmt(r.t), pct(r.t, scTotal)]),
+        ...(rows.length > 1 ? [[`Total ${sc}`, fmt(scTotal), "100.0%"]] : []),
+      ],
+      totalRow: rows.length > 1,
     });
 
     // One level deeper: the fuel type driving each category (e.g. Stationary
@@ -330,7 +348,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
         B.push({
           type: "table",
           title: `${sc} — fuel / source within each category`,
-          columns: ["Category", "Fuel / source", "Emissions", "Share of category"],
+          columns: ["Category", "Fuel / source", "Emissions (tCO₂e)", "Share of category"],
           align: ["left", "left", "right", "right"],
           rows: fuelTableRows,
           caption: "Fuel or spend source driving each reporting category.",

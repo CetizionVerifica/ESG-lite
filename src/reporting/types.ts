@@ -67,6 +67,12 @@ export type Block =
       categories?: string[];
       series: { name: string; data: number[] }[];
       caption?: string;
+      /** Bar only: draw bars horizontally so long category names read in full. */
+      horizontal?: boolean;
+      /** Horizontal single-series bars: append each bar's share of the total to its value label. */
+      showShare?: boolean;
+      /** Unrounded total for the donut centre / share labels (defaults to the sum of the data). */
+      total?: number;
     }
   | {
       type: "table";
@@ -75,6 +81,8 @@ export type Block =
       rows: (string | number)[][];
       align?: Align[];
       caption?: string;
+      /** Style the last row as a totals row (bold, ruled above). */
+      totalRow?: boolean;
     }
   | {
       type: "callout";
