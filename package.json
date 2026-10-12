@@ -23,7 +23,8 @@
     "migrate:emission-reporting-period": "ts-node src/scripts/addEmissionReportingPeriodColumns.ts",
     "migrate:oauth": "ts-node src/scripts/createOauthTables.ts",
     "test:api": "node ci/api/run.cjs",
-    "test:unit": "node --test ci/unit/*.test.cjs"
+    "test:unit": "node --test ci/unit/*.test.cjs",
+    "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"
   },
   "keywords": [],
   "author": "",

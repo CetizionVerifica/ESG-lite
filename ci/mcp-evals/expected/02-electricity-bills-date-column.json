@@ -1,0 +1,85 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A",
+    "category": "electricity"
+  },
+  "rows": [
+    {
+      "row_ref": "EB!A2",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-31"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 400000,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "EB!A3",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-28"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 401200,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "EB!A4",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-31"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 402400,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "EB!A5",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-30"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 403600,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "EB!A6",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-05-31"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 404800,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "EB!A7",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-06-30"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 406000,
+      "activity_unit": "kWh"
+    }
+  ],
+  "issues": {},
+  "chunks_min": 1,
+  "commit": "yes",
+  "note": "Amount column is spend, not activity; must not be sent as a value or total."
+}

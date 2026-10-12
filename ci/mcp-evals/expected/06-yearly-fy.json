@@ -1,0 +1,38 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A",
+    "period": "FY 2025-26"
+  },
+  "rows": [
+    {
+      "row_ref": "FY 2025-26!A2",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "yearly",
+        "year_type": "FY",
+        "year": 2026
+      },
+      "activity_name": "HSD",
+      "activity_value": 13200,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "FY 2025-26!A3",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "yearly",
+        "year_type": "FY",
+        "year": 2026
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 4900000,
+      "activity_unit": "kWh"
+    }
+  ],
+  "issues": {},
+  "chunks_min": 1,
+  "commit": "yes"
+}
