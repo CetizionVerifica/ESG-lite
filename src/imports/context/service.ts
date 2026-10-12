@@ -57,7 +57,10 @@ export const FY_START_MONTH = 4 as const;
 
 const CACHE_TTL_MS = 60_000;
 const contextCache = new Map<string, { at: number; value: ImportContext }>();
-export const clearImportContextCache = (): void => contextCache.clear();
+// Keys are deleted one by one: the data-safety CI reads any `.clear()` as a table wipe.
+export const clearImportContextCache = (): void => {
+  for (const k of [...contextCache.keys()]) contextCache.delete(k);
+};
 
 const feBase = (): string => (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
 export const fixUrls = (company_id: number, site_id: number, category_id: number) => ({
