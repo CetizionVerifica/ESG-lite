@@ -1281,6 +1281,10 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
       .addSelect("e.category_id", "category_id")
       .addSelect("category.category_name", "category_name")
       .addSelect(`(SELECT u.name FROM "user" u WHERE u.user_id = MIN(e.created_by) LIMIT 1)`, "uploaded_by")
+      // Where the batch came from: the import plan's channel ('mcp', 'bulk_upload',
+      // 'api', IM2), null for batches made without a plan. P07 shows it as the
+      // source chip (MCP-14).
+      .addSelect(`(SELECT p.channel FROM import_plan p WHERE p.upload_batch_id = e.upload_batch_id LIMIT 1)`, "channel")
       .innerJoin("e.site", "site")
       .innerJoin("e.category", "category")
       .where("e.upload_batch_id IS NOT NULL")

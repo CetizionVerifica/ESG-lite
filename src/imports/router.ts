@@ -5,10 +5,11 @@
  * for an authenticated caller and 401 for anyone else.
  */
 import { Router } from "express";
+import plansRouter from "./plans/router";
 
 const importsRouter = Router();
 
-// IM2: importsRouter.use(plansRouter);
+importsRouter.use(plansRouter); // IM2
 // IM3: importsRouter.use(contextRouter);
 
 export default importsRouter;
