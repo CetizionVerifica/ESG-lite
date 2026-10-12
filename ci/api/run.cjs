@@ -55,7 +55,7 @@ async function waitForServer(server, logs) {
   const logs = [];
   const server = spawn(process.execPath, [path.join(ROOT, "dist/index.js")], {
     cwd: ROOT,
-    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true" },
+    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true", MCP_TEST_TOKENS: "true" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (d) => logs.push(d.toString()));
@@ -65,11 +65,10 @@ async function waitForServer(server, logs) {
   try {
     await waitForServer(server, logs);
     const testDir = path.join(__dirname, "tests");
-    const files = fs
-      .readdirSync(testDir)
-      .filter((f) => f.endsWith(".test.cjs"))
-      .sort()
-      .map((f) => path.join(testDir, f));
+    const mcpDir = path.join(ROOT, "ci/mcp"); // MCP protocol tests (IM6+) run against the same server
+    const files = [testDir, mcpDir]
+      .filter((dir) => fs.existsSync(dir))
+      .flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith(".test.cjs")).sort().map((f) => path.join(dir, f)));
     const result = spawnSync(process.execPath, ["--test", "--test-concurrency=1", ...files], {
       stdio: "inherit",
       env: { ...process.env, API_BASE: BASE, JWT_SECRET: SECRET },

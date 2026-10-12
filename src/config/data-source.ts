@@ -24,6 +24,7 @@ import { PcfStudy } from "../entities/PcfStudy";
 import { PcfInput } from "../entities/PcfInput";
 import { PcfAllocation } from "../entities/PcfAllocation";
 import { PcfResult } from "../entities/PcfResult";
+import { McpToolCall } from "../entities/McpToolCall";
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -55,6 +56,7 @@ const entities = [
     PcfInput,
     PcfAllocation,
     PcfResult,
+    McpToolCall,
 ];
 
 // Parse DATABASE_URL to extract connection parameters

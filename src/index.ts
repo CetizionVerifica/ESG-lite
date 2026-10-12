@@ -21,6 +21,7 @@ import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
 import { assertJwtSecret } from "./utils/jwt";
 import { authenticate } from "./middlewares/auth.middleware";
+import { mcpRouter } from "./mcp/http";
 dotenv.config();
 
 // Refuse to start without a signing secret (there is no built-in fallback).
@@ -42,6 +43,8 @@ if (process.env.TRUST_PROXY) {
         "⚠️ TRUST_PROXY is not set. Behind a load balancer every client then shares one sign-in rate limit; set TRUST_PROXY to the number of proxy hops (1 for a single ALB).",
     );
 }
+// /mcp owns its own body cap and CORS (src/mcp/http.ts), so it mounts before them.
+app.use("/mcp", mcpRouter);
 app.use(express.json({ limit: "10mb" }));
 app.use(
     cors({
