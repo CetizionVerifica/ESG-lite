@@ -61,6 +61,18 @@ export type EmailJob =
       siteName?: string;
     }
   | {
+      // IM4: a committed import batch waiting for the manager's review
+      type: "UPLOAD_PENDING";
+      email: string;
+      name: string;
+      retryCount: number;
+      rows: number;
+      tco2e: number;
+      siteNames: string[];
+      period: string;
+      deepLink: string;
+    }
+  | {
       type: "DEADLINE_ESCALATION";
       email: string;
       name: string;

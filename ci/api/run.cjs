@@ -21,6 +21,7 @@ const ROOT = path.resolve(__dirname, "../..");
 const PORT = Number(process.env.API_TEST_PORT || 3998);
 const BASE = `http://127.0.0.1:${PORT}`;
 const SECRET = "ci-only-not-a-real-secret";
+const SERVICE_KEY = "ci-only-service-key"; // IM4 internal hook
 
 async function waitForServer(server, logs) {
   for (let i = 0; i < 120; i++) {
@@ -55,7 +56,7 @@ async function waitForServer(server, logs) {
   const logs = [];
   const server = spawn(process.execPath, [path.join(ROOT, "dist/index.js")], {
     cwd: ROOT,
-    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true", MCP_TEST_TOKENS: "true" },
+    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true", MCP_TEST_TOKENS: "true" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (d) => logs.push(d.toString()));
@@ -71,7 +72,7 @@ async function waitForServer(server, logs) {
       .flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith(".test.cjs")).sort().map((f) => path.join(dir, f)));
     const result = spawnSync(process.execPath, ["--test", "--test-concurrency=1", ...files], {
       stdio: "inherit",
-      env: { ...process.env, API_BASE: BASE, JWT_SECRET: SECRET },
+      env: { ...process.env, API_BASE: BASE, JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY },
     });
     exitCode = result.status ?? 1;
     if (exitCode !== 0) console.error("--- server log (tail) ---\n" + logs.join("").slice(-8000));
