@@ -22,6 +22,7 @@ import { createNotification } from "../services/notificationService";
 import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
 import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
+import { getSelectColumns, pickActivityValue } from "../services/activityValue";
 import { computeBreakdown, type BreakdownSourceRow } from "../services/emissionBreakdown";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, siteFilterSql, SITE_ACCESS_DENIED } from "../utils/companyScope";
@@ -577,60 +578,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
           // see one activity figure for the row.
           activity_data.activity_value = String(activityValue);
         } else {
-
-        // Known dropdown/select column names to skip (these contain IDs, not activity data)
-        const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-
-        // Check common field names first (case-insensitive)
-        const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
-        for (const field of commonFields) {
-          // Case-insensitive search
-          const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-          if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-            activityValue = parseFloat(activity_data[matchingKey]);
-            if (!isNaN(activityValue) && activityValue > 0) {
-              break;
-            }
-          }
-        }
-
-        // If not found in common fields, look for any numeric value
-        // Skip: emission_category, known dropdown columns, and small values that look like IDs
-        if (activityValue === 0) {
-          for (const [key, value] of Object.entries(activity_data)) {
-            const keyLower = key.toLowerCase();
-            // Skip emission_category and known dropdown columns
-            if (key === 'emission_category' || skipColumns.has(keyLower)) {
-              continue;
-            }
-            if (value !== undefined && value !== '') {
-              const numValue = parseFloat(value as string);
-              // Skip small integers (1-99) as they're likely dropdown IDs, not activity data
-              // Real activity data is typically larger (e.g., 10000 kg, 5000 kWh)
-              if (!isNaN(numValue) && numValue >= 100) {
-                activityValue = numValue;
-                break;
-              }
-            }
-          }
-        }
-
-        // Fallback: if still not found, accept any positive number (in case activity data is small)
-        if (activityValue === 0) {
-          for (const [key, value] of Object.entries(activity_data)) {
-            const keyLower = key.toLowerCase();
-            if (key === 'emission_category' || skipColumns.has(keyLower)) {
-              continue;
-            }
-            if (value !== undefined && value !== '') {
-              const numValue = parseFloat(value as string);
-              if (!isNaN(numValue) && numValue > 0) {
-                activityValue = numValue;
-                break;
-              }
-            }
-          }
-        }
+        activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, site_id, category_id));
         }
 
         if (activityValue > 0) {
@@ -730,37 +678,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
           });
 
           if (feraFactor) {
-            // Find the activity value (same logic as above)
-            let feraActivityValue = 0;
-            const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-            const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
-            for (const field of commonFlds) {
-              const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-              if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-                feraActivityValue = parseFloat(activity_data[matchingKey]);
-                if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
-              }
-            }
-            // Look for any numeric value >= 100 (skip likely dropdown IDs)
-            if (feraActivityValue === 0) {
-              for (const [key, value] of Object.entries(activity_data)) {
-                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-                if (value !== undefined && value !== '') {
-                  const numValue = parseFloat(value as string);
-                  if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
-                }
-              }
-            }
-            // Fallback: accept any positive number
-            if (feraActivityValue === 0) {
-              for (const [key, value] of Object.entries(activity_data)) {
-                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-                if (value !== undefined && value !== '') {
-                  const numValue = parseFloat(value as string);
-                  if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
-                }
-              }
-            }
+            // The parent's quantity (its own category's select columns are skipped).
+            const feraActivityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, site_id, category_id));
 
             if (feraActivityValue > 0) {
               // Calculate FERA emission. With no unit conversion the raw value
@@ -959,49 +878,7 @@ const targetYear = reportingDate.getFullYear() - 1;
             if (computed.unitKey) emission.activity_data_unit = computed.unitKey;
             activity_data.activity_value = String(activityValue);
           } else {
-
-          // Known dropdown/select column names to skip (these contain IDs, not activity data)
-          const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-
-          // Check common field names first (case-insensitive)
-          const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
-          for (const field of commonFields) {
-            const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-            if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-              activityValue = parseFloat(activity_data[matchingKey]);
-              if (!isNaN(activityValue) && activityValue > 0) break;
-            }
-          }
-
-          // If not found in common fields, look for any numeric value >= 100 (skip likely dropdown IDs)
-          if (activityValue === 0) {
-            for (const [key, value] of Object.entries(activity_data)) {
-              const keyLower = key.toLowerCase();
-              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
-              if (value !== undefined && value !== '') {
-                const numValue = parseFloat(value as string);
-                if (!isNaN(numValue) && numValue >= 100) {
-                  activityValue = numValue;
-                  break;
-                }
-              }
-            }
-          }
-
-          // Fallback: accept any positive number
-          if (activityValue === 0) {
-            for (const [key, value] of Object.entries(activity_data)) {
-              const keyLower = key.toLowerCase();
-              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
-              if (value !== undefined && value !== '') {
-                const numValue = parseFloat(value as string);
-                if (!isNaN(numValue) && numValue > 0) {
-                  activityValue = numValue;
-                  break;
-                }
-              }
-            }
-          }
+          activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
           }
 
           if (activityValue > 0) {
@@ -1186,35 +1063,8 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
       }
 
       if (feraFactor) {
-        // Extract activity value (same logic as create)
-        let feraActivityValue = 0;
-        const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-        const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
-        for (const field of commonFlds) {
-          const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-          if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-            feraActivityValue = parseFloat(activity_data[matchingKey]);
-            if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
-          }
-        }
-        if (feraActivityValue === 0) {
-          for (const [key, value] of Object.entries(activity_data)) {
-            if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-            if (value !== undefined && value !== '') {
-              const numValue = parseFloat(value as string);
-              if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
-            }
-          }
-        }
-        if (feraActivityValue === 0) {
-          for (const [key, value] of Object.entries(activity_data)) {
-            if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-            if (value !== undefined && value !== '') {
-              const numValue = parseFloat(value as string);
-              if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
-            }
-          }
-        }
+        // The parent's quantity, as for the parent itself.
+        const feraActivityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
 
         if (feraActivityValue > 0) {
           // No unit conversion: don't store a total from the raw value (audit
@@ -3444,9 +3294,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // while keeping the old total would leave the row off by the conversion
     // factor. Treat it as an activity_data edit using the stored data.
     const unitChanged = activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit;
+    if (date_of_reporting !== undefined && isNaN(new Date(date_of_reporting).getTime())) {
+      return res.status(400).json({ message: "Invalid date of reporting" });
+    }
+    // A new reporting date can mean a different factor year, so it recalculates
+    // too, but only a row that has a category and unit: otherwise there is no
+    // total to recalculate and the date alone changes, as before.
+    const storedDate = new Date(emission.date_of_reporting).toISOString().slice(0, 10);
+    const dateChanged = date_of_reporting !== undefined && new Date(date_of_reporting).toISOString().slice(0, 10) !== storedDate;
+    const canRecalculate = !!emission.activity_data?.emission_category && !!(activity_data_unit ?? emission.activity_data_unit);
     const activity_data = activityDataInput !== undefined
       ? activityDataInput
-      : (unitChanged ? emission.activity_data : undefined);
+      : (unitChanged || (dateChanged && canRecalculate) ? { ...emission.activity_data } : undefined);
 
     // Capture changes for audit trail
     const changedFields: Record<string, { old: any; new: any }> = {};
@@ -3472,6 +3331,9 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       return res.status(400).json({ message: "An approved entry must keep its emission category and unit" });
     }
     const oldTotal = emission.total_emission;
+
+    // Apply the new date first: the factor year follows the reporting date.
+    if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
 
     // Apply changes (do NOT change approval status)
     if (activity_data_unit !== undefined) {
@@ -3503,8 +3365,6 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
         });
 
         if (emissionFactor) {
-          const skipColumns = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-          const commonFields = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
           let activityValue = 0;
 
           // Spec category (e.g. Use of Sold Products): multiply the method's
@@ -3535,44 +3395,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
             if (computed.unitKey) emission.activity_data_unit = computed.unitKey;
             activity_data.activity_value = String(activityValue);
           } else {
-
-          for (const field of commonFields) {
-            const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-            if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-              activityValue = parseFloat(activity_data[matchingKey]);
-              if (!isNaN(activityValue) && activityValue > 0) break;
-            }
-          }
-
-          // Tier 2: try numeric fields >= 100 (skip likely dropdown IDs)
-          if (activityValue === 0) {
-            for (const [key, value] of Object.entries(activity_data)) {
-              const keyLower = key.toLowerCase();
-              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
-              if (value !== undefined && value !== '') {
-                const numValue = parseFloat(value as string);
-                if (!isNaN(numValue) && numValue >= 100) {
-                  activityValue = numValue;
-                  break;
-                }
-              }
-            }
-          }
-
-          // Tier 3: any positive number as last resort
-          if (activityValue === 0) {
-            for (const [key, value] of Object.entries(activity_data)) {
-              const keyLower = key.toLowerCase();
-              if (key === 'emission_category' || skipColumns.has(keyLower)) continue;
-              if (value !== undefined && value !== '') {
-                const numValue = parseFloat(value as string);
-                if (!isNaN(numValue) && numValue > 0) {
-                  activityValue = numValue;
-                  break;
-                }
-              }
-            }
-          }
+          activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
           }
 
           if (activityValue > 0) {
@@ -3591,11 +3414,14 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
               }
             }
           }
+        } else {
+          // Saving would keep the old total next to the new values.
+          return res.status(400).json({
+            message: `No emission factor found for category "${activity_data.emission_category}"`,
+          });
         }
       }
     }
-
-    if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
 
     await repo.save(emission);
     await pcfDataChanged("emission", [emission.pk_id]);

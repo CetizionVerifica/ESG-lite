@@ -150,6 +150,100 @@ test("a manager edit recalculates the FERA twin and keeps it in step with the pa
   }
 });
 
+test("manager edit takes the quantity, not a select's option id (configured select names)", async () => {
+  const before = await q("SELECT activity_data, total_emission, activity_data_unit, emission_factor_snapshot, date_of_reporting FROM emission WHERE pk_id=3");
+  await q("INSERT INTO column_entity (pk_id, column_name, column_type) VALUES (9901, 'Waste Type', 'select'), (9902, 'Amount of waste', 'number')");
+  await q(`INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options) VALUES (9901, 'CI waste', 1, 3, '{"9901":[{"id":"6","label":"ETP Sludge"}]}')`);
+  await q("INSERT INTO column_config_columns (column_config_id, column_id) VALUES (9901, 9901), (9901, 9902)");
+  await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (903, 'ETP Sludge - Landfill', 520, 'ton', 2024, 1, 3)");
+  await q("UPDATE emission SET activity_data_unit='ton' WHERE pk_id=3");
+  try {
+    const r = await call("PUT", "/user/emissions/manager-edit/3", "manager", {
+      activity_data: { "Waste Type": "6", "Amount of waste": "9.17", emission_category: "ETP Sludge - Landfill" },
+      reason: "Corrected weight",
+    });
+    assert.equal(r.status, 200);
+    const [row] = await q("SELECT total_emission FROM emission WHERE pk_id=3");
+    assert.equal(Number(row.total_emission), 4.77); // 9.17 t × 520 kg/t ÷ 1000, not 6 × 520
+
+    // A date-only edit into another year picks that year's factor.
+    await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (904, 'ETP Sludge - Landfill', 600, 'ton', 2025, 1, 3)");
+    const moved = await call("PUT", "/user/emissions/manager-edit/3", "manager", { date_of_reporting: "2026-03-15", reason: "Wrong year" });
+    assert.equal(moved.status, 200);
+    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=3"))[0].total_emission), 5.5); // 9.17 × 600 ÷ 1000
+
+    // No factor for the new category in any year: refuse rather than keep the old total.
+    const noFactor = await call("PUT", "/user/emissions/manager-edit/3", "manager", {
+      activity_data: { "Waste Type": "6", "Amount of waste": "9.17", emission_category: "Nothing like this" },
+      reason: "Try a category without factors",
+    });
+    assert.equal(noFactor.status, 400);
+    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=3"))[0].total_emission), 5.5);
+  } finally {
+    const [b] = before;
+    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4, date_of_reporting=$5 WHERE pk_id=3",
+      [b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.date_of_reporting]);
+    await q("DELETE FROM column_config_columns WHERE column_config_id=9901");
+    await q("DELETE FROM column_config WHERE pk_id=9901");
+    await q("DELETE FROM column_entity WHERE pk_id IN (9901, 9902)");
+    await q("DELETE FROM emission_factors WHERE emission_factor_id IN (903, 904)");
+    await clearAudit("emission", [3]);
+  }
+});
+
+test("manager edit: the FERA twin takes the quantity, not a select's option id", async () => {
+  const before = await q("SELECT pk_id, activity_data, total_emission, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+  await q("INSERT INTO column_entity (pk_id, column_name, column_type) VALUES (9903, 'Fuel Name', 'select'), (9904, 'Litres', 'number')");
+  await q("INSERT INTO column_config (pk_id, config_name, site_id, category_id) VALUES (9902, 'CI fuel', 1, 1)");
+  await q("INSERT INTO column_config_columns (column_config_id, column_id) VALUES (9902, 9903), (9902, 9904)");
+  await q(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id)
+           VALUES (905, 'Diesel', 2680, 'litre', 2024, 1, 1), (906, 'Diesel', 610, 'litre', 2024, 1, 5)`);
+  await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id IN (1, 5)");
+  try {
+    const r = await call("PUT", "/user/emissions/manager-edit/1", "manager", {
+      activity_data: { "Fuel Name": "3", Litres: "80", emission_category: "Diesel" }, reason: "Meter re-read",
+    });
+    assert.equal(r.status, 200);
+    const rows = await q("SELECT pk_id, total_emission FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+    assert.equal(Number(rows[0].total_emission), 214.4); // 80 litre × 2680 ÷ 1000
+    assert.equal(Number(rows[1].total_emission), 48.8); // 80 × 610 ÷ 1000, not 3 × 610
+  } finally {
+    for (const b of before) {
+      await q(
+        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7 WHERE pk_id=$1",
+        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by]
+      );
+    }
+    await q("DELETE FROM column_config_columns WHERE column_config_id=9902");
+    await q("DELETE FROM column_config WHERE pk_id=9902");
+    await q("DELETE FROM column_entity WHERE pk_id IN (9903, 9904)");
+    await q("DELETE FROM emission_factors WHERE emission_factor_id IN (905, 906)");
+    await clearAudit("emission", [1, 5]);
+  }
+});
+
+test("a date-only manager edit of a row without category or unit keeps its total", async () => {
+  // Fixture rows 2 (pending) and 3 (approved) have no emission_category.
+  const before = await q("SELECT pk_id, total_emission, date_of_reporting, status FROM emission WHERE pk_id IN (2, 3) ORDER BY pk_id");
+  try {
+    for (const b of before) {
+      const r = await call("PUT", `/user/emissions/manager-edit/${b.pk_id}`, "manager", { date_of_reporting: "2025-08-31", reason: "Wrong month" });
+      assert.equal(r.status, 200);
+      const [row] = await q("SELECT total_emission, date_of_reporting, status FROM emission WHERE pk_id=$1", [b.pk_id]);
+      assert.equal(Number(row.total_emission), Number(b.total_emission));
+      assert.equal(row.status, b.status);
+      assert.equal(new Date(row.date_of_reporting).toISOString().slice(0, 10), "2025-08-31");
+    }
+    const bad = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "not a date", reason: "Bad date" });
+    assert.equal(bad.status, 400);
+  } finally {
+    for (const b of before) {
+      await q("UPDATE emission SET total_emission=$2, date_of_reporting=$3, status=$4 WHERE pk_id=$1", [b.pk_id, b.total_emission, b.date_of_reporting, b.status]);
+    }
+    await clearAudit("emission", [2, 3]);
+  }
+});
+
 test("legacy Excel import computes the total from activity x factor, not the file's calculatedEmission", async () => {
   const XLSX = require("xlsx");
   const sheet = XLSX.utils.json_to_sheet([
