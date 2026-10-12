@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import { ImportPlan, ImportPlanMatch, ImportPlanRow } from "../../entities/ImportPlan";
+import { EmissionCategoryMapping } from "../../entities/EmissionCategoryMapping";
 import { UserRole } from "../../types/type";
 import { resolveUserCompanyId } from "../../utils/companyScope";
 import { ActivityMatch, GetPlanQuerySchema, ImportChannel, ImportPlan as ImportPlanView, ImportPlanWithRows, ImportRow, ImportRowSchema, ListBatchesQuerySchema, PlannedRow, RowIssue, TOTAL_LIKE_KEYS, UploadBatchSummary } from "../contracts";
@@ -376,7 +377,6 @@ export const patchPlan = async (
       await m.getRepository(ImportPlanRow).update({ id: r.id }, { input: r.input, state: r.state, issues: r.issues, result: r.result });
     }
     for (const match of body.activity_matches || []) {
-      // save_mapping (P23 category mappings) is IM2 part 2; the match is kept on the plan for now.
       await m
         .createQueryBuilder()
         .insert()
@@ -384,6 +384,7 @@ export const patchPlan = async (
         .values({ plan_id: plan.plan_id, site_id: match.site_id, category_id: match.category_id, sheet_name: match.sheet_name, factor_name: match.factor_name })
         .orUpdate(["factor_name"], ["plan_id", "site_id", "category_id", "sheet_name"])
         .execute();
+      if (match.save_mapping) await saveMapping(m, ctx, match);
     }
     const totalLike = new Set([
       ...rows.filter((r) => (r.issues as RowIssue[]).some((i) => i.code === "CLIENT_TOTAL_IGNORED")).map((r) => r.row_ref),
@@ -393,6 +394,38 @@ export const patchPlan = async (
     return plan;
   });
   return withFirstRows(plan);
+};
+
+/**
+ * `save_mapping` (decision D5): a Superadmin or the client's Admin may turn a
+ * plan match into a P23 category mapping, so the sheet wording resolves on
+ * every later import of that site × category. Other roles keep the match on
+ * the plan only. The mapping is by name (no pinned factor id), so the year
+ * fallback of the engine still applies. The site and category must be in the
+ * caller's scope.
+ */
+const saveMapping = async (m: EntityManager, ctx: WriterContext, match: ActivityMatch) => {
+  if (ctx.role !== UserRole.SUPERADMIN && ctx.role !== UserRole.ADMIN) return;
+  if (!ctx.allowed_site_ids.includes(match.site_id) || !(ctx.allowed_category_ids_by_site[match.site_id] ?? []).includes(match.category_id)) {
+    throw new ImportError("IMPORT_FORBIDDEN", { site_id: match.site_id, category_id: match.category_id });
+  }
+  const company: { name: string }[] = await m.query(`SELECT name FROM company WHERE company_id = $1`, [ctx.company_id]);
+  await m
+    .createQueryBuilder()
+    .insert()
+    .into(EmissionCategoryMapping)
+    .values({
+      company_id: ctx.company_id,
+      company_name: company[0]?.name ?? "",
+      site_id: match.site_id,
+      category_id: match.category_id,
+      company_category_name: match.sheet_name,
+      global_category_name: match.factor_name,
+      emission_factor_id: null,
+      created_by: ctx.user_id,
+    })
+    .orUpdate(["global_category_name", "created_by"], ["company_id", "site_id", "category_id", "company_category_name"])
+    .execute();
 };
 
 export const cancelPlan = async (user: TokenUser, planId: string) => {
