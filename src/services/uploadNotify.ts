@@ -162,8 +162,13 @@ const findRecipients = async (event: BatchCommittedEvent): Promise<UploadRecipie
   return [...managers, ...admins];
 };
 
-const isUniqueViolation = (err: unknown): boolean =>
-  typeof err === "object" && err !== null && (err as { driverError?: { code?: string }; code?: string }).driverError?.code === "23505";
+const UPLOAD_NOTIFICATION_INDEX = "notification_upload_batch_user_uq";
+/** Postgres unique_violation (23505) on the per-batch index; any other unique index is somebody else's problem. */
+const isUniqueViolation = (err: unknown): boolean => {
+  const e = (err as { driverError?: { code?: string; constraint?: string }; message?: string } | null) ?? null;
+  if (!e || typeof e !== "object" || e.driverError?.code !== "23505") return false;
+  return e.driverError.constraint === UPLOAD_NOTIFICATION_INDEX || (e.message ?? "").includes(UPLOAD_NOTIFICATION_INDEX);
+};
 
 /** Users already holding a notification for this batch, so a retried emit or a second hook call adds none. */
 const alreadyNotified = async (uploadBatchId: string): Promise<Set<number>> => {

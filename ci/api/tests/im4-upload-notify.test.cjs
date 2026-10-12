@@ -137,7 +137,17 @@ test("internal batch-committed hook: service key required, body validated", asyn
 
 test("two concurrent emits for one batch leave exactly one notification per manager", async () => {
   const e = event({ upload_batch_id: "im4-batch-8" });
-  const [a, b] = await Promise.all([notifyBatchCommitted(e), notifyBatchCommitted(e)]);
+  // The loser of the race must go quiet: a logged "[UploadNotify]" error would mean the 23505 was not recognised.
+  const logged = [];
+  const origError = console.error;
+  console.error = (...args) => logged.push(args.map(String).join(" "));
+  let a, b;
+  try {
+    [a, b] = await Promise.all([notifyBatchCommitted(e), notifyBatchCommitted(e)]);
+  } finally {
+    console.error = origError;
+  }
+  assert.deepEqual(logged.filter((l) => l.includes("[UploadNotify]")), []);
   assert.equal(a.notified + b.notified, 1, "one of the two wrote it, the other hit the unique index or the pre-check");
   assert.equal(await countFor(2, "im4-batch-8"), 1);
   // Belt and braces: the index itself refuses a second row.
