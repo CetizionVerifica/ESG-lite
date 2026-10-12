@@ -10,6 +10,7 @@
  */
 import { existsSync, readFileSync } from "fs";
 import path from "path";
+import { z } from "zod";
 
 export const GUIDE_RESOURCE_URI = "esglite://guide/import";
 export const IMPORT_WORKBOOK_PROMPT = "import_workbook";
@@ -55,6 +56,17 @@ export interface ImportWorkbookArgs {
   period?: string;
 }
 
+/**
+ * Prompt arguments as a zod raw shape. The SDK treats a prompt without an
+ * `argsSchema` as zero-argument and then calls back with `extra` in the
+ * first position, so this shape must always be passed to `registerPrompt`.
+ */
+export const IMPORT_WORKBOOK_ARGS_SCHEMA = {
+  client: z.string().max(200).optional().describe("Client (company) name the workbook belongs to"),
+  site: z.string().max(200).optional().describe("Site the rows are for, when the workbook does not say"),
+  period: z.string().max(100).optional().describe("Reporting period, e.g. 'monthly 2026', 'FY 2025-26' or 'CY 2025'"),
+};
+
 export const IMPORT_WORKBOOK_PROMPT_ARGUMENTS = [
   { name: "client", description: "Client (company) name the workbook belongs to", required: false },
   { name: "site", description: "Site the rows are for, when the workbook does not say", required: false },
@@ -92,8 +104,8 @@ export const buildImportWorkbookPrompt = (args: ImportWorkbookArgs = {}): string
 export interface GuideServer {
   registerPrompt(
     name: string,
-    config: { title?: string; description?: string; argsSchema?: unknown },
-    cb: (args: Record<string, string | undefined>) => { messages: { role: "user"; content: { type: "text"; text: string } }[] }
+    config: { title?: string; description?: string; argsSchema: typeof IMPORT_WORKBOOK_ARGS_SCHEMA },
+    cb: (args: ImportWorkbookArgs) => { messages: { role: "user"; content: { type: "text"; text: string } }[] }
   ): unknown;
   registerResource(
     name: string,
@@ -110,6 +122,7 @@ export const registerGuide = (server: GuideServer): void => {
     {
       title: "Import a workbook",
       description: "Step-by-step guide for importing an Excel workbook of activity data as pending entries.",
+      argsSchema: IMPORT_WORKBOOK_ARGS_SCHEMA,
     },
     (args) => ({
       messages: [{ role: "user", content: { type: "text", text: buildImportWorkbookPrompt(args) } }],
