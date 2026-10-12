@@ -90,7 +90,7 @@ Limits: 2,000 rows per request, 20,000 rows per plan, 10 open draft plans per us
 | `POST /imports/plans` | IM2 | `{ source_name, channel, company_id?, rows: ImportRow[] }` | `ImportPlan` + first 50 `PlannedRow`s with issues first |
 | `POST /imports/plans/:id/rows` | IM2 | `{ version, rows }` (append) | `ImportPlan` |
 | `GET /imports/plans/:id` | IM2 | `?state=issue&code&page&page_size≤200` | `ImportPlan` + page of `PlannedRow` |
-| `PATCH /imports/plans/:id` | IM2 | `{ version, changes: [{ row_ref, set?: Partial<ImportRow>, skip?: bool }], activity_matches: [{ site_id, category_id, sheet_name, factor_name, save_mapping?: bool }] }` | `ImportPlan` (recalculated) |
+| `PATCH /imports/plans/:id` | IM2 | `{ version, changes: [{ row_ref, set?: Partial<ImportRow>, skip?: bool }], activity_matches: [{ site_id, category_id, sheet_name, factor_name, save_mapping?: bool }] }` | `ImportPlan` (recalculated). `save_mapping` (Superadmin or company Admin, D5) writes a new P23 mapping by name; an existing mapping for that site × category × sheet wording is never changed: `400 IMPORT_VALIDATION` with `details.reason = "MAPPING_EXISTS"` |
 | `POST /imports/plans/:id/commit` | IM2 | `{ version, skip_rows_with_issues: bool, idempotency_key: string }` | `ImportPlan` with `committed` |
 | `POST /imports/plans/:id/cancel` | IM2 | — | `ImportPlan` |
 | `GET /imports/batches` | IM2 | `?company_id&status&channel&page` | `[{ upload_batch_id, channel, source_name, created_by: { user_id, name }, created_at, rows, pending, approved, rejected, tco2e }]` |

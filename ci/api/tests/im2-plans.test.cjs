@@ -1,22 +1,42 @@
 // IM2 import plans API (docs/mcp-import/backend/IM2-import-plans-api/CLAUDE.md):
 // a plan is created from rows, re-checked on every change, and commits as one
-// pending upload batch. Runs with the fake EmissionWriter (part 1): a row is
-// worth value / 1000 tCO2e, a name containing "unknown" is UNKNOWN_ACTIVITY.
+// pending upload batch. Runs on IM1's emission write service (part 2) with
+// the factors below: Diesel 2680 kg/litre on sites 1 and 2, Grid Electricity
+// 708 kg/kWh on site 1, so 1,500 litre of Diesel is 4.02 tCO2e.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { randomUUID } = require("crypto");
 const { call, withDb } = require("../helpers.cjs");
 
 let seq = 0;
+// Each default row lands in its own month (Jan–Jun 2025), so rows of one plan don't read as duplicates of each other.
 const row = (over = {}) => ({
   row_ref: `Sheet1!B${++seq}`,
   site_id: 1,
   category_id: 1,
-  period: { kind: "monthly", date: "2025-06-01" },
-  activity_name: `Fuel ${seq}`,
+  period: { kind: "monthly", date: `2025-0${1 + (seq % 6)}-01` },
+  activity_name: "Diesel",
   activity_value: 1500,
-  activity_unit: "L",
+  activity_unit: "litre",
   ...over,
+});
+
+test.before(async () => {
+  await withDb((db) =>
+    db.query(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name) VALUES
+      (920, 1, 1, 2024, 2680.0000, 'litre', 'CI', 'Diesel', 'Diesel'),
+      (921, 2, 1, 2024, 2680.0000, 'litre', 'CI', 'Diesel', 'Diesel'),
+      (922, 1, 2, 2024, 708.0000, 'kwh', 'CI', 'Grid Electricity', 'Grid Electricity'),
+      (923, 1, 1, 2023, 2650.0000, 'litre', 'CI', 'Diesel', 'Diesel')`),
+  );
+});
+
+test.after(async () => {
+  await withDb(async (db) => {
+    await db.query(`DELETE FROM audit_log WHERE entity_type = 'category_mapping'`);
+    await db.query(`DELETE FROM emission_category_mapping WHERE company_category_name IN ('Unknown diesel', 'Unknown petrol', 'Pinned diesel')`);
+    await db.query(`DELETE FROM emission_factors WHERE emission_factor_id IN (920, 921, 922, 923)`);
+  });
 });
 
 const create = (who, rows, extra = {}) => call("POST", "/imports/plans", who, { source_name: "fuel.xlsx", channel: "api", rows, ...extra });
@@ -28,32 +48,40 @@ const emissionCount = (batchId) =>
   withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission WHERE upload_batch_id = $1`, [batchId])).rows[0].n));
 
 test("create: rows are planned, issues come first, totals come from the writer", async () => {
+  const june = { kind: "monthly", date: "2025-06-01" };
   const res = await create("manager", [
-    row({ row_ref: "a", activity_name: "HSD", activity_value: 2000 }),
-    row({ row_ref: "b", activity_name: "Unknown fuel" }),
-    row({ row_ref: "c", site_id: 2, category_id: 2, activity_name: "Grid", activity_value: 500, activity_unit: "kWh", total_emission: 99 }),
-    row({ row_ref: "d", activity_name: "hsd ", activity_value: 0 }),
-    row({ row_ref: "e", period: { kind: "yearly", year_type: "FY", year: 2025 }, activity_value: 1000 }),
+    row({ row_ref: "a", activity_name: "diesel", activity_value: 2000, period: june }),
+    row({ row_ref: "b", activity_name: "Unknown fuel", period: june }),
+    row({ row_ref: "c", category_id: 2, activity_name: "Grid Electricity", activity_value: 500, activity_unit: "kWh", total_emission: 99, period: june }),
+    row({ row_ref: "d", activity_name: "Diesel ", activity_value: 0, period: june }),
+    row({ row_ref: "e", period: { kind: "yearly", year_type: "FY", year: 2024 }, activity_value: 1000 }),
+    row({ row_ref: "f", activity_name: "DIESEL", activity_value: 10, activity_unit: "gallon", period: june }),
   ]);
   assert.equal(res.status, 201, JSON.stringify(res.json));
   const plan = res.json;
   assert.equal(plan.status, "draft");
   assert.equal(plan.version, 1);
   assert.equal(plan.company_id, 1);
-  assert.deepEqual(plan.counts, { rows: 5, ready: 3, issue: 2, skipped: 0, warnings: 2 });
-  assert.equal(plan.totals.tco2e, 3.5);
-  assert.deepEqual(plan.totals.by_month.map((m) => m.month), ["2025-03", "2025-06"], "FY 2025 ends 31 March 2025");
-  assert.deepEqual(plan.totals.by_category.map((c) => [c.category_id, c.name, c.tco2e, c.rows]), [[1, "Stationary Combustion", 3, 2], [2, "Purchased Electricity", 0.5, 1]]);
+  assert.deepEqual(plan.counts, { rows: 6, ready: 4, issue: 2, skipped: 0, warnings: 2 });
+  // 2000 l × 2.68 + 500 kWh × 0.708 + 1000 l × 2.65 (the FY 2024 row takes the 2023 factor) + 10 gal (37.8541 l) × 2.68
+  assert.equal(plan.totals.tco2e, 8465.45);
+  assert.deepEqual(plan.totals.by_month.map((m) => m.month), ["2024-03", "2025-06"], "FY 2024 ends 31 March 2024");
+  assert.deepEqual(plan.totals.by_category.map((c) => [c.category_id, c.name, c.tco2e, c.rows]), [[1, "Stationary Combustion", 8111.45, 3], [2, "Purchased Electricity", 354, 1]]);
   assert.deepEqual(plan.issues_summary.map((i) => [i.code, i.count]).sort(), [["CLIENT_TOTAL_IGNORED", 1], ["DUPLICATE_IN_PLAN", 1], ["NON_POSITIVE_VALUE", 1], ["UNKNOWN_ACTIVITY", 1]]);
-  assert.deepEqual(plan.rows.map((r) => r.row_ref), ["b", "d", "a", "c", "e"]);
+  assert.deepEqual(plan.rows.map((r) => r.row_ref), ["b", "d", "a", "c", "e", "f"]);
+  const a = plan.rows.find((r) => r.row_ref === "a");
+  assert.deepEqual([a.result.activity.matched_by, a.result.activity.factor_name, a.result.factor.value, a.result.total_tco2e], ["factor", "Diesel", 2680, 5360]);
   const c = plan.rows.find((r) => r.row_ref === "c");
   assert.equal(c.state, "ready");
   assert.equal("total_emission" in c.input, false, "total-like keys are stripped");
   assert.equal(c.issues[0].code, "CLIENT_TOTAL_IGNORED");
   const d = plan.rows.find((r) => r.row_ref === "d");
-  assert.deepEqual(d.issues.map((i) => [i.code, i.severity]), [["NON_POSITIVE_VALUE", "error"], ["DUPLICATE_IN_PLAN", "warning"]], "same site, category, month and activity as row a");
+  assert.deepEqual(d.issues.map((i) => [i.code, i.severity]), [["NON_POSITIVE_VALUE", "error"]]);
+  const f = plan.rows.find((r) => r.row_ref === "f");
+  assert.deepEqual(f.issues.map((i) => [i.code, i.severity]), [["DUPLICATE_IN_PLAN", "warning"]], "same site, category, month and activity as row a");
+  assert.deepEqual([f.result.conversion, f.result.total_tco2e], [3.78541, 101.45]);
   const e = plan.rows.find((r) => r.row_ref === "e");
-  assert.deepEqual([e.result.reporting_date, e.result.reporting_period, e.result.year_type], ["2025-03-31", "yearly", "FY"]);
+  assert.deepEqual([e.result.reporting_date, e.result.reporting_period, e.result.year_type, e.result.factor.year, e.result.total_tco2e], ["2024-03-31", "yearly", "FY", 2023, 2650]);
   assert.match(plan.expires_at, /T/);
 });
 
@@ -77,9 +105,10 @@ test("scope: a User can only plan their own site and granted categories; Superad
   assert.equal(user.status, 201);
   assert.deepEqual(user.json.rows.map((r) => [r.row_ref, r.state, r.issues[0]?.code]), [["other", "issue", "SITE_NOT_ALLOWED"], ["own", "ready", undefined]]);
 
-  const granted = await create("multiSiteUser", [row({ row_ref: "ok", category_id: 2 }), row({ row_ref: "no", category_id: 3 })]);
+  const granted = await create("multiSiteUser", [row({ row_ref: "ok", category_id: 2, activity_name: "Grid Electricity", activity_unit: "kWh" }), row({ row_ref: "no", category_id: 3 })]);
   assert.equal(granted.status, 201);
   assert.equal(granted.json.rows.find((r) => r.row_ref === "no").issues[0].code, "CATEGORY_NOT_ASSIGNED");
+  assert.equal(granted.json.rows.find((r) => r.row_ref === "ok").state, "ready");
 
   const noCompany = await create("superadmin", [row()]);
   assert.equal(noCompany.status, 400);
@@ -155,15 +184,17 @@ test("patch: fix a value, skip a row, match an activity name; the plan is recalc
       { row_ref: "p1", set: { activity_value: 250 } },
       { row_ref: "p3", skip: true },
     ],
-    activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Unknown diesel", factor_name: "HSD" }],
+    activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Unknown diesel", factor_name: "Diesel", save_mapping: true }],
   });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   assert.equal(res.json.version, plan.version + 1);
   assert.deepEqual(res.json.counts, { rows: 3, ready: 2, issue: 0, skipped: 1, warnings: 0 });
   const p1 = res.json.rows.find((r) => r.row_ref === "p1");
-  assert.deepEqual([p1.state, p1.input.activity_value, p1.result.total_tco2e], ["ready", 250, 0.25]);
+  assert.deepEqual([p1.state, p1.input.activity_value, p1.result.total_tco2e], ["ready", 250, 670]);
   const p2 = res.json.rows.find((r) => r.row_ref === "p2");
-  assert.deepEqual([p2.state, p2.result.activity.matched_by, p2.result.activity.factor_name], ["ready", "plan_match", "HSD"]);
+  assert.deepEqual([p2.state, p2.result.activity.matched_by, p2.result.activity.factor_name], ["ready", "plan_match", "Diesel"]);
+  // A Manager's save_mapping stays on the plan: no P23 mapping is written (D5).
+  assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel'`)).rows[0].n)), 0);
   const p3 = res.json.rows.find((r) => r.row_ref === "p3");
   assert.deepEqual([p3.state, p3.issues, p3.result], ["skipped", [], undefined]);
   // Un-skip brings the row back into the plan.
@@ -185,7 +216,77 @@ test("patch: fix a value, skip a row, match an activity name; the plan is recalc
   const totalled = await call("PATCH", `/imports/plans/${plan.plan_id}`, "manager", { version: rename.json.version, changes: [{ row_ref: "p3", set: { activity_value: 20, total_emission: 999 } }] });
   assert.equal(totalled.status, 200, JSON.stringify(totalled.json));
   const p3Again = totalled.json.rows.find((r) => r.row_ref === "p3");
-  assert.deepEqual([p3Again.input.activity_value, p3Again.result.total_tco2e, p3Again.issues.map((i) => i.code)], [20, 0.02, ["CLIENT_TOTAL_IGNORED"]]);
+  assert.deepEqual([p3Again.input.activity_value, p3Again.result.total_tco2e, p3Again.issues.map((i) => i.code)], [20, 53.6, ["CLIENT_TOTAL_IGNORED"]]);
+});
+
+test("save_mapping: a Superadmin or Admin turns a match into a P23 mapping that later plans resolve by", async () => {
+  const { json: plan } = await create("admin", [row({ row_ref: "m1", activity_name: "Unknown diesel" })]);
+  assert.equal(plan.rows[0].issues[0].code, "UNKNOWN_ACTIVITY");
+  const outOfScope = await call("PATCH", `/imports/plans/${plan.plan_id}`, "admin", {
+    version: plan.version,
+    activity_matches: [{ site_id: 3, category_id: 1, sheet_name: "Unknown diesel", factor_name: "Diesel", save_mapping: true }],
+  });
+  assert.deepEqual([outOfScope.status, outOfScope.json.code], [403, "IMPORT_FORBIDDEN"], "another client's site is never mapped");
+  const res = await call("PATCH", `/imports/plans/${plan.plan_id}`, "admin", {
+    version: plan.version,
+    activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Unknown diesel", factor_name: "Diesel", save_mapping: true }],
+  });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.deepEqual([res.json.rows[0].state, res.json.rows[0].result.activity.matched_by], ["ready", "plan_match"]);
+  const mapping = await withDb((db) => db.query(`SELECT company_id, site_id, category_id, global_category_name, emission_factor_id, created_by FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel'`));
+  assert.deepEqual(mapping.rows, [{ company_id: 1, site_id: 1, category_id: 1, global_category_name: "Diesel", emission_factor_id: null, created_by: 3 }]);
+  // A later plan, by anyone on that site, resolves the sheet wording through the mapping.
+  const later = await create("manager", [row({ row_ref: "m2", activity_name: "unknown DIESEL" })]);
+  assert.deepEqual([later.json.rows[0].state, later.json.rows[0].result.activity.matched_by, later.json.rows[0].result.total_tco2e], ["ready", "mapping", 4020]);
+  // Site 2 has no such mapping.
+  const elsewhere = await create("manager", [row({ row_ref: "m3", site_id: 2, activity_name: "Unknown diesel" })]);
+  assert.equal(elsewhere.json.rows[0].issues[0].code, "UNKNOWN_ACTIVITY");
+  for (const id of [plan.plan_id, later.json.plan_id, elsewhere.json.plan_id]) await call("POST", `/imports/plans/${id}/cancel`, id === plan.plan_id ? "admin" : "manager");
+  // The written mapping is audited.
+  const audit = await withDb((db) => db.query(`SELECT action, changed_by, reason, changed_fields FROM audit_log WHERE entity_type = 'category_mapping' AND entity_id = (SELECT id FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel')`));
+  assert.equal(audit.rowCount, 1);
+  assert.deepEqual([audit.rows[0].action, audit.rows[0].changed_by, audit.rows[0].changed_fields.global_category_name.new], ["create", 3, "Diesel"]);
+  assert.match(audit.rows[0].reason, new RegExp(`^Saved from import plan ${plan.plan_id} \\(api\\)$`));
+});
+
+test("save_mapping: a Superadmin saves for the named client; an existing mapping (app-made, pinned) is never overwritten", async () => {
+  const { json: plan } = await create("superadmin", [row({ row_ref: "s1", activity_name: "Unknown petrol" })], { company_id: 1 });
+  assert.equal(plan.company_id, 1);
+  const res = await call("PATCH", `/imports/plans/${plan.plan_id}`, "superadmin", {
+    version: plan.version,
+    activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Unknown petrol", factor_name: "Diesel", save_mapping: true }],
+  });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  const mapping = await withDb((db) => db.query(`SELECT company_id, site_id, global_category_name, emission_factor_id, created_by FROM emission_category_mapping WHERE company_category_name = 'Unknown petrol'`));
+  assert.deepEqual(mapping.rows, [{ company_id: 1, site_id: 1, global_category_name: "Diesel", emission_factor_id: null, created_by: 5 }]);
+
+  // An app-made mapping pins the 2023 Diesel factor (923). Saving the same sheet wording again is refused and the pin stays.
+  await withDb((db) =>
+    db.query(`INSERT INTO emission_category_mapping (company_id, company_name, site_id, category_id, company_category_name, global_category_name, emission_factor_id, created_by)
+              VALUES (1, 'CI Company', 1, 1, 'Pinned diesel', 'Diesel', 923, 5)`),
+  );
+  const { json: adminPlan } = await create("admin", [row({ row_ref: "a1", activity_name: "Pinned diesel" })]);
+  for (const [who, p] of [["superadmin", plan.plan_id], ["admin", adminPlan.plan_id]]) {
+    const dup = await call("PATCH", `/imports/plans/${p}`, who, {
+      version: who === "admin" ? adminPlan.version : res.json.version,
+      activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Pinned diesel", factor_name: "Natural Gas", save_mapping: true }],
+    });
+    assert.equal(dup.status, 400, JSON.stringify(dup.json));
+    assert.deepEqual([dup.json.code, dup.json.details.reason, dup.json.details.maps_to], ["IMPORT_VALIDATION", "MAPPING_EXISTS", "Diesel"], who);
+  }
+  await call("POST", `/imports/plans/${adminPlan.plan_id}/cancel`, "admin");
+  const pinned = await withDb((db) => db.query(`SELECT global_category_name, emission_factor_id FROM emission_category_mapping WHERE company_category_name = 'Pinned diesel'`));
+  assert.deepEqual(pinned.rows, [{ global_category_name: "Diesel", emission_factor_id: 923 }]);
+  // Refused as a whole: the plan did not move and no plan match was stored.
+  const after = await call("GET", `/imports/plans/${plan.plan_id}`, "superadmin");
+  assert.equal(after.json.version, res.json.version);
+  // Without save_mapping the same match is fine and stays on the plan.
+  const planOnly = await call("PATCH", `/imports/plans/${plan.plan_id}`, "superadmin", {
+    version: res.json.version,
+    activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Pinned diesel", factor_name: "Diesel" }],
+  });
+  assert.equal(planOnly.status, 200, JSON.stringify(planOnly.json));
+  await call("POST", `/imports/plans/${plan.plan_id}/cancel`, "superadmin");
 });
 
 test("commit refuses a plan with nothing ready, so no empty batch is ever written", async () => {
@@ -200,7 +301,7 @@ test("commit refuses a plan with nothing ready, so no empty batch is ever writte
 });
 
 test("commit: refused with issues unless skipped; rows land pending in one batch; repeats add nothing", async () => {
-  const { json: plan } = await create("manager", [row({ row_ref: "c1", activity_value: 1000 }), row({ row_ref: "c2", site_id: 2, category_id: 2, activity_name: "Grid", activity_value: 3000, activity_unit: "kWh" }), row({ row_ref: "bad", activity_name: "unknown" })]);
+  const { json: plan } = await create("manager", [row({ row_ref: "c1", activity_value: 1000 }), row({ row_ref: "c2", site_id: 2, activity_value: 3000 }), row({ row_ref: "bad", activity_name: "unknown" })]);
   const refused = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: plan.version, skip_rows_with_issues: false, idempotency_key: "k-" + plan.plan_id });
   assert.equal(refused.status, 422);
   assert.deepEqual([refused.json.code, refused.json.details.row_refs], ["IMPORT_PLAN_HAS_ISSUES", ["bad"]]);
@@ -222,7 +323,10 @@ test("commit: refused with issues unless skipped; rows land pending in one batch
   const saved = await withDb(async (db) =>
     (await db.query(`SELECT status, total_emission::float AS t, site_id, category_id, extra_data FROM emission WHERE upload_batch_id = $1 ORDER BY site_id`, [batchId])).rows,
   );
-  assert.deepEqual(saved.map((s) => [s.status, s.t, s.site_id, s.category_id, s.extra_data.import_channel]), [["pending", 1, 1, 1, "api"], ["pending", 3, 2, 2, "api"]]);
+  assert.deepEqual(saved.map((s) => [s.status, s.t, s.site_id, s.category_id, s.extra_data.import.channel]), [["pending", 2680, 1, 1, "api"], ["pending", 8040, 2, 1, "api"]]);
+  const audit = await withDb((db) => db.query(`SELECT reason FROM audit_log WHERE entity_type = 'emission' AND entity_id IN (SELECT pk_id FROM emission WHERE upload_batch_id = $1)`, [batchId]));
+  assert.equal(audit.rowCount, 2);
+  assert.match(audit.rows[0].reason, /^Imported via API by CI Manager \(batch /);
 
   // Same key again: same answer, no new rows. A different key: the plan is no longer a draft.
   const again = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: plan.version, skip_rows_with_issues: true, idempotency_key: key });
@@ -240,7 +344,7 @@ test("commit: refused with issues unless skipped; rows land pending in one batch
   const mine = list.json.find((x) => x.upload_batch_id === batchId);
   assert.deepEqual(
     { channel: mine.channel, source_name: mine.source_name, rows: mine.rows, pending: mine.pending, approved: mine.approved, tco2e: mine.tco2e, site_ids: mine.site_ids, plan_id: mine.plan_id, by: mine.created_by.user_id },
-    { channel: "api", source_name: "fuel.xlsx", rows: 2, pending: 2, approved: 0, tco2e: 4, site_ids: [1, 2], plan_id: plan.plan_id, by: 2 },
+    { channel: "api", source_name: "fuel.xlsx", rows: 2, pending: 2, approved: 0, tco2e: 10720, site_ids: [1, 2], plan_id: plan.plan_id, by: 2 },
   );
   // Site-scoped: the site 1 User sees it (one of its rows is theirs to see), client 2 sees nothing of it.
   assert.ok((await call("GET", "/imports/batches", "user")).json.some((x) => x.upload_batch_id === batchId));
@@ -261,12 +365,12 @@ test("commit: refused with issues unless skipped; rows land pending in one batch
 });
 
 test("commit re-checks the rows: an entry saved after planning is caught", async () => {
-  const { json: plan } = await create("manager", [row({ row_ref: "late", activity_name: "Late fuel", period: { kind: "monthly", date: "2025-05-01" } })]);
+  const { json: plan } = await create("manager", [row({ row_ref: "late", period: { kind: "monthly", date: "2025-05-01" } })]);
   assert.equal(plan.counts.ready, 1);
   await withDb((db) =>
     db.query(
-      `INSERT INTO emission (activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period)
-       VALUES ('{"activity_name": "late fuel", "activity_value": 1}', 0.001, 'tCO2e', '2025-05-15', 'pending', 1, 1, 1, 'monthly')`,
+      `INSERT INTO emission (activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, review_comment)
+       VALUES ('{"emission_category": "Diesel", "activity_value": 1}', 0.001, 'tCO2e', '2025-05-15', 'pending', 1, 1, 1, 'monthly', 'im2-late')`,
     ),
   );
   const res = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: plan.version, skip_rows_with_issues: false, idempotency_key: "late-" + plan.plan_id });
@@ -275,18 +379,32 @@ test("commit re-checks the rows: an entry saved after planning is caught", async
   assert.deepEqual(res.json.details.rows.map((r) => [r.row_ref, r.issues[0].code]), [["late", "DUPLICATE_EXISTING"]]);
   const after = await call("GET", `/imports/plans/${plan.plan_id}`, "manager");
   assert.deepEqual([after.json.status, after.json.version, after.json.counts.issue], ["draft", plan.version + 1, 1]);
-  await withDb((db) => db.query(`DELETE FROM emission WHERE activity_data->>'activity_name' = 'late fuel'`));
+  await withDb((db) => db.query(`DELETE FROM emission WHERE review_comment = 'im2-late'`));
 });
 
 test("a failure mid-commit leaves no rows and the plan still a draft", async () => {
-  const { json: plan } = await create("manager", [row({ row_ref: "ok1" }), row({ row_ref: "boom", notes: "__FAIL_INSERT__", activity_name: "Boom" })]);
-  const before = await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission`)).rows[0].n));
-  const res = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: plan.version, skip_rows_with_issues: false, idempotency_key: "fail-" + plan.plan_id });
-  assert.equal(res.status, 500);
-  assert.equal(res.json.code, "INTERNAL");
-  assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission`)).rows[0].n)), before);
-  const after = await call("GET", `/imports/plans/${plan.plan_id}`, "manager");
-  assert.deepEqual([after.json.status, after.json.committed], ["draft", undefined]);
+  // A test-only trigger makes the second row's insert fail inside the commit transaction (MCP-24).
+  await withDb(async (db) => {
+    await db.query(`CREATE OR REPLACE FUNCTION ci_im2_fail_insert() RETURNS trigger AS $$
+      BEGIN IF NEW.extra_data->>'notes' = '__FAIL_INSERT__' THEN RAISE EXCEPTION 'ci: forced insert failure'; END IF; RETURN NEW; END $$ LANGUAGE plpgsql`);
+    await db.query(`CREATE TRIGGER ci_im2_fail_insert BEFORE INSERT ON emission FOR EACH ROW EXECUTE FUNCTION ci_im2_fail_insert()`);
+  });
+  try {
+    const { json: plan } = await create("manager", [row({ row_ref: "ok1" }), row({ row_ref: "boom", notes: "__FAIL_INSERT__" })]);
+    assert.equal(plan.counts.ready, 2);
+    const before = await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission`)).rows[0].n));
+    const res = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: plan.version, skip_rows_with_issues: false, idempotency_key: "fail-" + plan.plan_id });
+    assert.equal(res.status, 500);
+    assert.equal(res.json.code, "INTERNAL");
+    assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission`)).rows[0].n)), before);
+    const after = await call("GET", `/imports/plans/${plan.plan_id}`, "manager");
+    assert.deepEqual([after.json.status, after.json.committed], ["draft", undefined]);
+  } finally {
+    await withDb(async (db) => {
+      await db.query(`DROP TRIGGER IF EXISTS ci_im2_fail_insert ON emission`);
+      await db.query(`DROP FUNCTION IF EXISTS ci_im2_fail_insert()`);
+    });
+  }
 });
 
 test("cancel and expiry", async () => {

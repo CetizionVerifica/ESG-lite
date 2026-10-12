@@ -4,7 +4,6 @@ import { AuthRequest } from "../../middlewares/auth.middleware";
 import { AppendRowsBodySchema, CommitPlanBodySchema, CreatePlanBodySchema, PatchPlanBodySchema } from "../contracts";
 import { importError, isImportError } from "../errors";
 import { IMPORT_LIMITS } from "../limits";
-import { EngineNotReadyError } from "./apiError";
 import * as plans from "./service";
 
 /**
@@ -14,7 +13,6 @@ import * as plans from "./service";
  */
 
 const fail = (res: Response, err: unknown) => {
-  if (err instanceof EngineNotReadyError) return res.status(err.status).json({ code: err.code, message: err.message });
   if (isImportError(err)) return res.status(err.status).json(err.toBody());
   console.error("Import plans error:", err);
   return res.status(500).json({ code: "INTERNAL", message: "Internal server error" });
