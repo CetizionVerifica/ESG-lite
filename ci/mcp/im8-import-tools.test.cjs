@@ -288,6 +288,19 @@ test("MCP-17 tenant isolation: another client's plan cannot be appended to, and 
     const cross = await call(client, "plan_import", { company_id: 2, source_name: "second.xlsx", plan_id: id, version: 1, rows: [row({ row_ref: "s2" })] });
     assert.equal(cross.code, "IMPORT_FORBIDDEN");
     assert.equal(cross.data.details.company_id, 2);
+    // The other way round, with the plan's real owner switched off: still IMPORT_FORBIDDEN about the named client, nothing about client 1.
+    await setCompany(1, { mcp_enabled: false });
+    const theirPlan = await call(client, "plan_import", { company_id: 2, source_name: "mine.xlsx", rows: [row({ row_ref: "m1", site_id: 3 })] });
+    assert.equal(theirPlan.ok, true, theirPlan.text);
+    planIds.add(theirPlan.data.plan_id);
+    await setCompany(1, { mcp_enabled: true });
+    await setCompany(2, { mcp_enabled: false });
+    const hidden = await call(client, "plan_import", { company_id: 1, source_name: "x.xlsx", plan_id: theirPlan.data.plan_id, version: 1, rows: [row({ row_ref: "m2" })] });
+    assert.equal(hidden.code, "IMPORT_FORBIDDEN");
+    assert.equal(hidden.data.details.company_id, 1);
+    assert.doesNotMatch(JSON.stringify(hidden.data), /"company_id":2/);
+    await setCompany(2, { mcp_enabled: true });
+    assert.equal((await call(client, "cancel_import_plan", { plan_id: theirPlan.data.plan_id })).data.status, "cancelled");
     // Company 2's own plan with a site of company 1: the row is refused, the plan is not.
     const theirs = await call(client, "plan_import", { company_id: 2, source_name: "theirs.xlsx", rows: [row({ row_ref: "t1", site_id: 1 }), row({ row_ref: "t2", site_id: 3 })] });
     assert.equal(theirs.ok, true, theirs.text);

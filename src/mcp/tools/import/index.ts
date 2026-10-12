@@ -44,10 +44,18 @@ const validation = (err: unknown): never => {
   throw err;
 };
 
-/** The plan, visible to this Superadmin, with its client's switch checked. */
-const loadPlanForTool = async (ctx: McpToolContext, planId: string) => {
+/**
+ * The plan, visible to this Superadmin, with its client's switch checked.
+ * When the caller named a `company_id`, the plan must belong to it, and that
+ * is checked before the switch: a mismatch is IMPORT_FORBIDDEN about the
+ * named client, never a message about the plan's real owner.
+ */
+const loadPlanForTool = async (ctx: McpToolContext, planId: string, companyId?: number) => {
   ctx.setPlanId(planId);
   const plan = await plans.loadVisiblePlan(user(ctx), planId);
+  if (companyId !== undefined && plan.company_id !== companyId) {
+    throw new ImportError("IMPORT_FORBIDDEN", { plan_id: plan.plan_id, company_id: companyId }, "This plan belongs to a different client.");
+  }
   await assertClientUsable(plan.company_id);
   return plan;
 };
@@ -76,7 +84,7 @@ export const importTools: ToolDefinition<any>[] = [
       "Validates and calculates rows from a workbook into a draft plan, or appends rows to a draft plan when plan_id and its current version are given (send at most 2,000 rows per call). Every row's site must belong to company_id. Returns the plan summary, totals, issue summary and the first 50 rows with issues. Nothing is saved until commit_import.",
     input: {
       company_id: planInput.company_id,
-      source_name: planInput.source_name,
+      source_name: planInput.source_name.describe("Workbook or sheet name shown on the upload batch; ignored when appending with plan_id (the plan keeps its own)"),
       rows: z.array(looseRow).min(1).max(IMPORT_LIMITS.ROWS_PER_REQUEST),
       plan_id: planInput.plan_id,
       version: planInput.version,
@@ -94,8 +102,7 @@ export const importTools: ToolDefinition<any>[] = [
       let result: ImportPlanWithRows;
       if (input.plan_id) {
         if (input.version === undefined) throw new ImportError("IMPORT_VALIDATION", [{ path: "version", message: "version is required when plan_id is given" }], "Send the plan's current version when appending with plan_id.");
-        const plan = await loadPlanForTool(ctx, input.plan_id);
-        if (plan.company_id !== input.company_id) throw new ImportError("IMPORT_FORBIDDEN", { plan_id: plan.plan_id, company_id: input.company_id }, "This plan belongs to a different client.");
+        const plan = await loadPlanForTool(ctx, input.plan_id, input.company_id);
         result = await plans.appendRows(user(ctx), plan.plan_id, { version: input.version, rows: parsed.rows }, totalLike);
         ctx.log("appended rows", { plan_id: plan.plan_id, rows: parsed.rows.length, version: result.version });
       } else {
