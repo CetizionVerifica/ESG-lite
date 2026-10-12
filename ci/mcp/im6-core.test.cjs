@@ -125,10 +125,7 @@ test("initialize returns the esglite server with instructions; tools/list is fil
     const guide = await full.readResource({ uri: "esglite://guide/import" });
     assert.match(guide.contents[0].text, /plan_import/);
     const prompt = await full.getPrompt({ name: "import_workbook", arguments: { client: "CI Steel Co" } });
-    assert.match(prompt.messages[0].content.text, /commit_import only after/);
-    // Argument substitution ("Client: CI Steel Co") is IM9's: registerGuide
-    // declares no argsSchema yet, so the SDK hands the callback no arguments.
-    // Reported to the IM9 lane; its test (ci/unit/im9-guide.test.cjs) owns it.
+    assert.match(prompt.messages[0].content.text, /Client: CI Steel Co/);
     const { tools } = await full.listTools();
     const names = tools.map((t) => t.name).sort();
     assert.deepEqual(names, [
