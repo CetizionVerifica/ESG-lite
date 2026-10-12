@@ -62,6 +62,7 @@ export const NOTIFICATION_GROUPS = {
   approvals: ["APPROVED"],
   rejections: ["REJECTED"],
   reminders: ["REMINDER", "DEADLINE", "ESCALATION"],
+  uploads: ["UPLOAD_PENDING"], // IM4: a batch waiting for review
 } as const;
 export type NotificationGroup = keyof typeof NOTIFICATION_GROUPS;
 

@@ -1,0 +1,82 @@
+{
+  "ask": {
+    "client": "Eval Co"
+  },
+  "rows": [
+    {
+      "row_ref": "Fuel!A2",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 800,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A3",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 800,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A4",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 800,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A5",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 650,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A6",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 650,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A7",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 650,
+      "activity_unit": "L"
+    }
+  ],
+  "issues": {},
+  "chunks_min": 1,
+  "commit": "yes"
+}

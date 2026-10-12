@@ -1,0 +1,156 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A",
+    "category": "fuel"
+  },
+  "rows": [
+    {
+      "row_ref": "Fuel 2025!A2",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1000,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A3",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1025,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A4",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1050,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A5",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1075,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A6",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-05-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1100,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A7",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-06-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1125,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A8",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-07-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1150,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A9",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-08-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1175,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A10",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-09-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1200,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A11",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-10-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1225,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A12",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-11-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1250,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel 2025!A13",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-12-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1275,
+      "activity_unit": "L"
+    }
+  ],
+  "issues": {},
+  "chunks_min": 1,
+  "commit": "yes"
+}

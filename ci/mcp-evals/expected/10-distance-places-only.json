@@ -1,0 +1,31 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A",
+    "category": "travel"
+  },
+  "rows": [
+    {
+      "row_ref": "Travel!A2",
+      "site_id": 1,
+      "category_id": 3,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "Domestic flight – economy",
+      "activity_value": 1030,
+      "activity_unit": "km"
+    }
+  ],
+  "issues": {
+    "DISTANCE_REQUIRED": 1
+  },
+  "answers": [
+    "It is 1030 km."
+  ],
+  "must_ask": "distance",
+  "must_not_estimate": true,
+  "chunks_min": 1,
+  "commit": "yes"
+}
