@@ -36,12 +36,14 @@ export class ImportPlan {
   company_id!: number;
 
   @Index()
-  @ManyToOne(() => User, { onDelete: "CASCADE" })
+  // Kept when the user is deleted (SET NULL): the plan's source_name is the
+  // audit trail for where a batch came from, and must outlive the account.
+  @ManyToOne(() => User, { onDelete: "SET NULL", nullable: true })
   @JoinColumn({ name: "created_by" })
-  creator!: User;
+  creator!: User | null;
 
-  @Column()
-  created_by!: number;
+  @Column({ type: "integer", nullable: true })
+  created_by!: number | null;
 
   @Column({ type: "varchar", length: 20 })
   channel!: ImportPlanChannel;

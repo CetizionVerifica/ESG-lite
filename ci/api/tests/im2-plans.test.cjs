@@ -335,3 +335,24 @@ test("limits: ten open drafts per person, 20,000 rows per plan", async () => {
   assert.equal(over.status, 413);
   assert.equal(over.json.details.max_per_plan, 20000);
 });
+
+test("deleting the creator keeps the plan and its source name (created_by set to null)", async () => {
+  const planId = await withDb(async (db) => {
+    await db.query(`INSERT INTO "user" (user_id, name, email, password, role, site_id) VALUES (52, 'CI Importer', 'ci-importer@example.invalid', 'x', 'Manager', 1) ON CONFLICT (user_id) DO NOTHING`);
+    const { rows } = await db.query(
+      `INSERT INTO import_plan (company_id, created_by, channel, source_name, status, expires_at) VALUES (1, 52, 'bulk_upload', 'midal-2026.xlsx', 'committed', now()) RETURNING plan_id`,
+    );
+    await db.query(`DELETE FROM "user" WHERE user_id = 52`);
+    return rows[0].plan_id;
+  });
+  const kept = await withDb((db) => db.query(`SELECT created_by, source_name FROM import_plan WHERE plan_id = $1`, [planId]));
+  assert.equal(kept.rows.length, 1);
+  assert.equal(kept.rows[0].created_by, null);
+  assert.equal(kept.rows[0].source_name, "midal-2026.xlsx");
+  const asSuperadmin = await call("GET", `/imports/plans/${planId}`, "superadmin");
+  assert.equal(asSuperadmin.status, 200);
+  assert.equal(asSuperadmin.json.created_by, null);
+  const asManager = await call("GET", `/imports/plans/${planId}`, "manager");
+  assert.equal(asManager.status, 404);
+  await withDb((db) => db.query(`DELETE FROM import_plan WHERE plan_id = $1`, [planId]));
+});

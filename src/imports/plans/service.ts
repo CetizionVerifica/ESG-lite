@@ -485,7 +485,7 @@ export const commitPlan = async (user: TokenUser, planId: string, body: { versio
     event = {
       upload_batch_id,
       company_id: plan.company_id,
-      created_by: plan.created_by,
+      created_by: plan.created_by ?? ctx.user_id, // creator deleted: the committing Superadmin
       channel: plan.channel,
       source_name: plan.source_name,
       site_ids: [...new Set(rechecked.map((p) => p.input.site_id))],
