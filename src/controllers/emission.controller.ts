@@ -24,6 +24,7 @@ import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } fro
 import { ColumnConfig } from "../entities/ColumnConfig";
 import { getSelectColumns, pickActivityValue } from "../services/activityValue";
 import { computeBreakdown, type BreakdownSourceRow } from "../services/emissionBreakdown";
+import { parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, siteFilterSql, SITE_ACCESS_DENIED } from "../utils/companyScope";
 import {
@@ -148,8 +149,10 @@ const emissionSearchSql = (a: { e: string; c: string; s: string; u: string }) =>
 // them the result is exactly as before (newest id first, no text filter).
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { categoryId, date, year, month, page, limit, status, scope, sort, order } = req.query;
+    const { date, year, month, page, limit, status, scope, sort, order } = req.query;
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
+    // categoryIds=1,2 (several) or the older categoryId=1.
+    const categoryIds = parseCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown });
 
     if (sort !== undefined && !EMISSION_SORTS.has(String(sort))) {
       return res.status(400).json({ message: `sort must be one of ${[...EMISSION_SORTS.keys()].join(", ")}` });
@@ -182,8 +185,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       qb.andWhere(siteFilterSql("site.site_id", scopedSiteIds), { scopedSiteIds });
     }
 
-    if (categoryId) {
-      qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    if (categoryIds.length) {
+      qb.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
     }
 
     if (scope) {
@@ -246,8 +249,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       if (scopedSiteIds) {
         summaryQb.andWhere(siteFilterSql("s.site_id", scopedSiteIds), { scopedSiteIds });
       }
-      if (categoryId) {
-        summaryQb.andWhere("c.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+      if (categoryIds.length) {
+        summaryQb.andWhere("c.category_id IN (:...categoryIds)", { categoryIds });
       }
       if (scope) {
         summaryQb.andWhere("c.scope = :scope", { scope: scope as string });
@@ -1255,7 +1258,7 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
 // List upload batches with aggregated info
 export const getEmissionBatches = async (req: Request, res: Response) => {
   try {
-    const { categoryId } = req.query;
+    const categoryIds = parseCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown });
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
 
     const qb = repo
@@ -1284,8 +1287,8 @@ export const getEmissionBatches = async (req: Request, res: Response) => {
     if (siteIds.length > 0) {
       qb.andWhere("e.site_id IN (:...siteIds)", { siteIds });
     }
-    if (categoryId) {
-      qb.andWhere("e.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    if (categoryIds.length) {
+      qb.andWhere("e.category_id IN (:...categoryIds)", { categoryIds });
     }
 
     const batches = await qb.getRawMany();
