@@ -196,9 +196,14 @@ test("MCP-10: update_import_plan skips, sets and matches activities, then recalc
 });
 
 test("MCP-11: commit_import needs confirm and the current version", async () => {
+  // A missing or false confirm is refused by the SDK's input validation before the registry wrapper runs,
+  // so it comes back as the SDK's -32602 text (not the §9 shape) and writes no mcp_tool_call row; see src/mcp/CLAUDE.md "Validation".
+  const before = await withDb((db) => db.query(`SELECT count(*)::int AS n FROM mcp_tool_call WHERE tool = 'commit_import'`));
   const noConfirm = await call(client, "commit_import", { plan_id: plan.plan_id, version: 3, skip_rows_with_issues: false });
   assert.equal(noConfirm.ok, false);
   assert.match(noConfirm.text, /confirm/);
+  const after = await withDb((db) => db.query(`SELECT count(*)::int AS n FROM mcp_tool_call WHERE tool = 'commit_import'`));
+  assert.equal(after.rows[0].n, before.rows[0].n, "input validation failures are not logged (documented gap)");
   const falseConfirm = await call(client, "commit_import", { plan_id: plan.plan_id, version: 3, skip_rows_with_issues: false, confirm: false });
   assert.equal(falseConfirm.ok, false);
   assert.match(falseConfirm.text, /confirm/);
@@ -365,4 +370,23 @@ test("MCP-19/21: the write tools need imports:write; the read token cannot see o
   const planTool = tools.find((t) => t.name === "plan_import");
   assert.equal(planTool.inputSchema.properties.rows.maxItems, 2000);
   assert.ok(planTool.inputSchema.properties.rows.items.properties.activity_value, "row fields are documented in the schema");
+});
+
+test("MCP-08: a non-Superadmin token cannot reach the import tools: 403 MCP_SUPERADMIN_ONLY before any tool runs", async () => {
+  const userToken = "mcp-test.1.imports:read,imports:write.im8-user";
+  const rpc = (name, args) => ({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });
+  for (const [name, args] of [
+    ["plan_import", { company_id: 1, source_name: "x.xlsx", rows: [row({ row_ref: "u1" })] }],
+    ["commit_import", { plan_id: plan.plan_id, version: 4, skip_rows_with_issues: false, confirm: true }],
+  ]) {
+    const res = await fetch(MCP, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: `Bearer ${userToken}` },
+      body: JSON.stringify(rpc(name, args)),
+    });
+    assert.equal(res.status, 403, name);
+    assert.equal((await res.json()).code, "MCP_SUPERADMIN_ONLY", name);
+  }
+  const logged = await withDb((db) => db.query(`SELECT count(*)::int AS n FROM mcp_tool_call WHERE user_id = 1`));
+  assert.equal(logged.rows[0].n, 0, "nothing ran for the User token");
 });
