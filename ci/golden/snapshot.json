@@ -88,6 +88,14 @@
     {
       "name": "waste with a configured select column (dated 2022, outside every report)",
       "status": 201
+    },
+    {
+      "name": "waste in kg against a ton factor (metric tonne, dated 2022)",
+      "status": 201
+    },
+    {
+      "name": "waste in tonne against a ton factor (dated 2022)",
+      "status": 201
     }
   ],
   "reports": [
@@ -952,6 +960,36 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": null,
+      "total_emission": "4.28",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "kg",
+      "category_id": 5,
+      "date": "2022-07-31",
+      "factor_value": "467.0100",
+      "factor_year": "2024",
+      "pk_id": 17,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "9170",
+      "total_emission": "4.28",
+      "unit": "tCO2e",
+      "year_type": null
+    },
+    {
+      "activity_data_unit": "tonne",
+      "category_id": 5,
+      "date": "2022-08-31",
+      "factor_value": "467.0100",
+      "factor_year": "2024",
+      "pk_id": 18,
+      "reporting_period": "monthly",
+      "site_id": 1,
+      "status": "approved",
+      "stored_activity_value": "9.17",
       "total_emission": "4.28",
       "unit": "tCO2e",
       "year_type": null
