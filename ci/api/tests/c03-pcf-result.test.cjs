@@ -126,6 +126,25 @@ test("result detail hides licensed values from managers but not from superadmins
   close(s.by_stage.A1, 3.21, "A1 for superadmin");
 });
 
+test("result detail still hides the licensed stage for a result stored without engine lines", async () => {
+  // Results calculated before the engine lines were kept in cut_off: the
+  // redaction must fall back to the snapshot inputs, not show A1 in the open.
+  const [, , wood, lic] = ids.factors;
+  const id = await study([
+    { stage: "A1", name: "Licensed alloy", unit: "kg", quantity: 1, material_factor_id: lic },
+    { stage: "A3_packaging", name: "Pallet", unit: "kg", quantity: 1, material_factor_id: wood },
+  ]);
+  assert.equal((await call("POST", `/pcf/studies/${id}/calculate`, "manager", {})).status, 200);
+  await withDb((db) => db.query("UPDATE pcf_result SET cut_off = cut_off - 'lines' WHERE pcf_study_id = $1", [id]));
+  const m = await call("GET", `/pcf/studies/${id}/result`, "manager");
+  assert.equal(m.status, 200);
+  assert.equal(m.json.lines.length, 0);
+  assert.equal(m.json.by_stage.A1, null);
+  assert.deepEqual(m.json.hidden_stages, ["A1"]);
+  assert.equal(JSON.stringify(m.json).includes("3.21"), false);
+  close((await call("GET", `/pcf/studies/${id}/result`, "superadmin")).json.by_stage.A1, 3.21, "A1 for superadmin");
+});
+
 test("audit trail lists the study's history, newest first", async () => {
   const [alu] = ids.factors;
   const id = await study([{ stage: "A1", name: "Aluminium", unit: "kg", quantity: 1, material_factor_id: alu }]);

@@ -23,9 +23,13 @@ const MASS_TO_KG: Record<string, number> = { g: 0.001, kg: 1, t: 1000, tonne: 10
 const LEVER_STEP_PTS = 10;
 
 async function studyFor(req: AuthRequest, res: Response) {
-  const scope = await pcfScope(req);
   const id = idParam(req.params.id);
-  const study = id ? await loadStudy(id, scope) : null;
+  if (!id) {
+    res.status(404).json({ message: "Footprint not found" });
+    return null;
+  }
+  const scope = await pcfScope(req);
+  const study = await loadStudy(id, scope);
   if (!study) {
     res.status(404).json({ message: "Footprint not found" });
     return null;
@@ -112,7 +116,10 @@ export const getStudyResult = async (req: AuthRequest, res: Response) => {
       };
     };
 
-    const { by_stage, hidden_stages } = redactStages(result.by_stage, lines, hidden);
+    // Results calculated before the engine lines were stored in cut_off have
+    // no `lines`; the snapshot inputs carry the same id/stage pairs, so the
+    // licensed stages still go hidden.
+    const { by_stage, hidden_stages } = redactStages(result.by_stage, lines.length ? lines : input?.inputs ?? [], hidden);
     const dqr = stored?.dqr ?? null;
     const aggregates = redactAggregates(
       {
@@ -158,6 +165,8 @@ export const getStudyResult = async (req: AuthRequest, res: Response) => {
         ? {
             ...stored.allocation,
             key: study.allocation_key,
+            // Every PcfAllocation row of a study shares the same key values
+            // (one allocation key per study), so the first row stands for all.
             key_value_product: allocations[0] ? Number(allocations[0].key_value_product) : input?.allocation?.key_value_product ?? null,
             key_value_site_total: allocations[0] ? Number(allocations[0].key_value_site_total) : input?.allocation?.key_value_site_total ?? null,
           }
