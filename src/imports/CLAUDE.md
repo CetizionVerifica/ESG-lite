@@ -33,3 +33,12 @@ None of its own; makes MCP-09 (totals ignored) testable.
 - `writer.ts`: `EmissionWriter`, `WriterContext`, `BatchInfo`, `InsertResult`; `onBatchCommitted(listener)` returns an unsubscribe; `emitBatchCommitted(event)` awaits every listener and logs (never rethrows) failures; `clearBatchCommittedListeners()` for tests.
 - `router.ts`: empty Express router mounted as `app.use("/imports", authenticate, importsRouter)`. IM2 and IM3 add one `importsRouter.use(...)` line each.
 - Tests: `ci/unit/im0-contracts.test.cjs` (runs against `dist/` after `npm run build`).
+
+## Notifications (IM4, 2026-10-12)
+Spec: `docs/mcp-import/backend/IM4-upload-notifications/CLAUDE.md`. Built in `src/services/uploadNotify.ts`.
+- `registerUploadNotifyListener()` (called once at boot in `src/index.ts`) subscribes to `onBatchCommitted`. `notifyBatchCommitted(event)` does the work and never throws; it returns `{ notified, emailed }` (`emailed` = emails queued, not delivered). Idempotent per `upload_batch_id`: users already holding a notification for the batch are skipped, so a retried emit or a repeated hook call never duplicates. Admins count as the company's through their own `site_id` or any `user_sites` row.
+- Recipients: Managers whose `user_sites` include any of the batch's `site_ids`, scoped to `event.company_id`; for a site with no manager, the company's Admins. The uploader is never included. One `UPLOAD_PENDING` notification per recipient per batch (bell + SSE), `link` `/data/approvals?view=batches&batch=<id>`, `meta` `{ upload_batch_id, rows, tco2e, site_ids, months, channel }`.
+- Email: queued through `sendToQueue` as type `UPLOAD_PENDING` (`uploadPendingTemplate`, counts only). Preference key `email_uploads`; checked before queueing and again in `emailConsumer`.
+- `NOTIFICATION_GROUPS.uploads` is the P13 filter (`GET /notifications?type=uploads`).
+- `POST /internal/imports/batch-committed` (`src/routes/internalImports.routes.ts`) lets python_AI_service report a bulk-upload commit until IM11; it needs `X-Service-Key` = `AI_SERVICE_KEY` (route is off when the env var is unset). `ci/api/run.cjs` sets a CI-only key.
+- Tests: `ci/unit/im4-upload-notify.test.cjs` (pure builder, wording, preference) and `ci/api/tests/im4-upload-notify.test.cjs` (recipients, tenant isolation, listener failure, service key). Audit row MCP-16.

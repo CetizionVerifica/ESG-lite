@@ -13,6 +13,7 @@ import {
   bulkProductionRejectedTemplate,
   deadlineReminderTemplate,
   escalationTemplate,
+  uploadPendingTemplate,
   failureTemplate,
 } from "../templates/emailTemplates";
 
@@ -61,6 +62,7 @@ export const startEmailConsumer = async () => {
         BULK_PRODUCTION_REJECTED: "email_rejections",
         DEADLINE_REMINDER: "email_reminders",
         DEADLINE_ESCALATION: "email_escalations",
+        UPLOAD_PENDING: "email_uploads",
       };
 
       const prefKey = prefMap[data.type];
@@ -106,6 +108,8 @@ export const startEmailConsumer = async () => {
         template = deadlineReminderTemplate(data.name, data.month, data.year, data.siteName);
       } else if (data.type === "DEADLINE_ESCALATION") {
         template = escalationTemplate(data.name, data.month, data.year, data.pendingUsers || []);
+      } else if (data.type === "UPLOAD_PENDING") {
+        template = uploadPendingTemplate(data.name, data.rows || 0, data.tco2e || 0, data.siteNames || [], data.period || "", data.deepLink);
       } else {
         throw new Error(`Invalid email type: ${data.type}`);
       }
