@@ -16,7 +16,7 @@ const conforms = (schema, value) => {
 };
 
 const CFG = [9301, 9302, 9303, 9304];
-const COL = [9301, 9302];
+const COL = [9301, 9302, 9303];
 const FACTOR_BATCH = "ci-im3-factors";
 const MAP_PREFIX = "CI IM3";
 
@@ -26,16 +26,22 @@ async function seed() {
     // Forms: site 1 × Stationary Combustion (a Fuel dropdown + quantity), site 1 ×
     // Purchased Electricity, site 2 × Stationary Combustion, site 3 (company 2) ×
     // Stationary Combustion. Site 1 × Business Travel has no form and no factor.
-    await db.query(`INSERT INTO column_entity (pk_id, column_name, column_type) VALUES ($1, 'Fuel', 'select'), ($2, 'Quantity', 'number')`, COL);
+    await db.query(`INSERT INTO column_entity (pk_id, column_name, column_type) VALUES ($1, 'Fuel', 'select'), ($2, 'Quantity', 'number'), ($3, 'Grade', 'select')`, COL);
     await db.query(
-      `INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options, extra_fields) VALUES
-         ($1, 'CI IM3 fuel', 1, 1, $5::jsonb, '[{"key":"invoice_no","label":"Invoice no.","type":"text","required":false}]'::jsonb),
-         ($2, 'CI IM3 grid', 1, 2, '{}'::jsonb, '[]'::jsonb),
-         ($3, 'CI IM3 fuel B', 2, 1, '{}'::jsonb, '[]'::jsonb),
-         ($4, 'CI IM3 other', 3, 1, '{}'::jsonb, '[]'::jsonb)`,
-      [...CFG, JSON.stringify({ [String(COL[0])]: [{ id: "diesel", label: "Diesel" }, { id: "petrol", label: "Petrol" }] })],
+      `INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options, column_dependencies, dependent_options, extra_fields) VALUES
+         ($1, 'CI IM3 fuel', 1, 1, $5::jsonb, '{"Grade": "Fuel"}'::jsonb, $6::jsonb,
+          '[{"key":"invoice_no","label":"Invoice no.","type":"text","required":false},
+            {"key":"boiler","label":"Boiler","type":"select","required":false,"options":["A","B"],"show_for":["Diesel"]}]'::jsonb),
+         ($2, 'CI IM3 grid', 1, 2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb),
+         ($3, 'CI IM3 fuel B', 2, 1, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb),
+         ($4, 'CI IM3 other', 3, 1, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb)`,
+      [
+        ...CFG,
+        JSON.stringify({ [String(COL[0])]: [{ id: "diesel", label: "Diesel" }, { id: "petrol", label: "Petrol" }] }),
+        JSON.stringify({ Grade: { diesel: [{ id: "bs6", label: "BS VI" }], petrol: [{ id: "p95", label: "95 octane" }] } }),
+      ],
     );
-    await db.query(`INSERT INTO column_config_columns (column_config_id, column_id) VALUES ($1, $2), ($1, $3)`, [CFG[0], COL[0], COL[1]]);
+    await db.query(`INSERT INTO column_config_columns (column_config_id, column_id) VALUES ($1, $2), ($1, $3), ($1, $4)`, [CFG[0], COL[0], COL[1], COL[2]]);
     await db.query(
       `INSERT INTO emission_factors (site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name, upload_batch_id) VALUES
          (1, 1, 2024, 2.68, 'L', 'CI', 'Diesel', 'Diesel (stationary)', $1),
@@ -115,6 +121,11 @@ test("Superadmin sees every site and category of the named client", async () => 
   assert.ok(fuel.form.fields.some((f) => f.key === "Quantity" && f.type === "number"));
   const extra = fuel.form.fields.find((f) => f.key === "invoice_no");
   assert.equal(extra.required, false);
+  // A dependent select lists the union of its parent's option sets and names the parent.
+  const grade = fuel.form.fields.find((f) => f.key === "Grade");
+  assert.equal(grade.depends_on, "Fuel");
+  assert.deepEqual(grade.options, ["BS VI", "95 octane"]);
+  assert.deepEqual(fuel.form.fields.find((f) => f.key === "boiler").show_for, ["Diesel"]);
   assert.deepEqual(fuel.units, ["kg", "L", "litre"]);
   assert.equal(fuel.activity_count, 4); // Diesel, Diesel (stationary), Petrol + the HSD mapping
   assert.deepEqual(fuel.readiness, { form: true, factor_years: [2023, 2024] });
@@ -139,6 +150,17 @@ test("each role sees exactly its sites and categories", async () => {
   assert.deepEqual(categoryIds(granted, 2), [1, 2]);
 
   assert.deepEqual(siteIds(await context("manager")), [1, 2]);
+  assert.deepEqual(categoryIds(await context("manager"), 1), [1, 2, 3, 4, 5]);
+  // A category grant narrows a Manager too (as the app does at login).
+  await withDb((db) => db.query("INSERT INTO user_categories (user_id, category_id) VALUES (2, 2)"));
+  try {
+    const narrowed = await context("manager");
+    assert.deepEqual(categoryIds(narrowed, 1), [2]);
+    assert.deepEqual(categoryIds(narrowed, 2), [2]);
+    assert.equal((await activities("manager", "site_id=1&category_id=1")).status, 403);
+  } finally {
+    await withDb((db) => db.query("DELETE FROM user_categories WHERE user_id = 2"));
+  }
   assert.deepEqual(siteIds(await context("admin")), [1, 2]);
   assert.equal((await context("admin")).json.role, "Admin");
 

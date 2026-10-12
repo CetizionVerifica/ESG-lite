@@ -3,7 +3,8 @@ import { User } from "../../entities/User";
 import { Site } from "../../entities/Site";
 import { UserRole } from "../../types/type";
 import { resolveUserCompanyId } from "../../utils/companyScope";
-import { getCalculationSpec, normalizeUnitKey } from "../../services/calculationSpec";
+import { normalizeUnitKey } from "../../services/calculationSpec";
+import { In } from "typeorm";
 import { ColumnConfig } from "../../entities/ColumnConfig";
 import { ImportError } from "../errors";
 import { IMPORT_LIMITS } from "../limits";
@@ -28,7 +29,10 @@ export interface ImportScope {
 }
 
 /** IM0 CategoryForm plus `method_column` (which column picks the per_method calculation). */
-export type ContextForm = NonNullable<ContextCategory["form"]> & { method_column?: string };
+export type ContextForm = Omit<NonNullable<ContextCategory["form"]>, "fields"> & {
+  method_column?: string;
+  fields: (FormField & { depends_on?: string; show_for?: string[] })[];
+};
 
 export type { ActivityOption, ContextCategory, ContextSite, ImportContext };
 
@@ -57,7 +61,11 @@ export const FY_START_MONTH = 4 as const;
 
 const CACHE_TTL_MS = 60_000;
 const contextCache = new Map<string, { at: number; value: ImportContext }>();
-/** Forget every cached context (tests, or after a form or factor change). */
+/**
+ * Forget every cached context (tests, or after a form or factor change).
+ * Entries are deleted one at a time on purpose: the data-safety CI treats a
+ * bare "clear()" call on any object as a table wipe.
+ */
 export const clearImportContextCache = (): void => {
   for (const k of [...contextCache.keys()]) contextCache.delete(k);
 };
@@ -87,20 +95,20 @@ export async function resolveImportScope(caller: ContextCaller, requestedCompany
   const own = await resolveUserCompanyId(caller.user_id);
   if (!own) throw new ImportError("IMPORT_FORBIDDEN");
   if (requestedCompanyId && requestedCompanyId !== own) throw new ImportError("IMPORT_FORBIDDEN");
-  if (caller.role === UserRole.ADMIN) {
-    const sites = await siteRepo.find({ where: { company: { company_id: own } }, select: ["site_id"] });
-    return { company_id: own, role: caller.role, site_ids: sites.map((s) => s.site_id), category_ids: null };
-  }
   const user = await AppDataSource.getRepository(User).findOne({
     where: { user_id: caller.user_id },
     relations: ["site", "sites", "categories"],
   });
+  // A non-empty user_categories set narrows ANY role (filterUserCategories.ts at
+  // login; a Superadmin can grant a Manager a subset, user.controller.ts).
+  const granted = (user?.categories || []).length > 0 ? new Set((user!.categories || []).map((c) => c.category_id)) : null;
+  if (caller.role === UserRole.ADMIN) {
+    const sites = await siteRepo.find({ where: { company: { company_id: own } }, select: ["site_id"] });
+    return { company_id: own, role: caller.role, site_ids: sites.map((s) => s.site_id), category_ids: granted };
+  }
   const ids = new Set<number>();
   if (user?.site) ids.add(user.site.site_id);
   (user?.sites || []).forEach((s) => ids.add(s.site_id));
-  const granted = caller.role === UserRole.USER && (user?.categories || []).length > 0
-    ? new Set((user!.categories || []).map((c) => c.category_id))
-    : null;
   return { company_id: own, role: caller.role, site_ids: [...ids], category_ids: granted };
 }
 
@@ -152,27 +160,26 @@ const uniqSorted = (values: Iterable<string>): string[] => {
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 };
 
-/** The data-entry form of a site × category as fields, or null when none is configured. */
-export async function loadForm(site_id: number, category_id: number): Promise<ContextForm | null> {
-  const configRepo = AppDataSource.getRepository(ColumnConfig);
-  // The first config by name is the one the data-entry page uses (calculationSpec.ts).
-  const config = await configRepo.findOne({
-    where: { site: { site_id }, category: { category_id } },
-    relations: ["columns"],
-    order: { config_name: "ASC" },
-  });
-  if (!config) return null;
-  const spec = await getCalculationSpec(configRepo, site_id, category_id);
+/** Column config → form. The first config by name is the one the data-entry page and calculationSpec.ts use. */
+function formFromConfig(config: ColumnConfig): ContextForm {
   const fields: FormField[] = [];
   const options = config.column_options || {};
+  const dependencies = config.column_dependencies || {};
+  const dependent = config.dependent_options || {};
   for (const col of config.columns || []) {
-    const opts = options[String(col.pk_id)] || options[col.column_name];
+    const parent = dependencies[col.column_name];
+    const direct = options[String(col.pk_id)] || options[col.column_name];
+    // A dependent select lists the union of every parent value's options; `depends_on` names the parent.
+    const fromParent = parent ? Object.values(dependent[col.column_name] || {}).flat() : [];
+    const opts = [...(Array.isArray(direct) ? direct : []), ...fromParent].map((o) => String(o.label ?? o.id));
     fields.push({
       key: col.column_name,
       label: col.column_name,
       type: col.column_type,
+      // Every configured column is filled in on the data-entry form (Add data validates them as required).
       required: true,
-      ...(Array.isArray(opts) && opts.length ? { options: opts.map((o) => String(o.label ?? o.id)) } : {}),
+      ...(opts.length ? { options: [...new Set(opts)] } : {}),
+      ...(parent ? { depends_on: parent } : {}),
     });
   }
   for (const extra of config.extra_fields || []) {
@@ -183,8 +190,13 @@ export async function loadForm(site_id: number, category_id: number): Promise<Co
       type: extra.type,
       required: !!extra.required,
       ...(extra.options?.length ? { options: extra.options } : {}),
+      // Shown only when the activity name contains one of these strings (ExtraFieldDefinition.show_for).
+      ...(extra.show_for?.length ? { show_for: extra.show_for } : {}),
     });
   }
+  // Same acceptance rules as getCalculationSpec (services/calculationSpec.ts).
+  const raw = config.calculation;
+  const spec = raw && raw.methods && ((raw.mode === "per_method" && raw.method_column) || raw.mode === "per_unit") ? raw : null;
   let calc_mode: CalcMode = "single";
   if (spec?.mode === "per_method") calc_mode = "per_method";
   else if (spec?.mode === "per_unit") {
@@ -192,6 +204,32 @@ export async function loadForm(site_id: number, category_id: number): Promise<Co
     calc_mode = keys.includes("km") || keys.includes("tonne.km") ? "distance" : "per_unit";
   }
   return { calc_mode, ...(spec?.method_column ? { method_column: spec.method_column } : {}), fields };
+}
+
+/** Forms for every site × category of the given sites, in one query. */
+export async function loadForms(site_ids: number[]): Promise<Map<string, ContextForm>> {
+  const forms = new Map<string, ContextForm>();
+  if (!site_ids.length) return forms;
+  const configs = await AppDataSource.getRepository(ColumnConfig).find({
+    where: { site: { site_id: In(site_ids) } },
+    relations: ["site", "category", "columns"],
+    order: { config_name: "ASC" },
+  });
+  for (const config of configs) {
+    const k = key(config.site.site_id, config.category.category_id);
+    if (!forms.has(k)) forms.set(k, formFromConfig(config)); // first by config_name wins
+  }
+  return forms;
+}
+
+/** The data-entry form of one site × category, or null when none is configured. */
+export async function loadForm(site_id: number, category_id: number): Promise<ContextForm | null> {
+  const config = await AppDataSource.getRepository(ColumnConfig).findOne({
+    where: { site: { site_id }, category: { category_id } },
+    relations: ["columns"],
+    order: { config_name: "ASC" },
+  });
+  return config ? formFromConfig(config) : null;
 }
 
 export async function buildImportContext(scope: ImportScope): Promise<ImportContext> {
@@ -209,10 +247,11 @@ export async function buildImportContext(scope: ImportScope): Promise<ImportCont
       })
     : [];
   const site_ids = sites.map((s) => s.site_id);
-  const [factors, mappings, units, mcp_enabled] = await Promise.all([
+  const [factors, mappings, units, forms, mcp_enabled] = await Promise.all([
     loadFactors(site_ids),
     loadMappings(scope.company_id),
     loadUnits(site_ids),
+    loadForms(site_ids),
     isMcpEnabled(scope.company_id),
   ]);
 
@@ -237,7 +276,7 @@ export async function buildImportContext(scope: ImportScope): Promise<ImportCont
       const k = key(site.site_id, cat.category_id);
       const catFactors = factorsBy.get(k) || [];
       const catMappings = mappings.filter((m) => m.category_id === cat.category_id && (m.site_id === null || m.site_id === site.site_id));
-      const form = await loadForm(site.site_id, cat.category_id);
+      const form = forms.get(k) ?? null;
       const factorNames = new Set<string>();
       for (const f of catFactors) {
         if (f.emission_category_name) factorNames.add(f.emission_category_name.trim().toLowerCase());
@@ -287,7 +326,11 @@ export async function searchActivities(
 ): Promise<ActivityOption[]> {
   if (!scope.site_ids.includes(site_id)) throw new ImportError("IMPORT_FORBIDDEN");
   if (scope.category_ids && !scope.category_ids.has(category_id)) throw new ImportError("IMPORT_FORBIDDEN");
-  const assigned = await AppDataSource.query(`SELECT 1 FROM site_categories WHERE site_id = $1 AND category_id = $2`, [site_id, category_id]);
+  const assigned = await AppDataSource.query(
+    `SELECT 1 FROM site_categories sc JOIN site s ON s.site_id = sc.site_id
+      WHERE sc.site_id = $1 AND sc.category_id = $2 AND s.company_id = $3`,
+    [site_id, category_id, scope.company_id],
+  );
   if (!assigned.length) throw new ImportError("IMPORT_FORBIDDEN", { reason: "CATEGORY_NOT_ASSIGNED" });
 
   const [factors, mappings] = await Promise.all([
