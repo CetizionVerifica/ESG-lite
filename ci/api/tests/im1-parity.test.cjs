@@ -247,6 +247,18 @@ test("insertRows re-checks scope, duplicates and mode lock inside its transactio
     AppDataSource.transaction((tx) => insertRows(tx, CTX, plannedYear, batch)),
     (err) => err.code === "IMPORT_PLAN_HAS_ISSUES" && err.details.row_refs[0] === "Late!B3",
   );
+  // A factor edited between plan and commit would store a total the user never confirmed.
+  const fresh = await planRows(CTX, [{ ...ROWS[0], row_ref: "Late!B4", period: { kind: "monthly", date: "2022-06-15" } }], { planMatches: [] });
+  assert.equal(fresh[0].state, "ready");
+  await withDb((db) => db.query(`UPDATE emission_factors SET factor_value = 2700 WHERE emission_factor_id = 901`));
+  try {
+    await assert.rejects(
+      AppDataSource.transaction((tx) => insertRows(tx, CTX, fresh, batch)),
+      (err) => err.code === "IMPORT_PLAN_HAS_ISSUES" && err.details.reason === "PLAN_STALE" && err.details.row_refs[0] === "Late!B4" && /changed since the plan/.test(err.message),
+    );
+  } finally {
+    await withDb((db) => db.query(`UPDATE emission_factors SET factor_value = 2680 WHERE emission_factor_id = 901`));
+  }
   const none = await withDb((db) => db.query(`SELECT count(*)::int AS n FROM emission WHERE upload_batch_id = 'im1-parity-late'`));
   assert.equal(none.rows[0].n, 0);
 });

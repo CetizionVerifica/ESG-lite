@@ -367,7 +367,8 @@ const CHANNEL_LABEL: Record<BatchInfo["channel"], string> = { mcp: "Claude", bul
  * scope, mode lock, duplicates and totals are checked against what the
  * database holds now and never trusted from an earlier plan. A row whose
  * site or category is outside the caller's scope throws IMPORT_FORBIDDEN;
- * one that no longer computes (new duplicate, mode lock, factor gone) throws
+ * one that no longer computes (new duplicate, mode lock, factor gone) or whose
+ * factor or total differs from the confirmed plan (reason PLAN_STALE) throws
  * IMPORT_PLAN_HAS_ISSUES with its row_ref. Either way the transaction rolls
  * back and nothing is written.
  */
@@ -375,7 +376,9 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
   const ready = rows.filter((p) => p.state === "ready" && p.result);
   if (!ready.length) return { inserted: 0, fera_inserted: 0, ids: [] };
 
-  // The plan's activity resolution is kept (a plan_match the user confirmed must not re-resolve differently).
+  // The plan's activity resolution is kept as a plan match (a confirmed match must not re-resolve differently); the
+  // stale check below catches a factor that changed under it. `stripped` is not needed (warnings only) and the
+  // duplicate scope is the plans' default, month.
   const planMatches: ActivityMatch[] = ready.map((p) => ({ site_id: p.input.site_id, category_id: p.input.category_id, sheet_name: p.input.activity_name, factor_name: p.result!.activity.factor_name }));
   const { planned, entries } = await planRowsDetailed(writerCtx, ready.map((p) => p.input), { planMatches }, tx);
 
@@ -383,6 +386,20 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
   if (forbidden.length) throw new ImportError("IMPORT_FORBIDDEN", { row_refs: forbidden });
   const blocked = planned.filter((p) => p.state !== "ready").map((p) => p.row_ref);
   if (blocked.length) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: blocked });
+
+  // What the user confirmed is what gets stored: a factor edited or re-resolved
+  // (a mapping now pointing elsewhere) since the plan changes the total, so the
+  // commit stops and the plan has to be made and confirmed again.
+  const stale = planned
+    .filter((p, i) => {
+      const r = ready[i].result!;
+      const now = p.result!;
+      return now.factor.emission_factor_id !== r.factor.emission_factor_id || now.total_tco2e !== r.total_tco2e || (now.fera?.total_tco2e ?? null) !== (r.fera?.total_tco2e ?? null);
+    })
+    .map((p) => p.row_ref);
+  if (stale.length) {
+    throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: stale, reason: "PLAN_STALE" }, "The factor or total of some rows changed since the plan was made. Plan the rows again and confirm the new totals.");
+  }
 
   const user = await tx.getRepository(User).findOne({ where: { user_id: writerCtx.user_id } });
   const who = user ? [user.name, user.last_name].filter(Boolean).join(" ") : `user ${writerCtx.user_id}`;
