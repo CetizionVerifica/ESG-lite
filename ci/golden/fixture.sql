@@ -33,7 +33,9 @@ INSERT INTO emission_factors
   (7, 1, 4, 2024, 250.1200, 'km', 'CI', 'Van Diesel [km]', 'Van Diesel [km]'),
   (8, 1, 5, 2024, 467.0100, 'tonne', 'CI', 'Landfill', 'Landfill'),
   (9, 2, 1, 2024, 2680.0000, 'litre', 'CI', 'Diesel', 'Diesel'),
-  (10, 2, 2, 2024, 708.0000, 'kwh', 'CI', 'Grid Electricity', 'Grid Electricity');
+  (10, 2, 2, 2024, 708.0000, 'kwh', 'CI', 'Grid Electricity', 'Grid Electricity'),
+  -- "ton" denominator, as in DEFRA waste factors: the metric tonne.
+  (11, 1, 5, 2024, 467.0100, 'ton', 'CI', 'Landfill (ton)', 'Landfill (ton)');
 
 INSERT INTO column_config (pk_id, config_name, site_id, category_id, calculation) VALUES
   (1, 'Use of Sold Products', 1, 3, '{
