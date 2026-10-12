@@ -5,10 +5,11 @@
  * for an authenticated caller and 401 for anyone else.
  */
 import { Router } from "express";
+import contextRouter from "./context/router";
 
 const importsRouter = Router();
 
 // IM2: importsRouter.use(plansRouter);
-// IM3: importsRouter.use(contextRouter);
+importsRouter.use(contextRouter); // IM3
 
 export default importsRouter;
