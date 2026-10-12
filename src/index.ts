@@ -12,6 +12,7 @@ import companyAdminRoutes from "./routes/companyAdmin.routes";
 import pcfRoutes from "./routes/pcf.routes";
 import oauthRoutes from "./oauth/router";
 import wellKnownRoutes from "./oauth/wellKnown";
+import importsRouter from "./imports/router";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
@@ -21,6 +22,7 @@ import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
 import { assertJwtSecret } from "./utils/jwt";
+import { authenticate } from "./middlewares/auth.middleware";
 dotenv.config();
 
 // Refuse to start without a signing secret (there is no built-in fallback).
@@ -71,6 +73,7 @@ app.use("/company-admin", companyAdminRoutes);
 app.use("/pcf", pcfRoutes);
 app.use("/oauth", oauthRoutes);
 app.use("/.well-known", wellKnownRoutes);
+app.use("/imports", authenticate, importsRouter);
 
 let server: any;
 
