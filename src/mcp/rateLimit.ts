@@ -1,8 +1,8 @@
 /**
  * Tool-call rate limit: MCP_RATE_LIMIT_MAX calls (default 60) per grant per
  * minute, in memory, same shape as middlewares/rateLimit.middleware.ts.
- * Counted per JSON-RPC `tools/call`, not per HTTP request, so initialize and
- * tools/list are free. MCP_RATE_LIMIT_DISABLED=true turns it off.
+ * Counted per JSON-RPC `tools/call` message (every one in a batch), not per
+ * HTTP request, so initialize and tools/list are free. MCP_RATE_LIMIT_DISABLED=true turns it off.
  */
 type Bucket = { count: number; resetAt: number };
 
@@ -26,8 +26,13 @@ const startSweeper = () => {
 
 export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
-export const takeToolCall = (grantId: string): RateLimitResult => {
-  if (process.env.MCP_RATE_LIMIT_DISABLED === "true") return { allowed: true };
+/**
+ * Takes `calls` tool calls from the grant's bucket (a JSON-RPC batch carries
+ * several). All or nothing: if the batch would go over the limit none of it
+ * is counted and the request is refused, so a batch cannot slip past MCP-18.
+ */
+export const takeToolCall = (grantId: string, calls = 1): RateLimitResult => {
+  if (process.env.MCP_RATE_LIMIT_DISABLED === "true" || calls <= 0) return { allowed: true };
   startSweeper();
   const now = Date.now();
   let bucket = buckets.get(grantId);
@@ -35,10 +40,10 @@ export const takeToolCall = (grantId: string): RateLimitResult => {
     bucket = { count: 0, resetAt: now + WINDOW_MS };
     buckets.set(grantId, bucket);
   }
-  if (bucket.count >= limit()) {
+  if (bucket.count + calls > limit()) {
     return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
   }
-  bucket.count++;
+  bucket.count += calls;
   return { allowed: true };
 };
 

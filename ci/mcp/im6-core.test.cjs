@@ -294,6 +294,21 @@ test("MCP-18: 60 tool calls per minute per grant, then 429 with Retry-After; ini
   assert.equal((await rawPost(TOKENS.superadmin, callTool("ping"))).status, 200);
 });
 
+test("MCP-18: a JSON-RPC batch counts every tools/call in it; a batch past the limit is refused whole", async () => {
+  const max = Number(process.env.MCP_RATE_LIMIT_MAX) || 60;
+  const token = "mcp-test.5.imports:read,imports:write.rl-batch";
+  const batch = (n, from = 1) => Array.from({ length: n }, (_, i) => callTool("ping", {}, from + i));
+  // max - 1 calls in one body: allowed.
+  const first = await rawPost(token, batch(max - 1));
+  assert.equal(first.status, 200, await first.text());
+  // 2 more would make max + 1: refused as a whole, with Retry-After, and the single call after it still gets through.
+  const over = await rawPost(token, batch(2, 100));
+  assert.equal(over.status, 429);
+  assert.ok(Number(over.headers.get("retry-after")) > 0);
+  assert.equal((await rawPost(token, callTool("ping"))).status, 200);
+  assert.equal((await rawPost(token, callTool("ping"))).status, 429);
+});
+
 test("a real OAuth token (IM5) works at /mcp, is logged under its grant, and stops working once the grant is revoked (MCP-05)", async () => {
   const { access_token, grant_id } = await oauthToken();
   const client = await connect(access_token);

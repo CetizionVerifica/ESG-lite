@@ -63,18 +63,41 @@ const toResult = (name: string, value: unknown): CallToolResult => {
   };
 };
 
-const withTimeout = <T>(p: Promise<T>, ms: number, signal: AbortSignal): Promise<T> =>
+/**
+ * Runs `work` with a signal that aborts after `ms` or when the client cancels
+ * (`parent`). The handler gets that signal as `ctx.signal`, so a cooperative
+ * handler (query timeouts, fetch) stops too; a non-cooperative one is simply
+ * no longer awaited and its result discarded.
+ */
+export const withTimeout = <T>(
+  work: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  parent?: AbortSignal,
+): Promise<T> =>
   new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new McpToolError(MCP_CODES.TIMEOUT)), ms);
-    const onAbort = () => {
+    const controller = new AbortController();
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      reject(new McpToolError(MCP_CODES.TIMEOUT, "The request was cancelled."));
+      parent?.removeEventListener("abort", onParentAbort);
+      fn();
     };
-    signal.addEventListener("abort", onAbort, { once: true });
-    p.then(resolve, reject).finally(() => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", onAbort);
-    });
+    const timer = setTimeout(() => {
+      controller.abort();
+      finish(() => reject(new McpToolError(MCP_CODES.TIMEOUT)));
+    }, ms);
+    const onParentAbort = () => {
+      controller.abort();
+      finish(() => reject(new McpToolError(MCP_CODES.TIMEOUT, "The request was cancelled.")));
+    };
+    if (parent?.aborted) return onParentAbort();
+    parent?.addEventListener("abort", onParentAbort, { once: true });
+    work(controller.signal).then(
+      (v) => finish(() => resolve(v)),
+      (e) => finish(() => reject(e)),
+    );
   });
 
 /**
@@ -102,7 +125,7 @@ export const registerTools = (server: McpServer, tools: ToolDefinition<any>[], p
           user: principal,
           scopes: principal.scopes,
           grant_id: principal.grant_id,
-          signal: extra.signal,
+          signal: extra.signal, // replaced per call below with the timeout-aware signal
           log: (message, meta) => log.info("MCP", `${def.name}: ${message}`, { user_id: principal.user_id, ...meta }),
           setPlanId: (id) => {
             planId = id ?? null;
@@ -111,11 +134,15 @@ export const registerTools = (server: McpServer, tools: ToolDefinition<any>[], p
         let result: CallToolResult;
         let errorCode: string | null = null;
         try {
-          const run = async () => {
-            if (clientKey && companyId !== null) await assertClientUsable(companyId);
-            return toResult(def.name, await def.handler(ctx, input as any));
-          };
-          result = await withTimeout(run(), CALL_TIMEOUT_MS, extra.signal);
+          result = await withTimeout(
+            async (signal) => {
+              ctx.signal = signal;
+              if (clientKey && companyId !== null) await assertClientUsable(companyId);
+              return toResult(def.name, await def.handler(ctx, input as any));
+            },
+            CALL_TIMEOUT_MS,
+            extra.signal,
+          );
           if (result.isError) errorCode = String((result.structuredContent as any)?.code ?? "ERROR");
         } catch (err) {
           const mapped = mapToolError(err, def.name);

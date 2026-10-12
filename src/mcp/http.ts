@@ -20,9 +20,22 @@ import { buildMcpServer } from "./server";
 
 export const BODY_LIMIT = "5mb";
 
-/** Where the protected-resource metadata lives (IM5 serves it, with and without the /mcp suffix). */
-export const apiBase = (req: Request): string =>
-  (process.env.API_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+/**
+ * Public base URL of this API, for the 401 challenge's resource_metadata (IM5
+ * serves it with and without the /mcp suffix). Set API_BASE_URL in production:
+ * the fallback rebuilds it from the request, which behind a proxy may be the
+ * internal scheme or host (TRUST_PROXY helps, but is not a substitute).
+ */
+let warnedApiBase = false;
+export const apiBase = (req: Request): string => {
+  const configured = process.env.API_BASE_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  if (process.env.NODE_ENV === "production" && !warnedApiBase) {
+    warnedApiBase = true;
+    log.warn("MCP", "API_BASE_URL is not set; the OAuth challenge URL is derived from the request. Set it to the public API origin.");
+  }
+  return `${req.protocol}://${req.get("host")}`.replace(/\/+$/, "");
+};
 
 const CLAUDE_ORIGINS = [/^https:\/\/([a-z0-9-]+\.)*claude\.ai$/i, /^https:\/\/([a-z0-9-]+\.)*claude\.com$/i, /^https:\/\/([a-z0-9-]+\.)*anthropic\.com$/i];
 
@@ -32,10 +45,9 @@ const corsOrigin = (origin: string | undefined, cb: (err: Error | null, allow?: 
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const appOrigin = process.env.CORS_ORIGIN;
-  if (CLAUDE_ORIGINS.some((re) => re.test(origin)) || extra.includes(origin) || (appOrigin && appOrigin === origin)) {
-    return cb(null, true);
-  }
+  // Claude's own origins, plus MCP_CORS_ORIGINS for an Inspector or a staging host. The
+  // app's CORS_ORIGIN is deliberately not admitted: the app never calls /mcp.
+  if (CLAUDE_ORIGINS.some((re) => re.test(origin)) || extra.includes(origin)) return cb(null, true);
   return cb(null, false);
 };
 
@@ -88,18 +100,21 @@ export const authenticateMcp = async (req: McpRequest, res: Response, next: Next
   next();
 };
 
-const isToolCall = (body: unknown): boolean => {
+/** Number of `tools/call` messages in the body (a JSON-RPC batch may carry several). */
+export const countToolCalls = (body: unknown): number => {
   const msgs = Array.isArray(body) ? body : [body];
-  return msgs.some((m) => m && typeof m === "object" && (m as any).method === "tools/call");
+  return msgs.filter((m) => m && typeof m === "object" && (m as any).method === "tools/call").length;
 };
 
-/** 60 tool calls per minute per grant; initialize and tools/list are not counted. */
+/** 60 tool calls per minute per grant, every message of a batch counted; initialize and tools/list are free. */
 export const rateLimitMcp = (req: McpRequest, res: Response, next: NextFunction) => {
-  if (!req.mcp || !isToolCall(req.body)) return next();
-  const verdict = takeToolCall(req.mcp.grant_id);
+  if (!req.mcp) return next();
+  const calls = countToolCalls(req.body);
+  if (calls === 0) return next();
+  const verdict = takeToolCall(req.mcp.grant_id, calls);
   if (verdict.allowed) return next();
   res.setHeader("Retry-After", String(verdict.retryAfterSeconds));
-  log.warn("MCP", "Rate limit hit", { user_id: req.mcp.user_id });
+  log.warn("MCP", "Rate limit hit", { user_id: req.mcp.user_id, calls });
   return res.status(429).json({ error: "rate_limited", message: `Too many tool calls. Try again in ${verdict.retryAfterSeconds} s.` });
 };
 

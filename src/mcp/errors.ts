@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { IMPORT_ERRORS, isImportError } from "../imports/errors";
 import { log } from "../utils/logger";
 import { MCP_CODES, MCP_MESSAGES, McpCode } from "./codes";
 
@@ -19,8 +20,10 @@ export class McpToolError extends Error {
   }
 }
 
-const hasStringCode = (err: unknown): err is { code: string; message?: string; details?: unknown } =>
-  typeof err === "object" && err !== null && typeof (err as any).code === "string" && /^[A-Z][A-Z0-9_]+$/.test((err as any).code);
+/** IM0's ImportError (any instance, or a plain object carrying one of its codes), never a Node or pg error. */
+const isContractError = (err: unknown): err is { code: string; message?: string; details?: unknown } =>
+  isImportError(err) ||
+  (typeof err === "object" && err !== null && typeof (err as any).code === "string" && (err as any).code in IMPORT_ERRORS);
 
 /**
  * Shapes a failed tool call the way docs/mcp-import/01-contracts.md §9 wants:
@@ -35,16 +38,17 @@ export const toolErrorResult = (code: string, message: string, details?: unknown
 
 /**
  * Turns whatever a handler threw into a tool error result.
- * - McpToolError and IM0's import errors (any error carrying an upper-case
- *   string `code`) pass their code, message and details through.
- * - Everything else becomes INTERNAL with a request id; the real error goes
- *   to the server log under that id only.
+ * - McpToolError and IM0's ImportError pass their code, message and details
+ *   through: those messages are written for clients.
+ * - Everything else (Node, pg, SDK errors, whatever their `code`) becomes
+ *   INTERNAL with a request id; the real error, host names and all, goes to
+ *   the server log under that id only.
  */
 export const mapToolError = (err: unknown, tool: string): { result: CallToolResult; code: string } => {
   if (err instanceof McpToolError) {
     return { result: toolErrorResult(err.code, err.message, err.details), code: err.code };
   }
-  if (hasStringCode(err) && (err as any).code !== "ERR_INVALID_ARG_TYPE") {
+  if (isContractError(err)) {
     const message = typeof err.message === "string" && err.message ? err.message : err.code;
     return { result: toolErrorResult(err.code, message, err.details), code: err.code };
   }
