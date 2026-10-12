@@ -33,6 +33,7 @@ None of its own; makes MCP-09 (totals ignored) testable.
 - `writer.ts`: `EmissionWriter`, `WriterContext`, `BatchInfo`, `InsertResult`; `onBatchCommitted(listener)` returns an unsubscribe; `emitBatchCommitted(event)` awaits every listener and logs (never rethrows) failures; `clearBatchCommittedListeners()` for tests.
 - `router.ts`: empty Express router mounted as `app.use("/imports", authenticate, importsRouter)`. IM2 and IM3 add one `importsRouter.use(...)` line each.
 - Tests: `ci/unit/im0-contracts.test.cjs` (runs against `dist/` after `npm run build`).
+- Review notes (2026-10-12): `RowChangeSchema.set` is `ImportRowShape.partial()`, so IM2 must re-validate the merged row with `ImportRowSchema` after applying a patch. `UploadBatchSummary.created_by` is `{ user_id, name }` and `IMPORT_VALIDATION` (400) is an extra code for bad bodies; both are additive to 01-contracts.md.
 
 ## Notifications (IM4, 2026-10-12)
 Spec: `docs/mcp-import/backend/IM4-upload-notifications/CLAUDE.md`. Built in `src/services/uploadNotify.ts`.
