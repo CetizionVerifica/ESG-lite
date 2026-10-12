@@ -75,7 +75,7 @@ export async function pcfDataChanged(kind: Kind, ids: Array<number | null | unde
           "pcf_stale",
           "A product footprint is out of date",
           `Approved ${what} behind the footprint for ${names.get(r.product_id) ?? "a product"} (version ${r.version}) changed. Its figures stay as they are; create a new version to update them.`,
-          null,
+          `/products/${r.product_id}/footprints/${r.pcf_study_id}`,
         );
       } catch (err) {
         console.error("pcfDataChanged notify", err);
