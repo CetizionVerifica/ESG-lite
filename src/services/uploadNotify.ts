@@ -162,6 +162,14 @@ const findRecipients = async (event: BatchCommittedEvent): Promise<UploadRecipie
   return [...managers, ...admins];
 };
 
+const UPLOAD_NOTIFICATION_INDEX = "notification_upload_batch_user_uq";
+/** Postgres unique_violation (23505) on the per-batch index; any other unique index is somebody else's problem. */
+const isUniqueViolation = (err: unknown): boolean => {
+  const e = (err as { driverError?: { code?: string; constraint?: string }; message?: string } | null) ?? null;
+  if (!e || typeof e !== "object" || e.driverError?.code !== "23505") return false;
+  return e.driverError.constraint === UPLOAD_NOTIFICATION_INDEX || (e.message ?? "").includes(UPLOAD_NOTIFICATION_INDEX);
+};
+
 /** Users already holding a notification for this batch, so a retried emit or a second hook call adds none. */
 const alreadyNotified = async (uploadBatchId: string): Promise<Set<number>> => {
   const rows: { user_id: number }[] = await AppDataSource.query(
@@ -221,6 +229,8 @@ export const notifyBatchCommitted = async (event: BatchCommittedEvent): Promise<
           emailed += 1;
         }
       } catch (err) {
+        // Unique index hit: a concurrent emit got there first. Not an error, not a duplicate.
+        if (isUniqueViolation(err)) continue;
         console.error(
           `[UploadNotify] user ${item.user_id} batch ${event.upload_batch_id}:`,
           err instanceof Error ? err.message : err

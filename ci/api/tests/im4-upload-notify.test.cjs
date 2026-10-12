@@ -106,11 +106,11 @@ test("a manager who uploads their own batch is not told; admins stand in for a s
 });
 
 test("another company's site ids never reach company 1 managers, and the listener never fails the emit", async () => {
-  const r = await notifyBatchCommitted(event({ upload_batch_id: "im4-batch-4", company_id: 2, created_by: 4, site_ids: [1, 2, 3] }));
+  const r = await notifyBatchCommitted(event({ upload_batch_id: "im4-batch-7", company_id: 2, created_by: 4, site_ids: [1, 2, 3] }));
   // Only company 2's own site (3) counts → other manager 6, once.
   assert.equal(r.notified, 1);
-  assert.equal(await countFor(6, "im4-batch-4"), 1);
-  assert.equal(await countFor(2, "im4-batch-4"), 0);
+  assert.equal(await countFor(6, "im4-batch-7"), 1);
+  assert.equal(await countFor(2, "im4-batch-7"), 0);
 
   registerUploadNotifyListener();
   writer.onBatchCommitted(async () => {
@@ -133,4 +133,30 @@ test("internal batch-committed hook: service key required, body validated", asyn
   assert.equal(ok.status, 202);
   assert.deepEqual(ok.json, { notified: 1, emailed: 1 });
   assert.equal(await countFor(2, "im4-batch-6"), 1);
+});
+
+test("two concurrent emits for one batch leave exactly one notification per manager", async () => {
+  const e = event({ upload_batch_id: "im4-batch-8" });
+  // The loser of the race must go quiet: a logged "[UploadNotify]" error would mean the 23505 was not recognised.
+  const logged = [];
+  const origError = console.error;
+  console.error = (...args) => logged.push(args.map(String).join(" "));
+  let a, b;
+  try {
+    [a, b] = await Promise.all([notifyBatchCommitted(e), notifyBatchCommitted(e)]);
+  } finally {
+    console.error = origError;
+  }
+  assert.deepEqual(logged.filter((l) => l.includes("[UploadNotify]")), []);
+  assert.equal(a.notified + b.notified, 1, "one of the two wrote it, the other hit the unique index or the pre-check");
+  assert.equal(await countFor(2, "im4-batch-8"), 1);
+  // Belt and braces: the index itself refuses a second row.
+  await assert.rejects(
+    withDb((db) =>
+      db.query(
+        `INSERT INTO notification (user_id, type, title, message, link, meta, read) VALUES (2, 'UPLOAD_PENDING', 't', 'm', NULL, '{"upload_batch_id":"im4-batch-8"}', false)`
+      )
+    ),
+    /notification_upload_batch_user_uq/
+  );
 });

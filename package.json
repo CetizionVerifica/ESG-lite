@@ -24,6 +24,7 @@
     "migrate:mcp-log": "ts-node src/scripts/createMcpToolCallTable.ts",
     "migrate:import-plans": "ts-node src/scripts/createImportPlanTables.ts",
     "migrate:oauth": "ts-node src/scripts/createOauthTables.ts",
+    "migrate:upload-notification-index": "ts-node src/scripts/addUploadNotificationIndex.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"
