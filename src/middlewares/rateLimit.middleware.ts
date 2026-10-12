@@ -47,17 +47,28 @@ const takeBucket = (key: string, now: number, windowMs: number): Bucket => {
   return bucket;
 };
 
-export const authRateLimit = (name: string, count: "all" | "failures" = "failures") =>
+/**
+ * `options.keyOf` picks the per-account key (default: the body's `email`);
+ * the OAuth token endpoint keys on `client_id`. `options.max` overrides the
+ * per-account limit for one route.
+ */
+export const authRateLimit = (
+  name: string,
+  count: "all" | "failures" = "failures",
+  options: { keyOf?: (req: Request) => string; max?: number } = {},
+) =>
   (req: Request, res: Response, next: NextFunction) => {
     if (process.env.AUTH_RATE_LIMIT_DISABLED === "true") return next();
 
-    const max = envNumber("AUTH_RATE_LIMIT_MAX", 10);
+    const max = options.max ?? envNumber("AUTH_RATE_LIMIT_MAX", 10);
     const ipMax = envNumber("AUTH_RATE_LIMIT_IP_MAX", max * 5);
     const windowMs = envNumber("AUTH_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000);
     startSweeper(windowMs);
 
     const now = Date.now();
-    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const email = options.keyOf
+      ? options.keyOf(req)
+      : typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
     const account = takeBucket(`${name}:${req.ip}:${email}`, now, windowMs);
     const ip = takeBucket(`${name}:${req.ip}`, now, windowMs);
 

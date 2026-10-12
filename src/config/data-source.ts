@@ -24,6 +24,10 @@ import { PcfStudy } from "../entities/PcfStudy";
 import { PcfInput } from "../entities/PcfInput";
 import { PcfAllocation } from "../entities/PcfAllocation";
 import { PcfResult } from "../entities/PcfResult";
+import { OauthClient } from "../entities/OauthClient";
+import { OauthGrant } from "../entities/OauthGrant";
+import { OauthCode } from "../entities/OauthCode";
+import { OauthToken } from "../entities/OauthToken";
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -55,6 +59,10 @@ const entities = [
     PcfInput,
     PcfAllocation,
     PcfResult,
+    OauthClient,
+    OauthGrant,
+    OauthCode,
+    OauthToken,
 ];
 
 // Parse DATABASE_URL to extract connection parameters
