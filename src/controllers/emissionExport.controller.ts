@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { log } from "../utils/logger";
+import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, SITE_ACCESS_DENIED } from "../utils/companyScope";
 
@@ -12,7 +13,7 @@ const repo = AppDataSource.getRepository(Emission);
 /**
  * GET /user/emissions/export
  * Downloads emission data as a professional Excel (.xlsx)
- * Query params: siteIds/siteId (required), year (required), month, categoryId, status,
+ * Query params: siteIds/siteId (required), year (required), month, categoryIds (or categoryId), status,
  * yearType (CY|FY, only without month)
  *
  * With month: that month, as before. Without month (redesign B7): the whole
@@ -27,8 +28,12 @@ const repo = AppDataSource.getRepository(Emission);
 const ROW_CAP = { month: 10000, year: 50000 };
 export const exportEmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { categoryId, year, month, status } = req.query;
+    const { year, month, status } = req.query;
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
+    if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
+      return res.status(400).json({ message: CATEGORY_IDS_ERROR });
+    }
+    const categoryIds = parseCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown });
 
     if (siteIds.length === 0 || !year) {
       return res.status(400).json({ message: "siteIds and year are required" });
@@ -86,8 +91,8 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       qb.andWhere("(emission.reporting_period IS DISTINCT FROM 'yearly' OR emission.year_type = :yearType)", { yearType });
     }
 
-    if (categoryId) {
-      qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
+    if (categoryIds.length) {
+      qb.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
     }
     if (status) {
       qb.andWhere("emission.status = :status", { status: status as string });
