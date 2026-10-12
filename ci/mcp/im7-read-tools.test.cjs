@@ -210,7 +210,8 @@ test("get_category_form: form, units, readiness and the most used activity names
   assert.equal(coal.activity_count, 61); // 60 coal factors + the company-wide HSD mapping
   assert.equal(coal.activities.length, 50);
   assert.deepEqual([coal.activities[0].name, coal.activities[0].uses], [COALS[59], 1]);
-  assert.deepEqual(coal.activities.slice(1, 3).map((a) => a.name), [COALS[0], COALS[1]]);
+  // Then the unused names alphabetically: the company-wide HSD mapping sorts before the coals.
+  assert.deepEqual(coal.activities.slice(1, 3).map((a) => a.name), [`${MAP} HSD`, COALS[0]]);
 });
 
 test("MCP-07: get_category_form with a site of another client than company_id → IMPORT_FORBIDDEN; unknown site too", async () => {
