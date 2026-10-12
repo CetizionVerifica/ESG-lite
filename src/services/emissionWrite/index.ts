@@ -186,7 +186,7 @@ const activityDataFor = (row: ImportRow, factorName: string): Record<string, any
   return data;
 };
 
-const PLACE_FIELD = /origin|destination|from|to_location|place|city|location/i;
+const PLACE_FIELD = /^(origin|destination|from|to)(?![a-z])|place|city|location/i;
 const DISTANCE_FIELD = /distance|km/i;
 
 interface RowWork {
@@ -198,11 +198,20 @@ interface RowWork {
   issues: RowIssue[];
 }
 
+interface DetailedPlan {
+  planned: PlannedRow[];
+  /** The prepared entry of each ready row (null for issue rows), for insertRows. */
+  entries: Array<PreparedEntry | null>;
+}
+
 /**
  * planRows: every row gets a PlannedRow; errors make it an `issue` row,
  * warnings ride on ready rows. Nothing is written.
  */
-export const planRows = async (writerCtx: WriterContext, rows: ImportRow[], opts: PlanOptions, manager: EntityManager = AppDataSource.manager): Promise<PlannedRow[]> => {
+export const planRows = async (writerCtx: WriterContext, rows: ImportRow[], opts: PlanOptions, manager: EntityManager = AppDataSource.manager): Promise<PlannedRow[]> =>
+  (await planRowsDetailed(writerCtx, rows, opts, manager)).planned;
+
+const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opts: PlanOptions, manager: EntityManager): Promise<DetailedPlan> => {
   const contexts = new ContextCache(manager);
   const checks = new CheckCache(manager);
   const strippedByRef = new Map((opts.stripped ?? []).map((s) => [s.row_ref, s.keys]));
@@ -211,6 +220,7 @@ export const planRows = async (writerCtx: WriterContext, rows: ImportRow[], opts
 
   const work: Array<RowWork | null> = [];
   const planned: PlannedRow[] = [];
+  const entries: Array<PreparedEntry | null> = rows.map(() => null);
 
   // Pass 1: scope, period, activity, totals.
   for (const row of rows) {
@@ -252,15 +262,14 @@ export const planRows = async (writerCtx: WriterContext, rows: ImportRow[], opts
       issues.push(issue("FACTOR_FALLBACK_YEAR", `No ${targetYear} factor for "${resolved.match.factor.emission_category_name}"; the ${resolved.match.factor.year} factor was used.`));
     }
 
-    const hasFields = !!row.fields && Object.keys(row.fields).length > 0;
     if (row.activity_value === undefined && !ctx.spec) {
       const keys = Object.keys(row.fields ?? {});
-      const code: RowIssueCode = keys.some((k) => PLACE_FIELD.test(k)) && !keys.some((k) => DISTANCE_FIELD.test(k)) ? "DISTANCE_REQUIRED" : !ctx.hasForm && hasFields ? "NO_FORM" : "MISSING_VALUE";
+      const code: RowIssueCode = keys.some((k) => PLACE_FIELD.test(k)) && !keys.some((k) => DISTANCE_FIELD.test(k)) ? "DISTANCE_REQUIRED" : !ctx.hasForm ? "NO_FORM" : "MISSING_VALUE";
       const message =
         code === "DISTANCE_REQUIRED"
           ? "This row gives places but no distance. Send the distance in km as activity_value."
           : code === "NO_FORM"
-            ? `${ctx.category_name} at ${site.name} has no data-entry form, so fields can't be interpreted. Send activity_value instead.`
+            ? `${ctx.category_name} at ${site.name} has no data-entry form, so only activity_value can be imported. Send the quantity as activity_value.`
             : "activity_value is required for this category.";
       planned.push({ row_ref: row.row_ref, state: "issue", issues: [...issues, issue(code, message, "activity_value")], input: row });
       work.push(null);
@@ -319,6 +328,7 @@ export const planRows = async (writerCtx: WriterContext, rows: ImportRow[], opts
     }
     const entry = (result as { ok: true; entry: PreparedEntry }).entry;
     const computed = entry.computed!;
+    entries[i] = entry;
     planned[i] = {
       row_ref: row.row_ref,
       state: "ready",
@@ -344,7 +354,7 @@ export const planRows = async (writerCtx: WriterContext, rows: ImportRow[], opts
       },
     };
   }
-  return planned;
+  return { planned, entries };
 };
 
 const site_name = (ctx: LoadedContext, e: Emission): string => e.site?.name ?? `Site ${ctx.site_id}`;
@@ -352,14 +362,28 @@ const site_name = (ctx: LoadedContext, e: Emission): string => e.site?.name ?? `
 const CHANNEL_LABEL: Record<BatchInfo["channel"], string> = { mcp: "Claude", bulk_upload: "Bulk upload", api: "API" };
 
 /**
- * insertRows: writes the ready rows of a plan inside `tx`. Each row is
- * re-prepared from its input (factor, total, twin) so what is stored is what
- * the engine computes now; a row that no longer computes throws
- * IMPORT_PLAN_HAS_ISSUES with its row_ref, and the transaction rolls back.
+ * insertRows: writes the ready rows of a plan inside `tx`. The rows are
+ * planned again, inside the transaction and under the caller's context, so
+ * scope, mode lock, duplicates and totals are checked against what the
+ * database holds now and never trusted from an earlier plan. A row whose
+ * site or category is outside the caller's scope throws IMPORT_FORBIDDEN;
+ * one that no longer computes (new duplicate, mode lock, factor gone) throws
+ * IMPORT_PLAN_HAS_ISSUES with its row_ref. Either way the transaction rolls
+ * back and nothing is written.
  */
 export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, rows: PlannedRow[], batch: BatchInfo): Promise<InsertResult> => {
-  const contexts = new ContextCache(tx);
-  const checks = new CheckCache(tx);
+  const ready = rows.filter((p) => p.state === "ready" && p.result);
+  if (!ready.length) return { inserted: 0, fera_inserted: 0, ids: [] };
+
+  // The plan's activity resolution is kept (a plan_match the user confirmed must not re-resolve differently).
+  const planMatches: ActivityMatch[] = ready.map((p) => ({ site_id: p.input.site_id, category_id: p.input.category_id, sheet_name: p.input.activity_name, factor_name: p.result!.activity.factor_name }));
+  const { planned, entries } = await planRowsDetailed(writerCtx, ready.map((p) => p.input), { planMatches }, tx);
+
+  const forbidden = planned.filter((p) => p.issues.some((i) => i.code === "SITE_NOT_ALLOWED" || i.code === "CATEGORY_NOT_ASSIGNED")).map((p) => p.row_ref);
+  if (forbidden.length) throw new ImportError("IMPORT_FORBIDDEN", { row_refs: forbidden });
+  const blocked = planned.filter((p) => p.state !== "ready").map((p) => p.row_ref);
+  if (blocked.length) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: blocked });
+
   const user = await tx.getRepository(User).findOne({ where: { user_id: writerCtx.user_id } });
   const who = user ? [user.name, user.last_name].filter(Boolean).join(" ") : `user ${writerCtx.user_id}`;
   const audit: AuditInfo = { changed_by: writerCtx.user_id, reason: `Imported via ${CHANNEL_LABEL[batch.channel]} by ${who} (batch ${batch.upload_batch_id}, ${batch.source_name})` };
@@ -367,25 +391,13 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
   let inserted = 0;
   let fera_inserted = 0;
   const ids: number[] = [];
-  for (const planned of rows) {
-    if (planned.state !== "ready" || !planned.result) continue;
-    const row = planned.input;
-    const ctx = await contexts.context(row.site_id, row.category_id);
-    const periodResult = toStoredPeriod(row.period, row.category_id);
-    if (!periodResult.ok) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: [row.row_ref] });
-    const activity_data = activityDataFor(row, planned.result.activity.factor_name);
+  for (let i = 0; i < ready.length; i++) {
+    const row = ready[i].input;
+    const entry = entries[i];
+    if (!entry || !entry.factor) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: [row.row_ref] });
     const extra_data: Record<string, any> = { import: { channel: batch.channel, row_ref: row.row_ref } };
     if (row.notes) extra_data.notes = row.notes;
-    const prepared = await prepareEntry(ctx, checks, {
-      site_id: row.site_id,
-      category_id: row.category_id,
-      activity_data,
-      activity_data_unit: row.activity_unit,
-      period: periodResult.period,
-      extra_data,
-    });
-    if (!prepared.ok || !prepared.entry.factor) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: [row.row_ref] });
-    const { emission, fera } = await insertEntry(tx, writerCtx.user_id, prepared.entry, batch, audit);
+    const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit);
     inserted += 1;
     ids.push(emission.pk_id);
     if (fera) {
