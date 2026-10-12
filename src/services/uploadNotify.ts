@@ -162,6 +162,9 @@ const findRecipients = async (event: BatchCommittedEvent): Promise<UploadRecipie
   return [...managers, ...admins];
 };
 
+const isUniqueViolation = (err: unknown): boolean =>
+  typeof err === "object" && err !== null && (err as { driverError?: { code?: string }; code?: string }).driverError?.code === "23505";
+
 /** Users already holding a notification for this batch, so a retried emit or a second hook call adds none. */
 const alreadyNotified = async (uploadBatchId: string): Promise<Set<number>> => {
   const rows: { user_id: number }[] = await AppDataSource.query(
@@ -221,6 +224,8 @@ export const notifyBatchCommitted = async (event: BatchCommittedEvent): Promise<
           emailed += 1;
         }
       } catch (err) {
+        // Unique index hit: a concurrent emit got there first. Not an error, not a duplicate.
+        if (isUniqueViolation(err)) continue;
         console.error(
           `[UploadNotify] user ${item.user_id} batch ${event.upload_batch_id}:`,
           err instanceof Error ? err.message : err

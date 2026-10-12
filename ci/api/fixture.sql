@@ -8,6 +8,9 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Indexes that migrate:* scripts create and TypeORM's sync does not (synchronize: false in the entity).
+CREATE UNIQUE INDEX IF NOT EXISTS "notification_upload_batch_user_uq" ON "notification" ((meta->>'upload_batch_id'), user_id) WHERE type = 'UPLOAD_PENDING';
+
 INSERT INTO company (company_id, name, address, contact_person) VALUES
   (1, 'CI Steel Co', '1 Test Road', 'CI'),
   (2, 'CI Other Co', '2 Test Road', 'CI');
