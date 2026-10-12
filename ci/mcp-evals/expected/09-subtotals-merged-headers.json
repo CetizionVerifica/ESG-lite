@@ -1,0 +1,85 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A",
+    "category": "fuel"
+  },
+  "rows": [
+    {
+      "row_ref": "Fuel!A4",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 100,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A5",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 110,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A6",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 120,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A8",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 130,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A9",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-05-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 140,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A10",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-06-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 150,
+      "activity_unit": "L"
+    }
+  ],
+  "issues": {},
+  "chunks_min": 1,
+  "commit": "yes",
+  "note": "Exactly 6 rows; subtotal and total lines never become rows."
+}

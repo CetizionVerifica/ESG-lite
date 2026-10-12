@@ -1,0 +1,155 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A"
+  },
+  "rows": [
+    {
+      "row_ref": "Fuel!A2",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 500,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Electricity!A2",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 100000,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "Travel!A2",
+      "site_id": 1,
+      "category_id": 3,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "Domestic flight – economy",
+      "activity_value": 1200,
+      "activity_unit": "km"
+    },
+    {
+      "row_ref": "Fuel!A3",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 501,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Electricity!A3",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 100001,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "Travel!A3",
+      "site_id": 1,
+      "category_id": 3,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "Domestic flight – economy",
+      "activity_value": 1201,
+      "activity_unit": "km"
+    },
+    {
+      "row_ref": "Fuel!A4",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 502,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Electricity!A4",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 100002,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "Travel!A4",
+      "site_id": 1,
+      "category_id": 3,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "Domestic flight – economy",
+      "activity_value": 1202,
+      "activity_unit": "km"
+    },
+    {
+      "row_ref": "Fuel!A5",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 503,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Electricity!A5",
+      "site_id": 1,
+      "category_id": 2,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-01"
+      },
+      "activity_name": "Grid – TNEB",
+      "activity_value": 100003,
+      "activity_unit": "kWh"
+    },
+    {
+      "row_ref": "Travel!A5",
+      "site_id": 1,
+      "category_id": 3,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-01"
+      },
+      "activity_name": "Domestic flight – economy",
+      "activity_value": 1203,
+      "activity_unit": "km"
+    }
+  ],
+  "issues": {},
+  "chunks_min": 1,
+  "commit": "yes"
+}

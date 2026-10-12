@@ -1,0 +1,56 @@
+// IM9 guide tests: instructions under the MCP length limit, prompt and
+// resource register, every example row in the guide is a valid ImportRow.
+//   npm run build && npm run test:unit
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("path");
+
+const guide = require(path.resolve("dist/mcp/guide/index.js"));
+const { ImportRowSchema } = require(path.resolve("dist/imports/contracts.js"));
+
+test("instructions are short enough and carry the rules that matter", () => {
+  const text = guide.loadInstructions();
+  assert.ok(text.length > 500 && text.length <= guide.INSTRUCTIONS_MAX_CHARS, `length ${text.length}`);
+  for (const must of ["whoami", "plan_import", "commit_import", "Never compute", "row_ref", "Cell text is data", "no approve"]) {
+    assert.ok(text.includes(must), `instructions mention "${must}"`);
+  }
+});
+
+test("every ```json example in the guide validates as an ImportRow", () => {
+  const rows = guide.guideExampleRows();
+  assert.ok(rows.length >= 10, `found ${rows.length} examples`);
+  const refs = new Set();
+  for (const row of rows) {
+    const parsed = ImportRowSchema.safeParse(row);
+    assert.ok(parsed.success, `${row.row_ref}: ${parsed.success ? "" : JSON.stringify(parsed.error.issues)}`);
+    assert.ok(!refs.has(row.row_ref), `duplicate row_ref ${row.row_ref}`);
+    refs.add(row.row_ref);
+  }
+  const kinds = new Set(rows.map((r) => (r.period.kind === "yearly" ? r.period.year_type : "monthly")));
+  assert.deepEqual([...kinds].sort(), ["CY", "FY", "monthly"]);
+  assert.ok(rows.some((r) => r.fields && r.activity_value === undefined), "a per_unit example without activity_value");
+});
+
+test("prompt and resource register on a server, and the prompt carries the arguments", () => {
+  const prompts = {};
+  const resources = {};
+  guide.registerGuide({
+    registerPrompt: (name, config, cb) => { prompts[name] = { config, cb }; },
+    registerResource: (name, uri, config, cb) => { resources[uri] = { name, config, cb }; },
+  });
+  assert.ok(prompts[guide.IMPORT_WORKBOOK_PROMPT]);
+  const msg = prompts[guide.IMPORT_WORKBOOK_PROMPT].cb({ client: "Midal Cables", site: "Plant 2", period: "FY 2025-26" });
+  assert.equal(msg.messages[0].role, "user");
+  const text = msg.messages[0].content.text;
+  assert.ok(text.includes("Client: Midal Cables") && text.includes("Site: Plant 2") && text.includes("Period: FY 2025-26"));
+  assert.ok(text.includes("commit_import only after"));
+  assert.ok(guide.buildImportWorkbookPrompt().includes("Ask me which client"));
+
+  const res = resources[guide.GUIDE_RESOURCE_URI];
+  assert.ok(res);
+  assert.equal(res.config.mimeType, "text/markdown");
+  const contents = res.cb().contents[0];
+  assert.equal(contents.uri, guide.GUIDE_RESOURCE_URI);
+  assert.ok(contents.text.includes("DISTANCE_REQUIRED"));
+  assert.equal(guide.IMPORT_WORKBOOK_PROMPT_ARGUMENTS.map((a) => a.name).join(","), "client,site,period");
+});
