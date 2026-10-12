@@ -18,7 +18,7 @@ Paste the matching block in the first IM PR of that repo (IM0 for ESG-lite, IM10
 ```md
 ## Connect Claude — see docs/mcp-import/ (in ESG-lite)
 - Consent and Connected apps screens follow the redesign rules (src/ui, tokens only). Consent copy must say what Claude can't do (approve, edit, delete).
-- Upload batches show their `channel` (Claude, Bulk upload, Historical).
+- Upload batches show their `channel` (Claude, Bulk upload, API; no channel = Bulk upload). The contract (01-contracts §3) has no historical channel; add one there first if it is ever needed.
 ```
 
 ## python_AI_service

@@ -4,11 +4,13 @@ import { log } from "../utils/logger";
 /**
  * Hides secrets that travel in URLs before they reach the log: the `?token=`
  * query param (report downloads and the SSE stream) and the password-reset
- * token in /auth/verify-reset-token/:token.
+ * token in /auth/verify-reset-token/:token, and the OAuth values (code,
+ * code_challenge, state, the signed consent request) on /oauth URLs.
  */
 export const redactUrl = (url: string): string =>
   url
     .replace(/([?&](?:access_)?token=)[^&#]*/gi, "$1[redacted]")
+    .replace(/([?&](?:code|code_challenge|code_verifier|refresh_token|state|request)=)[^&#]*/gi, "$1[redacted]")
     .replace(/(\/verify-reset-token\/)[^/?#]+/i, "$1[redacted]");
 
 /**
