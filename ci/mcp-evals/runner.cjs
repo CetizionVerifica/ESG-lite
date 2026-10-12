@@ -14,6 +14,7 @@ const path = require("path");
 const XLSX = require("xlsx");
 
 const ROOT = __dirname;
+// Check the model id and the MCP connector beta header against the current Claude API docs before the first wave-4 run.
 const MODEL = argValue("--model") || "claude-opus-5-5";
 const ONLY = (argValue("--only") || "").split(",").filter(Boolean);
 const MAX_TURNS = 14;
