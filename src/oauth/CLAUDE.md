@@ -45,7 +45,7 @@ Endpoints beyond the spec, both under the app session (`authenticate`):
 - `GET /oauth/userinfo` (MCP bearer token) → `{ user_id, role, scopes, grant_id, client_id }`. It runs the exact check IM6 puts in front of `/mcp` (`requireMcpToken`), so the connector flow is testable before the MCP server exists.
 
 Decisions:
-- Codes and tokens carry prefixes `esgl_ac_`, `esgl_at_`, `esgl_rt_` (32 random bytes). Only sha256 hashes are stored. A failed PKCE check burns the code. A replayed code revokes the tokens its first exchange minted (OAuth 2.1 §4.1.2). Refresh reuse revokes the grant; access tokens from the previous refresh keep running until they expire (≤ 1 h).
+- Codes and tokens carry prefixes `esgl_ac_`, `esgl_at_`, `esgl_rt_` (32 random bytes). Only sha256 hashes are stored. A failed PKCE check burns the code. A replayed code revokes every live token of its grant created at or after the first exchange, so the pair minted then and anything refresh rotation minted from it later (OAuth 2.1 §4.1.2). Refresh reuse revokes the grant; access tokens from the previous refresh keep running until they expire (≤ 1 h).
 - Refresh and revoke are bound to the client: `client_id` must match the grant's (`invalid_grant` on refresh; revoke answers 200 but changes nothing, and 401 `invalid_client` without a `client_id`).
 - `utils/jwt.ts` `verifyToken` (used by `authenticate`, `reportAuth` and the notification stream) now accepts only session tokens: an object payload with numeric `userId`, string `role` and no `aud`. Any other JWT the server signs must use `purposeKey()`.
 - `resource` is required on `/oauth/authorize` and, when sent, must match on `/oauth/token` (RFC 8707). `OAUTH_RESOURCE_OPTIONAL=true` relaxes the authorize side for clients that don't send it.
