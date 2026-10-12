@@ -252,7 +252,7 @@ export const ImportPlanSchema = z.object({
   version: z.number().int().nonnegative(),
   status: PlanStatusSchema,
   company_id: positiveInt,
-  created_by: positiveInt,
+  created_by: positiveInt.nullable(), // null once the creator's account is deleted (IM2)
   channel: ImportChannelSchema,
   /** Workbook name as the user calls it. */
   source_name: z.string(),
