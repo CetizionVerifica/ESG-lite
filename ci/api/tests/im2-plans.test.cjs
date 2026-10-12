@@ -33,7 +33,8 @@ test.before(async () => {
 
 test.after(async () => {
   await withDb(async (db) => {
-    await db.query(`DELETE FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel'`);
+    await db.query(`DELETE FROM audit_log WHERE entity_type = 'category_mapping'`);
+    await db.query(`DELETE FROM emission_category_mapping WHERE company_category_name IN ('Unknown diesel', 'Unknown petrol', 'Pinned diesel')`);
     await db.query(`DELETE FROM emission_factors WHERE emission_factor_id IN (920, 921, 922, 923)`);
   });
 });
@@ -241,6 +242,51 @@ test("save_mapping: a Superadmin or Admin turns a match into a P23 mapping that 
   const elsewhere = await create("manager", [row({ row_ref: "m3", site_id: 2, activity_name: "Unknown diesel" })]);
   assert.equal(elsewhere.json.rows[0].issues[0].code, "UNKNOWN_ACTIVITY");
   for (const id of [plan.plan_id, later.json.plan_id, elsewhere.json.plan_id]) await call("POST", `/imports/plans/${id}/cancel`, id === plan.plan_id ? "admin" : "manager");
+  // The written mapping is audited.
+  const audit = await withDb((db) => db.query(`SELECT action, changed_by, reason, changed_fields FROM audit_log WHERE entity_type = 'category_mapping' AND entity_id = (SELECT id FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel')`));
+  assert.equal(audit.rowCount, 1);
+  assert.deepEqual([audit.rows[0].action, audit.rows[0].changed_by, audit.rows[0].changed_fields.global_category_name.new], ["create", 3, "Diesel"]);
+  assert.match(audit.rows[0].reason, new RegExp(`^Saved from import plan ${plan.plan_id} \\(api\\)$`));
+});
+
+test("save_mapping: a Superadmin saves for the named client; an existing mapping (app-made, pinned) is never overwritten", async () => {
+  const { json: plan } = await create("superadmin", [row({ row_ref: "s1", activity_name: "Unknown petrol" })], { company_id: 1 });
+  assert.equal(plan.company_id, 1);
+  const res = await call("PATCH", `/imports/plans/${plan.plan_id}`, "superadmin", {
+    version: plan.version,
+    activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Unknown petrol", factor_name: "Diesel", save_mapping: true }],
+  });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  const mapping = await withDb((db) => db.query(`SELECT company_id, site_id, global_category_name, emission_factor_id, created_by FROM emission_category_mapping WHERE company_category_name = 'Unknown petrol'`));
+  assert.deepEqual(mapping.rows, [{ company_id: 1, site_id: 1, global_category_name: "Diesel", emission_factor_id: null, created_by: 5 }]);
+
+  // An app-made mapping pins the 2023 Diesel factor (923). Saving the same sheet wording again is refused and the pin stays.
+  await withDb((db) =>
+    db.query(`INSERT INTO emission_category_mapping (company_id, company_name, site_id, category_id, company_category_name, global_category_name, emission_factor_id, created_by)
+              VALUES (1, 'CI Company', 1, 1, 'Pinned diesel', 'Diesel', 923, 5)`),
+  );
+  const { json: adminPlan } = await create("admin", [row({ row_ref: "a1", activity_name: "Pinned diesel" })]);
+  for (const [who, p] of [["superadmin", plan.plan_id], ["admin", adminPlan.plan_id]]) {
+    const dup = await call("PATCH", `/imports/plans/${p}`, who, {
+      version: who === "admin" ? adminPlan.version : res.json.version,
+      activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Pinned diesel", factor_name: "Natural Gas", save_mapping: true }],
+    });
+    assert.equal(dup.status, 400, JSON.stringify(dup.json));
+    assert.deepEqual([dup.json.code, dup.json.details.reason, dup.json.details.maps_to], ["IMPORT_VALIDATION", "MAPPING_EXISTS", "Diesel"], who);
+  }
+  await call("POST", `/imports/plans/${adminPlan.plan_id}/cancel`, "admin");
+  const pinned = await withDb((db) => db.query(`SELECT global_category_name, emission_factor_id FROM emission_category_mapping WHERE company_category_name = 'Pinned diesel'`));
+  assert.deepEqual(pinned.rows, [{ global_category_name: "Diesel", emission_factor_id: 923 }]);
+  // Refused as a whole: the plan did not move and no plan match was stored.
+  const after = await call("GET", `/imports/plans/${plan.plan_id}`, "superadmin");
+  assert.equal(after.json.version, res.json.version);
+  // Without save_mapping the same match is fine and stays on the plan.
+  const planOnly = await call("PATCH", `/imports/plans/${plan.plan_id}`, "superadmin", {
+    version: res.json.version,
+    activity_matches: [{ site_id: 1, category_id: 1, sheet_name: "Pinned diesel", factor_name: "Diesel" }],
+  });
+  assert.equal(planOnly.status, 200, JSON.stringify(planOnly.json));
+  await call("POST", `/imports/plans/${plan.plan_id}/cancel`, "superadmin");
 });
 
 test("commit refuses a plan with nothing ready, so no empty batch is ever written", async () => {

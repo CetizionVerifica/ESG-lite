@@ -3,6 +3,7 @@ import { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import { ImportPlan, ImportPlanMatch, ImportPlanRow } from "../../entities/ImportPlan";
 import { EmissionCategoryMapping } from "../../entities/EmissionCategoryMapping";
+import { AuditLog } from "../../entities/AuditLog";
 import { UserRole } from "../../types/type";
 import { resolveUserCompanyId } from "../../utils/companyScope";
 import { ActivityMatch, GetPlanQuerySchema, ImportChannel, ImportPlan as ImportPlanView, ImportPlanWithRows, ImportRow, ImportRowSchema, ListBatchesQuerySchema, PlannedRow, RowIssue, TOTAL_LIKE_KEYS, UploadBatchSummary } from "../contracts";
@@ -252,7 +253,6 @@ export const createPlan = async (
   body: { source_name: string; channel: ImportChannel; company_id?: number; rows: ImportRow[] },
   totalLike: Set<string>,
 ) => {
-  getEmissionWriter();
   const ctx = await buildWriterContext(user, body.company_id);
   await assertChannelAllowed(ctx, body.channel);
   assertRowLimits(body.rows.length, 0);
@@ -292,7 +292,6 @@ const insertPlanRows = async (m: EntityManager, planId: string, rows: ImportRow[
 };
 
 export const appendRows = async (user: TokenUser, planId: string, body: { version: number; rows: ImportRow[] }, totalLike: Set<string>) => {
-  getEmissionWriter();
   const plan = await AppDataSource.transaction(async (m) => {
     const plan = await lockPlan(m, user, planId);
     assertDraft(plan, body.version);
@@ -349,7 +348,6 @@ export const patchPlan = async (
   body: { version: number; changes?: { row_ref: string; set?: Partial<ImportRow>; skip?: boolean }[]; activity_matches?: ActivityMatch[] },
   totalLikeChanges: Set<string> = new Set(),
 ) => {
-  getEmissionWriter();
   const plan = await AppDataSource.transaction(async (m) => {
     const plan = await lockPlan(m, user, planId);
     assertDraft(plan, body.version);
@@ -384,7 +382,7 @@ export const patchPlan = async (
         .values({ plan_id: plan.plan_id, site_id: match.site_id, category_id: match.category_id, sheet_name: match.sheet_name, factor_name: match.factor_name })
         .orUpdate(["factor_name"], ["plan_id", "site_id", "category_id", "sheet_name"])
         .execute();
-      if (match.save_mapping) await saveMapping(m, ctx, match);
+      if (match.save_mapping) await saveMapping(m, ctx, plan, match);
     }
     const totalLike = new Set([
       ...rows.filter((r) => (r.issues as RowIssue[]).some((i) => i.code === "CLIENT_TOTAL_IGNORED")).map((r) => r.row_ref),
@@ -403,18 +401,32 @@ export const patchPlan = async (
  * the plan only. The mapping is by name (no pinned factor id), so the year
  * fallback of the engine still applies. The site and category must be in the
  * caller's scope.
+ *
+ * Only new mappings are written: where the company already has a mapping for
+ * that site, category and sheet wording (made here or in the app, pinned or
+ * not), the request is refused with IMPORT_VALIDATION / MAPPING_EXISTS and
+ * nothing changes, as the app's mapping endpoint refuses a duplicate. The
+ * plan match itself still applies to this plan. Changing an existing mapping
+ * is the Category mappings page's job. Every mapping written here gets an
+ * audit_log row (entity_type "category_mapping").
  */
-const saveMapping = async (m: EntityManager, ctx: WriterContext, match: ActivityMatch) => {
+const saveMapping = async (m: EntityManager, ctx: WriterContext, plan: ImportPlan, match: ActivityMatch) => {
   if (ctx.role !== UserRole.SUPERADMIN && ctx.role !== UserRole.ADMIN) return;
   if (!ctx.allowed_site_ids.includes(match.site_id) || !(ctx.allowed_category_ids_by_site[match.site_id] ?? []).includes(match.category_id)) {
     throw new ImportError("IMPORT_FORBIDDEN", { site_id: match.site_id, category_id: match.category_id });
   }
+  const repo = m.getRepository(EmissionCategoryMapping);
+  const existing = await repo.findOne({ where: { company_id: ctx.company_id, site_id: match.site_id, category_id: match.category_id, company_category_name: match.sheet_name } });
+  if (existing) {
+    throw new ImportError(
+      "IMPORT_VALIDATION",
+      { reason: "MAPPING_EXISTS", site_id: match.site_id, category_id: match.category_id, sheet_name: match.sheet_name, maps_to: existing.global_category_name },
+      "A category mapping for this sheet wording already exists for that site and category. Change it on the Category mappings page, or send the match without save_mapping.",
+    );
+  }
   const company: { name: string }[] = await m.query(`SELECT name FROM company WHERE company_id = $1`, [ctx.company_id]);
-  await m
-    .createQueryBuilder()
-    .insert()
-    .into(EmissionCategoryMapping)
-    .values({
+  const saved = await repo.save(
+    repo.create({
       company_id: ctx.company_id,
       company_name: company[0]?.name ?? "",
       site_id: match.site_id,
@@ -423,9 +435,19 @@ const saveMapping = async (m: EntityManager, ctx: WriterContext, match: Activity
       global_category_name: match.factor_name,
       emission_factor_id: null,
       created_by: ctx.user_id,
-    })
-    .orUpdate(["global_category_name", "created_by"], ["company_id", "site_id", "category_id", "company_category_name"])
-    .execute();
+    }),
+  );
+  const auditRepo = m.getRepository(AuditLog);
+  await auditRepo.save(
+    auditRepo.create({
+      entity_type: "category_mapping",
+      entity_id: saved.id,
+      action: "create",
+      changed_fields: { global_category_name: { old: null, new: match.factor_name }, site_id: { old: null, new: match.site_id }, category_id: { old: null, new: match.category_id } },
+      reason: `Saved from import plan ${plan.plan_id} (${plan.channel})`,
+      changed_by: { user_id: ctx.user_id } as any,
+    }),
+  );
 };
 
 export const cancelPlan = async (user: TokenUser, planId: string) => {
