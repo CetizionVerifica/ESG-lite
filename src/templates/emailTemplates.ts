@@ -318,20 +318,28 @@ export const failureTemplate = (email: string) => ({
   ].join(""), "#dc2626"),
 });
 
+/** Site names are user-entered text: escape them before they go into HTML. */
+const escapeHtml = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
 /** IM4: a committed import batch is waiting for the manager's review. Counts only, no row data. */
-export const uploadPendingTemplate = (name: string, rows: number, tco2e: number, siteNames: string[], period: string, deepLink?: string) => ({
-  subject: "Entries waiting for your review — ESG Pro",
-  html: layout([
-    hi(name),
-    p(`<strong>${rows}</strong> ${rows === 1 ? "entry is" : "entries are"} waiting for your review${siteNames.length ? ` for <strong>${siteNames.join(", ")}</strong>` : ""}${period ? ` (${period})` : ""}.`),
-    statusBar("Waiting for review", "#2563eb", "#eff6ff"),
-    details([
-      ["Entries", String(rows)],
-      ["Total", `${tco2e.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} tCO₂e`],
-      ...(siteNames.length ? [["Sites", siteNames.join(", ")] as [string, string]] : []),
-      ...(period ? [["Period", period] as [string, string]] : []),
-    ]),
-    cta("Review entries", deepLink || "/data/approvals?view=batches"),
-    sign(),
-  ].join(""), "#2563eb"),
-});
+export const uploadPendingTemplate = (name: string, rows: number, tco2e: number, siteNames: string[], period: string, deepLink?: string) => {
+  const sites = escapeHtml(siteNames.join(", "));
+  const when = escapeHtml(period);
+  return {
+    subject: "Entries waiting for your review — ESG Pro",
+    html: layout([
+      hi(escapeHtml(name)),
+      p(`<strong>${rows}</strong> ${rows === 1 ? "entry is" : "entries are"} waiting for your review${sites ? ` for <strong>${sites}</strong>` : ""}${when ? ` (${when})` : ""}.`),
+      statusBar("Waiting for review", "#2563eb", "#eff6ff"),
+      details([
+        ["Entries", String(rows)],
+        ["Total", `${tco2e.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} tCO₂e`],
+        ...(sites ? [["Sites", sites] as [string, string]] : []),
+        ...(when ? [["Period", when] as [string, string]] : []),
+      ]),
+      cta("Review entries", deepLink || "/data/approvals?view=batches"),
+      sign(),
+    ].join(""), "#2563eb"),
+  };
+};

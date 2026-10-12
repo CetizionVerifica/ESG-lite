@@ -147,14 +147,28 @@ const findRecipients = async (event: BatchCommittedEvent): Promise<UploadRecipie
     [event.company_id, event.site_ids]
   );
   if (unmanaged.length === 0) return managers;
+  // An Admin belongs to the company through their own site_id or, when that
+  // is unset, through any site in user_sites.
   const admins: UploadRecipient[] = await AppDataSource.query(
     `SELECT DISTINCT u.user_id, u.name, u.email, u.notification_preferences
        FROM "user" u
        LEFT JOIN site s ON s.site_id = u.site_id
-      WHERE u.role = 'Admin' AND s.company_id = $1`,
+      WHERE u.role = 'Admin'
+        AND (s.company_id = $1
+             OR EXISTS (SELECT 1 FROM user_sites us JOIN site s2 ON s2.site_id = us.site_id
+                         WHERE us.user_id = u.user_id AND s2.company_id = $1))`,
     [event.company_id]
   );
   return [...managers, ...admins];
+};
+
+/** Users already holding a notification for this batch, so a retried emit or a second hook call adds none. */
+const alreadyNotified = async (uploadBatchId: string): Promise<Set<number>> => {
+  const rows: { user_id: number }[] = await AppDataSource.query(
+    `SELECT user_id FROM notification WHERE type = $1 AND meta->>'upload_batch_id' = $2`,
+    [UPLOAD_PENDING_TYPE, uploadBatchId]
+  );
+  return new Set(rows.map((r) => r.user_id));
 };
 
 const loadNames = async (event: BatchCommittedEvent): Promise<{ uploader: string; sites: string[] }> => {
@@ -174,14 +188,20 @@ const loadNames = async (event: BatchCommittedEvent): Promise<{ uploader: string
 
 /**
  * Write the notifications for one committed batch. Safe to call from the
- * emitter or from the internal endpoint; never throws.
+ * emitter or from the internal endpoint; never throws. Idempotent per
+ * batch id: recipients already notified for it are skipped. `emailed`
+ * counts emails queued for sending, not deliveries.
  */
 export const notifyBatchCommitted = async (event: BatchCommittedEvent): Promise<{ notified: number; emailed: number }> => {
   let notified = 0;
   let emailed = 0;
   try {
-    const [recipients, names] = await Promise.all([findRecipients(event), loadNames(event)]);
-    const items = buildUploadNotifications(event, recipients, names.uploader, names.sites);
+    const [recipients, names, done] = await Promise.all([
+      findRecipients(event),
+      loadNames(event),
+      alreadyNotified(event.upload_batch_id),
+    ]);
+    const items = buildUploadNotifications(event, recipients, names.uploader, names.sites).filter((i) => !done.has(i.user_id));
     for (const item of items) {
       try {
         await createNotification(item.user_id, item.type, item.title, item.message, item.link, item.meta);

@@ -77,6 +77,32 @@ test("a manager who uploads their own batch is not told; admins stand in for a s
   assert.equal(await countFor(3, "im4-batch-3"), 1);
   assert.equal(await countFor(2, "im4-batch-3"), 0);
   assert.equal(await countFor(6, "im4-batch-3"), 0);
+
+  // The same batch again (a retried emit, or the hook called twice) adds nothing.
+  const r3 = await notifyBatchCommitted(event({ upload_batch_id: "im4-batch-3", site_ids: [91], months: ["2026-01"] }));
+  assert.equal(r3.notified, 0);
+  assert.equal(await countFor(3, "im4-batch-3"), 1);
+
+  // An Admin tied to the company only through user_sites (no site_id) is found too.
+  await withDb((db) =>
+    db.query(
+      `INSERT INTO "user" (user_id, name, email, password, role, site_id)
+       VALUES (92, 'CI Admin Two', 'ci-admin2@example.invalid', 'x', 'Admin', NULL) ON CONFLICT DO NOTHING`
+    )
+  );
+  await withDb((db) => db.query(`INSERT INTO user_sites (user_id, site_id) VALUES (92, 1) ON CONFLICT DO NOTHING`));
+  const r4 = await notifyBatchCommitted(event({ upload_batch_id: "im4-batch-4", site_ids: [91], months: ["2026-01"] }));
+  assert.equal(r4.notified, 2);
+  assert.equal(await countFor(92, "im4-batch-4"), 1);
+  assert.equal(await countFor(3, "im4-batch-4"), 1);
+
+  // Leave the shared fixture as it was.
+  await withDb(async (db) => {
+    await db.query(`DELETE FROM notification WHERE user_id = 92`);
+    await db.query(`DELETE FROM user_sites WHERE user_id = 92`);
+    await db.query(`DELETE FROM "user" WHERE user_id = 92`);
+    await db.query(`DELETE FROM site WHERE site_id = 91`);
+  });
 });
 
 test("another company's site ids never reach company 1 managers, and the listener never fails the emit", async () => {

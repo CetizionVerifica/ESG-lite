@@ -64,3 +64,11 @@ test("singular wording and a batch id that needs escaping", () => {
 test("UPLOAD_PENDING has its own P13 group", () => {
   assert.deepEqual(NOTIFICATION_GROUPS.uploads, ["UPLOAD_PENDING"]);
 });
+
+test("the email template escapes site names and the period", () => {
+  const { uploadPendingTemplate } = require(path.resolve("dist/templates/emailTemplates.js"));
+  const t = uploadPendingTemplate("Mia", 3, 1.25, ['Plant <b>A</b> & "B"'], "Mar 2026", "/data/approvals?view=batches&batch=x");
+  assert.ok(!t.html.includes("<b>A</b>"));
+  assert.ok(t.html.includes("Plant &lt;b&gt;A&lt;/b&gt; &amp; &quot;B&quot;"));
+  assert.ok(t.html.includes("Review entries"));
+});
