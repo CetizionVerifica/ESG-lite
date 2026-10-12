@@ -150,6 +150,33 @@ test("a manager edit recalculates the FERA twin and keeps it in step with the pa
   }
 });
 
+test("manager edit takes the quantity, not a select's option id (configured select names)", async () => {
+  const before = await q("SELECT activity_data, total_emission, activity_data_unit, emission_factor_snapshot FROM emission WHERE pk_id=3");
+  await q("INSERT INTO column_entity (pk_id, column_name, column_type) VALUES (9901, 'Waste Type', 'select'), (9902, 'Amount of waste', 'number')");
+  await q(`INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options) VALUES (9901, 'CI waste', 1, 3, '{"9901":[{"id":"6","label":"ETP Sludge"}]}')`);
+  await q("INSERT INTO column_config_columns (column_config_id, column_id) VALUES (9901, 9901), (9901, 9902)");
+  await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (903, 'ETP Sludge - Landfill', 520, 'ton', 2024, 1, 3)");
+  await q("UPDATE emission SET activity_data_unit='ton' WHERE pk_id=3");
+  try {
+    const r = await call("PUT", "/user/emissions/manager-edit/3", "manager", {
+      activity_data: { "Waste Type": "6", "Amount of waste": "9.17", emission_category: "ETP Sludge - Landfill" },
+      reason: "Corrected weight",
+    });
+    assert.equal(r.status, 200);
+    const [row] = await q("SELECT total_emission FROM emission WHERE pk_id=3");
+    assert.equal(Number(row.total_emission), 4.77); // 9.17 t × 520 kg/t ÷ 1000, not 6 × 520
+  } finally {
+    const [b] = before;
+    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4 WHERE pk_id=3",
+      [b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot]);
+    await q("DELETE FROM column_config_columns WHERE column_config_id=9901");
+    await q("DELETE FROM column_config WHERE pk_id=9901");
+    await q("DELETE FROM column_entity WHERE pk_id IN (9901, 9902)");
+    await q("DELETE FROM emission_factors WHERE emission_factor_id=903");
+    await clearAudit("emission", [3]);
+  }
+});
+
 test("legacy Excel import computes the total from activity x factor, not the file's calculatedEmission", async () => {
   const XLSX = require("xlsx");
   const sheet = XLSX.utils.json_to_sheet([
