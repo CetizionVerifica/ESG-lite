@@ -141,7 +141,8 @@ test("list_sites_and_categories: the IM3 context of one client, activity counts 
   const r = await callTool(client, "list_sites_and_categories", { company_id: 1 });
   assert.notEqual(r.isError, true, JSON.stringify(r));
   const d = r.structuredContent;
-  assert.equal(ImportContextSchema.safeParse(d).success, true);
+  const parsed = ImportContextSchema.safeParse(d);
+  assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
   assert.equal(d.company.company_id, 1);
   assert.equal(d.company.mcp_enabled, true);
   assert.deepEqual(d.sites.map((s) => s.site_id), [1, 2]);

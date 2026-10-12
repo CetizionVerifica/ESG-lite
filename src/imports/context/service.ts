@@ -60,7 +60,9 @@ export interface Readiness {
 const PERIOD_MODES: ("monthly" | "yearly")[] = ["monthly", "yearly"];
 export const FY_START_MONTH = 4 as const;
 
-const CACHE_TTL_MS = 60_000;
+// 60 s per company and scope; off under NODE_ENV=test so API tests that seed
+// forms or factors read them back at once (same rule as src/oauth/verify.ts).
+const CACHE_TTL_MS = process.env.NODE_ENV === "test" ? 0 : 60_000;
 const contextCache = new Map<string, { at: number; value: ImportContext }>();
 /**
  * Forget every cached context (tests, or after a form or factor change).
