@@ -3294,12 +3294,18 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // while keeping the old total would leave the row off by the conversion
     // factor. Treat it as an activity_data edit using the stored data.
     const unitChanged = activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit;
-    // A new reporting date can mean a different factor year, so it recalculates too.
+    if (date_of_reporting !== undefined && isNaN(new Date(date_of_reporting).getTime())) {
+      return res.status(400).json({ message: "Invalid date of reporting" });
+    }
+    // A new reporting date can mean a different factor year, so it recalculates
+    // too, but only a row that has a category and unit: otherwise there is no
+    // total to recalculate and the date alone changes, as before.
     const storedDate = new Date(emission.date_of_reporting).toISOString().slice(0, 10);
     const dateChanged = date_of_reporting !== undefined && new Date(date_of_reporting).toISOString().slice(0, 10) !== storedDate;
+    const canRecalculate = !!emission.activity_data?.emission_category && !!(activity_data_unit ?? emission.activity_data_unit);
     const activity_data = activityDataInput !== undefined
       ? activityDataInput
-      : (unitChanged || dateChanged ? { ...emission.activity_data } : undefined);
+      : (unitChanged || (dateChanged && canRecalculate) ? { ...emission.activity_data } : undefined);
 
     // Capture changes for audit trail
     const changedFields: Record<string, { old: any; new: any }> = {};

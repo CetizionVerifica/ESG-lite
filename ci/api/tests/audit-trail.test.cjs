@@ -222,6 +222,28 @@ test("manager edit: the FERA twin takes the quantity, not a select's option id",
   }
 });
 
+test("a date-only manager edit of a row without category or unit keeps its total", async () => {
+  // Fixture rows 2 (pending) and 3 (approved) have no emission_category.
+  const before = await q("SELECT pk_id, total_emission, date_of_reporting, status FROM emission WHERE pk_id IN (2, 3) ORDER BY pk_id");
+  try {
+    for (const b of before) {
+      const r = await call("PUT", `/user/emissions/manager-edit/${b.pk_id}`, "manager", { date_of_reporting: "2025-08-31", reason: "Wrong month" });
+      assert.equal(r.status, 200);
+      const [row] = await q("SELECT total_emission, date_of_reporting, status FROM emission WHERE pk_id=$1", [b.pk_id]);
+      assert.equal(Number(row.total_emission), Number(b.total_emission));
+      assert.equal(row.status, b.status);
+      assert.equal(new Date(row.date_of_reporting).toISOString().slice(0, 10), "2025-08-31");
+    }
+    const bad = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "not a date", reason: "Bad date" });
+    assert.equal(bad.status, 400);
+  } finally {
+    for (const b of before) {
+      await q("UPDATE emission SET total_emission=$2, date_of_reporting=$3, status=$4 WHERE pk_id=$1", [b.pk_id, b.total_emission, b.date_of_reporting, b.status]);
+    }
+    await clearAudit("emission", [2, 3]);
+  }
+});
+
 test("legacy Excel import computes the total from activity x factor, not the file's calculatedEmission", async () => {
   const XLSX = require("xlsx");
   const sheet = XLSX.utils.json_to_sheet([
