@@ -4,6 +4,7 @@ import { User } from "../entities/User";
 import { Emission } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
+import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { pendingReviewCountSql } from "../utils/feraFold";
 
@@ -161,7 +162,7 @@ const kpiYearType = (period: OverviewPeriod): "CY" | "FY" | null =>
   period.type === "cy" ? "CY" : period.type === "fy" ? "FY" : null;
 
 /**
- * GET /manager/overview?period=&siteIds=&categoryId=
+ * GET /manager/overview?period=&siteIds=&categoryIds= (or the older categoryId=)
  *
  * Server-side version of what pages/ManagerDashboard aggregates in the
  * browser, using the same rules:
@@ -192,11 +193,12 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
     if (!period) {
       return res.status(400).json({ message: "period must be YYYY, YYYY-MM, YYYY-Qn or FYYYYY-YY (e.g. FY2025-26)" });
     }
-    const rawCategory = req.query.categoryId;
-    if (rawCategory !== undefined && rawCategory !== "" && !/^[1-9]\d*$/.test(String(rawCategory))) {
-      return res.status(400).json({ message: "categoryId must be a positive integer" });
+    // categoryIds=1,2 (several) or the older categoryId=1.
+    const categoryQuery = req.query as { categoryIds?: unknown; categoryId?: unknown };
+    if (hasInvalidCategoryIds(categoryQuery)) {
+      return res.status(400).json({ message: CATEGORY_IDS_ERROR });
     }
-    const categoryId = rawCategory !== undefined && rawCategory !== "" ? parseInt(String(rawCategory), 10) : null;
+    const categoryIds = parseCategoryIds(categoryQuery);
 
     const manager = await AppDataSource.getRepository(User).findOne({
       where: { user_id: managerId },
@@ -217,7 +219,9 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
     const base = {
       period,
       site_ids: siteIds,
-      category_id: categoryId,
+      // One category keeps the older single field; several are in category_ids.
+      category_id: categoryIds.length === 1 ? categoryIds[0] : null,
+      category_ids: categoryIds,
     };
     if (siteIds.length === 0) {
       return res.json({
@@ -241,7 +245,7 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
         .createQueryBuilder("e")
         .leftJoin("e.category", "c")
         .where("e.site_id IN (:...siteIds)", { siteIds });
-      if (categoryId) qb.andWhere("e.category_id = :categoryId", { categoryId });
+      if (categoryIds.length) qb.andWhere("e.category_id IN (:...categoryIds)", { categoryIds });
       if (p.start && p.end) {
         qb.andWhere(
           `((e.reporting_period IS DISTINCT FROM 'yearly' AND e.date_of_reporting BETWEEN :start AND :end)
