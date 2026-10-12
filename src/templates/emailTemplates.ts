@@ -317,3 +317,21 @@ export const failureTemplate = (email: string) => ({
     sign(),
   ].join(""), "#dc2626"),
 });
+
+/** IM4: a committed import batch is waiting for the manager's review. Counts only, no row data. */
+export const uploadPendingTemplate = (name: string, rows: number, tco2e: number, siteNames: string[], period: string, deepLink?: string) => ({
+  subject: "Entries waiting for your review — ESG Pro",
+  html: layout([
+    hi(name),
+    p(`<strong>${rows}</strong> ${rows === 1 ? "entry is" : "entries are"} waiting for your review${siteNames.length ? ` for <strong>${siteNames.join(", ")}</strong>` : ""}${period ? ` (${period})` : ""}.`),
+    statusBar("Waiting for review", "#2563eb", "#eff6ff"),
+    details([
+      ["Entries", String(rows)],
+      ["Total", `${tco2e.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} tCO₂e`],
+      ...(siteNames.length ? [["Sites", siteNames.join(", ")] as [string, string]] : []),
+      ...(period ? [["Period", period] as [string, string]] : []),
+    ]),
+    cta("Review entries", deepLink || "/data/approvals?view=batches"),
+    sign(),
+  ].join(""), "#2563eb"),
+});

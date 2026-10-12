@@ -11,6 +11,8 @@ import brandRoutes from "./routes/brand.routes";
 import companyAdminRoutes from "./routes/companyAdmin.routes";
 import pcfRoutes from "./routes/pcf.routes";
 import importsRouter from "./imports/router";
+import internalImportsRouter from "./routes/internalImports.routes";
+import { registerUploadNotifyListener } from "./services/uploadNotify";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
@@ -70,6 +72,7 @@ app.use("/brands", brandRoutes);
 app.use("/company-admin", companyAdminRoutes);
 app.use("/pcf", pcfRoutes);
 app.use("/imports", authenticate, importsRouter);
+app.use("/internal/imports", internalImportsRouter); // IM4, service key
 
 let server: any;
 
@@ -111,6 +114,7 @@ connectWithRetry()
     .then(async () => {
         // Start server immediately — don't block on RabbitMQ
         startHeartbeat();
+        registerUploadNotifyListener(); // IM4
         const port = Number(process.env.PORT) || 3000;
         server = app.listen(port, () => {
             console.log(`🚀 Server running on http://localhost:${port}`);
