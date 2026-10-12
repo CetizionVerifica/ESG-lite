@@ -33,7 +33,9 @@ INSERT INTO emission_factors
   (7, 1, 4, 2024, 250.1200, 'km', 'CI', 'Van Diesel [km]', 'Van Diesel [km]'),
   (8, 1, 5, 2024, 467.0100, 'tonne', 'CI', 'Landfill', 'Landfill'),
   (9, 2, 1, 2024, 2680.0000, 'litre', 'CI', 'Diesel', 'Diesel'),
-  (10, 2, 2, 2024, 708.0000, 'kwh', 'CI', 'Grid Electricity', 'Grid Electricity');
+  (10, 2, 2, 2024, 708.0000, 'kwh', 'CI', 'Grid Electricity', 'Grid Electricity'),
+  -- "ton" denominator, as in DEFRA waste factors: the metric tonne.
+  (11, 1, 5, 2024, 467.0100, 'ton', 'CI', 'Landfill (ton)', 'Landfill (ton)');
 
 INSERT INTO column_config (pk_id, config_name, site_id, category_id, calculation) VALUES
   (1, 'Use of Sold Products', 1, 3, '{
@@ -55,9 +57,16 @@ INSERT INTO column_config (pk_id, config_name, site_id, category_id, calculation
      }
    }'::jsonb);
 
+-- Waste with configured dropdowns: "Waste Type" holds an option id, never the quantity.
+INSERT INTO column_entity (pk_id, column_name, column_type) VALUES
+  (1, 'Waste Type', 'select'), (2, 'Amount of waste', 'number');
+INSERT INTO column_config (pk_id, config_name, site_id, category_id) VALUES (3, 'Waste', 1, 5);
+INSERT INTO column_config_columns (column_config_id, column_id) VALUES (3, 1), (3, 2);
+
 SELECT setval(pg_get_serial_sequence('company', 'company_id'), 100);
 SELECT setval(pg_get_serial_sequence('site', 'site_id'), 100);
 SELECT setval(pg_get_serial_sequence('category', 'category_id'), 100);
 SELECT setval(pg_get_serial_sequence('"user"', 'user_id'), 100);
 SELECT setval(pg_get_serial_sequence('emission_factors', 'emission_factor_id'), 100);
 SELECT setval(pg_get_serial_sequence('column_config', 'pk_id'), 100);
+SELECT setval(pg_get_serial_sequence('column_entity', 'pk_id'), 100);

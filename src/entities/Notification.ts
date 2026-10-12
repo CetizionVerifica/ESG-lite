@@ -12,8 +12,19 @@ import { User } from "./User";
 export interface NotificationMeta {
   reviewer?: string;
   reason?: string | null;
+  // UPLOAD_PENDING (IM4): the batch waiting for review
+  upload_batch_id?: string;
+  rows?: number;
+  tco2e?: number;
+  site_ids?: number[];
+  months?: string[];
+  channel?: string;
 }
 
+// Partial unique expression index ((meta->>'upload_batch_id'), user_id) WHERE
+// type = 'UPLOAD_PENDING': one upload notification per user per batch (IM4).
+// Created by migrate:upload-notification-index; TypeORM leaves it alone.
+@Index("notification_upload_batch_user_uq", { synchronize: false })
 @Entity()
 export class Notification {
   @PrimaryGeneratedColumn()

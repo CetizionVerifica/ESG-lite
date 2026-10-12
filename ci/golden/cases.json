@@ -19,7 +19,10 @@
     {"name": "rejected: no factor", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-10-15", "activity_data_unit": "litre", "activity_data": {"emission_category": "Unobtainium", "activity_value": "10"}}},
     {"name": "rejected: spec field missing", "body": {"site_id": 1, "category_id": 3, "date_of_reporting": "2025-10-31", "activity_data_unit": "kwh", "activity_data": {"emission_category": "India Grid", "Calculation Method": "Direct energy", "Product Name": "Fan X3", "Units Sold": "10", "Energy per use": "", "Lifetime uses": "5"}}},
     {"name": "rejected: percent over 100", "body": {"site_id": 1, "category_id": 3, "date_of_reporting": "2025-10-31", "activity_data_unit": "kwh", "activity_data": {"emission_category": "India Grid", "Calculation Method": "Share of energy", "Product Name": "Fan X4", "Units Sold": "10", "Energy per use": "1", "Share in use": "140"}}},
-    {"name": "rejected: duplicate entry", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-01-15", "activity_data_unit": "litre", "activity_data": {"emission_category": "Diesel", "activity_value": "999"}}}
+    {"name": "rejected: duplicate entry", "body": {"site_id": 1, "category_id": 1, "date_of_reporting": "2025-01-15", "activity_data_unit": "litre", "activity_data": {"emission_category": "Diesel", "activity_value": "999"}}},
+    {"name": "waste with a configured select column (dated 2022, outside every report)", "body": {"site_id": 1, "category_id": 5, "date_of_reporting": "2022-06-30", "activity_data_unit": "tonne", "activity_data": {"Waste Type": "6", "Amount of waste": "9.17", "emission_category": "Landfill"}}},
+    {"name": "waste in kg against a ton factor (metric tonne, dated 2022)", "body": {"site_id": 1, "category_id": 5, "date_of_reporting": "2022-07-31", "activity_data_unit": "kg", "activity_data": {"emission_category": "Landfill (ton)", "activity_value": "9170"}}},
+    {"name": "waste in tonne against a ton factor (dated 2022)", "body": {"site_id": 1, "category_id": 5, "date_of_reporting": "2022-08-31", "activity_data_unit": "tonne", "activity_data": {"emission_category": "Landfill (ton)", "activity_value": "9.17"}}}
   ],
   "reports": [
     {"name": "GHG tables CY 2025, both sites", "path": "/user/ghg/tables", "body": {"siteIds": [1, 2], "yearType": "CY", "year": 2025}},

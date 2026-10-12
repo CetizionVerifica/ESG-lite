@@ -10,6 +10,11 @@ import reportRoutes from "./routes/report.routes";
 import brandRoutes from "./routes/brand.routes";
 import companyAdminRoutes from "./routes/companyAdmin.routes";
 import pcfRoutes from "./routes/pcf.routes";
+import oauthRoutes from "./oauth/router";
+import wellKnownRoutes from "./oauth/wellKnown";
+import importsRouter from "./imports/router";
+import internalImportsRouter from "./routes/internalImports.routes";
+import { registerUploadNotifyListener } from "./services/uploadNotify";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
@@ -19,6 +24,8 @@ import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
 import { assertJwtSecret } from "./utils/jwt";
+import { authenticate } from "./middlewares/auth.middleware";
+import { mcpRouter } from "./mcp/http";
 dotenv.config();
 
 // Refuse to start without a signing secret (there is no built-in fallback).
@@ -40,6 +47,8 @@ if (process.env.TRUST_PROXY) {
         "⚠️ TRUST_PROXY is not set. Behind a load balancer every client then shares one sign-in rate limit; set TRUST_PROXY to the number of proxy hops (1 for a single ALB).",
     );
 }
+// /mcp owns its own body cap and CORS (src/mcp/http.ts), so it mounts before them.
+app.use("/mcp", mcpRouter);
 app.use(express.json({ limit: "10mb" }));
 app.use(
     cors({
@@ -67,6 +76,10 @@ app.use("/reports", reportRoutes);
 app.use("/brands", brandRoutes);
 app.use("/company-admin", companyAdminRoutes);
 app.use("/pcf", pcfRoutes);
+app.use("/oauth", oauthRoutes);
+app.use("/.well-known", wellKnownRoutes);
+app.use("/imports", authenticate, importsRouter);
+app.use("/internal/imports", internalImportsRouter); // IM4, service key
 
 let server: any;
 
@@ -108,6 +121,7 @@ connectWithRetry()
     .then(async () => {
         // Start server immediately — don't block on RabbitMQ
         startHeartbeat();
+        registerUploadNotifyListener(); // IM4
         const port = Number(process.env.PORT) || 3000;
         server = app.listen(port, () => {
             console.log(`🚀 Server running on http://localhost:${port}`);

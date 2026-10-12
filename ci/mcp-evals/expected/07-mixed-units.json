@@ -1,0 +1,49 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A",
+    "category": "fuel"
+  },
+  "rows": [
+    {
+      "row_ref": "Fuel!A2",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1200,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A3",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 1.3,
+      "activity_unit": "kL"
+    },
+    {
+      "row_ref": "Fuel!A4",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-01"
+      },
+      "activity_name": "HSD",
+      "activity_value": 320,
+      "activity_unit": "gallons"
+    }
+  ],
+  "issues": {},
+  "chunks_min": 1,
+  "commit": "yes",
+  "note": "Units must be sent exactly as written; no client-side conversion."
+}
