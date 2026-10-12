@@ -4,7 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { log } from "../utils/logger";
-import { parseCategoryIds } from "../utils/parseCategoryIds";
+import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, SITE_ACCESS_DENIED } from "../utils/companyScope";
 
@@ -30,6 +30,9 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { year, month, status } = req.query;
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
+    if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
+      return res.status(400).json({ message: CATEGORY_IDS_ERROR });
+    }
     const categoryIds = parseCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown });
 
     if (siteIds.length === 0 || !year) {

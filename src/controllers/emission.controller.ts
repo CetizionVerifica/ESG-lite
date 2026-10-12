@@ -24,7 +24,7 @@ import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } fro
 import { ColumnConfig } from "../entities/ColumnConfig";
 import { getSelectColumns, pickActivityValue } from "../services/activityValue";
 import { computeBreakdown, type BreakdownSourceRow } from "../services/emissionBreakdown";
-import { parseCategoryIds } from "../utils/parseCategoryIds";
+import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, siteFilterSql, SITE_ACCESS_DENIED } from "../utils/companyScope";
 import {
@@ -152,6 +152,9 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     const { date, year, month, page, limit, status, scope, sort, order } = req.query;
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     // categoryIds=1,2 (several) or the older categoryId=1.
+    if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
+      return res.status(400).json({ message: CATEGORY_IDS_ERROR });
+    }
     const categoryIds = parseCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown });
 
     if (sort !== undefined && !EMISSION_SORTS.has(String(sort))) {
@@ -1258,6 +1261,9 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
 // List upload batches with aggregated info
 export const getEmissionBatches = async (req: Request, res: Response) => {
   try {
+    if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
+      return res.status(400).json({ message: CATEGORY_IDS_ERROR });
+    }
     const categoryIds = parseCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown });
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
 

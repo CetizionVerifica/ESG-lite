@@ -4,7 +4,7 @@ import { User } from "../entities/User";
 import { Emission } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
-import { hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
+import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { pendingReviewCountSql } from "../utils/feraFold";
 
@@ -196,7 +196,7 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
     // categoryIds=1,2 (several) or the older categoryId=1.
     const categoryQuery = req.query as { categoryIds?: unknown; categoryId?: unknown };
     if (hasInvalidCategoryIds(categoryQuery)) {
-      return res.status(400).json({ message: "categoryIds must be positive integers" });
+      return res.status(400).json({ message: CATEGORY_IDS_ERROR });
     }
     const categoryIds = parseCategoryIds(categoryQuery);
 
