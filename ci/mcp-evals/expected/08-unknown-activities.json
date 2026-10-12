@@ -1,0 +1,48 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "site": "Plant A",
+    "category": "fuel"
+  },
+  "rows": [
+    {
+      "row_ref": "Fuel!A2",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-01"
+      },
+      "activity_name": "High speed diesel (bulk)",
+      "activity_value": 900,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Fuel!A3",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-01"
+      },
+      "activity_name": "High speed diesel (bulk)",
+      "activity_value": 950,
+      "activity_unit": "L"
+    }
+  ],
+  "issues": {
+    "UNKNOWN_ACTIVITY": 2
+  },
+  "answers": [
+    "Map it to HSD. Don't save the mapping."
+  ],
+  "activity_matches": [
+    {
+      "sheet_name": "High speed diesel (bulk)",
+      "factor_name": "HSD",
+      "save_mapping": false
+    }
+  ],
+  "chunks_min": 1,
+  "commit": "yes"
+}

@@ -1,0 +1,303 @@
+{
+  "ask": {
+    "client": "Eval Co",
+    "category": "fuel"
+  },
+  "rows": [
+    {
+      "row_ref": "Ledger!A2",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 10,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A3",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 11,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A4",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 12,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A5",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 13,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A6",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-05-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 14,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A7",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-06-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 15,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A8",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-07-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 16,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A9",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-08-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 17,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A10",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-09-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 18,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A11",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-10-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 19,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A12",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-11-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 20,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A13",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-12-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 21,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A14",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-01-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 22,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A15",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-02-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 23,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A16",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-03-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 24,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A17",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-04-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 25,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A18",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-05-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 26,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A19",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-06-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 27,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A20",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-07-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 28,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A21",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-08-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 29,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A22",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-09-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 30,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A23",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-10-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 31,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A24",
+      "site_id": 1,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-11-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 32,
+      "activity_unit": "L"
+    },
+    {
+      "row_ref": "Ledger!A25",
+      "site_id": 2,
+      "category_id": 1,
+      "period": {
+        "kind": "monthly",
+        "date": "2025-12-15"
+      },
+      "activity_name": "Diesel",
+      "activity_value": 33,
+      "activity_unit": "L"
+    }
+  ],
+  "rows_count": 15000,
+  "rows_rule": "ledger-15000",
+  "issues": {
+    "DUPLICATE_IN_PLAN": "warning"
+  },
+  "chunks_min": 8,
+  "commit": "yes"
+}
