@@ -24,6 +24,7 @@ import { PcfStudy } from "../entities/PcfStudy";
 import { PcfInput } from "../entities/PcfInput";
 import { PcfAllocation } from "../entities/PcfAllocation";
 import { PcfResult } from "../entities/PcfResult";
+import { ImportPlan, ImportPlanRow, ImportPlanMatch } from "../entities/ImportPlan";
 import { OauthClient } from "../entities/OauthClient";
 import { OauthGrant } from "../entities/OauthGrant";
 import { OauthCode } from "../entities/OauthCode";
@@ -59,6 +60,9 @@ const entities = [
     PcfInput,
     PcfAllocation,
     PcfResult,
+    ImportPlan,
+    ImportPlanRow,
+    ImportPlanMatch,
     OauthClient,
     OauthGrant,
     OauthCode,
