@@ -89,7 +89,7 @@ export const emitBatchCommitted = async (event: BatchCommittedEvent): Promise<vo
   }
 };
 
-/** Test helper: drop every listener. */
+/** Test helper: drop every listener (an in-memory Set, no data involved). */
 export const clearBatchCommittedListeners = (): void => {
-  listeners.clear();
+  for (const listener of [...listeners]) listeners.delete(listener);
 };
