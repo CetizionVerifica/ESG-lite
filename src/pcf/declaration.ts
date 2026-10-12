@@ -208,7 +208,9 @@ export function pactUnit(declaredUnit: string | null, qty: number | null, massPe
 export function buildDeclaration(src: DeclarationSource): Declaration {
   const { study, result } = src;
   const hidden = licensedLineIds(result.input);
-  const { by_stage, hidden_stages } = redactStages(result.by_stage, result.lines, hidden);
+  // Results stored before engine lines were kept have no `lines`; the snapshot
+  // inputs carry the same id/stage pairs, so the licensed stage is still hidden.
+  const { by_stage, hidden_stages } = redactStages(result.by_stage, result.lines.length ? result.lines : result.input?.inputs ?? [], hidden);
   const anyHidden = hidden.size > 0;
 
   const factors = result.input?.factors ?? [];

@@ -175,6 +175,28 @@ test("licensed factor values never leave the platform, not even for a superadmin
   assert.equal(pf.pcf.dqi, undefined);
 });
 
+test("the licensed stage stays hidden for a result stored without engine lines", async () => {
+  const id = await study(true);
+  await calc(id);
+  await approve(id);
+  await withDb((db) => db.query("UPDATE pcf_result SET cut_off = cut_off - 'lines' WHERE pcf_study_id = $1", [id]));
+  for (const who of ["manager", "superadmin"]) {
+    for (const format of ["pdf-data", "pact", "csv"]) {
+      const res = await exp(id, format, who);
+      assert.equal(res.status, 200, `${who} ${format}: ${res.text}`);
+      assert.equal(res.text.includes("3.917"), false, `${who} ${format} leaks the licensed value`);
+    }
+  }
+  const d = (await exp(id, "pdf-data", "superadmin")).json.declaration;
+  assert.equal(d.lines.length, 0);
+  assert.equal(d.by_stage.A3_packaging, null);
+  assert.deepEqual(d.hidden_stages, ["A3_packaging"]);
+  const csv = (await exp(id, "csv", "manager")).text;
+  assert.equal(/A3_packaging[^\n]*3\.917/.test(csv), false);
+  const pf = (await exp(id, "pact", "superadmin")).json;
+  assert.equal(pf.pcf.packagingGhgEmissions, undefined);
+});
+
 test("a declared unit with no PACT equivalent is refused; PDF and CSV still work", async () => {
   const id = await study(false);
   await calc(id);
