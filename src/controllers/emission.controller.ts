@@ -9,7 +9,8 @@ import { ProductionData, ProductionDataStatus } from "../entities/ProductionData
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
 import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
-import { getUsdRate } from "../services/fxRate";
+import { getConversionFactor, unitsMatchExact } from "../services/emissionWrite/units";
+import { ContextCache, CheckCache, prepareEntry, insertEntry } from "../services/emissionWrite";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
@@ -39,77 +40,6 @@ const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
 const siteRepo = AppDataSource.getRepository(Site);
 const columnConfigRepo = AppDataSource.getRepository(ColumnConfig);
-
-// Common unit conversions
-const unitConversions: Record<string, Record<string, number>> = {
-  // Volume
-  litre: { gallon: 0.264172, ml: 1000, "cubic meter": 0.001, "kilo litre": 0.001, kl: 0.001 },
-  kl: { litre: 1000, gallon: 264.172, ml: 1000000, "cubic meter": 1 },
-  "kilo litre": { litre: 1000, gallon: 264.172, ml: 1000000, "cubic meter": 1 },
-  gallon: { litre: 3.78541, ml: 3785.41, "cubic meter": 0.00378541, kl: 0.00378541 },
-  ml: { litre: 0.001, gallon: 0.000264172, kl: 0.000001 },
-  "cubic meter": { litre: 1000, gallon: 264.172, kl: 1 },
-  // Weight
-  //
-  kg: { lb: 2.20462, tonne: 0.001, g: 1000, ton: 0.001, tonnes : 0.001 },
-  lb: { kg: 0.453592, tonne: 0.000453592, g: 453.592, tonnes : 0.000453592, ton: 0.000453592 },
-  // "ton" is the metric tonne (1,000 kg), as DEFRA and the factor library use it, not the US short ton.
-  ton: { kg: 1000, lb: 2204.62, g: 1000000, tonne: 1, tonnes: 1 },
-  tonne: { kg: 1000, lb: 2204.62, g: 1000000 , tonnes : 1, ton: 1 },
-  Tonnes : { kg: 1000, lb: 2204.62, g: 1000000, tonne : 1 },
-  tonnes: { kg: 1000, lb: 2204.62, g: 1000000, tonne: 1, ton: 1 }, 
-  g: { kg: 0.001, lb: 0.00220462 },
-  // Energy
-  kwh: { mwh: 0.001, gj: 0.0036, mj: 3.6 },
-  mwh: { kwh: 1000, gj: 3.6, mj: 3600 },
-  gj: { kwh: 277.778, mwh: 0.277778, mj: 1000 },
-  mj: { kwh: 0.277778, gj: 0.001 },
-  // Currency — seed values only. These are refreshed from the live FX service
-  // below (refreshCurrencyRates), because a frozen rate silently skews every
-  // spend-based Scope 3 figure: the previous hardcoded 83.5 had drifted ~15%
-  // from the real rate, inflating every INR spend line by the same 15%.
-  inr: { usd: 1 / 95.77 },
-  usd: { inr: 95.77, eur: 0.86 },
-  eur: { usd: 1 / 0.86 },
-
-  "tonne.km": { "kg.km": 1000, "g.km": 1000000 },
-"kg.km": { "tonne.km": 0.001, "g.km": 1000 },
-"g.km": { "tonne.km": 0.000001, "kg.km": 0.001},
-};
-
-//comment
-
-// Keep the currency rows of `unitConversions` in step with the live market.
-// Done as a periodic refresh rather than an async lookup so that
-// getConversionFactor stays synchronous and no call site has to change.
-// Both directions are written as exact inverses, so converting INR->USD->INR
-// can no longer drift (the old table had 0.012 vs 83.5, which did not agree).
-async function refreshCurrencyRates(): Promise<void> {
-  try {
-    const [inr, eur] = await Promise.all([getUsdRate("INR"), getUsdRate("EUR")]);
-    unitConversions.usd.inr = inr.rate;
-    unitConversions.inr.usd = 1 / inr.rate;
-    unitConversions.usd.eur = eur.rate;
-    unitConversions.eur.usd = 1 / eur.rate;
-  } catch (err) {
-    console.warn("[fx] Could not refresh currency rates; keeping previous values.", err);
-  }
-}
-void refreshCurrencyRates();
-setInterval(refreshCurrencyRates, 12 * 60 * 60 * 1000).unref?.();
-
-// Get conversion factor between two units
-const getConversionFactor = (fromUnit: string, toUnit: string): number | null => {
-  const from = fromUnit?.toLowerCase().trim();
-  const to = toUnit?.toLowerCase().trim();
-  return unitConversions[from]?.[to] || null;
-};
-
-// Check if units match (handles null/undefined like frontend)
-const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null | undefined): boolean => {
-  if (!unit1 || !unit2) return true; // Treat null/undefined as match (like frontend)
-  return unit1.toLowerCase().trim() === unit2.toLowerCase().trim();
-};
 
 // Ledger sort keys for GET /user/emissions?sort= (redesign B6) → column.
 // A Map, not an object literal: a plain lookup would also accept inherited
@@ -543,218 +473,27 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       await pcfDataChanged("emission", idsToDelete);
     }
 
-    let calculatedEmission = 0;
-    let matchedEmissionFactor: import("../entities/EmissionFactor").EmissionFactor | null = null;
-
-    // Calculate total emission if emission_category is provided in activity_data
-    if (activity_data.emission_category && activity_data_unit) {
-      // Calculate target year for emission factor (reporting year - 1, matching frontend logic)
-      // Use string parsing to avoid timezone issues (frontend does: parseInt(selectedDate.substring(0, 4)) - 1)
-      const reportingYearStr = typeof date_of_reporting === 'string'
-        ? date_of_reporting.substring(0, 4)
-        : new Date(date_of_reporting).getFullYear().toString();
-      const targetYear = parseInt(reportingYearStr) - 1;
-
-      // Find the emission factor for the selected emission category and year
-      // (exact name/global match with year, then looser fallbacks).
-      const emissionFactor = await findEmissionFactorForCategory(emissionFactorRepo, {
-        site_id,
-        category_id,
-        emissionCategory: activity_data.emission_category,
-        year: targetYear,
-      });
-
-      if (emissionFactor) {
-        matchedEmissionFactor = emissionFactor;
-        // Try to find the numeric value from activity_data
-        let activityValue = 0;
-
-        if (calcSpec) {
-          // Spec category: the activity value is the product of the method's
-          // fields (e.g. units sold × energy per use × lifetime uses). The
-          // one-value heuristic below must not run — with several numeric
-          // columns it would pick one of them and store a wrong total.
-          const computed = computeSpecActivityValue(calcSpec, activity_data, activity_data_unit);
-          if (!computed.ok) {
-            return res.status(400).json({ message: computed.message });
-          }
-          activityValue = computed.value;
-          if (computed.unitKey) activity_data_unit = computed.unitKey;
-          // Persist the computed product alongside the inputs so reports,
-          // exports and the legacy readers (which look for activity_value)
-          // see one activity figure for the row.
-          activity_data.activity_value = String(activityValue);
-        } else {
-        activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, site_id, category_id));
-        }
-
-        if (activityValue > 0) {
-          // Check if units match (handles null/undefined like frontend)
-          const unitsMatch = unitsMatchExact(emissionFactor.denominator_unit, activity_data_unit);
-
-          if (unitsMatch) {
-            // Units match - calculate directly
-            calculatedEmission = Math.round((activityValue * emissionFactor.factor_value) / 1000 * 100) / 100;
-          } else {
-            // Units don't match - try to convert
-            const conversionFactor = getConversionFactor(activity_data_unit, emissionFactor.denominator_unit);
-
-            if (conversionFactor) {
-              // Apply conversion and calculate
-              const convertedValue = activityValue * conversionFactor;
-              calculatedEmission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
-            } else {
-              // No conversion available - reject
-              return res.status(400).json({
-                message: `Unit mismatch: Expected "${emissionFactor.denominator_unit}" but received "${activity_data_unit}". No conversion available.`,
-                expected_unit: emissionFactor.denominator_unit,
-                received_unit: activity_data_unit,
-              });
-            }
-          }
-        }
-      } else {
-        return res.status(400).json({
-          message: `No emission factor found for emission category "${activity_data.emission_category}" (year ${targetYear})`,
-        });
-      }
-    }
-
-    const emission = repo.create({
-      site: { site_id },
-      category: { category_id },
+    // Factor, total and FERA twin come from the emission write service (IM1),
+    // the one engine typed entries, bulk uploads and Claude imports share.
+    const contexts = new ContextCache(AppDataSource.manager);
+    const checks = new CheckCache(AppDataSource.manager);
+    const ctx = await contexts.context(site_id, category_id);
+    const prepared = await prepareEntry(ctx, checks, {
+      site_id,
+      category_id,
       activity_data,
+      activity_data_unit,
+      period: {
+        date_of_reporting: typeof date_of_reporting === "string" ? date_of_reporting : new Date(date_of_reporting).toISOString(),
+        reporting_period: effectivePeriod,
+        year_type: effectivePeriod === "yearly" ? year_type : null,
+      },
       extra_data: extra_data || {},
-      total_emission: calculatedEmission,
-      unit: "tCO2e",
-      date_of_reporting: new Date(date_of_reporting),
-      reporting_period: effectivePeriod,
-      year_type: effectivePeriod === "yearly" ? year_type : null,
-      activity_data_unit: activity_data_unit || null,
-      created_by: userId ? { user_id: userId } as any : null,
-      emission_factor_snapshot: matchedEmissionFactor ? {
-        emission_factor_id: matchedEmissionFactor.emission_factor_id,
-        emission_category_name: matchedEmissionFactor.emission_category_name,
-        global_category_name: matchedEmissionFactor.global_category_name || undefined,
-        factor_value: matchedEmissionFactor.factor_value,
-        denominator_unit: matchedEmissionFactor.denominator_unit,
-        source: matchedEmissionFactor.source,
-        year: matchedEmissionFactor.year,
-      } : null,
     });
-
-    await repo.save(emission);
-
-    // Auto-create FERA entry if the site has a FERA category with a matching emission factor.
-    // Never for spec categories: their emission_category is a country/fuel/gas name for
-    // downstream USE-phase emissions, not a fuel the company burned — a same-named FERA
-    // factor (e.g. a country name) would spawn a phantom twin from one sniffed field.
-    let feraEmission: Emission | null = null;
-    if (activity_data.emission_category && !calcSpec) {
-      try {
-        const site = await siteRepo.findOne({
-          where: { site_id },
-          relations: ["categories"],
-        });
-        const feraCategory = site?.categories?.find(
-          (c) => c.category_name.toLowerCase() === "fera"
-        );
-
-        if (feraCategory) {
-          // Calculate target year same as above
-          const reportingYearStr = typeof date_of_reporting === 'string'
-            ? date_of_reporting.substring(0, 4)
-            : new Date(date_of_reporting).getFullYear().toString();
-          const feraTargetYear = parseInt(reportingYearStr) - 1;
-
-          // Find FERA emission factor for this emission category
-          const feraFactor = await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id },
-              category: { category_id: feraCategory.category_id },
-              emission_category_name: activity_data.emission_category,
-              year: feraTargetYear,
-            },
-          }) || await emissionFactorRepo.findOne({
-            where: {
-              site: { site_id },
-              category: { category_id: feraCategory.category_id },
-              global_category_name: activity_data.emission_category,
-              year: feraTargetYear,
-            },
-          });
-
-          if (feraFactor) {
-            // The parent's quantity (its own category's select columns are skipped).
-            const feraActivityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, site_id, category_id));
-
-            if (feraActivityValue > 0) {
-              // Calculate FERA emission. With no unit conversion the raw value
-              // would give a wrong total (audit F-12), so skip the twin instead,
-              // as the parent refuses a unit it cannot convert.
-              const feraCalculated = feraTotal(feraActivityValue, activity_data_unit, feraFactor);
-              if (feraCalculated === null) {
-                console.warn(
-                  `FERA auto-create skipped: cannot convert "${activity_data_unit}" to the FERA factor unit "${feraFactor.denominator_unit}" (site ${site_id}).`,
-                );
-                throw Object.assign(new Error("fera-unit-skip"), { nonFatal: true });
-              }
-
-              // The FERA twin must carry the same reporting period as its
-              // parent: a yearly fuel entry with a monthly FERA twin would
-              // draw a false period-end spike on FERA charts and later trip
-              // the mode lock. And the twin must respect the lock on ITS OWN
-              // category — if FERA already holds the other mode for this
-              // window, skip the twin (non-fatal, mirrors the missing-factor
-              // behavior) rather than silently creating mixed-mode data.
-              const feraModeConflict = await findModeLockConflict(repo, {
-                site_id,
-                category_id: feraCategory.category_id,
-                reporting_period: effectivePeriod,
-                year_type: effectivePeriod === "yearly" ? year_type : null,
-                date_of_reporting: new Date(date_of_reporting),
-              });
-              if (feraModeConflict) {
-                console.warn(
-                  `FERA auto-create skipped: ${effectivePeriod} twin would conflict with existing ${feraModeConflict.conflicting_period} FERA data for this window (site ${site_id}).`,
-                );
-                throw Object.assign(new Error("fera-mode-lock-skip"), { nonFatal: true });
-              }
-
-              feraEmission = repo.create({
-                site: { site_id },
-                category: { category_id: feraCategory.category_id },
-                activity_data,
-                total_emission: feraCalculated,
-                unit: "tCO2e",
-                date_of_reporting: new Date(date_of_reporting),
-                reporting_period: effectivePeriod,
-                year_type: effectivePeriod === "yearly" ? year_type : null,
-                activity_data_unit: activity_data_unit || null,
-                created_by: userId ? { user_id: userId } as any : null,
-                fera_linked_id: emission.pk_id,
-                emission_factor_snapshot: {
-                  emission_factor_id: feraFactor.emission_factor_id,
-                  emission_category_name: feraFactor.emission_category_name,
-                  global_category_name: feraFactor.global_category_name || undefined,
-                  factor_value: feraFactor.factor_value,
-                  denominator_unit: feraFactor.denominator_unit,
-                  source: feraFactor.source,
-                  year: feraFactor.year,
-                },
-              });
-              await repo.save(feraEmission);
-
-              // Link back: set fera_linked_id on the regular emission
-              emission.fera_linked_id = feraEmission.pk_id;
-              await repo.save(emission);
-            }
-          }
-        }
-      } catch (feraErr) {
-        console.error("FERA auto-create warning (non-fatal):", feraErr);
-      }
+    if (!prepared.ok) {
+      return res.status(400).json({ message: prepared.issue.message, ...(prepared.issue.extra ?? {}) });
     }
+    const { emission, fera: feraEmission } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
 
     const savedEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
