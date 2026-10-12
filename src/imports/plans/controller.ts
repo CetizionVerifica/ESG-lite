@@ -67,7 +67,7 @@ export const patchPlan = async (req: AuthRequest, res: Response) => {
   const body = parse(PatchPlanBodySchema, req.body, res);
   if (!body) return;
   try {
-    return res.json(await plans.patchPlan(user(req), String(req.params.id), body));
+    return res.json(await plans.patchPlan(user(req), String(req.params.id), body, plans.findTotalLikeChanges(req.body?.changes)));
   } catch (err) {
     return fail(res, err);
   }

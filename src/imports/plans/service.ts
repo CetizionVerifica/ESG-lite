@@ -4,7 +4,7 @@ import { AppDataSource } from "../../config/data-source";
 import { ImportPlan, ImportPlanMatch, ImportPlanRow } from "../../entities/ImportPlan";
 import { UserRole } from "../../types/type";
 import { resolveUserCompanyId } from "../../utils/companyScope";
-import { ActivityMatch, GetPlanQuerySchema, ImportChannel, ImportPlan as ImportPlanView, ImportPlanWithRows, ImportRow, ListBatchesQuerySchema, PlannedRow, RowIssue, TOTAL_LIKE_KEYS, UploadBatchSummary } from "../contracts";
+import { ActivityMatch, GetPlanQuerySchema, ImportChannel, ImportPlan as ImportPlanView, ImportPlanWithRows, ImportRow, ImportRowSchema, ListBatchesQuerySchema, PlannedRow, RowIssue, TOTAL_LIKE_KEYS, UploadBatchSummary } from "../contracts";
 import { ImportError } from "../errors";
 import { IMPORT_LIMITS, PLAN_EXPIRY_MS } from "../limits";
 import { emitBatchCommitted, WriterContext } from "../writer";
@@ -329,10 +329,24 @@ export const getPlan = async (user: TokenUser, planId: string, rawQuery: Query):
   return { ...planView(plan), rows: rows.map(toPlanned), page, page_size: pageSize, total_rows: total };
 };
 
+/** row_refs of raw patch changes whose `set` carried a total-like key. */
+export const findTotalLikeChanges = (rawChanges: unknown): Set<string> => {
+  const refs = new Set<string>();
+  if (!Array.isArray(rawChanges)) return refs;
+  for (const c of rawChanges) {
+    const set = c && typeof c === "object" ? (c as any).set : undefined;
+    if (set && typeof set === "object" && (TOTAL_LIKE_KEYS as readonly string[]).some((k) => k in set) && typeof (c as any).row_ref === "string") {
+      refs.add((c as any).row_ref);
+    }
+  }
+  return refs;
+};
+
 export const patchPlan = async (
   user: TokenUser,
   planId: string,
   body: { version: number; changes?: { row_ref: string; set?: Partial<ImportRow>; skip?: boolean }[]; activity_matches?: ActivityMatch[] },
+  totalLikeChanges: Set<string> = new Set(),
 ) => {
   getEmissionWriter();
   const plan = await AppDataSource.transaction(async (m) => {
@@ -345,7 +359,14 @@ export const patchPlan = async (
     if (unknown.length) throw new ImportError("IMPORT_PLAN_NOT_FOUND", { row_refs: unknown.slice(0, 20) });
     for (const c of body.changes || []) {
       const r = byRef.get(c.row_ref)!;
-      if (c.set) r.input = { ...(r.input as ImportRow), ...c.set, row_ref: r.row_ref };
+      if (c.set) {
+        // The merged row must still be a valid ImportRow (the value-or-fields rule included).
+        const merged = ImportRowSchema.safeParse({ ...(r.input as ImportRow), ...c.set, row_ref: r.row_ref });
+        if (!merged.success) {
+          throw new ImportError("IMPORT_VALIDATION", merged.error.issues.slice(0, 20).map((i) => ({ path: [c.row_ref, ...i.path].join("."), message: i.message })));
+        }
+        r.input = merged.data;
+      }
       if (c.skip === true) r.state = "skipped";
       if (c.skip === false && r.state === "skipped") r.state = "issue";
       if (r.state === "skipped") {
@@ -364,7 +385,10 @@ export const patchPlan = async (
         .orUpdate(["factor_name"], ["plan_id", "site_id", "category_id", "sheet_name"])
         .execute();
     }
-    const totalLike = new Set(rows.filter((r) => (r.issues as RowIssue[]).some((i) => i.code === "CLIENT_TOTAL_IGNORED")).map((r) => r.row_ref));
+    const totalLike = new Set([
+      ...rows.filter((r) => (r.issues as RowIssue[]).some((i) => i.code === "CLIENT_TOTAL_IGNORED")).map((r) => r.row_ref),
+      ...totalLikeChanges,
+    ]);
     await replan(m, ctx, plan, rows, totalLike);
     return plan;
   });
@@ -410,6 +434,9 @@ export const commitPlan = async (user: TokenUser, planId: string, body: { versio
       throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { issue_rows: issueRows.length, row_refs: issueRows.slice(0, 20).map((r) => r.row_ref) });
     }
     const ready = rows.filter((r) => r.state === "ready");
+    if (!ready.length) {
+      throw new ImportError("IMPORT_VALIDATION", { ready: 0, skipped: rows.filter((r) => r.state === "skipped").length }, "The plan has no ready rows to commit.");
+    }
     const matches = await loadMatches(m, plan.plan_id);
 
     // Serialise with every other import for the same site and category (same

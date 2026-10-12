@@ -174,6 +174,29 @@ test("patch: fix a value, skip a row, match an activity name; the plan is recalc
   assert.equal(rename.status, 200);
   assert.deepEqual(rename.json.rows.map((r) => r.row_ref).sort(), ["p1", "p2", "p3"]);
   assert.equal(rename.json.rows.find((r) => r.row_ref === "p3").input.activity_value, 10);
+  // A patched row is still a whole ImportRow: an empty unit is refused, a fields-only row can't lose its fields, and a total sent through set is ignored with a warning.
+  const broken = await call("PATCH", `/imports/plans/${plan.plan_id}`, "manager", { version: rename.json.version, changes: [{ row_ref: "p3", set: { activity_unit: "" } }] });
+  assert.equal(broken.status, 400, JSON.stringify(broken.json));
+  assert.deepEqual([broken.json.code, broken.json.details[0].path], ["IMPORT_VALIDATION", "changes.0.set.activity_unit"]);
+  const { json: fieldsOnly } = await create("manager", [row({ row_ref: "f", activity_value: undefined, fields: { fuel: "HSD", litres: 5 } })]);
+  const noFields = await call("PATCH", `/imports/plans/${fieldsOnly.plan_id}`, "manager", { version: fieldsOnly.version, changes: [{ row_ref: "f", set: { fields: {} } }] });
+  assert.equal(noFields.status, 400, JSON.stringify(noFields.json));
+  assert.equal(noFields.json.details[0].path, "f.activity_value");
+  const totalled = await call("PATCH", `/imports/plans/${plan.plan_id}`, "manager", { version: rename.json.version, changes: [{ row_ref: "p3", set: { activity_value: 20, total_emission: 999 } }] });
+  assert.equal(totalled.status, 200, JSON.stringify(totalled.json));
+  const p3Again = totalled.json.rows.find((r) => r.row_ref === "p3");
+  assert.deepEqual([p3Again.input.activity_value, p3Again.result.total_tco2e, p3Again.issues.map((i) => i.code)], [20, 0.02, ["CLIENT_TOTAL_IGNORED"]]);
+});
+
+test("commit refuses a plan with nothing ready, so no empty batch is ever written", async () => {
+  const { json: plan } = await create("manager", [row({ row_ref: "only" })]);
+  const { json: skipped } = await call("PATCH", `/imports/plans/${plan.plan_id}`, "manager", { version: plan.version, changes: [{ row_ref: "only", skip: true }] });
+  const res = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: skipped.version, skip_rows_with_issues: true, idempotency_key: "empty-" + plan.plan_id });
+  assert.equal(res.status, 400, JSON.stringify(res.json));
+  assert.deepEqual([res.json.code, res.json.details], ["IMPORT_VALIDATION", { ready: 0, skipped: 1 }]);
+  const after = await call("GET", `/imports/plans/${plan.plan_id}`, "manager");
+  assert.deepEqual([after.json.status, after.json.committed], ["draft", undefined]);
+  assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM import_plan WHERE plan_id = $1 AND upload_batch_id IS NOT NULL`, [plan.plan_id])).rows[0].n)), 0);
 });
 
 test("commit: refused with issues unless skipped; rows land pending in one batch; repeats add nothing", async () => {
@@ -233,7 +256,7 @@ test("commit: refused with issues unless skipped; rows land pending in one batch
   const app = await call("GET", "/user/emissions/batches", "manager");
   assert.equal(app.status, 200);
   assert.deepEqual([...new Set(app.json.filter((x) => x.upload_batch_id === batchId).map((x) => x.channel))], ["api"]);
-  assert.ok(app.json.filter((x) => x.upload_batch_id !== batchId).every((x) => x.channel === null), "batches made without a plan carry null");
+  assert.ok(app.json.filter((x) => x.upload_batch_id !== batchId).every((x) => x.channel === "bulk_upload"), "batches made without a plan read as bulk upload");
   await dropBatch(batchId);
 });
 
