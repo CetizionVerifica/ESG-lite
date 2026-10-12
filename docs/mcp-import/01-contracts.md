@@ -93,7 +93,7 @@ Limits: 2,000 rows per request, 20,000 rows per plan, 10 open draft plans per us
 | `PATCH /imports/plans/:id` | IM2 | `{ version, changes: [{ row_ref, set?: Partial<ImportRow>, skip?: bool }], activity_matches: [{ site_id, category_id, sheet_name, factor_name, save_mapping?: bool }] }` | `ImportPlan` (recalculated) |
 | `POST /imports/plans/:id/commit` | IM2 | `{ version, skip_rows_with_issues: bool, idempotency_key: string }` | `ImportPlan` with `committed` |
 | `POST /imports/plans/:id/cancel` | IM2 | — | `ImportPlan` |
-| `GET /imports/batches` | IM2 | `?company_id&status&channel&page` | `[{ upload_batch_id, channel, source_name, created_by, created_at, rows, pending, approved, rejected, tco2e }]` |
+| `GET /imports/batches` | IM2 | `?company_id&status&channel&page` | `[{ upload_batch_id, channel, source_name, created_by: { user_id, name }, created_at, rows, pending, approved, rejected, tco2e }]` |
 
 `ImportContext`:
 ```ts
@@ -107,7 +107,7 @@ Limits: 2,000 rows per request, 20,000 rows per plan, 10 open draft plans per us
 ```
 
 ## 5. API error codes (`src/imports/errors.ts`)
-`IMPORT_PLAN_NOT_FOUND` 404 · `IMPORT_PLAN_EXPIRED` 410 · `IMPORT_PLAN_NOT_DRAFT` 409 · `IMPORT_PLAN_VERSION_CONFLICT` 409 · `IMPORT_PLAN_HAS_ISSUES` 422 · `IMPORT_TOO_MANY_ROWS` 413 · `IMPORT_TOO_MANY_PLANS` 429 · `IMPORT_DUPLICATE_ROW_REF` 422 · `IMPORT_COMPANY_REQUIRED` 400 (Superadmin) · `MCP_SUPERADMIN_ONLY` 403 · `IMPORT_FORBIDDEN` 403 · `MCP_DISABLED_FOR_CLIENT` 403 · `CLIENT_INACTIVE` 403 (existing).
+`IMPORT_PLAN_NOT_FOUND` 404 · `IMPORT_PLAN_EXPIRED` 410 · `IMPORT_PLAN_NOT_DRAFT` 409 · `IMPORT_PLAN_VERSION_CONFLICT` 409 · `IMPORT_PLAN_HAS_ISSUES` 422 · `IMPORT_TOO_MANY_ROWS` 413 · `IMPORT_TOO_MANY_PLANS` 429 · `IMPORT_DUPLICATE_ROW_REF` 422 · `IMPORT_COMPANY_REQUIRED` 400 (Superadmin) · `IMPORT_VALIDATION` 400 (body fails the zod schema; as built) · `MCP_SUPERADMIN_ONLY` 403 · `IMPORT_FORBIDDEN` 403 · `MCP_DISABLED_FOR_CLIENT` 403 · `CLIENT_INACTIVE` 403 (existing).
 Body: `{ code, message, details? }`. Never SQL, stack or another company's names.
 
 ## 6. EmissionWriter interface (IM1 implements, IM2 consumes)

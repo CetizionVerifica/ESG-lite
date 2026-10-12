@@ -24,7 +24,7 @@ const isoDate = z
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
   }, "Not a calendar date");
 const yearMonth = z.string().regex(/^\d{4}-\d{2}$/, "Expected YYYY-MM");
-const uuid = z.string().uuid();
+const uuid = z.uuid(); // plan ids come from randomUUID() / gen_random_uuid() (RFC 4122)
 
 export const YearTypeSchema = z.enum(["CY", "FY"]);
 export type YearType = z.infer<typeof YearTypeSchema>;
