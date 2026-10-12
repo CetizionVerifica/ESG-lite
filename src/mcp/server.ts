@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpPrincipal } from "./auth";
-import { INSTRUCTIONS } from "./guide/instructions";
+import { loadInstructions, registerGuide } from "./guide";
 import { pingTool } from "./ping";
 import { registerTools, ToolDefinition } from "./registry";
 import { importTools } from "./tools/import";
@@ -21,8 +21,10 @@ export const allTools = (): ToolDefinition<any>[] => [pingTool, ...readTools, ..
 export const buildMcpServer = (principal: McpPrincipal): McpServer => {
   const server = new McpServer(
     { name: SERVER_NAME, title: "ESGLite", version: PACKAGE_VERSION },
-    { instructions: INSTRUCTIONS },
+    { instructions: loadInstructions() },
   );
   registerTools(server, allTools(), principal);
+  // IM9: the `import_workbook` prompt and the `esglite://guide/import` resource.
+  registerGuide(server as any);
   return server;
 };
