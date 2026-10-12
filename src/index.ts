@@ -10,6 +10,8 @@ import reportRoutes from "./routes/report.routes";
 import brandRoutes from "./routes/brand.routes";
 import companyAdminRoutes from "./routes/companyAdmin.routes";
 import pcfRoutes from "./routes/pcf.routes";
+import oauthRoutes from "./oauth/router";
+import wellKnownRoutes from "./oauth/wellKnown";
 import importsRouter from "./imports/router";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -69,6 +71,8 @@ app.use("/reports", reportRoutes);
 app.use("/brands", brandRoutes);
 app.use("/company-admin", companyAdminRoutes);
 app.use("/pcf", pcfRoutes);
+app.use("/oauth", oauthRoutes);
+app.use("/.well-known", wellKnownRoutes);
 app.use("/imports", authenticate, importsRouter);
 
 let server: any;

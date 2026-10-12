@@ -33,6 +33,9 @@ export const updateCompany = async (req: Request, res: Response) => {
   if ("status" in body && typeof body.status !== "boolean") {
     return res.status(400).json({ message: "status must be true or false" });
   }
+  if ("mcp_enabled" in body && typeof body.mcp_enabled !== "boolean") {
+    return res.status(400).json({ message: "mcp_enabled must be true or false" });
+  }
   await repo.update(req.params.id, body);
   // Deactivating (or reactivating) a client takes effect on the next request.
   if ("status" in body) clearClientStatusCache();
