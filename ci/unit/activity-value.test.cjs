@@ -24,3 +24,9 @@ test("prefers numbers that look like quantities, then any positive number", () =
   assert.equal(pickActivityValue({ Meter: "main", Units: "7" }), 7);
   assert.equal(pickActivityValue({ Meter: "main" }), 0);
 });
+
+test("a quantity field that isn't a positive number gives no total, as before", () => {
+  assert.equal(pickActivityValue({ quantity: "-5", Meter: "250" }), 0);
+  assert.equal(pickActivityValue({ quantity: "n/a", Meter: "250" }), 0);
+  assert.equal(pickActivityValue({ quantity: "0", Meter: "250" }), 250);
+});

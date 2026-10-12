@@ -678,37 +678,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
           });
 
           if (feraFactor) {
-            // Find the activity value (same logic as above)
-            let feraActivityValue = 0;
-            const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-            const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
-            for (const field of commonFlds) {
-              const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-              if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-                feraActivityValue = parseFloat(activity_data[matchingKey]);
-                if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
-              }
-            }
-            // Look for any numeric value >= 100 (skip likely dropdown IDs)
-            if (feraActivityValue === 0) {
-              for (const [key, value] of Object.entries(activity_data)) {
-                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-                if (value !== undefined && value !== '') {
-                  const numValue = parseFloat(value as string);
-                  if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
-                }
-              }
-            }
-            // Fallback: accept any positive number
-            if (feraActivityValue === 0) {
-              for (const [key, value] of Object.entries(activity_data)) {
-                if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-                if (value !== undefined && value !== '') {
-                  const numValue = parseFloat(value as string);
-                  if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
-                }
-              }
-            }
+            // The parent's quantity (its own category's select columns are skipped).
+            const feraActivityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, site_id, category_id));
 
             if (feraActivityValue > 0) {
               // Calculate FERA emission. With no unit conversion the raw value
@@ -1092,35 +1063,8 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
       }
 
       if (feraFactor) {
-        // Extract activity value (same logic as create)
-        let feraActivityValue = 0;
-        const skipCols = new Set(['material', 'disposal_method', 'fuel_type', 'vehicle_type', 'source_type', 'waste_type', 'transport_mode']);
-        const commonFlds = ['activity_value', 'quantity', 'value', 'amount', 'consumption', 'activity data', 'activity_data'];
-        for (const field of commonFlds) {
-          const matchingKey = Object.keys(activity_data).find(k => k.toLowerCase() === field.toLowerCase());
-          if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== '') {
-            feraActivityValue = parseFloat(activity_data[matchingKey]);
-            if (!isNaN(feraActivityValue) && feraActivityValue > 0) break;
-          }
-        }
-        if (feraActivityValue === 0) {
-          for (const [key, value] of Object.entries(activity_data)) {
-            if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-            if (value !== undefined && value !== '') {
-              const numValue = parseFloat(value as string);
-              if (!isNaN(numValue) && numValue >= 100) { feraActivityValue = numValue; break; }
-            }
-          }
-        }
-        if (feraActivityValue === 0) {
-          for (const [key, value] of Object.entries(activity_data)) {
-            if (key === 'emission_category' || skipCols.has(key.toLowerCase())) continue;
-            if (value !== undefined && value !== '') {
-              const numValue = parseFloat(value as string);
-              if (!isNaN(numValue) && numValue > 0) { feraActivityValue = numValue; break; }
-            }
-          }
-        }
+        // The parent's quantity, as for the parent itself.
+        const feraActivityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
 
         if (feraActivityValue > 0) {
           // No unit conversion: don't store a total from the raw value (audit
@@ -3350,9 +3294,12 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // while keeping the old total would leave the row off by the conversion
     // factor. Treat it as an activity_data edit using the stored data.
     const unitChanged = activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit;
+    // A new reporting date can mean a different factor year, so it recalculates too.
+    const storedDate = new Date(emission.date_of_reporting).toISOString().slice(0, 10);
+    const dateChanged = date_of_reporting !== undefined && new Date(date_of_reporting).toISOString().slice(0, 10) !== storedDate;
     const activity_data = activityDataInput !== undefined
       ? activityDataInput
-      : (unitChanged ? emission.activity_data : undefined);
+      : (unitChanged || dateChanged ? { ...emission.activity_data } : undefined);
 
     // Capture changes for audit trail
     const changedFields: Record<string, { old: any; new: any }> = {};
@@ -3461,10 +3408,14 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
               }
             }
           }
+        } else {
+          // Saving would keep the old total next to the new values.
+          return res.status(400).json({
+            message: `No emission factor found for category "${activity_data.emission_category}"`,
+          });
         }
       }
     }
-
 
     await repo.save(emission);
     await pcfDataChanged("emission", [emission.pk_id]);

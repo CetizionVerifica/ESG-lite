@@ -55,9 +55,16 @@ INSERT INTO column_config (pk_id, config_name, site_id, category_id, calculation
      }
    }'::jsonb);
 
+-- Waste with configured dropdowns: "Waste Type" holds an option id, never the quantity.
+INSERT INTO column_entity (pk_id, column_name, column_type) VALUES
+  (1, 'Waste Type', 'select'), (2, 'Amount of waste', 'number');
+INSERT INTO column_config (pk_id, config_name, site_id, category_id) VALUES (3, 'Waste', 1, 5);
+INSERT INTO column_config_columns (column_config_id, column_id) VALUES (3, 1), (3, 2);
+
 SELECT setval(pg_get_serial_sequence('company', 'company_id'), 100);
 SELECT setval(pg_get_serial_sequence('site', 'site_id'), 100);
 SELECT setval(pg_get_serial_sequence('category', 'category_id'), 100);
 SELECT setval(pg_get_serial_sequence('"user"', 'user_id'), 100);
 SELECT setval(pg_get_serial_sequence('emission_factors', 'emission_factor_id'), 100);
 SELECT setval(pg_get_serial_sequence('column_config', 'pk_id'), 100);
+SELECT setval(pg_get_serial_sequence('column_entity', 'pk_id'), 100);

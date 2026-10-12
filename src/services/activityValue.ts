@@ -38,13 +38,17 @@ export async function getSelectColumns(
  * picking it made a manager edit of 9.17 t of sludge compute 6 t.
  */
 export function pickActivityValue(activity_data: Record<string, unknown>, selectColumns: Set<string> = new Set()): number {
+  let common = 0;
   for (const field of COMMON_FIELDS) {
     const matchingKey = Object.keys(activity_data).find((k) => k.toLowerCase() === field.toLowerCase());
     if (matchingKey && activity_data[matchingKey] !== undefined && activity_data[matchingKey] !== "") {
-      const value = parseFloat(activity_data[matchingKey] as string);
-      if (!isNaN(value) && value > 0) return value;
+      common = parseFloat(activity_data[matchingKey] as string);
+      if (!isNaN(common) && common > 0) return common;
     }
   }
+  // A quantity field that isn't a positive number means no total (as before),
+  // rather than another field's value; only an exact 0 falls through.
+  if (common !== 0) return 0;
 
   const skip = (key: string) => key === "emission_category" || KNOWN_SELECTS.includes(key.toLowerCase()) || selectColumns.has(columnKey(key));
   const firstNumber = (min: number) => {
