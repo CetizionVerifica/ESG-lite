@@ -50,6 +50,12 @@ export class Company {
   @Column({ name: "esg_mitra_access", default: false })
   esgMitraAccess!: boolean;
 
+  // "Allow Claude imports" (MCP import plan, IM5). Off by default: with it
+  // off every MCP tool for this client answers MCP_DISABLED_FOR_CLIENT.
+  // Superadmin toggles it through PUT /admin/companies/:id.
+  @Column({ default: false })
+  mcp_enabled!: boolean;
+
   // When the client was onboarded (redesign P16 Console activity); NULL for
   // clients that predate migrate:company-created-at. Set by
   // stampCompanyOnboarded after a company is created. No default here and

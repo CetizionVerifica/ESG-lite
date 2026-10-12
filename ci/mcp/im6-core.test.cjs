@@ -24,6 +24,41 @@ const TOKENS = {
 };
 
 const headers = (token) => (token ? { Authorization: `Bearer ${token}` } : {});
+const { call } = require("../api/helpers.cjs");
+const crypto = require("crypto");
+
+/**
+ * A real IM5 access token, minted straight into the throwaway database the way
+ * IM5's token endpoint stores it (sha256 hash, kind "access", bound to a
+ * grant). The HTTP flow itself is IM5's test (im5-oauth.test.cjs); its
+ * register and token endpoints are rate limited per IP and already used up by
+ * the time this file runs in the same process.
+ */
+async function oauthToken() {
+  const clientId = "im6-ci-client";
+  const token = "esgl_at_" + crypto.randomBytes(32).toString("base64url");
+  const hash = crypto.createHash("sha256").update(token).digest("hex");
+  const grant_id = await withDb(async (db) => {
+    await db.query(
+      `INSERT INTO oauth_client (client_id, client_name, redirect_uris, token_endpoint_auth_method, grant_types)
+       VALUES ($1, 'IM6 CI', '["http://localhost:6274/oauth/callback"]'::jsonb, 'none', '["authorization_code","refresh_token"]'::jsonb)
+       ON CONFLICT (client_id) DO NOTHING`,
+      [clientId],
+    );
+    const grant = await db.query(
+      `INSERT INTO oauth_grant (user_id, client_id, scopes) VALUES (5, $1, 'imports:read imports:write') RETURNING grant_id`,
+      [clientId],
+    );
+    const id = grant.rows[0].grant_id;
+    await db.query(
+      `INSERT INTO oauth_token (token_hash, kind, grant_id, scopes, resource, expires_at)
+       VALUES ($1, 'access', $2, 'imports:read imports:write', $3, now() + interval '1 hour')`,
+      [hash, id, MCP],
+    );
+    return id;
+  });
+  return { access_token: token, grant_id };
+}
 
 async function connect(token) {
   const client = new Client({ name: "ci", version: "0.0.0" });
@@ -49,9 +84,6 @@ const setCompany = (companyId, fields) =>
   });
 
 test.before(async () => {
-  // company.mcp_enabled is IM5's column (migrate:oauth); until that merges the
-  // throwaway database gets it here so the switch can be tested.
-  await withDb((db) => db.query(`ALTER TABLE company ADD COLUMN IF NOT EXISTS mcp_enabled boolean NOT NULL DEFAULT false`));
   // Company 1 has Claude imports on, company 2 keeps the default (off).
   await setCompany(1, { mcp_enabled: true, status: true });
   await setCompany(2, { mcp_enabled: false, status: true });
@@ -260,4 +292,30 @@ test("MCP-18: 60 tool calls per minute per grant, then 429 with Retry-After; ini
   assert.equal((await rawPost(TOKENS.rateLimit, initialize)).status, 200);
   // Another grant of the same user is not affected.
   assert.equal((await rawPost(TOKENS.superadmin, callTool("ping"))).status, 200);
+});
+
+test("a real OAuth token (IM5) works at /mcp, is logged under its grant, and stops working once the grant is revoked (MCP-05)", async () => {
+  const { access_token, grant_id } = await oauthToken();
+  const client = await connect(access_token);
+  try {
+    const { tools } = await client.listTools();
+    assert.ok(tools.some((t) => t.name === "plan_import"), "imports:write scope carried over");
+    const result = await client.callTool({ name: "ping", arguments: {} });
+    assert.equal(result.structuredContent.ok, true);
+  } finally {
+    await client.close();
+  }
+  await withDb(async (db) => {
+    const { rows } = await db.query(`SELECT grant_id, user_id FROM mcp_tool_call WHERE tool = 'ping' ORDER BY id DESC LIMIT 1`);
+    assert.equal(rows[0].grant_id, String(grant_id));
+    assert.equal(rows[0].user_id, 5);
+    const grant = await db.query(`SELECT last_used_at FROM oauth_grant WHERE grant_id = $1`, [grant_id]);
+    assert.ok(grant.rows[0].last_used_at, "last_used_at set");
+  });
+  // Disconnect in Connected apps → the next call is 401.
+  const revoke = await call("DELETE", `/oauth/grants/${grant_id}`, "superadmin");
+  assert.ok([200, 204].includes(revoke.status), `revoke status ${revoke.status}`);
+  const after = await rawPost(access_token, initialize);
+  assert.equal(after.status, 401);
+  assert.match(after.headers.get("www-authenticate"), /invalid_token/);
 });

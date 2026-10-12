@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { AppDataSource } from "../config/data-source";
+import { verifyMcpToken as verifyOauthMcpToken } from "../oauth/verify";
 import { UserRole } from "../types/type";
 
 /**
@@ -24,9 +25,15 @@ export type McpTokenVerifier = (token: string) => Promise<McpPrincipal | null>;
 export const MCP_SCOPES = ["imports:read", "imports:write"] as const;
 export type McpScope = (typeof MCP_SCOPES)[number];
 
-let verifier: McpTokenVerifier | null = null;
+/** IM5's verifier, with its numeric grant id as the string the log and rate limit key on. */
+const oauthVerifier: McpTokenVerifier = async (token) => {
+  const p = await verifyOauthMcpToken(token);
+  return p ? { user_id: p.user_id, role: p.role, scopes: [...p.scopes], grant_id: String(p.grant_id) } : null;
+};
 
-/** Called once by the OAuth module (IM5) when it loads. */
+let verifier: McpTokenVerifier | null = oauthVerifier;
+
+/** Replace the default OAuth verifier (tests), or pass null to leave only test tokens. */
 export const setMcpTokenVerifier = (fn: McpTokenVerifier | null): void => {
   verifier = fn;
 };
