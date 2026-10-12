@@ -342,7 +342,7 @@ export async function buildImportContext(scope: ImportScope): Promise<ImportCont
     fy_start_month: FY_START_MONTH,
     sites: out,
   };
-  contextCache.set(cacheKey, { at: Date.now(), value });
+  if (CACHE_TTL_MS > 0) contextCache.set(cacheKey, { at: Date.now(), value });
   return value;
 }
 

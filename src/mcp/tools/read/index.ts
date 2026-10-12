@@ -13,7 +13,6 @@ import {
 import { ImportError } from "../../../imports/errors";
 import { IMPORT_LIMITS } from "../../../imports/limits";
 import {
-  ACTIVITY_LIMIT_MAX,
   buildImportContext,
   buildReadiness,
   loadForm,
@@ -22,7 +21,6 @@ import {
   type ImportScope,
 } from "../../../imports/context/service";
 import { UserRole } from "../../../types/type";
-import { assertClientUsable } from "../../clientAccess";
 import { MCP_CODES } from "../../codes";
 import { McpToolError } from "../../errors";
 import { defineTool, McpToolContext, ToolDefinition } from "../../registry";
@@ -38,8 +36,8 @@ import { defineTool, McpToolContext, ToolDefinition } from "../../registry";
 const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const SCOPE = "imports:read" as const;
 
-export const FIND_ACTIVITY_LIMIT = 10;
-export const FORM_ACTIVITY_LIMIT = Math.min(50, ACTIVITY_LIMIT_MAX);
+export const FIND_ACTIVITY_LIMIT = IMPORT_LIMITS.ACTIVITY_SEARCH_RESULTS;
+export const FORM_ACTIVITY_LIMIT = 50;
 
 // ---- output schemas (IM0 shapes plus what IM3 adds; see src/imports/context/CLAUDE.md) ----
 
@@ -128,6 +126,9 @@ const assertSuperadmin = (ctx: McpToolContext): void => {
 
 const caller = (ctx: McpToolContext) => ({ user_id: ctx.user.user_id, role: ctx.user.role });
 
+/** Stops between sequential awaits once the registry's 30 s timeout, or the client, has cancelled the call. */
+const checkpoint = (ctx: McpToolContext): void => ctx.signal.throwIfAborted();
+
 const text = (line: string) => ({ type: "text" as const, text: line });
 
 /** The client a site belongs to; unknown sites read as "not yours" (IMPORT_FORBIDDEN), never "not found". */
@@ -139,16 +140,14 @@ async function companyOfSite(site_id: number): Promise<number> {
 }
 
 /**
- * Scope for a site-addressed tool. With `company_id` given, the registry has
- * already checked the client switch; a site of another client is
- * IMPORT_FORBIDDEN. Without it the site names the client, which is then
- * checked (active, mcp_enabled) exactly as the registry would.
+ * Scope for a site-addressed tool. The registry has already checked the
+ * client named by `company_id` (active, mcp_enabled) and logs it; a site of
+ * another client is IMPORT_FORBIDDEN.
  */
-async function scopeForSite(ctx: McpToolContext, site_id: number, company_id: number | undefined): Promise<ImportScope> {
-  const owner = await companyOfSite(site_id);
-  if (company_id !== undefined && company_id !== owner) throw new ImportError("IMPORT_FORBIDDEN");
-  if (company_id === undefined) await assertClientUsable(owner);
-  return resolveImportScope(caller(ctx), owner);
+async function scopeForSite(ctx: McpToolContext, site_id: number, company_id: number): Promise<ImportScope> {
+  if ((await companyOfSite(site_id)) !== company_id) throw new ImportError("IMPORT_FORBIDDEN");
+  checkpoint(ctx);
+  return resolveImportScope(caller(ctx), company_id);
 }
 
 /** How often each activity name was used in saved rows of a site × category (rejected rows excluded). */
@@ -166,7 +165,7 @@ async function activityUses(site_id: number, category_id: number): Promise<Map<s
 const companyId = z.number().int().positive().describe("The client's company_id (from whoami).");
 const siteId = z.number().int().positive().describe("site_id from list_sites_and_categories.");
 const categoryId = z.number().int().positive().describe("category_id from list_sites_and_categories.");
-const optionalCompanyId = companyId.optional().describe("The client's company_id; when given, the site must belong to it.");
+const siteCompanyId = companyId.describe("The client's company_id (from whoami); the site must belong to it.");
 
 // ---- tools ----
 
@@ -189,6 +188,7 @@ export const readTools: ToolDefinition<any>[] = [
         role: string;
       }[];
       if (!user) throw new McpToolError(MCP_CODES.MCP_SUPERADMIN_ONLY);
+      checkpoint(ctx);
       let clients: { company_id: number; name: string }[] = [];
       try {
         clients = await AppDataSource.query(
@@ -224,6 +224,7 @@ export const readTools: ToolDefinition<any>[] = [
     handler: async (ctx, input) => {
       assertSuperadmin(ctx);
       const scope = await resolveImportScope(caller(ctx), input.company_id);
+      checkpoint(ctx);
       const context = await buildImportContext(scope);
       const categories = context.sites.reduce((n, s) => n + s.categories.length, 0);
       return {
@@ -238,19 +239,22 @@ export const readTools: ToolDefinition<any>[] = [
     title: "Get category form",
     description:
       "The data-entry form of one site × category before mapping a sheet: fields (which are required, select options, what depends on what), calculation mode, accepted units, period modes, readiness and the 50 most used activity names. Use find_activity for a name that is not listed.",
-    input: { ...ToolInputs.get_category_form.shape, company_id: optionalCompanyId },
+    input: { ...ToolInputs.get_category_form.shape, company_id: siteCompanyId },
     scope: SCOPE,
     annotations: readOnly,
     handler: async (ctx, input) => {
       assertSuperadmin(ctx);
       const { site_id, category_id } = input;
       const scope = await scopeForSite(ctx, site_id, input.company_id);
+      checkpoint(ctx);
       const context = await buildImportContext(scope);
+      checkpoint(ctx);
       const site = context.sites.find((s) => s.site_id === site_id);
       const category = site?.categories.find((c) => c.category_id === category_id);
       if (!site || !category) throw new ImportError("IMPORT_FORBIDDEN", { reason: "CATEGORY_NOT_ASSIGNED" });
       const [options, uses, form] = await Promise.all([
-        searchActivities(scope, site_id, category_id, undefined, ACTIVITY_LIMIT_MAX),
+        // Every name, so the usage sort below picks the 50 most used rather than the first 50 by name.
+        searchActivities(scope, site_id, category_id, undefined, Number.MAX_SAFE_INTEGER),
         activityUses(site_id, category_id),
         loadForm(site_id, category_id), // fresh, not the 60 s cached copy
       ]);
@@ -268,7 +272,7 @@ export const readTools: ToolDefinition<any>[] = [
         period_modes: category.period_modes,
         form: form ?? category.form,
         units: category.units,
-        readiness: category.readiness,
+        readiness: { ...category.readiness, form: (form ?? category.form) !== null },
         activity_count: category.activity_count,
         activities,
       };
@@ -288,13 +292,14 @@ export const readTools: ToolDefinition<any>[] = [
     title: "Find activity",
     description:
       "Up to 10 activity names (emission factors and the client's saved mappings) matching a query for one site × category, exact matches first. Use it to resolve a sheet's wording to a name plan_import accepts; nothing is created.",
-    input: { ...ToolInputs.find_activity.shape, company_id: optionalCompanyId },
+    input: { ...ToolInputs.find_activity.shape, company_id: siteCompanyId },
     scope: SCOPE,
     annotations: readOnly,
     handler: async (ctx, input) => {
       assertSuperadmin(ctx);
       const { site_id, category_id, query } = input;
       const scope = await scopeForSite(ctx, site_id, input.company_id);
+      checkpoint(ctx);
       const found = await searchActivities(scope, site_id, category_id, query, FIND_ACTIVITY_LIMIT + 1);
       const matches = found.slice(0, FIND_ACTIVITY_LIMIT);
       const data = { company_id: scope.company_id, site_id, category_id, matches, truncated: found.length > FIND_ACTIVITY_LIMIT };
@@ -316,6 +321,7 @@ export const readTools: ToolDefinition<any>[] = [
     handler: async (ctx, input) => {
       assertSuperadmin(ctx);
       const scope = await resolveImportScope(caller(ctx), input.company_id);
+      checkpoint(ctx);
       const readiness = await buildReadiness(scope, input.year);
       const data = { ...readiness, ready: readiness.cells.length - readiness.gaps };
       return {

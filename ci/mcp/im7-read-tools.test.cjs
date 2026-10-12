@@ -23,6 +23,8 @@ const BATCH = "ci-im7-factors";
 const MAP = "CI IM7";
 // Factor names seeded for site 1 × category 1: 12 "Fuel oil …" names so find_activity has more than 10 to cut.
 const FUEL_OILS = Array.from({ length: 12 }, (_, i) => `Fuel oil grade ${String(i + 1).padStart(2, "0")}`);
+// 60 names for site 2 × category 1, so get_category_form has more than 50 to choose from.
+const COALS = Array.from({ length: 60 }, (_, i) => `Zz coal ${String(i + 1).padStart(2, "0")}`);
 
 async function connect(token) {
   const client = new Client({ name: "ci-im7", version: "0.0.0" });
@@ -65,6 +67,7 @@ async function seed() {
       [1, 1, 2023, "litre", "Diesel", null],
       [1, 1, 2024, "L", "Petrol", null],
       ...FUEL_OILS.map((n) => [1, 1, 2024, "L", n, null]),
+      ...COALS.map((n) => [2, 1, 2024, "t", n, null]),
       [1, 2, 2024, "kWh", "Grid electricity", null],
       [3, 1, 2024, "L", "Other Diesel", null],
     ];
@@ -82,11 +85,15 @@ async function seed() {
       [MAP],
     );
     // Saved rows make Petrol the most used name for site 1 × category 1 (a rejected row does not count).
-    for (const [name, status] of [["Petrol", "approved"], ["Petrol", "pending"], ["Diesel", "approved"], ["Diesel", "rejected"]]) {
+    const saved = [
+      [1, "Petrol", "approved"], [1, "Petrol", "pending"], [1, "Diesel", "approved"], [1, "Diesel", "rejected"],
+      [2, COALS[59], "approved"], // the alphabetically last of 60 names is the only one used at site 2
+    ];
+    for (const [site, name, status] of saved) {
       await db.query(
         `INSERT INTO emission (activity_data, total_emission, unit, date_of_reporting, status, site_id, category_id, upload_batch_id)
-         VALUES ($1::jsonb, 1, 'tCO2e', '2024-01-31', $2, 1, 1, $3)`,
-        [JSON.stringify({ emission_category: name, Quantity: 10 }), status, BATCH],
+         VALUES ($1::jsonb, 1, 'tCO2e', '2024-01-31', $2, $3, 1, $4)`,
+        [JSON.stringify({ emission_category: name, Quantity: 10 }), status, site, BATCH],
       );
     }
   });
@@ -161,13 +168,16 @@ test("MCP-07: list_sites_and_categories without company_id is refused; MCP-06: a
   assert.match(r.content[0].text, /company_id/);
   r = await callTool(client, "check_readiness", { company_id: 2, year: 2024 });
   assert.equal(r.structuredContent.code, "MCP_DISABLED_FOR_CLIENT");
-  // A site-addressed tool checks the site's client the same way.
+  // Site-addressed tools need company_id too (every tool that touches client data takes it).
   r = await callTool(client, "get_category_form", { site_id: 3, category_id: 1 });
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /company_id/);
+  r = await callTool(client, "get_category_form", { company_id: 2, site_id: 3, category_id: 1 });
   assert.equal(r.structuredContent.code, "MCP_DISABLED_FOR_CLIENT");
 });
 
 test("get_category_form: form, units, readiness and the most used activity names first", async () => {
-  const r = await callTool(client, "get_category_form", { site_id: 1, category_id: 1 });
+  const r = await callTool(client, "get_category_form", { company_id: 1, site_id: 1, category_id: 1 });
   assert.notEqual(r.isError, true, JSON.stringify(r));
   const d = r.structuredContent;
   assert.equal(d.company_id, 1);
@@ -190,9 +200,17 @@ test("get_category_form: form, units, readiness and the most used activity names
   noSheetText(r.content[0].text);
 
   // Business Travel: no form, no factors.
-  const travel = (await callTool(client, "get_category_form", { site_id: 1, category_id: 3 })).structuredContent;
+  const travel = (await callTool(client, "get_category_form", { company_id: 1, site_id: 1, category_id: 3 })).structuredContent;
   assert.equal(travel.form, null);
+  assert.equal(travel.readiness.form, false);
   assert.deepEqual(travel.activities, []);
+
+  // With more than 50 names, the most used one comes first even when it sorts last by name.
+  const coal = (await callTool(client, "get_category_form", { company_id: 1, site_id: 2, category_id: 1 })).structuredContent;
+  assert.equal(coal.activity_count, 61); // 60 coal factors + the company-wide HSD mapping
+  assert.equal(coal.activities.length, 50);
+  assert.deepEqual([coal.activities[0].name, coal.activities[0].uses], [COALS[59], 1]);
+  assert.deepEqual(coal.activities.slice(1, 3).map((a) => a.name), [COALS[0], COALS[1]]);
 });
 
 test("MCP-07: get_category_form with a site of another client than company_id → IMPORT_FORBIDDEN; unknown site too", async () => {
@@ -201,10 +219,10 @@ test("MCP-07: get_category_form with a site of another client than company_id �
   assert.equal(r.structuredContent.code, "IMPORT_FORBIDDEN");
   r = await callTool(client, "find_activity", { company_id: 1, site_id: 3, category_id: 1, query: "diesel" });
   assert.equal(r.structuredContent.code, "IMPORT_FORBIDDEN");
-  r = await callTool(client, "get_category_form", { site_id: 999999, category_id: 1 });
+  r = await callTool(client, "get_category_form", { company_id: 1, site_id: 999999, category_id: 1 });
   assert.equal(r.structuredContent.code, "IMPORT_FORBIDDEN");
   // A category the site is not assigned (site 2 has categories 1 and 2 only).
-  r = await callTool(client, "get_category_form", { site_id: 2, category_id: 3 });
+  r = await callTool(client, "get_category_form", { company_id: 1, site_id: 2, category_id: 3 });
   assert.equal(r.structuredContent.code, "IMPORT_FORBIDDEN");
   // With a matching company_id the registry's client check runs first (company 2 is switched off).
   r = await callTool(client, "get_category_form", { company_id: 2, site_id: 3, category_id: 1 });
@@ -212,7 +230,7 @@ test("MCP-07: get_category_form with a site of another client than company_id �
 });
 
 test("find_activity: exact → prefix → contains, at most 10, company 2's mappings never appear; the query stays out of the summary", async () => {
-  let r = await callTool(client, "find_activity", { site_id: 1, category_id: 1, query: "diesel" });
+  let r = await callTool(client, "find_activity", { company_id: 1, site_id: 1, category_id: 1, query: "diesel" });
   assert.notEqual(r.isError, true, JSON.stringify(r));
   let d = r.structuredContent;
   assert.deepEqual(d.matches.map((m) => m.name), ["Diesel", "Diesel (stationary)"]);
@@ -222,7 +240,7 @@ test("find_activity: exact → prefix → contains, at most 10, company 2's mapp
   assert.equal(r.content[0].text, "find_activity: site 1 × category 1, 2 match(es)");
   noSheetText(r.content[0].text);
   // The client's own wording (a P23 mapping) is found by its name and says what it maps to.
-  d = (await callTool(client, "find_activity", { site_id: 1, category_id: 1, query: "hsd" })).structuredContent;
+  d = (await callTool(client, "find_activity", { company_id: 1, site_id: 1, category_id: 1, query: "hsd" })).structuredContent;
   assert.deepEqual(d.matches.map((m) => [m.name, m.kind, m.maps_to]), [[`${MAP} HSD`, "mapping", "Diesel"]]);
 
   r = await callTool(client, "find_activity", { company_id: 1, site_id: 1, category_id: 1, query: "fuel oil" });
@@ -232,7 +250,7 @@ test("find_activity: exact → prefix → contains, at most 10, company 2's mapp
   assert.deepEqual(d.matches.map((m) => m.name), FUEL_OILS.slice(0, 10));
   assert.match(r.content[0].text, /10 match\(es\), more available$/);
 
-  d = (await callTool(client, "find_activity", { site_id: 1, category_id: 1, query: "C2 Fuel" })).structuredContent;
+  d = (await callTool(client, "find_activity", { company_id: 1, site_id: 1, category_id: 1, query: "C2 Fuel" })).structuredContent;
   assert.deepEqual(d.matches, []);
 });
 
@@ -277,6 +295,9 @@ test("every read call is logged with ids only", async () => {
     const { rows } = await db.query(`SELECT tool, ok, company_id FROM mcp_tool_call WHERE tool = 'check_readiness' AND company_id = 1 ORDER BY id DESC LIMIT 1`);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].ok, true);
+    // Site-addressed calls carry the client too.
+    const fa = await db.query(`SELECT company_id FROM mcp_tool_call WHERE tool = 'find_activity' AND ok = true ORDER BY id DESC LIMIT 1`);
+    assert.equal(fa.rows[0].company_id, 1);
     const cols = await db.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'mcp_tool_call'`);
     assert.ok(!cols.rows.some((c) => /input|output|payload|arguments/.test(c.column_name)));
   });
