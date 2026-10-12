@@ -16,7 +16,7 @@ const conforms = (schema, value) => {
 };
 
 const CFG = [9301, 9302, 9303, 9304];
-const COL = [9301, 9302, 9303];
+const COL = [9301, 9302, 9303, 9304, 9305, 9306];
 const FACTOR_BATCH = "ci-im3-factors";
 const MAP_PREFIX = "CI IM3";
 
@@ -26,7 +26,11 @@ async function seed() {
     // Forms: site 1 × Stationary Combustion (a Fuel dropdown + quantity), site 1 ×
     // Purchased Electricity, site 2 × Stationary Combustion, site 3 (company 2) ×
     // Stationary Combustion. Site 1 × Business Travel has no form and no factor.
-    await db.query(`INSERT INTO column_entity (pk_id, column_name, column_type) VALUES ($1, 'Fuel', 'select'), ($2, 'Quantity', 'number'), ($3, 'Grade', 'select')`, COL);
+    await db.query(
+      `INSERT INTO column_entity (pk_id, column_name, column_type) VALUES ($1, 'Fuel', 'select'), ($2, 'Quantity', 'number'), ($3, 'Grade', 'select'),
+         ($4, 'Method', 'select'), ($5, 'Units Sold', 'number'), ($6, 'Energy per Use (kWh)', 'number')`,
+      COL,
+    );
     await db.query(
       `INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options, column_dependencies, dependent_options, extra_fields) VALUES
          ($1, 'CI IM3 fuel', 1, 1, $5::jsonb, '{"Grade": "Fuel"}'::jsonb, $6::jsonb,
@@ -42,6 +46,12 @@ async function seed() {
       ],
     );
     await db.query(`INSERT INTO column_config_columns (column_config_id, column_id) VALUES ($1, $2), ($1, $3), ($1, $4)`, [CFG[0], COL[0], COL[1], COL[2]]);
+    // Site 1 × Purchased Electricity is a per_method form: "Energy" multiplies two fields, "Fuel" one.
+    await db.query(`INSERT INTO column_config_columns (column_config_id, column_id) VALUES ($1, $2), ($1, $3), ($1, $4)`, [CFG[1], COL[3], COL[4], COL[5]]);
+    await db.query(
+      `UPDATE column_config SET calculation = $2::jsonb WHERE pk_id = $1`,
+      [CFG[1], JSON.stringify({ mode: "per_method", method_column: "Method", methods: { Energy: { multiply: ["Units Sold", "Energy per Use (kWh)"] }, Fuel: { multiply: ["Units Sold"] } } })],
+    );
     await db.query(
       `INSERT INTO emission_factors (site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name, upload_batch_id) VALUES
          (1, 1, 2024, 2.68, 'L', 'CI', 'Diesel', 'Diesel (stationary)', $1),
@@ -119,6 +129,9 @@ test("Superadmin sees every site and category of the named client", async () => 
   assert.deepEqual(fuelField.options, ["Diesel", "Petrol"]);
   assert.equal(fuelField.type, "select");
   assert.ok(fuel.form.fields.some((f) => f.key === "Quantity" && f.type === "number"));
+  // `required` = the backend rejects the row without it: the quantity, not the dropdown.
+  assert.equal(fuelField.required, false);
+  assert.equal(fuel.form.fields.find((f) => f.key === "Quantity").required, true);
   const extra = fuel.form.fields.find((f) => f.key === "invoice_no");
   assert.equal(extra.required, false);
   // A dependent select lists the union of its parent's option sets and names the parent.
@@ -129,6 +142,18 @@ test("Superadmin sees every site and category of the named client", async () => 
   assert.deepEqual(fuel.units, ["kg", "L", "litre"]);
   assert.equal(fuel.activity_count, 4); // Diesel, Diesel (stationary), Petrol + the HSD mapping
   assert.deepEqual(fuel.readiness, { form: true, factor_years: [2023, 2024] });
+
+  // per_method: the method column and the fields every method multiplies are required;
+  // a field only some methods use says which (`required_for`).
+  const grid = category(res, 1, 2);
+  assert.equal(grid.form.calc_mode, "per_method");
+  assert.equal(grid.form.method_column, "Method");
+  const byKey = Object.fromEntries(grid.form.fields.map((f) => [f.key, f]));
+  assert.equal(byKey["Method"].required, true);
+  assert.equal(byKey["Units Sold"].required, true);
+  assert.equal(byKey["Energy per Use (kWh)"].required, false);
+  assert.deepEqual(byKey["Energy per Use (kWh)"].required_for, ["Energy"]);
+  assert.equal(byKey["Units Sold"].required_for, undefined);
 
   const travel = category(res, 1, 3);
   assert.equal(travel.form, null);

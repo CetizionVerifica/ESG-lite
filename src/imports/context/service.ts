@@ -31,7 +31,8 @@ export interface ImportScope {
 /** IM0 CategoryForm plus `method_column` (which column picks the per_method calculation). */
 export type ContextForm = Omit<NonNullable<ContextCategory["form"]>, "fields"> & {
   method_column?: string;
-  fields: (FormField & { depends_on?: string; show_for?: string[] })[];
+  /** `required_for`: methods (per_method names or per_unit unit keys) that need the field when `required` is false. */
+  fields: (FormField & { depends_on?: string; show_for?: string[]; required_for?: string[] })[];
 };
 
 export type { ActivityOption, ContextCategory, ContextSite, ImportContext };
@@ -160,12 +161,50 @@ const uniqSorted = (values: Iterable<string>): string[] => {
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 };
 
+// Quantity column names the one-value rule tries first (services/activityValue.ts COMMON_FIELDS; keep in step).
+const COMMON_QUANTITY_FIELDS = ["activity_value", "quantity", "value", "amount", "consumption", "activity_data"];
+const columnKey = (name: string) => name.toLowerCase().trim().replace(/[\s-]+/g, "_");
+
+/**
+ * Which columns the backend rejects a row without (`required`), and which only some
+ * calculation methods need (`required_for`). With a spec (calculationSpec.ts): the
+ * method column plus the fields in every method's `multiply`; a field in only some
+ * methods is listed under `required_for`. Without a spec the one-value rule
+ * (activityValue.ts) needs one positive number: the common quantity column, else the
+ * only number column; with several unnamed number columns any one will do, so none
+ * is marked. Select columns are never required by the backend.
+ */
+function requiredColumns(config: ColumnConfig, spec: ColumnConfig["calculation"] | null): { required: Set<string>; requiredFor: Map<string, string[]> } {
+  const required = new Set<string>();
+  const requiredFor = new Map<string, string[]>();
+  if (spec) {
+    if (spec.mode === "per_method" && spec.method_column) required.add(spec.method_column);
+    const methods = Object.entries(spec.methods || {});
+    const perField = new Map<string, string[]>();
+    for (const [name, m] of methods) for (const f of m?.multiply || []) perField.set(f, [...(perField.get(f) || []), name]);
+    for (const [f, names] of perField) {
+      if (names.length === methods.length) required.add(f);
+      else requiredFor.set(f, names);
+    }
+    return { required, requiredFor };
+  }
+  const numbers = (config.columns || []).filter((c) => c.column_type !== "select");
+  const common = numbers.find((c) => COMMON_QUANTITY_FIELDS.includes(columnKey(c.column_name)));
+  if (common) required.add(common.column_name);
+  else if (numbers.length === 1) required.add(numbers[0].column_name);
+  return { required, requiredFor };
+}
+
 /** Column config → form. The first config by name is the one the data-entry page and calculationSpec.ts use. */
 function formFromConfig(config: ColumnConfig): ContextForm {
   const fields: FormField[] = [];
   const options = config.column_options || {};
   const dependencies = config.column_dependencies || {};
   const dependent = config.dependent_options || {};
+  // Same acceptance rules as getCalculationSpec (services/calculationSpec.ts).
+  const raw = config.calculation;
+  const spec = raw && raw.methods && ((raw.mode === "per_method" && raw.method_column) || raw.mode === "per_unit") ? raw : null;
+  const { required, requiredFor } = requiredColumns(config, spec);
   for (const col of config.columns || []) {
     const parent = dependencies[col.column_name];
     const direct = options[String(col.pk_id)] || options[col.column_name];
@@ -176,10 +215,11 @@ function formFromConfig(config: ColumnConfig): ContextForm {
       key: col.column_name,
       label: col.column_name,
       type: col.column_type,
-      // Every configured column is filled in on the data-entry form (Add data validates them as required).
-      required: true,
+      // `required` = the backend rejects the row without it (see requiredColumns).
+      required: required.has(col.column_name),
       ...(opts.length ? { options: [...new Set(opts)] } : {}),
       ...(parent ? { depends_on: parent } : {}),
+      ...(requiredFor.has(col.column_name) ? { required_for: requiredFor.get(col.column_name) } : {}),
     });
   }
   for (const extra of config.extra_fields || []) {
@@ -194,9 +234,6 @@ function formFromConfig(config: ColumnConfig): ContextForm {
       ...(extra.show_for?.length ? { show_for: extra.show_for } : {}),
     });
   }
-  // Same acceptance rules as getCalculationSpec (services/calculationSpec.ts).
-  const raw = config.calculation;
-  const spec = raw && raw.methods && ((raw.mode === "per_method" && raw.method_column) || raw.mode === "per_unit") ? raw : null;
   let calc_mode: CalcMode = "single";
   if (spec?.mode === "per_method") calc_mode = "per_method";
   else if (spec?.mode === "per_unit") {
