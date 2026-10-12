@@ -10,6 +10,8 @@ import reportRoutes from "./routes/report.routes";
 import brandRoutes from "./routes/brand.routes";
 import companyAdminRoutes from "./routes/companyAdmin.routes";
 import pcfRoutes from "./routes/pcf.routes";
+import oauthRoutes from "./oauth/router";
+import wellKnownRoutes from "./oauth/wellKnown";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
@@ -67,6 +69,8 @@ app.use("/reports", reportRoutes);
 app.use("/brands", brandRoutes);
 app.use("/company-admin", companyAdminRoutes);
 app.use("/pcf", pcfRoutes);
+app.use("/oauth", oauthRoutes);
+app.use("/.well-known", wellKnownRoutes);
 
 let server: any;
 
