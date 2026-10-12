@@ -21,3 +21,6 @@ MCP-16.
 
 ## Acceptance
 Committing a fixture plan creates the right notifications, and P13 shows them under the new filter.
+
+## As built (2026-10-12)
+See the "Notifications" section of `src/imports/CLAUDE.md`. Differences from the blueprint: the email preference is checked before queueing (so a test can see it without RabbitMQ) and again in the consumer; the internal hook is included (not deferred to IM11) and is off when `AI_SERVICE_KEY` is unset; the P13 filter group is `uploads`. The FE label, icon and "Uploads" tab ship in ESG-lite_FE (`[IM4 2/2]`).

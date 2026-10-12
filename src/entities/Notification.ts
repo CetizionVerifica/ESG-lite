@@ -12,6 +12,13 @@ import { User } from "./User";
 export interface NotificationMeta {
   reviewer?: string;
   reason?: string | null;
+  // UPLOAD_PENDING (IM4): the batch waiting for review
+  upload_batch_id?: string;
+  rows?: number;
+  tco2e?: number;
+  site_ids?: number[];
+  months?: string[];
+  channel?: string;
 }
 
 @Entity()
