@@ -217,7 +217,8 @@ test("ping works and is logged without payload (MCP-15)", async () => {
 test("stub tools answer NOT_IMPLEMENTED as a tool error in the contracts §9 shape, and are logged with the client id", async () => {
   const client = await connect(TOKENS.superadmin);
   try {
-    const result = await client.callTool({ name: "list_sites_and_categories", arguments: { company_id: 1 } });
+    // IM7 filled the read tools in; the IM8 import stubs still answer NOT_IMPLEMENTED.
+    const result = await client.callTool({ name: "plan_import", arguments: { company_id: 1, source_name: "ci", rows: [] } });
     assert.equal(result.isError, true);
     assert.match(result.content[0].text, /^NOT_IMPLEMENTED: /);
     assert.equal(result.structuredContent.code, "NOT_IMPLEMENTED");
@@ -225,7 +226,7 @@ test("stub tools answer NOT_IMPLEMENTED as a tool error in the contracts §9 sha
     await client.close();
   }
   await withDb(async (db) => {
-    const { rows } = await db.query(`SELECT * FROM mcp_tool_call WHERE tool = 'list_sites_and_categories' ORDER BY id DESC LIMIT 1`);
+    const { rows } = await db.query(`SELECT * FROM mcp_tool_call WHERE tool = 'plan_import' ORDER BY id DESC LIMIT 1`);
     assert.equal(rows[0].ok, false);
     assert.equal(rows[0].error_code, "NOT_IMPLEMENTED");
     assert.equal(rows[0].company_id, 1);
