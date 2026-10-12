@@ -214,22 +214,24 @@ test("ping works and is logged without payload (MCP-15)", async () => {
   });
 });
 
-test("stub tools answer NOT_IMPLEMENTED as a tool error in the contracts §9 shape, and are logged with the client id", async () => {
+test("a tool error comes back in the contracts §9 shape and is logged with the client id (no stub answers NOT_IMPLEMENTED any more)", async () => {
   const client = await connect(TOKENS.superadmin);
+  const missing = "00000000-0000-4000-8000-000000000000";
   try {
-    // IM7 filled the read tools in; the IM8 import stubs still answer NOT_IMPLEMENTED.
-    const result = await client.callTool({ name: "plan_import", arguments: { company_id: 1, source_name: "ci", rows: [] } });
+    // IM7 and IM8 filled every tool in: an unknown plan is an IM0 error, not NOT_IMPLEMENTED.
+    const result = await client.callTool({ name: "plan_import", arguments: { company_id: 1, source_name: "ci", plan_id: missing, version: 0, rows: [{ row_ref: "a", site_id: 1, category_id: 1, period: { kind: "monthly", date: "2025-03-01" }, activity_name: "Diesel", activity_value: 1, activity_unit: "litre" }] } });
     assert.equal(result.isError, true);
-    assert.match(result.content[0].text, /^NOT_IMPLEMENTED: /);
-    assert.equal(result.structuredContent.code, "NOT_IMPLEMENTED");
+    assert.match(result.content[0].text, /^IMPORT_PLAN_NOT_FOUND: /);
+    assert.equal(result.structuredContent.code, "IMPORT_PLAN_NOT_FOUND");
   } finally {
     await client.close();
   }
   await withDb(async (db) => {
     const { rows } = await db.query(`SELECT * FROM mcp_tool_call WHERE tool = 'plan_import' ORDER BY id DESC LIMIT 1`);
     assert.equal(rows[0].ok, false);
-    assert.equal(rows[0].error_code, "NOT_IMPLEMENTED");
+    assert.equal(rows[0].error_code, "IMPORT_PLAN_NOT_FOUND");
     assert.equal(rows[0].company_id, 1);
+    assert.equal(rows[0].plan_id, missing);
   });
 });
 
