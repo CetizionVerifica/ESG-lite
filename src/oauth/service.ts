@@ -1,4 +1,4 @@
-import { IsNull } from "typeorm";
+import { IsNull, MoreThanOrEqual } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { OauthClient } from "../entities/OauthClient";
 import { OauthGrant } from "../entities/OauthGrant";
@@ -135,8 +135,9 @@ export interface TokenPair {
 }
 
 /**
- * Exchanges a code once. A reused code revokes nothing by itself (the first
- * exchange already minted tokens for the legitimate client) but is refused.
+ * Exchanges a code once. A second presentation of a code means it leaked (or
+ * the client retried after a success), so, as OAuth 2.1 §4.1.2 asks, the
+ * tokens the first exchange minted are revoked along with the refusal.
  */
 export const exchangeCode = async (input: {
   code: string;
@@ -150,9 +151,17 @@ export const exchangeCode = async (input: {
     const repo = tx.getRepository(OauthCode);
     const row = await repo.findOne({ where: { code_hash: hashToken(input.code) }, lock: { mode: "pessimistic_write" } });
     if (!row) return { ok: false as const, reason: "unknown_code" as const };
-    if (row.used_at) return { ok: false as const, reason: "code_used" as const };
-    row.used_at = new Date();
-    await repo.save(row);
+    if (row.used_at) {
+      const burned = await tx.getRepository(OauthToken).update(
+        { grant_id: row.grant_id, created_at: MoreThanOrEqual(row.used_at), revoked_at: IsNull() },
+        { revoked_at: new Date() },
+      );
+      log.warn("OAuth", "Authorization code reused; tokens from its exchange revoked", { grantId: row.grant_id, tokens: burned.affected ?? 0 });
+      return { ok: false as const, reason: "code_used" as const };
+    }
+    // Database clock, so it equals the created_at the tokens below get (both
+    // now() in this transaction) and a later replay can find exactly them.
+    await repo.update({ code_hash: row.code_hash }, { used_at: () => "now()" });
     if (row.expires_at.getTime() < Date.now()) return { ok: false as const, reason: "code_expired" as const };
     if (row.client_id !== input.client_id) return { ok: false as const, reason: "client_mismatch" as const };
     if (row.redirect_uri !== input.redirect_uri) return { ok: false as const, reason: "redirect_mismatch" as const };
@@ -183,7 +192,7 @@ const mintTokens = async (
   return { access_token, refresh_token, expires_in: Math.floor(ACCESS_TOKEN_TTL_MS / 1000), scope: joinScopes(scopes), grant_id };
 };
 
-export type RefreshFailure = "unknown_token" | "token_expired" | "token_revoked" | "token_reused" | "grant_revoked" | "scope_exceeded" | "resource_mismatch";
+export type RefreshFailure = "unknown_token" | "client_mismatch" | "token_expired" | "token_revoked" | "token_reused" | "grant_revoked" | "scope_exceeded" | "resource_mismatch";
 
 /**
  * Refresh rotation. The presented refresh token is marked replaced; a second
@@ -192,6 +201,7 @@ export type RefreshFailure = "unknown_token" | "token_expired" | "token_revoked"
  */
 export const refreshTokens = async (input: {
   refresh_token: string;
+  client_id: string;
   scope?: string | null;
   resource?: string;
 }): Promise<{ ok: true; tokens: TokenPair } | { ok: false; reason: RefreshFailure }> => {
@@ -201,6 +211,9 @@ export const refreshTokens = async (input: {
     const repo = tx.getRepository(OauthToken);
     const row = await repo.findOne({ where: { token_hash: hash, kind: "refresh" }, lock: { mode: "pessimistic_write" } });
     if (!row) return { ok: false as const, reason: "unknown_token" as const };
+    const grant = await tx.getRepository(OauthGrant).findOne({ where: { grant_id: row.grant_id } });
+    // The token belongs to the client that obtained it (RFC 6749 §6).
+    if (!grant || grant.client_id !== input.client_id) return { ok: false as const, reason: "client_mismatch" as const };
     if (row.replaced_at) {
       // Reuse of a rotated refresh token: revoke the grant (outside this tx's lock scope is fine).
       await tx.getRepository(OauthGrant).update({ grant_id: row.grant_id }, { revoked_at: new Date() });
@@ -211,8 +224,7 @@ export const refreshTokens = async (input: {
     if (row.revoked_at) return { ok: false as const, reason: "token_revoked" as const };
     if (row.expires_at.getTime() < Date.now()) return { ok: false as const, reason: "token_expired" as const };
     if (input.resource !== undefined && input.resource !== row.resource) return { ok: false as const, reason: "resource_mismatch" as const };
-    const grant = await tx.getRepository(OauthGrant).findOne({ where: { grant_id: row.grant_id } });
-    if (!grant || grant.revoked_at) return { ok: false as const, reason: "grant_revoked" as const };
+    if (grant.revoked_at) return { ok: false as const, reason: "grant_revoked" as const };
     let scopes = splitScopes(row.scopes);
     if (input.scope) {
       const wanted = input.scope.trim().split(/\s+/) as Scope[];
@@ -227,11 +239,20 @@ export const refreshTokens = async (input: {
   });
 };
 
-/** RFC 7009: an access token is revoked alone; a refresh token revokes its grant. */
-export const revokeToken = async (token: string): Promise<void> => {
+/**
+ * RFC 7009: an access token is revoked alone; a refresh token revokes its
+ * grant. A token another client obtained is left alone (the endpoint still
+ * answers 200, as the RFC asks, so nothing is learnt from the answer).
+ */
+export const revokeToken = async (token: string, client_id: string): Promise<void> => {
   if (typeof token !== "string" || !token) return;
   const row = await tokens().findOne({ where: { token_hash: hashToken(token) } });
   if (!row) return;
+  const grant = await grants().findOne({ where: { grant_id: row.grant_id } });
+  if (!grant || grant.client_id !== client_id) {
+    log.warn("OAuth", "Revocation refused: token belongs to another client", { grantId: row.grant_id, clientId: client_id });
+    return;
+  }
   if (row.kind === "refresh") {
     await revokeGrant(row.grant_id);
     return;

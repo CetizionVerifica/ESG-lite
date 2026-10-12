@@ -36,7 +36,7 @@ MCP Inspector (OAuth flow) and a claude.ai custom connector on staging both comp
 
 ## As built (2026-10-12)
 
-Files: `config.ts` (env, scopes, redirect allowlist), `tokens.ts` (random values, sha256, PKCE S256), `consentRequest.ts` (signed request id = JWT over the validated authorize params, 10 min, audience `esglite-oauth-consent`; nothing pending is stored), `service.ts` (clients, grants, codes, tokens; the only place plain values exist), `verify.ts` (`verifyMcpToken`, `requireMcpToken` middleware, `mcpChallenge`), `router.ts` (`/oauth/*`), `wellKnown.ts` (`/.well-known/*`). Entities `src/entities/Oauth{Client,Grant,Code,Token}.ts`; migration `src/scripts/createOauthTables.ts` (`migrate:oauth`, also adds `company.mcp_enabled`).
+Files: `config.ts` (env, scopes, redirect allowlist), `tokens.ts` (random values, sha256, PKCE S256), `consentRequest.ts` (signed request id = JWT over the validated authorize params, 10 min, audience `esglite-oauth-consent`, signed with its own key `purposeKey(audience)` = HMAC(JWT_SECRET, audience) so it can never pass as an app session; nothing pending is stored), `service.ts` (clients, grants, codes, tokens; the only place plain values exist), `verify.ts` (`verifyMcpToken`, `requireMcpToken` middleware, `mcpChallenge`), `router.ts` (`/oauth/*`), `wellKnown.ts` (`/.well-known/*`). Entities `src/entities/Oauth{Client,Grant,Code,Token}.ts`; migration `src/scripts/createOauthTables.ts` (`migrate:oauth`, also adds `company.mcp_enabled`).
 
 Endpoints beyond the spec, both under the app session (`authenticate`):
 - `GET /oauth/authorize/request?request=<id>` → what the consent page shows: `{ client: { client_id, client_name, redirect_host, client_uri, logo_uri }, scopes: [{ scope, description }], resource, user: { user_id, name, email, role }, can_allow, refusal: { code: "MCP_SUPERADMIN_ONLY", message } | null, clients_with_imports_enabled, expires_at }`. 400 `OAUTH_REQUEST_INVALID` when the request is expired, tampered with or its client is gone.
@@ -45,15 +45,17 @@ Endpoints beyond the spec, both under the app session (`authenticate`):
 - `GET /oauth/userinfo` (MCP bearer token) → `{ user_id, role, scopes, grant_id, client_id }`. It runs the exact check IM6 puts in front of `/mcp` (`requireMcpToken`), so the connector flow is testable before the MCP server exists.
 
 Decisions:
-- Codes and tokens carry prefixes `esgl_ac_`, `esgl_at_`, `esgl_rt_` (32 random bytes). Only sha256 hashes are stored. A failed PKCE check burns the code. Refresh reuse revokes the grant; access tokens from the previous refresh keep running until they expire (≤ 1 h).
+- Codes and tokens carry prefixes `esgl_ac_`, `esgl_at_`, `esgl_rt_` (32 random bytes). Only sha256 hashes are stored. A failed PKCE check burns the code. A replayed code revokes the tokens its first exchange minted (OAuth 2.1 §4.1.2). Refresh reuse revokes the grant; access tokens from the previous refresh keep running until they expire (≤ 1 h).
+- Refresh and revoke are bound to the client: `client_id` must match the grant's (`invalid_grant` on refresh; revoke answers 200 but changes nothing, and 401 `invalid_client` without a `client_id`).
+- `utils/jwt.ts` `verifyToken` (used by `authenticate`, `reportAuth` and the notification stream) now accepts only session tokens: an object payload with numeric `userId`, string `role` and no `aud`. Any other JWT the server signs must use `purposeKey()`.
 - `resource` is required on `/oauth/authorize` and, when sent, must match on `/oauth/token` (RFC 8707). `OAUTH_RESOURCE_OPTIONAL=true` relaxes the authorize side for clients that don't send it.
 - Redirect hosts: default `claude.ai`, `claude.com` and subdomains; `localhost` / `127.0.0.1` outside production (MCP Inspector). `OAUTH_ALLOWED_REDIRECT_HOSTS` replaces the default list.
 - `API_BASE_URL` and `FE_BASE_URL` fall back to the request's host and the first `CORS_ORIGIN`, so CI and local runs need no extra settings. Set both in staging and production.
 - Role cache: `MCP_ROLE_CACHE_MS` (default 60 s; 0 under `NODE_ENV=test`).
 - The consent page does not check `company.mcp_enabled`: a Superadmin's grant is not tied to one client (D4), so the switch is enforced per tool call (IM6). The request info carries `clients_with_imports_enabled` so the page can hint when it is 0.
 - `PUT /admin/companies/:id { mcp_enabled }` validates the boolean; the companies list returns the field.
-- Rate limits reuse `authRateLimit`: register counts every request; token counts failures per `client_id` and IP (30, via the new `options` argument).
+- Rate limits reuse `authRateLimit`: register counts every request (10 per IP); authorize 60 per IP; token counts failures per `client_id` and IP (30, via the new `options` argument); revoke 60 per `client_id` and IP.
 - Request log redaction now covers `code`, `code_challenge`, `code_verifier`, `refresh_token`, `state` and `request` query values.
 - IM6 wiring: `setMcpTokenVerifier(verifyMcpToken)` (one line in `src/mcp/auth.ts` or here, whichever merges second); `requireMcpToken` and `mcpChallenge` are exported for it too.
 
-Tests: `ci/api/tests/im5-oauth.test.cjs` (23 tests), `ci/unit/request-logger.test.cjs` (redaction).
+Tests: `ci/api/tests/im5-oauth.test.cjs` (24 tests), `ci/unit/request-logger.test.cjs` (redaction).

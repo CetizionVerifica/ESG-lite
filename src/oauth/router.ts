@@ -102,7 +102,9 @@ const redirectWithError = (res: Response, redirect_uri: string, error: string, d
   return res.redirect(302, url.toString());
 };
 
-router.get("/authorize", async (req: Request, res: Response) => {
+// Per IP only (there is no account yet); generous, a person opens this once per connection.
+const authorizeRateLimit = authRateLimit("oauth-authorize", "all", { keyOf: () => "", max: 60 });
+router.get("/authorize", authorizeRateLimit, async (req: Request, res: Response) => {
   const q = req.query as Record<string, unknown>;
   const client_id = str(q.client_id);
   const redirect_uri = str(q.redirect_uri);
@@ -262,7 +264,7 @@ router.post("/token", open, ...formOrJson, tokenRateLimit, async (req: Request, 
   if (body.grant_type === "refresh_token") {
     const refresh_token = str(body.refresh_token);
     if (!refresh_token) return oauthError(res, "invalid_request", "refresh_token is required.");
-    const result = await refreshTokens({ refresh_token, scope: str(body.scope) ?? null, resource });
+    const result = await refreshTokens({ refresh_token, client_id, scope: str(body.scope) ?? null, resource });
     if (!result.ok) {
       log.warn("OAuth", "Refresh refused", { clientId: client_id, reason: result.reason });
       if (result.reason === "scope_exceeded") return oauthError(res, "invalid_scope", "The requested scope is wider than the grant.");
@@ -278,9 +280,17 @@ router.post("/token", open, ...formOrJson, tokenRateLimit, async (req: Request, 
 // ---- revocation (RFC 7009) --------------------------------------------------------
 
 router.options("/revoke", open);
-router.post("/revoke", open, ...formOrJson, async (req: Request, res: Response) => {
+// client_id names the caller (public client, so it is a claim, not proof; it
+// still stops one client's request from revoking another's token by accident).
+const revokeRateLimit = authRateLimit("oauth-revoke", "all", {
+  keyOf: (req) => (typeof req.body?.client_id === "string" ? req.body.client_id : ""),
+  max: 60,
+});
+router.post("/revoke", open, ...formOrJson, revokeRateLimit, async (req: Request, res: Response) => {
   const token = str(req.body?.token);
-  if (token) await revokeToken(token);
+  const client_id = str(req.body?.client_id);
+  if (!client_id) return oauthError(res, "invalid_client", "client_id is required.", 401);
+  if (token) await revokeToken(token, client_id);
   noStore(res);
   return res.status(200).end();
 });

@@ -256,10 +256,36 @@ test("Superadmin allow → code; the right verifier yields hashed tokens that wo
   assert.ok(stored.tokens.includes(sha(r.json.access_token)));
   assert.ok(stored.codes.includes(sha(code)));
 
-  // A code is one-time.
+  // A code is one-time, and a replay kills the tokens the first exchange minted (OAuth 2.1 §4.1.2).
   const again = await postForm("/oauth/token", { grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id: client.client_id, code_verifier: verifier, resource: RESOURCE });
   assert.equal(again.status, 400);
   assert.equal(again.json.error, "invalid_grant");
+  assert.match(again.json.error_description, /code used/);
+  assert.equal((await userinfo(r.json.access_token)).status, 401, "access token from the replayed code is revoked");
+  const refreshAfterReplay = await postForm("/oauth/token", { grant_type: "refresh_token", refresh_token: r.json.refresh_token, client_id: client.client_id });
+  assert.equal(refreshAfterReplay.json.error, "invalid_grant");
+});
+
+test("refresh and revoke are bound to the client that obtained the token", async () => {
+  const other = await call("POST", "/oauth/register", null, { client_name: "Other app", redirect_uris: [OTHER_REDIRECT] });
+  assert.equal(other.status, 201, JSON.stringify(other.json));
+  const t = await getTokens();
+
+  const crossRefresh = await postForm("/oauth/token", { grant_type: "refresh_token", refresh_token: t.refresh_token, client_id: other.json.client_id });
+  assert.equal(crossRefresh.status, 400);
+  assert.equal(crossRefresh.json.error, "invalid_grant");
+  assert.match(crossRefresh.json.error_description, /client mismatch/);
+
+  // The other client's revocation answers 200 (RFC 7009) but changes nothing.
+  assert.equal((await postForm("/oauth/revoke", { token: t.access_token, client_id: other.json.client_id })).status, 200);
+  assert.equal((await userinfo(t.access_token)).status, 200, "token survives a foreign revocation");
+  assert.equal((await postForm("/oauth/revoke", { token: t.access_token })).status, 401, "revoke needs client_id");
+
+  // The owner still can.
+  const own = await postForm("/oauth/token", { grant_type: "refresh_token", refresh_token: t.refresh_token, client_id: client.client_id });
+  assert.equal(own.status, 200, JSON.stringify(own.json));
+  assert.equal((await postForm("/oauth/revoke", { token: own.json.access_token, client_id: client.client_id })).status, 200);
+  assert.equal((await userinfo(own.json.access_token)).status, 401);
 });
 
 test("wrong verifier, expired code, mismatched redirect_uri or resource are refused", async () => {
@@ -323,14 +349,14 @@ test("refresh rotates the token; reusing the old refresh token revokes the grant
 
 test("POST /oauth/revoke: an access token alone, a refresh token with its grant", async () => {
   const a = await getTokens();
-  assert.equal((await postForm("/oauth/revoke", { token: a.access_token })).status, 200);
+  assert.equal((await postForm("/oauth/revoke", { token: a.access_token, client_id: client.client_id })).status, 200);
   assert.equal((await userinfo(a.access_token)).status, 401);
   const re = await postForm("/oauth/token", { grant_type: "refresh_token", refresh_token: a.refresh_token, client_id: client.client_id });
   assert.equal(re.status, 200, "the grant survives an access-token revocation");
 
-  assert.equal((await postForm("/oauth/revoke", { token: re.json.refresh_token })).status, 200);
+  assert.equal((await postForm("/oauth/revoke", { token: re.json.refresh_token, client_id: client.client_id })).status, 200);
   assert.equal((await userinfo(re.json.access_token)).status, 401);
-  assert.equal((await postForm("/oauth/revoke", { token: "esgl_rt_unknown" })).status, 200, "unknown tokens still answer 200");
+  assert.equal((await postForm("/oauth/revoke", { token: "esgl_rt_unknown", client_id: client.client_id })).status, 200, "unknown tokens still answer 200");
 });
 
 test("Connected apps: the user lists their grants and disconnecting one kills its tokens", async () => {
@@ -372,6 +398,22 @@ test("MCP tokens are refused by app endpoints and app JWTs by the MCP check", as
   assert.equal(admin.status, 401);
   const me = await fetch(`${BASE}/auth/me`, { headers: bearer(t.access_token) });
   assert.equal(me.status, 401);
+
+  // The signed consent request is a JWT too; it must never pass as an app session.
+  const { challenge } = pkce();
+  const auth = await authorize({ response_type: "code", client_id: client.client_id, redirect_uri: REDIRECT, code_challenge: challenge, code_challenge_method: "S256", resource: RESOURCE });
+  const request = auth.location.searchParams.get("request");
+  assert.ok(request);
+  for (const route of ["/user/emissions", "/oauth/grants", "/admin/companies", "/auth/me"]) {
+    const res = await fetch(`${BASE}${route}`, { headers: bearer(request) });
+    assert.equal(res.status, 401, `consent request accepted as a session at ${route}`);
+  }
+  assert.equal((await fetch(`${BASE}/notifications/stream?token=${encodeURIComponent(request)}`)).status, 401);
+  // Nor does any session-shaped JWT with an audience, or without a numeric userId.
+  const audJwt = jwt.sign({ userId: USERS.superadmin.userId, role: "Superadmin" }, process.env.JWT_SECRET, { audience: "esglite-oauth-consent" });
+  assert.equal((await fetch(`${BASE}/oauth/grants`, { headers: bearer(audJwt) })).status, 401);
+  const stringId = jwt.sign({ userId: String(USERS.superadmin.userId), role: "Superadmin" }, process.env.JWT_SECRET);
+  assert.equal((await fetch(`${BASE}/oauth/grants`, { headers: bearer(stringId) })).status, 401);
 
   const appJwt = await call("GET", "/oauth/userinfo", "superadmin");
   assert.equal(appJwt.status, 401);
