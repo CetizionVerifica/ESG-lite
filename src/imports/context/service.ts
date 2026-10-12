@@ -57,7 +57,7 @@ export const FY_START_MONTH = 4 as const;
 
 const CACHE_TTL_MS = 60_000;
 const contextCache = new Map<string, { at: number; value: ImportContext }>();
-// Keys are deleted one by one: the data-safety CI reads any `.clear()` as a table wipe.
+/** Forget every cached context (tests, or after a form or factor change). */
 export const clearImportContextCache = (): void => {
   for (const k of [...contextCache.keys()]) contextCache.delete(k);
 };
