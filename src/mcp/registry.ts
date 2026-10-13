@@ -64,6 +64,22 @@ const toResult = (name: string, value: unknown): CallToolResult => {
 };
 
 /**
+ * Adds the full result as a JSON text block after the summary line. The
+ * claude.ai connector shows the model only the text content, not
+ * `structuredContent`, so without this Claude saw counts and never a site,
+ * category or activity name (MI-2 check, 2026-10-13). The summary line
+ * stays neutral (ids and counts); the JSON block is the data the tool
+ * returns and is logged nowhere.
+ */
+const withTextResult = (result: CallToolResult): CallToolResult => {
+  if (result.isError) return result;
+  const data = result.structuredContent;
+  if (!data || typeof data !== "object" || Object.keys(data).length === 0) return result;
+  if (result.content.some((c) => c.type === "text" && c.text.startsWith("{"))) return result;
+  return { ...result, content: [...result.content, { type: "text", text: JSON.stringify(data) }] };
+};
+
+/**
  * Runs `work` with a signal that aborts after `ms` or when the client cancels
  * (`parent`). The handler gets that signal as `ctx.signal`, so a cooperative
  * handler (query timeouts, fetch) stops too; a non-cooperative one is simply
@@ -138,7 +154,7 @@ export const registerTools = (server: McpServer, tools: ToolDefinition<any>[], p
             async (signal) => {
               ctx.signal = signal;
               if (clientKey && companyId !== null) await assertClientUsable(companyId);
-              return toResult(def.name, await def.handler(ctx, input as any));
+              return withTextResult(toResult(def.name, await def.handler(ctx, input as any)));
             },
             CALL_TIMEOUT_MS,
             extra.signal,
