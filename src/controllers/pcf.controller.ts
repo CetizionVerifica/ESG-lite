@@ -15,6 +15,7 @@ import { Product } from "../entities/Product";
 import { Site } from "../entities/Site";
 import { Company } from "../entities/Company";
 import { User } from "../entities/User";
+import { SupplierRequest } from "../entities/SupplierRequest";
 import { canSeeCompany, canSeeSite, pcfScope, PcfScope } from "../pcf/access";
 import { licensedLineIds, redactAggregates, redactStages } from "../pcf/redact";
 import type { PcfEngineInput } from "../pcf/engine/computePcf";
@@ -358,6 +359,9 @@ export const deleteStudy = async (req: AuthRequest, res: Response) => {
     const study = id ? await loadStudy(id, scope) : null;
     if (!study) return res.status(404).json({ message: "Footprint not found" });
     if (study.status !== "draft") return res.status(409).json({ message: "Only a draft can be deleted" });
+    // C06: a supplier's answer nobody has looked at yet would go with the draft (FK cascade).
+    const waiting = await AppDataSource.getRepository(SupplierRequest).count({ where: { study: { pcf_study_id: study.pcf_study_id }, status: "received" } });
+    if (waiting > 0) return res.status(409).json({ message: `Accept or reject the ${waiting === 1 ? "supplier answer" : `${waiting} supplier answers`} on this footprint before deleting it` });
     const del = await studyRepo().delete({ pcf_study_id: study.pcf_study_id, status: "draft" });
     if (!del.affected) return res.status(409).json({ message: "Only a draft can be deleted" });
     res.status(204).end();

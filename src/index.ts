@@ -14,6 +14,7 @@ import oauthRoutes from "./oauth/router";
 import wellKnownRoutes from "./oauth/wellKnown";
 import importsRouter from "./imports/router";
 import internalImportsRouter from "./routes/internalImports.routes";
+import supplierPublicRoutes from "./routes/supplierPublic.routes";
 import { registerUploadNotifyListener } from "./services/uploadNotify";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -80,6 +81,7 @@ app.use("/oauth", oauthRoutes);
 app.use("/.well-known", wellKnownRoutes);
 app.use("/imports", authenticate, importsRouter);
 app.use("/internal/imports", internalImportsRouter); // IM4, service key
+app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, no account
 
 let server: any;
 

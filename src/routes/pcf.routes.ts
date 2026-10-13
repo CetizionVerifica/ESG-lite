@@ -26,6 +26,17 @@ import {
 } from "../controllers/pcfFlow.controller";
 import { getStudyAudit, getStudyResult } from "../controllers/pcfResult.controller";
 import { exportStudy } from "../controllers/pcfExport.controller";
+import {
+  listRequests,
+  createRequest,
+  previewMessage,
+  getRequest,
+  getRequestFile,
+  resendRequest,
+  deleteRequest,
+  acceptRequest,
+  rejectRequest,
+} from "../controllers/supplierRequest.controller";
 
 // Product carbon footprints (E1). Managers (own sites) and superadmins only;
 // every other role gets 403.
@@ -56,5 +67,16 @@ router.post("/material-factors/import", importMaterialFactors);
 router.get("/material-factors/:id", getMaterialFactor);
 router.patch("/material-factors/:id", updateMaterialFactor);
 router.delete("/material-factors/:id", deleteMaterialFactor);
+
+// C06 supplier data requests (phase 3)
+router.get("/supplier-requests", listRequests);
+router.get("/supplier-requests/preview", previewMessage);
+router.post("/supplier-requests", createRequest);
+router.get("/supplier-requests/:id", getRequest);
+router.get("/supplier-requests/:id/file", getRequestFile);
+router.post("/supplier-requests/:id/resend", resendRequest);
+router.delete("/supplier-requests/:id", deleteRequest);
+router.post("/supplier-requests/:id/accept", acceptRequest);
+router.post("/supplier-requests/:id/reject", rejectRequest);
 
 export default router;
