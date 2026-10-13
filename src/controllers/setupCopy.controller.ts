@@ -94,6 +94,10 @@ const parseOptions = (raw: unknown): CopyOptions | string => {
     if (!Array.isArray(o.factor_years) || !o.factor_years.every((y) => Number.isInteger(y))) return "options.factor_years must be a list of years";
     out.factor_years = o.factor_years as number[];
   }
+  if (o.first_site !== undefined) {
+    if (o.first_site !== "main" && o.first_site !== "create") return "options.first_site must be main or create";
+    out.first_site = o.first_site;
+  }
   if (o.form_conflict !== undefined) {
     if (o.form_conflict !== "skip" && o.form_conflict !== "rename") return "options.form_conflict must be skip or rename";
     out.form_conflict = o.form_conflict;

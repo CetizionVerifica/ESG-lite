@@ -32,6 +32,8 @@ export type CopyOptions = {
   factor_years?: number[] | null;
   /** A form whose name is taken at the target site and category: skip it (default) or add it as "<name> (copy)". */
   form_conflict?: "skip" | "rename";
+  /** Onboarding: the bundle's first site goes to the target's main site when `sites` does not say otherwise. */
+  first_site?: "main" | "create";
 };
 
 export const DEFAULT_INCLUDE: CopyInclude = { units: true, forms: true, factors: true, mappings: true, threshold: true, products: true, material_factors: false };
@@ -182,8 +184,8 @@ async function applyInto(
   for (const key of wanted.keys()) if (!bundle.sites.some((s) => s.key === key)) report.errors.push(`The bundle has no site "${key}".`);
   const claimed = new Set<number>();
   const plan: { site: BundleSite; target: SiteTarget }[] = [];
-  for (const site of bundle.sites) {
-    let target = wanted.get(site.key) ?? "create";
+  for (const [i, site] of bundle.sites.entries()) {
+    let target = wanted.get(site.key) ?? (i === 0 && options.first_site === "main" ? "main" : "create");
     if (target === "main") target = targetSites.length === 1 ? n(targetSites[0].site_id) : "create";
     if (typeof target === "number") {
       if (!targetSites.some((t) => n(t.site_id) === target)) report.errors.push(`Site ${target} does not belong to this client.`);

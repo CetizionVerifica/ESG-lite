@@ -30,6 +30,8 @@ shape-checked, ids inside it ignored).
 - `include: { units, forms, factors, mappings, threshold, products, material_factors }`
   — all default `true` except `material_factors`.
 - `factor_years: number[] | null` — null = every year in the bundle.
+- `first_site: "main" | "create"` — onboarding shortcut: the bundle's first site goes to the
+  target's main site unless `sites` names it. Default `"create"`.
 - `form_conflict: "skip" | "rename"` — a form whose name exists at the target site and
   category is skipped (default) or added as `"<name> (copy)"`.
 

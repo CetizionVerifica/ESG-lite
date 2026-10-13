@@ -135,6 +135,10 @@ test("copy onto a client: the main site is reused, a site is skipped, one factor
   assert.equal(preview.json.sites[1].target.kind, "skip");
   assert.match(preview.json.sites[0].warnings.join(" "), /SC India.*SC Oman/);
   assert.equal(await withDb((db) => count(db, `SELECT count(*) AS n FROM column_config WHERE site_id = 3`)), 0);
+  // The onboarding shortcut: no site list, the first site fills the target's only site.
+  const shortcut = await call("POST", "/admin/setup-copy/preview", "superadmin", { source: { company_id: SRC }, target_company_id: DST, options: { first_site: "main" } });
+  assert.equal(shortcut.status, 200);
+  assert.deepEqual(shortcut.json.sites.map((s) => s.target.kind), ["reuse", "create"]);
 
   const res = await call("POST", `/admin/companies/${DST}/setup-copy`, "superadmin", body);
   assert.equal(res.status, 200);
