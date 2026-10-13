@@ -1,6 +1,6 @@
 # CI safety checks
 
-`.github/workflows/ci.yml` runs on every pull request into `redesign/integration`
+`.github/workflows/ci.yml` runs on every pull request into `production`
 or `main`, and on pushes to them. Its job is to keep production data safe while
 the redesign is built. CI never connects to production: the workflow holds no
 secrets, and every database script refuses anything but the throwaway Postgres
