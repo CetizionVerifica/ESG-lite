@@ -43,6 +43,13 @@ test("the history API returns the reason given for a review", async () => {
     const [entry] = r.json;
     assert.equal(entry.action, "approve");
     assert.equal(entry.reason, "Checked against the bill");
+
+    // A reject's comment comes back too, as the newest entry.
+    await q("UPDATE emission SET status='pending', reviewed_by=NULL, reviewed_at=NULL WHERE pk_id IN (2, 5)");
+    assert.equal((await call("PUT", "/user/emissions/2/reject", "manager", { comment: "Wrong meter reading" })).status, 200);
+    const after = await call("GET", "/user/audit-logs?entity_type=emission&entity_id=2", "manager");
+    assert.equal(after.json[0].action, "reject");
+    assert.equal(after.json[0].reason, "Wrong meter reading");
   } finally {
     await q("UPDATE emission SET status='pending', reviewed_by=NULL, reviewed_at=NULL, review_comment=NULL WHERE pk_id IN (2, 5)");
     await clearAudit("emission", [2, 5]);
