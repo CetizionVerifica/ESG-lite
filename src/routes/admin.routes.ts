@@ -96,6 +96,7 @@ const onboardingUpload = multer({
 });
 
 import { sendUserInvite } from "../controllers/invite.controller";
+import { applySetupCopy, downloadSetupBundle, previewSetupCopy } from "../controllers/setupCopy.controller";
 
 const router = Router();
 
@@ -121,6 +122,10 @@ router.post("/companies", createCompany);
 router.get("/companies", getCompanies);
 router.put("/companies/:id", updateCompany);
 router.delete("/companies/:id", deleteCompany);
+// Copy client setup (docs/setup-copy.md)
+router.get("/companies/:id/setup-bundle", downloadSetupBundle);
+router.post("/companies/:id/setup-copy", applySetupCopy);
+router.post("/setup-copy/preview", previewSetupCopy);
 
 // Site
 router.post("/sites", createSite);
