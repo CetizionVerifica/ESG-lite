@@ -82,6 +82,7 @@ test("the bundle carries setup by name and leaves history, people and licensed f
   assert.equal(form.category_name, "Stationary Combustion");
   assert.deepEqual(form.columns, [{ column_name: "SC Fuel type", column_type: "select" }, { column_name: "SC Litres", column_type: "number" }]);
   assert.deepEqual(form.emission_category_mapping, { d: "Diesel" });
+  assert.deepEqual(form.column_options, { "SC Fuel type": [{ id: "d", label: "Diesel" }] }); // keyed by column name, not pk_id
   assert.deepEqual(a.units, [{ category_name: "Stationary Combustion", unit_name: "SC litre", description: "Litres" }]);
   assert.deepEqual(a.factors.map((f) => f.year).sort(), [2024, 2025]);
   assert.ok(a.products.some((p) => p.name === "SC billet" && p.unit === "tonnes"));
@@ -163,6 +164,8 @@ test("copy onto a client: the main site is reused, a site is skipped, one factor
     assert.equal(cfg.rows.length, 1);
     assert.deepEqual(cfg.rows[0].emission_category_mapping, { d: "Diesel" });
     assert.equal(await count(db, `SELECT count(*) AS n FROM column_config_columns WHERE column_config_id = $1`, [cfg.rows[0].pk_id]), 2);
+    const fuel = await db.query(`SELECT pk_id FROM column_entity WHERE column_name = 'SC Fuel type' AND column_type = 'select' ORDER BY pk_id LIMIT 1`);
+    assert.deepEqual(cfg.rows[0].column_options, { [fuel.rows[0].pk_id]: [{ id: "d", label: "Diesel" }] }); // keyed by the target column id
     assert.equal(await count(db, `SELECT count(*) AS n FROM emission_factors WHERE site_id = 3 AND year = 2024`), 0);
     const ef = await db.query(`SELECT emission_factor_id FROM emission_factors WHERE site_id = 3 AND year = 2025 AND emission_category_name = 'Diesel'`);
     assert.equal(ef.rows.length, 1);
@@ -221,6 +224,25 @@ test("an uploaded file is applied by its names; unknown names and malformed file
   assert.equal(ok.status, 200);
   assert.equal(ok.json.source.company_id, null);
   assert.equal(ok.json.source.company_name, "CI Steel Co");
+
+  // A column renamed in the file is a new library column at the target; its dropdown options must follow the new id.
+  const renamed = JSON.parse(JSON.stringify(bundle));
+  const rform = renamed.sites[0].forms.find((f) => f.config_name === "SC Diesel form");
+  rform.config_name = "SC Renamed form";
+  rform.columns[0].column_name = "SC Fuel kind";
+  rform.column_options = { "SC Fuel kind": [{ id: "d", label: "Diesel" }], "SC Gone": [{ id: "x", label: "Nothing" }] };
+  const applied = await call("POST", `/admin/companies/${DST}/setup-copy`, "superadmin", {
+    source: { bundle: renamed },
+    options: { sites: [{ key: "CI Plant A", target: 3 }, { key: "CI Plant B", target: "skip" }], include: { forms: true, units: false, factors: false, mappings: false, threshold: false, products: false } },
+  });
+  assert.equal(applied.status, 200);
+  assert.deepEqual(applied.json.columns_created, ["SC Fuel kind"]);
+  assert.ok(applied.json.sites[0].warnings.some((w) => /SC Gone/.test(w)));
+  await withDb(async (db) => {
+    const col = await db.query(`SELECT pk_id FROM column_entity WHERE column_name = 'SC Fuel kind'`);
+    const cfg = await db.query(`SELECT column_options FROM column_config WHERE site_id = 3 AND config_name = 'SC Renamed form'`);
+    assert.deepEqual(cfg.rows[0].column_options, { [col.rows[0].pk_id]: [{ id: "d", label: "Diesel" }] });
+  });
 
   const unknown = JSON.parse(JSON.stringify(bundle));
   unknown.sites[0].forms[0].category_name = "No Such Category";

@@ -350,16 +350,30 @@ async function copyForm(ctx: Ctx, f: BundleForm, siteId: number, categoryId: num
     sr.warnings.push(`Form "${f.config_name}" exists here; added as "${name}".`);
   }
   const columnIds: number[] = [];
+  const idOfColumn = new Map<string, number>();
   for (const c of f.columns) {
     const found = await m.query(`SELECT pk_id FROM column_entity WHERE column_name = $1 AND column_type = $2 ORDER BY pk_id LIMIT 1`, [c.column_name, c.column_type]);
+    let id: number;
     if (found.length) {
-      columnIds.push(n(found[0].pk_id));
-      continue;
+      id = n(found[0].pk_id);
+    } else {
+      const made = await m.query(`INSERT INTO column_entity (column_name, column_type) VALUES ($1, $2) RETURNING pk_id`, [c.column_name, c.column_type]);
+      id = n(made[0].pk_id);
+      if (!report.columns_created.includes(c.column_name)) report.columns_created.push(c.column_name);
     }
-    const made = await m.query(`INSERT INTO column_entity (column_name, column_type) VALUES ($1, $2) RETURNING pk_id`, [c.column_name, c.column_type]);
-    columnIds.push(n(made[0].pk_id));
-    if (!report.columns_created.includes(c.column_name)) report.columns_created.push(c.column_name);
+    columnIds.push(id);
+    if (!idOfColumn.has(c.column_name)) idOfColumn.set(c.column_name, id);
   }
+  // The bundle keys column_options by column name; the database keys it by column pk_id.
+  const columnOptions: Record<string, unknown> = {};
+  const orphanOptions: string[] = [];
+  const rawOptions = f.column_options && typeof f.column_options === "object" && !Array.isArray(f.column_options) ? f.column_options : {};
+  for (const [columnName, value] of Object.entries(rawOptions)) {
+    const id = idOfColumn.get(columnName);
+    if (id === undefined) orphanOptions.push(columnName);
+    else columnOptions[String(id)] = value;
+  }
+  if (orphanOptions.length) sr.warnings.push(`Form "${name}" has dropdown options for columns it does not have: ${orphanOptions.join(", ")}; they were not copied.`);
   const calc = f.calculation as { methods?: Record<string, { multiply?: string[] }> } | null;
   if (calc?.methods) {
     const names = new Set(f.columns.map((c) => c.column_name));
@@ -374,7 +388,7 @@ async function copyForm(ctx: Ctx, f: BundleForm, siteId: number, categoryId: num
       name,
       siteId,
       categoryId,
-      JSON.stringify(f.column_options ?? {}),
+      JSON.stringify(columnOptions),
       JSON.stringify(f.column_dependencies ?? {}),
       JSON.stringify(f.dependent_options ?? {}),
       JSON.stringify(f.emission_category_mapping ?? {}),

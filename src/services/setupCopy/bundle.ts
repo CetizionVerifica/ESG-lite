@@ -14,6 +14,7 @@ export type BundleForm = {
   category_name: string;
   config_name: string;
   columns: BundleColumn[];
+  /** Dropdown options keyed by column name (the database keys them by column pk_id). */
   column_options: Record<string, unknown>;
   column_dependencies: Record<string, unknown>;
   dependent_options: Record<string, unknown>;

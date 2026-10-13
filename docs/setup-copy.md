@@ -47,5 +47,9 @@ shape-checked, ids inside it ignored).
   country creates the site without one (warning); a missing library column is created.
 - Mappings get the target's `company_id` and `company_name`; `emission_factor_id` is
   re-resolved against the target's factors, never copied.
+- A form's dropdown options (`column_options`) are keyed by column pk_id in the
+  database; the bundle keys them by column name and the copy maps them back to the
+  target's column ids, so they survive a copy to another database. Options for a
+  column the form does not have are dropped with a warning.
 - Option ids inside a form's JSON are kept as they are (entries store them).
 - Only ids and counts are logged, never bundle contents.

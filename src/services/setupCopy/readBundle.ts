@@ -75,27 +75,44 @@ export async function readBundle(companyId: number, manager?: EntityManager): Pr
       WHERE cc.site_id = ANY($1) ORDER BY cc.pk_id`,
     [siteIds],
   );
-  const columnRows: { column_config_id: number; column_name: string; column_type: string }[] = formRows.length
+  const columnRows: { column_config_id: number; column_id: number; column_name: string; column_type: string }[] = formRows.length
     ? await m.query(
-        `SELECT ccc.column_config_id, ce.column_name, ce.column_type
+        `SELECT ccc.column_config_id, ce.pk_id AS column_id, ce.column_name, ce.column_type
            FROM column_config_columns ccc JOIN column_entity ce ON ce.pk_id = ccc.column_id
           WHERE ccc.column_config_id = ANY($1) ORDER BY ccc.column_config_id, ce.pk_id`,
         [formRows.map((f) => n(f.pk_id))],
       )
     : [];
   const columnsOf = new Map<number, { column_name: string; column_type: string }[]>();
+  const columnNameOf = new Map<number, Map<string, string>>(); // form id -> column pk_id (as stored in JSON keys) -> column name
   for (const r of columnRows) {
     const list = columnsOf.get(n(r.column_config_id)) ?? [];
     list.push({ column_name: r.column_name, column_type: r.column_type });
     columnsOf.set(n(r.column_config_id), list);
+    const names = columnNameOf.get(n(r.column_config_id)) ?? new Map<string, string>();
+    names.set(String(n(r.column_id)), r.column_name);
+    columnNameOf.set(n(r.column_config_id), names);
   }
+  // column_options is keyed by column pk_id in the database; the bundle keys it by
+  // column name so it survives the re-link by name at the target (and another database).
+  // Options for a column the form no longer has are dropped: nothing can use them.
+  const optionsByName = (formId: number, raw: unknown): Record<string, unknown> => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    const names = columnNameOf.get(formId) ?? new Map<string, string>();
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      const name = names.get(key);
+      if (name !== undefined) out[name] = value;
+    }
+    return out;
+  };
   const forms = bySite<{ site_id: number } & BundleForm>(
     formRows.map((f) => ({
       site_id: f.site_id,
       category_name: f.category_name,
       config_name: f.config_name,
       columns: columnsOf.get(n(f.pk_id)) ?? [],
-      column_options: f.column_options ?? {},
+      column_options: optionsByName(n(f.pk_id), f.column_options),
       column_dependencies: f.column_dependencies ?? {},
       dependent_options: f.dependent_options ?? {},
       emission_category_mapping: f.emission_category_mapping ?? {},
