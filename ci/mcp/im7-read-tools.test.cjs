@@ -160,6 +160,23 @@ test("list_sites_and_categories: the IM3 context of one client, activity counts 
   assert.equal(JSON.stringify(d).includes('"activities"'), false);
   assert.equal(r.content[0].text, "list_sites_and_categories: company 1, 2 site(s), 7 site × category pair(s)");
   noSheetText(r.content[0].text);
+  // The claude.ai connector shows the model only text content, so the full
+  // result travels as a JSON text block too (same data as structuredContent).
+  assert.equal(r.content[1].type, "text");
+  const asText = JSON.parse(r.content[1].text);
+  assert.deepEqual(asText, d);
+  for (const site of d.sites) {
+    assert.ok(r.content[1].text.includes(JSON.stringify(site.name)), `site name ${site.name} in text`);
+    for (const c of site.categories) assert.ok(r.content[1].text.includes(JSON.stringify(c.name)), `category name ${c.name} in text`);
+  }
+});
+
+test("every successful tool result carries its full data as text, errors only their message", async () => {
+  const who = await callTool(client, "whoami", {});
+  assert.deepEqual(JSON.parse(who.content[1].text), who.structuredContent);
+  const refused = await callTool(client, "list_sites_and_categories", {});
+  assert.equal(refused.isError, true);
+  assert.equal(refused.content.length, 1);
 });
 
 test("MCP-07: list_sites_and_categories without company_id is refused; MCP-06: a client with the switch off is refused", async () => {
