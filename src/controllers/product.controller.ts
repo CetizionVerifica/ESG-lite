@@ -26,6 +26,38 @@ const idOf = (v: unknown): number | null => {
 /** Trimmed string, or "" for anything that isn't one. */
 const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
+type DeclaredFields = Partial<Pick<Product, "declared_unit" | "declared_unit_qty" | "mass_per_unit_kg">>;
+
+/** A positive number from a body value as a decimal string, null to clear, or undefined when absent. */
+const positive = (v: unknown): string | null | undefined | false => {
+  if (v === undefined) return undefined;
+  if (v === null || (typeof v === "string" && !v.trim())) return null;
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v.trim()) : NaN;
+  return Number.isFinite(n) && n > 0 ? String(n) : false;
+};
+
+/**
+ * The footprint fields (PCF): what one footprint is expressed per, e.g. 1 t,
+ * and the mass of one declared unit, which turns tonnes of production into
+ * declared units. Only fields present in the body are returned; "" or null
+ * clears one.
+ */
+function declaredFields(body: Record<string, unknown>): { values: DeclaredFields } | { error: string } {
+  const values: DeclaredFields = {};
+  if (body.declared_unit !== undefined) {
+    const unit = text(body.declared_unit);
+    if (unit.length > 20) return { error: "Declared unit must be 20 characters or fewer." };
+    values.declared_unit = unit || null;
+  }
+  const qty = positive(body.declared_unit_qty);
+  if (qty === false) return { error: "Declared unit quantity must be a number above 0." };
+  if (qty !== undefined) values.declared_unit_qty = qty;
+  const mass = positive(body.mass_per_unit_kg);
+  if (mass === false) return { error: "Mass per declared unit must be a number of kg above 0." };
+  if (mass !== undefined) values.mass_per_unit_kg = mass;
+  return { values };
+}
+
 // Admin: Create product (Superadmin only)
 export const createProduct = async (req: Request, res: Response) => {
   try {
@@ -37,6 +69,8 @@ export const createProduct = async (req: Request, res: Response) => {
       });
     }
     if (!idOf(site_id)) return res.status(400).json({ message: "Choose a site that exists." });
+    const declared = declaredFields(req.body);
+    if ("error" in declared) return res.status(400).json({ message: declared.error });
 
     const site = await siteRepo.findOne({ where: { site_id: idOf(site_id)! } });
     if (!site) {
@@ -48,6 +82,7 @@ export const createProduct = async (req: Request, res: Response) => {
       description: description?.trim() || null,
       unit: text(unit),
       site: { site_id: idOf(site_id)! },
+      ...declared.values,
     });
 
     await repo.save(product);
@@ -164,9 +199,12 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     if (unit !== undefined && !text(unit)) return res.status(400).json({ message: "Default unit can't be empty." });
     const toSite = site_id === undefined || site_id === null ? null : idOf(site_id);
     if (site_id !== undefined && site_id !== null && !toSite) return res.status(400).json({ message: "Choose a site that exists." });
+    const declared = declaredFields(req.body);
+    if ("error" in declared) return res.status(400).json({ message: declared.error });
 
     let movedIds: number[] = [];
     let fromSiteId: number | null = null;
+    let declaredChanged = false;
     // Returned from the transaction as an HTTP error instead of throwing.
     const problem = await AppDataSource.transaction(async (m): Promise<[number, string] | null> => {
       // Lock the product so two moves can't interleave.
@@ -189,6 +227,11 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       if (text(name)) product.name = text(name);
       if (description !== undefined) product.description = description?.trim() || null;
       if (text(unit)) product.unit = text(unit);
+      for (const [k, v] of Object.entries(declared.values) as [keyof DeclaredFields, string | null][]) {
+        const before = product[k] == null ? null : k === "declared_unit" ? product[k] : String(Number(product[k]));
+        if (before !== v) declaredChanged = true;
+        product[k] = v;
+      }
       await m.getRepository(Product).save(product);
 
       if (moving) {
@@ -218,6 +261,8 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     // Footprints at the old site that used these rows are now out of date.
     if (movedIds.length) await pcfDataChanged("production", movedIds);
+    // Footprints of this product are expressed per its declared unit.
+    if (declaredChanged) await pcfDataChanged("product", [id]);
 
     const updatedProduct = await repo.findOne({
       where: { product_id: id },
