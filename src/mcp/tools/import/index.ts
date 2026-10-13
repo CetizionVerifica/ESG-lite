@@ -164,7 +164,7 @@ export const importTools: ToolDefinition<any>[] = [
     name: "commit_import",
     title: "Commit an import",
     description:
-      "Saves the plan's ready rows as one pending upload batch for the client's managers to approve, and returns the plan with its batch id. Before calling this, show the user the totals by category and by month and the number of rows with issues, and get an explicit yes. Pass the plan's current version; a repeat call with the same version returns the same batch and saves nothing twice.",
+      "Saves the plan's ready rows as one pending upload batch and returns the plan with its batch id. Each row is its own pending entry: in ESGLite under Approvals, a manager approves or rejects entries one at a time, or opens the batch's Review rows to see only this upload, or approves the batch's still-pending rows at once. Before calling this, show the user the totals by category and by month and the number of rows with issues, and get an explicit yes. Pass the plan's current version; a repeat call with the same version returns the same batch and saves nothing twice.",
     input: ToolInputs.commit_import.shape,
     scope: "imports:write",
     clientKey: null,

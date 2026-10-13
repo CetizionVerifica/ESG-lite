@@ -81,6 +81,9 @@ const emissionSearchSql = (a: { e: string; c: string; s: string; u: string }) =>
 export const getEmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { date, year, month, page, limit, status, scope, sort, order } = req.query;
+    // batchId=<upload_batch_id>: only that upload batch's rows (P07 "Review rows"
+    // on an upload batch). Site scoping below still applies.
+    const batchId = typeof req.query.batchId === "string" ? req.query.batchId.trim().slice(0, 100) : "";
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     // categoryIds=1,2 (several) or the older categoryId=1.
     if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
@@ -129,6 +132,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     if (status) {
       qb.andWhere("emission.status = :status", { status: status as string });
+    }
+
+    if (batchId) {
+      qb.andWhere("emission.upload_batch_id = :batchId", { batchId });
     }
 
     if (date) {
@@ -191,6 +198,9 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       }
       if (status) {
         summaryQb.andWhere("emission.status = :status", { status: status as string });
+      }
+      if (batchId) {
+        summaryQb.andWhere("emission.upload_batch_id = :batchId", { batchId });
       }
       if (date) {
         const [y, m] = (date as string).split("-");
