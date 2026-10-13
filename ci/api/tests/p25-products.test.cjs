@@ -106,3 +106,67 @@ test("moving a product to another site moves its production records", async () =
   const again = await call("PUT", `/admin/products/${product}`, "superadmin", { site_id: 2, description: "Billets" });
   assert.equal(again.json.moved_production_count, 0);
 });
+
+test("declared unit, quantity and mass per unit are saved, validated and cleared", async () => {
+  const made = await call("POST", "/admin/products", "superadmin", {
+    name: "P25 rod", unit: "t", site_id: 1, declared_unit: " t ", declared_unit_qty: "1", mass_per_unit_kg: 1000,
+  });
+  assert.equal(made.status, 201, JSON.stringify(made.json));
+  const id = made.json.product.product_id;
+  try {
+    assert.equal(made.json.product.declared_unit, "t");
+    assert.equal(Number(made.json.product.declared_unit_qty), 1);
+    assert.equal(Number(made.json.product.mass_per_unit_kg), 1000);
+
+    for (const bad of [{ declared_unit_qty: 0 }, { declared_unit_qty: "abc" }, { mass_per_unit_kg: -5 }, { declared_unit: "x".repeat(21) }]) {
+      assert.equal((await call("PUT", `/admin/products/${id}`, "superadmin", bad)).status, 400, JSON.stringify(bad));
+      assert.equal((await call("POST", "/admin/products", "superadmin", { name: "X", unit: "t", site_id: 1, ...bad })).status, 400);
+    }
+
+    const upd = await call("PUT", `/admin/products/${id}`, "superadmin", { mass_per_unit_kg: "998.5" });
+    assert.equal(upd.status, 200);
+    assert.equal(Number(upd.json.product.mass_per_unit_kg), 998.5);
+    assert.equal(upd.json.product.declared_unit, "t", "fields left out of the body stay as they were");
+
+    const cleared = await call("PUT", `/admin/products/${id}`, "superadmin", { declared_unit: "", declared_unit_qty: null, mass_per_unit_kg: "" });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.json.product.declared_unit, null);
+    assert.equal(cleared.json.product.declared_unit_qty, null);
+    assert.equal(cleared.json.product.mass_per_unit_kg, null);
+  } finally {
+    await withDb((db) => db.query(`DELETE FROM product WHERE product_id = $1`, [id]));
+  }
+});
+
+test("changing the declared unit or mass marks the product's approved footprints stale", async () => {
+  const id = (await call("POST", "/admin/products", "superadmin", { name: "P25 stale rod", unit: "t", site_id: 1, declared_unit: "t", mass_per_unit_kg: 1000 }))
+    .json.product.product_id;
+  try {
+    const study = await withDb((db) =>
+      db.query(
+        `INSERT INTO pcf_study (reference_start, reference_end, company_id, product_id, site_id, status, created_by)
+         VALUES ('2025-01-01', '2025-12-31', 1, $1, 1, 'approved', 2) RETURNING pcf_study_id`,
+        [id],
+      ),
+    );
+    const sid = study.rows[0].pcf_study_id;
+    const staleOf = async () => (await withDb((db) => db.query(`SELECT stale FROM pcf_study WHERE pcf_study_id = $1`, [sid]))).rows[0].stale;
+
+    // The same values again change nothing.
+    await call("PUT", `/admin/products/${id}`, "superadmin", { declared_unit: "t", mass_per_unit_kg: "1000", description: "Rod" });
+    assert.equal(await staleOf(), false);
+
+    await call("PUT", `/admin/products/${id}`, "superadmin", { mass_per_unit_kg: 990 });
+    assert.equal(await staleOf(), true);
+    const note = await withDb((db) =>
+      db.query(`SELECT message FROM notification WHERE user_id = 2 AND type = 'pcf_stale' AND link LIKE $1 ORDER BY id DESC LIMIT 1`, [`%/footprints/${sid}`]),
+    );
+    assert.match(note.rows[0].message, /declared unit or mass per unit/);
+  } finally {
+    await withDb(async (db) => {
+      await db.query(`DELETE FROM notification WHERE type = 'pcf_stale' AND link LIKE $1`, [`/products/${id}/%`]);
+      await db.query(`DELETE FROM pcf_study WHERE product_id = $1`, [id]);
+      await db.query(`DELETE FROM product WHERE product_id = $1`, [id]);
+    });
+  }
+});

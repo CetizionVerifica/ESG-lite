@@ -5,14 +5,15 @@
 //   - a row its result used changed (edited, re-reviewed or deleted), or
 //   - a row it would now use was approved: approved Scope 1/2 emissions or
 //     approved production at its site whose whole period lies inside its
-//     reference period (the same rule as src/pcf/plantData.ts).
+//     reference period (the same rule as src/pcf/plantData.ts), or
+//   - its product's declared unit or mass per unit changed (product controller).
 // Its owner (the creator) gets a notification. Stored results are never
 // recalculated here; a new version is the way to update them.
 // Never throws: a failure here must not undo or fail the caller's write.
 import { AppDataSource } from "../config/data-source";
 import { createNotification } from "../services/notificationService";
 
-type Kind = "emission" | "production";
+type Kind = "emission" | "production" | "product";
 
 const SQL: Record<Kind, string> = {
   emission: `
@@ -50,6 +51,14 @@ const SQL: Record<Kind, string> = {
               AND (s.allocation_key = 'mass' OR p.product_id = s.product_id)
               AND p.start_date >= s.reference_start AND p.end_date <= s.reference_end))
     RETURNING s.pcf_study_id, s.created_by, s.version, s.product_id`,
+  // The product's declared unit or mass per unit changed: every figure of its
+  // footprints is per declared unit.
+  product: `
+    UPDATE pcf_study s SET stale = true
+     WHERE s.stale = false
+       AND s.status IN ('in_review', 'approved', 'published')
+       AND s.product_id = ANY($1::int[])
+    RETURNING s.pcf_study_id, s.created_by, s.version, s.product_id`,
 };
 
 export async function pcfDataChanged(kind: Kind, ids: Array<number | null | undefined>): Promise<number[]> {
@@ -66,7 +75,7 @@ export async function pcfDataChanged(kind: Kind, ids: Array<number | null | unde
         (p: { product_id: number; name: string }) => [p.product_id, p.name],
       ),
     );
-    const what = kind === "emission" ? "emissions" : "production data";
+    const what = kind === "emission" ? "Approved emissions" : kind === "production" ? "Approved production data" : "The declared unit or mass per unit";
     for (const r of rows) {
       if (!r.created_by) continue;
       try {
@@ -74,7 +83,7 @@ export async function pcfDataChanged(kind: Kind, ids: Array<number | null | unde
           r.created_by,
           "pcf_stale",
           "A product footprint is out of date",
-          `Approved ${what} behind the footprint for ${names.get(r.product_id) ?? "a product"} (version ${r.version}) changed. Its figures stay as they are; create a new version to update them.`,
+          `${what} behind the footprint for ${names.get(r.product_id) ?? "a product"} (version ${r.version}) changed. Its figures stay as they are; create a new version to update them.`,
           `/products/${r.product_id}/footprints/${r.pcf_study_id}`,
         );
       } catch (err) {
