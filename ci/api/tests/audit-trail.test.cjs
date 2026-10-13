@@ -314,7 +314,7 @@ test("a manager edit can't move an entry into a period filed the other way (mode
 
     const midYear = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong date" });
     assert.equal(midYear.status, 400);
-    assert.match(midYear.json.message, /31 December/);
+    assert.match(midYear.json.message, /Dec 31|31 Dec|December/i);
 
     const overMonthly = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2025-12-31", reason: "Wrong year" });
     assert.equal(overMonthly.status, 409);

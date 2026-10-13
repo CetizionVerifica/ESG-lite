@@ -162,19 +162,6 @@ export const findModeLockConflict = async (
     };
 };
 
-/** The 409 message for a mode-lock conflict on a save of `period` data. */
-export const modeLockMessage = (period: ReportingPeriod, conflict: ModeLockConflict): string => {
-    if (period === "yearly" && conflict.conflicting_period === "monthly") {
-        return `This category already has ${conflict.conflicting_rows} monthly entr${conflict.conflicting_rows === 1 ? "y" : "ies"} in ${conflict.window.start} – ${conflict.window.end}. Delete them first, or continue entering monthly.`;
-    }
-    if (period === "yearly") {
-        // Overlapping yearly batch of the other calendar (CY vs FY): their
-        // windows share up to nine months, so both existing double counts.
-        return `This year overlaps an existing ${conflict.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${conflict.conflicting_year_type} batch first, or file this data under ${conflict.conflicting_year_type} too.`;
-    }
-    return `This category already has a yearly batch covering ${conflict.window.start} – ${conflict.window.end}. Delete the yearly data first, or file this entry under a different period.`;
-};
-
 /**
  * Validates the reporting-period fields of an incoming save. Returns an
  * error message (HTTP 400 material) or null if valid.
