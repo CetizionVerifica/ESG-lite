@@ -30,7 +30,8 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
         entity_id: parsedEntityId,
       },
       relations: ["changed_by"],
-      order: { changed_at: "DESC" },
+      // id breaks ties between rows written in the same instant, so the latest is always first.
+      order: { changed_at: "DESC", id: "DESC" },
     });
 
     const sanitized = logs.map((log) => ({
@@ -39,6 +40,8 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
       entity_id: log.entity_id,
       action: log.action,
       changed_fields: log.changed_fields,
+      // The reason given with the change (approve or reject comment, delete or manager-edit reason); History shows it.
+      reason: log.reason ?? null,
       changed_by: log.changed_by
         ? {
             user_id: log.changed_by.user_id,
