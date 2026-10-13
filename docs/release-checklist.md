@@ -32,3 +32,8 @@ names it in its PR; set it before step 4.
 Add the script under `src/scripts/`, make it idempotent (`IF NOT EXISTS`,
 additive only), and add a `migrate:<name>` entry to `package.json` after the
 existing ones. `migrate:all` picks it up from there.
+
+## C06 supplier data requests
+- Run `npm run migrate:supplier-requests` (part of `migrate:all`) before the build that ships `SupplierRequest`.
+- `SUPPLIER_REQUEST_MAIL` stays unset or `sink` until real supplier emails are approved; `live` sends through Mailgun.
+- `FRONTEND_URL` must be set: supplier links are `${FRONTEND_URL}/supplier/<token>`.
