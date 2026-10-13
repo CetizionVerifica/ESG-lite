@@ -16,6 +16,7 @@ import { accessibleSiteIds, resolveUserCompanyId, SITE_ACCESS_DENIED } from "../
 type Guard = (req: AuthRequest, res: Response, next: NextFunction) => unknown;
 
 const NOT_FOUND = { message: "Not found" };
+const INVALID_ID = { message: "Invalid id" };
 const REVIEW_DENIED = { message: "Only a manager can approve or reject entries" };
 const SELF_REVIEW = { message: "You can't approve or reject your own entries" };
 
@@ -135,6 +136,9 @@ async function rowsOf(t: Table, ids: number[]) {
 const guardRecords = (t: Table, from: { param?: string; bodyIds?: boolean }, review = false): Guard =>
   wrap(async (req, res, next) => {
     const ids = from.param ? toIds(req.params[from.param]) : toIds(req.body?.ids);
+    // A path id that isn't a positive whole number (e.g. "undefined") names no
+    // record; stop here instead of letting the handler query with NaN (500).
+    if (!ids.length && from.param) return res.status(400).json(INVALID_ID);
     if (!ids.length) return next(); // the handler reports the missing ids
     const rows = await rowsOf(t, ids);
     const allowed = await allowedSites(req);
