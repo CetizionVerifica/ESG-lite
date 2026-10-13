@@ -17,3 +17,6 @@ backup
 local-uploads/
 golden-actual.json
 .ci-base/
+
+# Playwright/node test runner output
+test-results/

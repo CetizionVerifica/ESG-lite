@@ -10,7 +10,10 @@
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 
-const TABLE = `CREATE TABLE IF NOT EXISTS "supplier_request" ("supplier_request_id" SERIAL NOT NULL, "material" character varying NOT NULL, "unit" character varying(20) NOT NULL, "supplier_name" character varying, "supplier_email" character varying NOT NULL, "due_date" date, "subject" character varying NOT NULL, "message" text NOT NULL, "status" character varying(20) NOT NULL DEFAULT 'sent', "token_hash" character varying(64) NOT NULL, "token_expires_at" TIMESTAMP NOT NULL, "sent_at" TIMESTAMP, "opened_at" TIMESTAMP, "received_at" TIMESTAMP, "decided_at" TIMESTAMP, "decision_comment" text, "reply_value_kgco2e" numeric, "reply_unit" character varying(20), "reply_boundary" character varying(20), "reply_standard" character varying, "reply_gwp_set" character varying(5), "reply_reference_start" date, "reply_reference_end" date, "reply_valid_from" date, "reply_valid_to" date, "reply_verifier" character varying, "reply_product_name" character varying, "reply_note" text, "reply_file_name" character varying, "reply_file_type" character varying, "reply_file_size" integer, "reply_file" bytea, "accepted_value_kgco2e" numeric, "accepted_boundary" character varying(20), "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "company_id" integer, "pcf_study_id" integer, "pcf_input_id" integer, "requested_by" integer, "decided_by" integer, "material_factor_id" integer, CONSTRAINT "PK_a9e8aeccd5dc5db06e296392b76" PRIMARY KEY ("supplier_request_id"))`;
+const TABLE = `CREATE TABLE IF NOT EXISTS "supplier_request" ("supplier_request_id" SERIAL NOT NULL, "material" character varying NOT NULL, "unit" character varying(20) NOT NULL, "supplier_name" character varying, "supplier_email" character varying NOT NULL, "due_date" date, "note" text, "subject" character varying NOT NULL, "message" text NOT NULL, "status" character varying(20) NOT NULL DEFAULT 'sent', "token_hash" character varying(64) NOT NULL, "token_expires_at" TIMESTAMP NOT NULL, "sent_at" TIMESTAMP, "opened_at" TIMESTAMP, "received_at" TIMESTAMP, "decided_at" TIMESTAMP, "decision_comment" text, "reply_value_kgco2e" numeric, "reply_unit" character varying(20), "reply_boundary" character varying(20), "reply_standard" character varying, "reply_gwp_set" character varying(5), "reply_reference_start" date, "reply_reference_end" date, "reply_valid_from" date, "reply_valid_to" date, "reply_verifier" character varying, "reply_product_name" character varying, "reply_note" text, "reply_file_name" character varying, "reply_file_type" character varying, "reply_file_size" integer, "reply_file" bytea, "accepted_value_kgco2e" numeric, "accepted_boundary" character varying(20), "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "company_id" integer, "pcf_study_id" integer, "pcf_input_id" integer, "requested_by" integer, "decided_by" integer, "material_factor_id" integer, CONSTRAINT "PK_a9e8aeccd5dc5db06e296392b76" PRIMARY KEY ("supplier_request_id"))`;
+
+// Columns added after the first version of the table (existing installs).
+const COLUMNS = [`ALTER TABLE "supplier_request" ADD COLUMN IF NOT EXISTS "note" text`];
 
 const INDEXES = [
   `CREATE INDEX IF NOT EXISTS "IDX_c9889fff9fa5ece429fb0d0fba" ON "supplier_request" ("company_id")`,
@@ -35,7 +38,7 @@ async function main() {
   await qr.connect();
   await qr.startTransaction();
   try {
-    for (const q of [TABLE, ...INDEXES]) await qr.query(q);
+    for (const q of [TABLE, ...COLUMNS, ...INDEXES]) await qr.query(q);
     for (const [name, q] of FOREIGN_KEYS) {
       const found = await qr.query(`SELECT 1 FROM pg_constraint WHERE conname = $1`, [name]);
       if (found.length === 0) await qr.query(q);

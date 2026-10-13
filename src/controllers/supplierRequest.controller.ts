@@ -56,7 +56,10 @@ const hash = (token: string) => crypto.createHash("sha256").update(token).digest
 
 /** "expired" is derived: nothing received and the link has run out. */
 export const effectiveStatus = (r: SupplierRequest, now = new Date()): SupplierRequestStatus | "expired" =>
-  (r.status === "sent" || r.status === "opened") && r.token_expires_at.getTime() < now.getTime() ? "expired" : r.status;
+  (r.status === "sent" || r.status === "opened") && linkExpired(r, now) ? "expired" : r.status;
+
+/** The link itself, whatever the status: an answered request's link runs out too. */
+export const linkExpired = (r: SupplierRequest, now = new Date()) => r.token_expires_at.getTime() < now.getTime();
 
 const userRef = (u: User | null | undefined) => (u ? { user_id: u.user_id, name: u.name } : null);
 const dec = (v: string | null) => (v == null ? null : Number(v));
@@ -246,6 +249,7 @@ export const createRequest = async (req: AuthRequest, res: Response) => {
           supplier_name: supplierName,
           supplier_email: email,
           due_date: dueDate,
+          note,
           subject,
           message,
           status: "sent",
@@ -362,7 +366,7 @@ export const resendRequest = async (req: AuthRequest, res: Response) => {
       unit: r.unit,
       dueDate,
       boundary: r.study.boundary,
-      note: null,
+      note: r.note,
       link,
     });
     await AppDataSource.transaction(async (m) => {
@@ -573,8 +577,7 @@ export const openPublicRequest = async (req: AuthRequest, res: Response) => {
   try {
     const r = await byToken(req.params.token);
     if (!r) return res.status(404).json({ message: "This link isn't valid" });
-    const status = effectiveStatus(r);
-    if (status === "expired") return res.status(410).json({ message: "This link has expired; ask the company for a new one" });
+    if (linkExpired(r)) return res.status(410).json({ message: "This link has expired; ask the company for a new one" });
     if (r.status === "sent") {
       await repo().update(r.supplier_request_id, { status: "opened", opened_at: new Date() });
       r.status = "opened";
@@ -592,9 +595,8 @@ export const submitPublicRequest = async (req: AuthRequest, res: Response) => {
   try {
     const r = await byToken(req.params.token);
     if (!r) return res.status(404).json({ message: "This link isn't valid" });
-    const status = effectiveStatus(r);
-    if (status === "expired") return res.status(410).json({ message: "This link has expired; ask the company for a new one" });
-    if (status === "accepted" || status === "rejected") return res.status(409).json({ message: "This request is closed" });
+    if (r.status === "accepted" || r.status === "rejected") return res.status(409).json({ message: "This request is closed" });
+    if (linkExpired(r)) return res.status(410).json({ message: "This link has expired; ask the company for a new one" });
     const b = req.body ?? {};
     const file = (req as any).file as Express.Multer.File | undefined;
     if (file) {

@@ -34,6 +34,7 @@ additive only), and add a `migrate:<name>` entry to `package.json` after the
 existing ones. `migrate:all` picks it up from there.
 
 ## C06 supplier data requests
-- Run `npm run migrate:supplier-requests` (part of `migrate:all`) before the build that ships `SupplierRequest`.
+- Run `npm run migrate:supplier-requests` (part of `migrate:all`) before the build that ships `SupplierRequest`; it is idempotent and also adds the `note` column to an existing table.
+- A draft footprint with a received, undecided supplier answer can't be deleted (409) until the answer is accepted or rejected; a decided request goes with its study.
 - `SUPPLIER_REQUEST_MAIL` stays unset or `sink` until real supplier emails are approved; `live` sends through Mailgun.
 - `FRONTEND_URL` must be set: supplier links are `${FRONTEND_URL}/supplier/<token>`.

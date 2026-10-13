@@ -256,7 +256,7 @@ test("accept makes a supplier factor and puts the figure on the draft's line", a
 });
 
 test("resend issues a new link and the old one stops working; expiry is derived", async () => {
-  const res = await ask();
+  const res = await ask({ note: "Please send the 2024 figures." });
   const id = res.json.request.supplier_request_id;
   created.push(id);
   const oldToken = tokenOf(res.json.link);
@@ -267,6 +267,9 @@ test("resend issues a new link and the old one stops working; expiry is derived"
   assert.equal((await call("GET", `/public/supplier-requests/${oldToken}`)).status, 404);
   assert.equal((await call("GET", `/public/supplier-requests/${tokenOf(re.json.link)}`)).status, 200);
 
+  // The resent message keeps the manager's note.
+  assert.match(re.json.request.message, /Please send the 2024 figures/);
+
   await withDb((db) => db.query("UPDATE supplier_request SET token_expires_at = now() - interval '1 day' WHERE supplier_request_id = $1", [id]));
   assert.equal((await call("GET", `/public/supplier-requests/${tokenOf(re.json.link)}`)).status, 410);
   assert.equal((await call("GET", `/pcf/supplier-requests/${id}`, "manager")).json.request.status, "expired");
@@ -275,4 +278,25 @@ test("resend issues a new link and the old one stops working; expiry is derived"
   const del = await call("DELETE", `/pcf/supplier-requests/${id}`, "manager");
   assert.equal(del.status, 200);
   assert.equal((await call("GET", `/pcf/supplier-requests/${id}`, "manager")).status, 404);
+});
+
+test("an answered request's link still runs out, and a draft with an unreviewed answer can't be deleted", async () => {
+  const res = await ask();
+  const id = res.json.request.supplier_request_id;
+  created.push(id);
+  const token = tokenOf(res.json.link);
+  const sent = await call("POST", `/public/supplier-requests/${token}/submit`, null, { value_kgco2e: 7.9, boundary: "cradle_to_gate" });
+  assert.equal(sent.status, 200, JSON.stringify(sent.json));
+
+  const del = await call("DELETE", `/pcf/studies/${study}`, "manager");
+  assert.equal(del.status, 409);
+  assert.match(del.json.message, /supplier answer/);
+
+  await withDb((db) => db.query("UPDATE supplier_request SET token_expires_at = now() - interval '1 day' WHERE supplier_request_id = $1", [id]));
+  assert.equal((await call("GET", `/public/supplier-requests/${token}`)).status, 410);
+  assert.equal((await call("POST", `/public/supplier-requests/${token}/submit`, null, { value_kgco2e: 8, boundary: "cradle_to_gate" })).status, 410);
+  assert.equal((await call("GET", `/pcf/supplier-requests/${id}`, "manager")).json.request.status, "received");
+
+  const rej = await call("POST", `/pcf/supplier-requests/${id}/reject`, "manager", { comment: "Not needed" });
+  assert.equal(rej.status, 200, JSON.stringify(rej.json));
 });

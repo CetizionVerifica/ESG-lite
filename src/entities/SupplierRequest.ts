@@ -60,6 +60,10 @@ export class SupplierRequest {
   @Column({ type: "date", nullable: true })
   due_date!: string | null;
 
+  // The manager's own words in the message, kept so a resend says the same.
+  @Column({ type: "text", nullable: true })
+  note!: string | null;
+
   // The exact email the manager approved, as sent (or sunk, see
   // services/supplierRequestMail.ts).
   @Column()
