@@ -10,7 +10,7 @@ import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
 import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
 import { getConversionFactor, unitsMatchExact } from "../services/emissionWrite/units";
-import { ContextCache, CheckCache, prepareEntry, insertEntry } from "../services/emissionWrite";
+import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage } from "../services/emissionWrite";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
@@ -3083,6 +3083,32 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (emission.status === EmissionStatus.APPROVED && activity_data !== undefined && (!activity_data.emission_category || !nextUnit)) {
       return res.status(400).json({ message: "An approved entry must keep its emission category and unit" });
     }
+    // A new date must not move the entry into a period filed the other way
+    // (monthly vs yearly): the same checks as a contributor's save.
+    if (dateChanged) {
+      const newDate = new Date(date_of_reporting);
+      const period = emission.reporting_period === "yearly" ? "yearly" : "monthly";
+      const periodError = validatePeriodFields({
+        category_id: emission.category.category_id,
+        reporting_period: period,
+        year_type: emission.year_type,
+        date_of_reporting: newDate,
+      });
+      if (periodError) {
+        return res.status(400).json({ message: periodError });
+      }
+      const conflict = await findModeLockConflict(repo, {
+        site_id: emission.site.site_id,
+        category_id: emission.category.category_id,
+        reporting_period: period,
+        year_type: period === "yearly" ? emission.year_type : null,
+        date_of_reporting: newDate,
+        exclude_pk_id: emission.pk_id,
+      });
+      if (conflict) {
+        return res.status(409).json({ message: modeLockMessage(conflict, period), mode_lock: true, conflict });
+      }
+    }
     const oldTotal = emission.total_emission;
 
     // Apply the new date first: the factor year follows the reporting date.
@@ -3149,6 +3175,12 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
             activity_data.activity_value = String(activityValue);
           } else {
           activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
+          }
+
+          // New values without an amount above 0 would keep the old total next to them.
+          // (A date- or unit-only edit of a stored row keeps its old behaviour.)
+          if (activityDataInput !== undefined && !(activityValue > 0)) {
+            return res.status(400).json({ message: "Enter an amount greater than 0. Nothing was changed." });
           }
 
           if (activityValue > 0) {
