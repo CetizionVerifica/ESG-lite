@@ -35,6 +35,20 @@ test("approve and reject write an audit row, FERA twin included", async () => {
   }
 });
 
+test("the history API returns the reason given for a review", async () => {
+  try {
+    assert.equal((await call("PUT", "/user/emissions/2/approve", "manager", { comment: "Checked against the bill" })).status, 200);
+    const r = await call("GET", "/user/audit-logs?entity_type=emission&entity_id=2", "manager");
+    assert.equal(r.status, 200);
+    const [entry] = r.json;
+    assert.equal(entry.action, "approve");
+    assert.equal(entry.reason, "Checked against the bill");
+  } finally {
+    await q("UPDATE emission SET status='pending', reviewed_by=NULL, reviewed_at=NULL, review_comment=NULL WHERE pk_id IN (2, 5)");
+    await clearAudit("emission", [2, 5]);
+  }
+});
+
 test("a refused review writes no audit row", async () => {
   assert.equal((await call("PUT", "/user/emissions/1/approve", "manager", {})).status, 400); // already approved
   assert.equal((await auditRows("emission", 1)).length, 0);

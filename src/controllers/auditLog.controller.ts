@@ -39,6 +39,8 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
       entity_id: log.entity_id,
       action: log.action,
       changed_fields: log.changed_fields,
+      // The reason a reviewer or editor gave (reject comment, manager-edit reason); History shows it.
+      reason: log.reason ?? null,
       changed_by: log.changed_by
         ? {
             user_id: log.changed_by.user_id,
