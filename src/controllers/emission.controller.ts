@@ -20,7 +20,7 @@ import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeade
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
-import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
+import { validatePeriodFields, findModeLockConflict, isValidPeriodEnd, modeLockMessage } from "../services/reportingPeriod";
 import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
 import { getSelectColumns, pickActivityValue } from "../services/activityValue";
@@ -387,18 +387,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       date_of_reporting: new Date(date_of_reporting),
     });
     if (modeConflict) {
-      let conflictMessage: string;
-      if (effectivePeriod === "yearly" && modeConflict.conflicting_period === "monthly") {
-        conflictMessage = `This category already has ${modeConflict.conflicting_rows} monthly entr${modeConflict.conflicting_rows === 1 ? "y" : "ies"} in ${modeConflict.window.start} – ${modeConflict.window.end}. Delete them first, or continue entering monthly.`;
-      } else if (effectivePeriod === "yearly") {
-        // Overlapping yearly batch of the other calendar (CY vs FY): their
-        // windows share up to nine months, so both existing double counts.
-        conflictMessage = `This year overlaps an existing ${modeConflict.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${modeConflict.conflicting_year_type} batch first, or file this data under ${modeConflict.conflicting_year_type} too.`;
-      } else {
-        conflictMessage = `This category already has a yearly batch covering ${modeConflict.window.start} – ${modeConflict.window.end}. Delete the yearly data first, or file this entry under a different period.`;
-      }
       return res.status(409).json({
-        message: conflictMessage,
+        message: modeLockMessage(effectivePeriod, modeConflict),
         mode_lock: true,
         conflict: modeConflict,
       });
@@ -3083,6 +3073,30 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (emission.status === EmissionStatus.APPROVED && activity_data !== undefined && (!activity_data.emission_category || !nextUnit)) {
       return res.status(400).json({ message: "An approved entry must keep its emission category and unit" });
     }
+    // A new date must not move the entry into a period filed the other way
+    // (monthly vs yearly): the same mode lock as a contributor's save.
+    if (dateChanged) {
+      const newDate = new Date(date_of_reporting);
+      const period = emission.reporting_period === "yearly" ? "yearly" : "monthly";
+      if (period === "yearly" && !(emission.year_type && isValidPeriodEnd(emission.year_type, newDate))) {
+        return res.status(400).json({
+          message: emission.year_type === "FY"
+            ? "A yearly FY entry's date must be its period end, 31 March."
+            : "A yearly CY entry's date must be its period end, 31 December.",
+        });
+      }
+      const conflict = await findModeLockConflict(repo, {
+        site_id: emission.site.site_id,
+        category_id: emission.category.category_id,
+        reporting_period: period,
+        year_type: period === "yearly" ? emission.year_type : null,
+        date_of_reporting: newDate,
+        exclude_pk_id: emission.pk_id,
+      });
+      if (conflict) {
+        return res.status(409).json({ message: modeLockMessage(period, conflict), mode_lock: true, conflict });
+      }
+    }
     const oldTotal = emission.total_emission;
 
     // Apply the new date first: the factor year follows the reporting date.
@@ -3151,20 +3165,23 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
           activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
           }
 
-          if (activityValue > 0) {
-            const unitsMatch = unitsMatchExact(emissionFactor.denominator_unit, emission.activity_data_unit);
-            if (unitsMatch) {
-              emission.total_emission = Math.round((activityValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+          // Saving would keep the old total next to an empty, zero or negative amount.
+          if (!(activityValue > 0)) {
+            return res.status(400).json({ message: "Enter an amount greater than 0. Nothing was changed." });
+          }
+
+          const unitsMatch = unitsMatchExact(emissionFactor.denominator_unit, emission.activity_data_unit);
+          if (unitsMatch) {
+            emission.total_emission = Math.round((activityValue * emissionFactor.factor_value) / 1000 * 100) / 100;
+          } else {
+            const conversionFactor = getConversionFactor(emission.activity_data_unit, emissionFactor.denominator_unit);
+            if (conversionFactor) {
+              const convertedValue = activityValue * conversionFactor;
+              emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
             } else {
-              const conversionFactor = getConversionFactor(emission.activity_data_unit, emissionFactor.denominator_unit);
-              if (conversionFactor) {
-                const convertedValue = activityValue * conversionFactor;
-                emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
-              } else {
-                return res.status(400).json({
-                  message: `Cannot convert unit "${emission.activity_data_unit}" to expected unit "${emissionFactor.denominator_unit}"`,
-                });
-              }
+              return res.status(400).json({
+                message: `Cannot convert unit "${emission.activity_data_unit}" to expected unit "${emissionFactor.denominator_unit}"`,
+              });
             }
           }
         } else {

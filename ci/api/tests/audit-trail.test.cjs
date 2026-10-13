@@ -279,6 +279,60 @@ test("a date-only manager edit of a row without category or unit keeps its total
   }
 });
 
+test("a manager edit with an empty, zero or negative amount is refused and keeps the entry as it was", async () => {
+  const [before] = await q("SELECT activity_data, total_emission, activity_data_unit, emission_factor_snapshot FROM emission WHERE pk_id=1");
+  await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (901, 'Diesel', 2.68, 'litre', 2024, 1, 1)");
+  await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id=1");
+  try {
+    for (const amount of ["", 0, "0", -50]) {
+      const r = await call("PUT", "/user/emissions/manager-edit/1", "manager", {
+        activity_data: { activity_value: amount, emission_category: "Diesel" }, reason: "Meter re-read",
+      });
+      assert.equal(r.status, 400, `amount ${JSON.stringify(amount)}: ${JSON.stringify(r.json).slice(0, 400)}`);
+      assert.match(r.json.message, /greater than 0/);
+    }
+    const [row] = await q("SELECT activity_data, total_emission FROM emission WHERE pk_id=1");
+    assert.equal(Number(row.total_emission), Number(before.total_emission));
+    assert.deepEqual(row.activity_data, before.activity_data);
+    assert.equal((await auditRows("emission", 1)).length, 0);
+  } finally {
+    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4 WHERE pk_id=1",
+      [before.activity_data, before.total_emission, before.activity_data_unit, before.emission_factor_snapshot]);
+    await q("DELETE FROM emission_factors WHERE emission_factor_id = 901");
+    await clearAudit("emission", [1]);
+  }
+});
+
+test("a manager edit can't move an entry into a period filed the other way (mode lock)", async () => {
+  // Site 1, category 2: row 2 is monthly (Sep 2025), row 13 is a yearly CY 2024 batch.
+  const before = await q("SELECT pk_id, date_of_reporting FROM emission WHERE pk_id IN (2, 13) ORDER BY pk_id");
+  try {
+    const intoYearly = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong year" });
+    assert.equal(intoYearly.status, 409);
+    assert.equal(intoYearly.json.mode_lock, true);
+    assert.match(intoYearly.json.message, /yearly batch covering 2024-01-01 – 2024-12-31/);
+
+    const midYear = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong date" });
+    assert.equal(midYear.status, 400);
+    assert.match(midYear.json.message, /31 December/);
+
+    const overMonthly = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2025-12-31", reason: "Wrong year" });
+    assert.equal(overMonthly.status, 409);
+    assert.match(overMonthly.json.message, /monthly entr/);
+
+    const rows = await q("SELECT pk_id, date_of_reporting FROM emission WHERE pk_id IN (2, 13) ORDER BY pk_id");
+    assert.deepEqual(rows.map((r) => new Date(r.date_of_reporting).toISOString()), before.map((b) => new Date(b.date_of_reporting).toISOString()));
+    assert.equal((await auditRows("emission", 2)).length + (await auditRows("emission", 13)).length, 0);
+
+    // Another month that no yearly batch covers still saves.
+    const ok = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "2025-08-31", reason: "Wrong month" });
+    assert.equal(ok.status, 200);
+  } finally {
+    for (const b of before) await q("UPDATE emission SET date_of_reporting=$2 WHERE pk_id=$1", [b.pk_id, b.date_of_reporting]);
+    await clearAudit("emission", [2, 13]);
+  }
+});
+
 test("legacy Excel import computes the total from activity x factor, not the file's calculatedEmission", async () => {
   const XLSX = require("xlsx");
   const sheet = XLSX.utils.json_to_sheet([
