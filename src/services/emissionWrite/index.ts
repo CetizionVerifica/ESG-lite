@@ -20,7 +20,7 @@ import { ImportError, rowIssueSeverity, type RowIssueCode } from "../../imports/
 import type { ActivityMatch, ImportRow, PlannedRow, RowIssue, StrippedTotal } from "../../imports/contracts";
 import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../../imports/writer";
 import { ContextCache, type LoadedContext } from "./context";
-import { CheckCache, findDuplicate, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
+import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
 import { computeTotal, factorSnapshot, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
@@ -320,6 +320,7 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     const first = seenIdentity.get(identity);
     if (first) issues.push(issue("DUPLICATE_IN_PLAN", `Same site, category, period and activity as row ${first}.`));
     else seenIdentity.set(identity, row.row_ref);
+    if (isLowConfidenceAiMatch(row.meta)) issues.push(issue("LOW_CONFIDENCE_MATCH", "Matched by the AI below 80 %; the uploader confirmed it."));
 
     const all = [...issues, ...errors];
     if (errors.length) {
