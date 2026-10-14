@@ -77,6 +77,12 @@ export class User {
   @Column({ type: "varchar", length: 10, default: "system" })
   appearance!: UserAppearance;
 
+  // An internal (PlanetPulse/Cetizion team) account. Only internal accounts may
+  // hold sites of several clients; a client's people stay within one client.
+  // Set by a Superadmin on the Users page.
+  @Column({ type: "boolean", default: false })
+  is_internal!: boolean;
+
   // Set on every successful login; shown as "Last active" on the Users page
   // (redesign P20). select: false so ordinary user reads (login included)
   // keep working on a database where migrate:user-last-login has not run yet;

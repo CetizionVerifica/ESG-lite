@@ -26,6 +26,7 @@
     "migrate:oauth": "ts-node src/scripts/createOauthTables.ts",
     "migrate:upload-notification-index": "ts-node src/scripts/addUploadNotificationIndex.ts",
     "migrate:supplier-requests": "ts-node src/scripts/createSupplierRequestTable.ts",
+    "migrate:user-internal": "ts-node src/scripts/addUserInternalColumn.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"

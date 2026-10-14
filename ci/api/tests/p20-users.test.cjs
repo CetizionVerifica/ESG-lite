@@ -151,6 +151,44 @@ test("a person's sites must all belong to one client, on create and on update", 
   }
 });
 
+test("an internal account may hold several clients' sites, and the client's admin doesn't see it", async () => {
+  const email = "p20-internal@example.invalid";
+  await cleanup([email]);
+  try {
+    assert.equal((await call("POST", "/admin/users", "superadmin", { email, password: "Internal-1", role: "Manager", site_ids: [1, 3], is_internal: "yes" })).status, 400);
+
+    const created = await call("POST", "/admin/users", "superadmin", { email, password: "Internal-1", role: "Manager", site_ids: [1, 3], is_internal: true });
+    assert.equal(created.status, 201, JSON.stringify(created.json));
+    const id = created.json.user.user_id;
+    assert.equal(created.json.user.is_internal, true);
+    assert.deepEqual(created.json.user.sites.map((s) => s.site_id).sort(), [1, 3]);
+    assert.equal((await call("PATCH", `/admin/users/${id}`, "superadmin", { site_ids: [2, 3] })).status, 200);
+    const listed = (await call("GET", "/admin/users", "superadmin")).json.find((u) => u.user_id === id);
+    assert.equal(listed.is_internal, true);
+
+    // Company 1's admin neither lists nor manages the team's account.
+    const clientList = await call("GET", "/company-admin/users", "admin");
+    assert.equal(clientList.status, 200);
+    assert.ok(!clientList.json.some((u) => u.user_id === id));
+    assert.equal((await call("PATCH", `/company-admin/users/${id}`, "admin", { name: "Renamed" })).status, 404);
+    assert.equal((await call("DELETE", `/company-admin/users/${id}`, "admin")).status, 404);
+
+    // Back to a client account only once the other client's site is gone.
+    const off = await call("PATCH", `/admin/users/${id}`, "superadmin", { is_internal: false });
+    assert.equal(off.status, 400);
+    assert.match(off.json.message, /Remove the other clients' sites/);
+    const offWithSites = await call("PATCH", `/admin/users/${id}`, "superadmin", { is_internal: false, site_ids: [2] });
+    assert.equal(offWithSites.status, 200);
+    assert.equal(offWithSites.json.user.is_internal, false);
+
+    // An older mixed client account still takes edits that don't touch its sites.
+    await withDb((db) => db.query(`INSERT INTO user_sites (user_id, site_id) VALUES ($1, 3)`, [id]));
+    assert.equal((await call("PATCH", `/admin/users/${id}`, "superadmin", { last_name: "Older" })).status, 200);
+  } finally {
+    await cleanup([email]);
+  }
+});
+
 test("create still requires email and role", async () => {
   assert.equal((await call("POST", "/admin/users", "superadmin", { role: "User" })).status, 400);
   assert.equal((await call("POST", "/admin/users", "superadmin", { email: "x@example.invalid" })).status, 400);
