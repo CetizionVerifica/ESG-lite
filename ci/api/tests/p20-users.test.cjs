@@ -140,6 +140,12 @@ test("a person's sites must all belong to one client, on create and on update", 
 
     // Another client's sites on their own are fine.
     assert.equal((await call("PATCH", `/admin/users/${id}`, "superadmin", { site_ids: [3] })).status, 200);
+
+    // The older register endpoint applies the same rule.
+    const registered = await call("POST", "/auth/register", "superadmin", { email: mixedEmail, password: "Mixed-pass-1", role: "Manager", siteIds: [2, 3] });
+    assert.equal(registered.status, 400);
+    assert.match(registered.json.message, /one client/);
+    assert.equal((await withDb((db) => db.query(`SELECT 1 FROM "user" WHERE email = $1`, [mixedEmail]))).rows.length, 0);
   } finally {
     await cleanup([mixedEmail, email]);
   }

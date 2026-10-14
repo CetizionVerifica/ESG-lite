@@ -7,6 +7,7 @@ import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { UserRole } from "../types/type";
+import { mixedCompaniesError } from "../utils/companyScope";
 
 const repo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -109,18 +110,6 @@ const profileFields = (body: any): { error?: string; fields: Partial<User> } => 
     return { error: "category_ids must be an array", fields };
   }
   return { fields };
-};
-
-/**
- * A person works for one client, so their sites must all belong to one
- * company: a mix would show them (and let them enter) another client's data.
- * Sites must be loaded with their company. Returns the 400 message, or null.
- */
-export const mixedCompaniesError = (sites: Site[]): string | null => {
-  const names = new Map<number, string>();
-  for (const site of sites) if (site.company) names.set(site.company.company_id, site.company.name);
-  if (names.size <= 1) return null;
-  return `A person's sites must all belong to one client. These sites belong to ${names.size} clients: ${[...names.values()].join(", ")}.`;
 };
 
 /** Collect all unique categories from a list of sites (loaded with categories relation). */
