@@ -52,6 +52,7 @@ test("attention=1 lists the low-confidence, flagged and edited rows of a batch; 
   assert.equal(all.status, 200, JSON.stringify(all.json));
   assert.deepEqual(ids(all), [971, 972, 973, 974, 975, 977, 979]);
   assert.equal(all.json.summary.attention_count, 3);
+  assert.equal(all.json.summary.attention, 3, "the spec's name, read by ESG-lite_FE #176");
   assert.equal(all.json.summary.pending_count, 7);
 
   const some = await call("GET", "/user/emissions?page=1&limit=50&batchId=xi5-batch&attention=1", "manager");
@@ -66,6 +67,7 @@ test("attention=1 lists the low-confidence, flagged and edited rows of a batch; 
   const noBatch = await call("GET", "/user/emissions?page=1&limit=5&attention=1&siteIds=1", "manager");
   assert.equal(noBatch.status, 200);
   assert.equal(noBatch.json.summary.attention_count, undefined);
+  assert.equal(noBatch.json.summary.attention, undefined);
   assert.ok(noBatch.json.total > 3);
   // Plain (unpaged) shape still works with the flag.
   const plain = await call("GET", "/user/emissions?batchId=xi5-batch&attention=1", "manager");
@@ -147,6 +149,42 @@ test("review fixes: the uploader exception is for bulk uploads only, and the aud
   assert.equal(sa.status, 200, JSON.stringify(sa.json));
   const [row] = await q(`SELECT reason, changed_fields FROM audit_log WHERE entity_type = 'emission' AND entity_id = 980 AND action = 'approve' ORDER BY id DESC LIMIT 1`);
   assert.deepEqual([row.reason, row.changed_fields.approved_by_uploader], [null, undefined]);
+});
+
+test("commit copies a smart-import row's meta (source, confidence) onto extra_data.import for Review rows' 'Matched by'", async () => {
+  await withDb((db) => db.query(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name) VALUES (941, 1, 1, 2017, 2680.0000, 'litre', 'CI', 'Diesel', 'Diesel')`));
+  let batch = null;
+  try {
+    const base = { site_id: 1, category_id: 1, activity_name: "Diesel", activity_value: 100, activity_unit: "litre" };
+    const created = await call("POST", "/imports/plans", "manager", {
+      source_name: "meta.xlsx",
+      channel: "bulk_upload",
+      rows: [
+        { ...base, row_ref: "Fuel!B2", period: { kind: "monthly", date: "2018-01-01" }, meta: { source: "llm", confidence: 0.7 } },
+        { ...base, row_ref: "Fuel!B3", period: { kind: "monthly", date: "2018-02-01" } },
+      ],
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.json));
+    const patched = await call("PATCH", `/imports/plans/${created.json.plan_id}`, "manager", { version: created.json.version, changes: [{ row_ref: "Fuel!B2", set: { activity_value: 110 } }] });
+    assert.equal(patched.status, 200, JSON.stringify(patched.json));
+    const res = await call("POST", `/imports/plans/${created.json.plan_id}/commit`, "manager", { version: patched.json.version, skip_rows_with_issues: false, idempotency_key: "xi5-meta-" + created.json.plan_id });
+    assert.equal(res.status, 200, JSON.stringify(res.json));
+    batch = res.json.committed.upload_batch_id;
+    const rows = await q(`SELECT extra_data FROM emission WHERE upload_batch_id = $1 ORDER BY extra_data -> 'import' ->> 'row_ref'`, [batch]);
+    assert.deepEqual(rows.map((r) => r.extra_data.import), [
+      { channel: "bulk_upload", row_ref: "Fuel!B2", meta: { source: "llm", confidence: 0.7 } },
+      { channel: "bulk_upload", row_ref: "Fuel!B3" },
+    ], "edited stays on the plan row; rows without meta get none");
+  } finally {
+    await withDb(async (db) => {
+      if (batch) {
+        await db.query(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id IN (SELECT pk_id FROM emission WHERE upload_batch_id = $1)`, [batch]);
+        await db.query(`DELETE FROM notification WHERE meta ->> 'upload_batch_id' = $1`, [batch]);
+        await db.query(`DELETE FROM emission WHERE upload_batch_id = $1`, [batch]);
+      }
+      await db.query(`DELETE FROM emission_factors WHERE emission_factor_id = 941`);
+    });
+  }
 });
 
 test("PATCH /imports/plans marks an edited smart-import row (meta.edited) so Review rows can flag it", async () => {

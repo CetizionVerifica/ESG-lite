@@ -277,7 +277,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
           approved_count: parseInt(summaryRow?.approved_count) || 0,
           rejected_count: parseInt(summaryRow?.rejected_count) || 0,
           // Rows of the batch that need attention (XI5); only with batchId.
-          ...(batchId ? { attention_count: parseInt(summaryRow?.attention_count) || 0 } : {}),
+          // `attention` is the spec's and the FE's name; `attention_count` stays for older callers.
+          ...(batchId ? { attention: parseInt(summaryRow?.attention_count) || 0, attention_count: parseInt(summaryRow?.attention_count) || 0 } : {}),
         },
       });
     }
