@@ -1,7 +1,8 @@
 import { Response } from "express";
 import { ZodSchema } from "zod";
 import { AuthRequest } from "../../middlewares/auth.middleware";
-import { AppendRowsBodySchema, CommitPlanBodySchema, CreatePlanBodySchema, PatchPlanBodySchema } from "../contracts";
+import { AppendRowsBodySchema, CommitPlanBodySchema, PatchPlanBodySchema } from "../contracts";
+import { CreatePlanWithMappingBodySchema } from "../mapping";
 import { importError, isImportError } from "../errors";
 import { IMPORT_LIMITS } from "../limits";
 import * as plans from "./service";
@@ -32,7 +33,7 @@ export const createPlan = async (req: AuthRequest, res: Response) => {
   // reply is the documented 413, not a 400 from the array's max().
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
   if (rows.length > IMPORT_LIMITS.ROWS_PER_REQUEST) return importError(res, "IMPORT_TOO_MANY_ROWS", { max_per_request: IMPORT_LIMITS.ROWS_PER_REQUEST, sent: rows.length });
-  const body = parse(CreatePlanBodySchema, req.body, res);
+  const body = parse(CreatePlanWithMappingBodySchema, req.body, res);
   if (!body) return;
   try {
     return res.status(201).json(await plans.createPlan(user(req), body, plans.findTotalLikeRows(rows)));
