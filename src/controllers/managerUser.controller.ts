@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { In } from "typeorm";
+import { Brackets, In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Site } from "../entities/Site";
@@ -40,24 +40,28 @@ export const getManagerUsers = async (req: AuthRequest, res: Response) => {
 
     const managerSiteIds = managerSites.map((s) => s.site_id);
 
-    // Contributors assigned to any of the manager's sites (via single site or multi-site)
-    const allUsers = await userRepo.find({
-      where: { role: UserRole.USER },
-      relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
-      order: { user_id: "ASC" },
-    });
-
-    // Filter to users who share at least one site with the manager
-    const filteredUsers = allUsers.filter((u) => {
-      // Exclude the manager themselves
-      if (u.user_id === managerId) return false;
-
-      const userSiteIds = new Set<number>();
-      if (u.site?.site_id) userSiteIds.add(u.site.site_id);
-      for (const s of u.sites || []) userSiteIds.add(s.site_id);
-
-      return managerSiteIds.some((id) => userSiteIds.has(id));
-    });
+    // Contributors on any of the manager's sites (via single site or multi-site),
+    // found in the database rather than by loading every contributor.
+    const rows = await userRepo
+      .createQueryBuilder("user")
+      .leftJoin("user.site", "site")
+      .leftJoin("user.sites", "msite")
+      .where("user.role = :role", { role: UserRole.USER })
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where("site.site_id IN (:...ids)", { ids: managerSiteIds }).orWhere("msite.site_id IN (:...ids)", { ids: managerSiteIds });
+        }),
+      )
+      .select("user.user_id", "user_id")
+      .distinct(true)
+      .getRawMany();
+    const filteredUsers = rows.length
+      ? await userRepo.find({
+          where: { user_id: In(rows.map((r) => r.user_id)) },
+          relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
+          order: { user_id: "ASC" },
+        })
+      : [];
 
     // Build response with site categories info
     const result = filteredUsers.map((u) => {
@@ -121,9 +125,6 @@ export const getUserCategories = async (req: AuthRequest, res: Response) => {
     if (!targetUser) {
       return res.status(404).json({ message: "User not found" });
     }
-    if (targetUser.role !== UserRole.USER) {
-      return res.status(403).json({ message: NOT_TEAM });
-    }
 
     // Verify user belongs to one of the manager's sites
     const userSiteIds = new Set<number>();
@@ -133,6 +134,9 @@ export const getUserCategories = async (req: AuthRequest, res: Response) => {
     const sharedSiteIds = [...userSiteIds].filter((id) => managerSiteIds.has(id));
     if (sharedSiteIds.length === 0) {
       return res.status(403).json({ message: "User is not on your sites" });
+    }
+    if (targetUser.role !== UserRole.USER) {
+      return res.status(403).json({ message: NOT_TEAM });
     }
 
     const userCategories = targetUser.categories || [];
@@ -189,9 +193,6 @@ export const updateUserCategories = async (req: AuthRequest, res: Response) => {
     if (!targetUser) {
       return res.status(404).json({ message: "User not found" });
     }
-    if (targetUser.role !== UserRole.USER) {
-      return res.status(403).json({ message: NOT_TEAM });
-    }
 
     // Verify user belongs to one of the manager's sites
     const userSiteIds = new Set<number>();
@@ -201,6 +202,9 @@ export const updateUserCategories = async (req: AuthRequest, res: Response) => {
     const sharedSiteIds = [...userSiteIds].filter((id) => managerSiteIds.has(id));
     if (sharedSiteIds.length === 0) {
       return res.status(403).json({ message: "User is not on your sites" });
+    }
+    if (targetUser.role !== UserRole.USER) {
+      return res.status(403).json({ message: NOT_TEAM });
     }
 
     // Validate that all category_ids belong to the user's sites

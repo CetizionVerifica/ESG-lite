@@ -10,7 +10,7 @@ const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).ro
 test("the Team list holds only contributors on the manager's sites", async () => {
   // Fixture: manager 2 has sites 1 and 2; on site 1 are User 1, Admin 3 and User 7.
   // Give Manager 6 (site 3) site 1 as well, so a fellow manager shares a site too.
-  await q("INSERT INTO user_sites (user_id, site_id) VALUES (6, 1)");
+  await q("INSERT INTO user_sites (user_id, site_id) VALUES (6, 1) ON CONFLICT DO NOTHING");
   try {
     const res = await call("GET", "/manager/users", "manager");
     assert.equal(res.status, 200);
@@ -22,7 +22,7 @@ test("the Team list holds only contributors on the manager's sites", async () =>
 });
 
 test("a manager can't read or change an Admin's or another manager's category access", async () => {
-  await q("INSERT INTO user_sites (user_id, site_id) VALUES (6, 1)");
+  await q("INSERT INTO user_sites (user_id, site_id) VALUES (6, 1) ON CONFLICT DO NOTHING");
   const before = await q("SELECT user_id, category_id FROM user_categories WHERE user_id IN (3, 6) ORDER BY 1, 2");
   try {
     for (const id of [3, 6]) {
@@ -47,8 +47,12 @@ test("a manager still reads and changes a contributor's category access", async 
     const write = await call("PUT", "/manager/users/7/categories", "manager", { category_ids: [1] });
     assert.equal(write.status, 200, JSON.stringify(write.json));
     assert.deepEqual((await q("SELECT category_id FROM user_categories WHERE user_id = 7")).map((r) => r.category_id), [1]);
-    // Someone not on the manager's sites stays out of reach (User 4, site 3).
+    // Someone not on the manager's sites stays out of reach (User 4, site 3),
+    // and a manager elsewhere gets the same answer, so their role isn't revealed.
     assert.equal((await call("GET", "/manager/users/4/categories", "manager")).status, 403);
+    const elsewhere = await call("GET", "/manager/users/6/categories", "manager");
+    assert.equal(elsewhere.status, 403);
+    assert.match(elsewhere.json.message, /not on your sites/);
   } finally {
     await q("DELETE FROM user_categories WHERE user_id = 7");
     for (const r of before) await q("INSERT INTO user_categories (user_id, category_id) VALUES (7, $1)", [r.category_id]);
