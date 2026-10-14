@@ -27,6 +27,8 @@ const INDEXES = [
   `CREATE INDEX IF NOT EXISTS "IDX_065302344a2474ed1380dee1b0" ON "import_plan" ("company_id")`,
   `CREATE INDEX IF NOT EXISTS "IDX_87cdd8b12f65fbaa358e068c75" ON "import_plan" ("created_by")`,
   `CREATE INDEX IF NOT EXISTS "IDX_d6becef7eaaa7c0f68021593e8" ON "import_plan" ("status")`,
+  // XI5: the Review rows attention filter and the uploader rule join on it.
+  `CREATE INDEX IF NOT EXISTS "IDX_1980e1c19b18e5d90431b69500" ON "import_plan" ("upload_batch_id")`,
   `CREATE INDEX IF NOT EXISTS "IDX_3347f77eed3ad92e74b8b284c1" ON "import_plan_row" ("plan_id")`,
   `CREATE INDEX IF NOT EXISTS "IDX_2a9dd484ed3fb071bd83ad7110" ON "import_plan_match" ("plan_id")`,
 ];

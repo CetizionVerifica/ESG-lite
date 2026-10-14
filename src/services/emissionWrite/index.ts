@@ -413,6 +413,10 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     const entry = entries[i];
     if (!entry || !entry.factor) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: [row.row_ref] });
     const extra_data: Record<string, any> = { import: { channel: batch.channel, row_ref: row.row_ref } };
+    // Smart-import provenance for Review rows' "Matched by" (XI5): how the row
+    // was mapped and how sure the mapper was. Never the pre-commit edit flag,
+    // which the attention filter reads from the plan row.
+    if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
     const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit);
     inserted += 1;

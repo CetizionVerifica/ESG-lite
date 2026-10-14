@@ -67,6 +67,7 @@ export class ImportPlan {
   @Column({ type: "jsonb", default: [] })
   issues_summary!: any;
 
+  @Index()
   @Column({ type: "varchar", nullable: true })
   upload_batch_id!: string | null;
 
