@@ -156,7 +156,7 @@ test("row issue codes carry the contract's severity", () => {
   assert.equal(errors.ROW_ISSUE_CODES.FACTOR_FALLBACK_YEAR, "warning");
   assert.equal(errors.ROW_ISSUE_CODES.CLIENT_TOTAL_IGNORED, "warning");
   assert.equal(errors.ROW_ISSUE_CODES.DISTANCE_REQUIRED, "error");
-  assert.equal(errors.ROW_ISSUE_CODE_LIST.length, 17);
+  assert.equal(errors.ROW_ISSUE_CODE_LIST.length, 20); // 17 IM0 codes + 3 XI0 codes
   assert.equal(contracts.RowIssueCodeSchema.safeParse("NOT_A_CODE").success, false);
   assert.equal(contracts.RowIssueSchema.safeParse({ code: "UNKNOWN_ACTIVITY", severity: "error", message: "No match" }).success, true);
 });

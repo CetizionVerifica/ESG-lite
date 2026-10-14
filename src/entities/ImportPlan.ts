@@ -76,6 +76,12 @@ export class ImportPlan {
   @Column({ type: "jsonb", nullable: true })
   committed!: { upload_batch_id: string; inserted: number; fera_inserted: number; committed_at: string } | null;
 
+  // Smart import (XI0): the confirmed MappingProposal the rows were made
+  // from, for bulk_upload plans; XI3 learns a mapping profile from it on
+  // commit. NULL for plans from Claude or the API.
+  @Column({ type: "jsonb", nullable: true })
+  mapping!: any;
+
   @Column({ type: "timestamp" })
   expires_at!: Date;
 
