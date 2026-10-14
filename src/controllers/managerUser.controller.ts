@@ -5,6 +5,10 @@ import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { UserRole } from "../types/type";
+
+/** A manager's team is the contributors (role User) on their sites; Admins and other managers are not theirs to manage. */
+const NOT_TEAM = "You can only manage people with the User role on your sites.";
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -23,7 +27,7 @@ const getManagerSites = async (managerId: number): Promise<Site[]> => {
 
 /**
  * GET /manager/users
- * List all users on the manager's own sites.
+ * List the contributors (role User) on the manager's own sites.
  */
 export const getManagerUsers = async (req: AuthRequest, res: Response) => {
   try {
@@ -36,8 +40,9 @@ export const getManagerUsers = async (req: AuthRequest, res: Response) => {
 
     const managerSiteIds = managerSites.map((s) => s.site_id);
 
-    // Find users assigned to any of the manager's sites (via single site or multi-site)
+    // Contributors assigned to any of the manager's sites (via single site or multi-site)
     const allUsers = await userRepo.find({
+      where: { role: UserRole.USER },
       relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
       order: { user_id: "ASC" },
     });
@@ -116,6 +121,9 @@ export const getUserCategories = async (req: AuthRequest, res: Response) => {
     if (!targetUser) {
       return res.status(404).json({ message: "User not found" });
     }
+    if (targetUser.role !== UserRole.USER) {
+      return res.status(403).json({ message: NOT_TEAM });
+    }
 
     // Verify user belongs to one of the manager's sites
     const userSiteIds = new Set<number>();
@@ -180,6 +188,9 @@ export const updateUserCategories = async (req: AuthRequest, res: Response) => {
 
     if (!targetUser) {
       return res.status(404).json({ message: "User not found" });
+    }
+    if (targetUser.role !== UserRole.USER) {
+      return res.status(403).json({ message: NOT_TEAM });
     }
 
     // Verify user belongs to one of the manager's sites
