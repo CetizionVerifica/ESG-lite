@@ -261,6 +261,8 @@ export const createUser = async (req: Request, res: Response) => {
       password: hashedPassword,
       role,
       site: site_id ? { site_id } : undefined,
+      // Internal applies to Managers and Users only.
+      is_internal: !!profile.fields.is_internal && (role === UserRole.MANAGER || role === UserRole.USER),
       categories: await pickCategories(siteCategories, category_ids),
     });
 
@@ -311,7 +313,10 @@ export const updateUser = async (req: Request, res: Response) => {
       });
     }
     // Whether the person is internal once this save is applied.
-    const internal = profile.fields.is_internal ?? user.is_internal;
+    // Internal accounts are Managers or Users; another role clears it.
+    const nextRole = role || user.role;
+    const internal = (profile.fields.is_internal ?? user.is_internal) && (nextRole === UserRole.MANAGER || nextRole === UserRole.USER);
+    profile.fields.is_internal = internal;
 
     if (name !== undefined) {
       user.name = name?.trim() || null;
@@ -384,7 +389,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
     // Turning "internal" off for someone who keeps several clients' sites
     // (other edits of an older mixed account still save, as before).
-    if (user.is_internal && !internal && site_ids === undefined && site_id === undefined) {
+    if (user.is_internal && !internal && !Array.isArray(site_ids) && site_id === undefined) {
       const mixed = mixedCompaniesError(user.sites || []);
       if (mixed) {
         return res.status(400).json({ message: `${mixed} Remove the other clients' sites before making this a client account.` });

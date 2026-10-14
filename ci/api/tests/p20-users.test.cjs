@@ -177,6 +177,12 @@ test("an internal account may hold several clients' sites, and the client's admi
     const off = await call("PATCH", `/admin/users/${id}`, "superadmin", { is_internal: false });
     assert.equal(off.status, 400);
     assert.match(off.json.message, /Remove the other clients' sites/);
+    assert.equal((await call("PATCH", `/admin/users/${id}`, "superadmin", { is_internal: false, site_ids: null })).status, 400);
+    // Internal is for Managers and Users: an Admin is never internal.
+    const admin = await call("POST", "/admin/users", "superadmin", { email: "p20-internal-admin@example.invalid", password: "Internal-1", role: "Admin", site_id: 1, is_internal: true });
+    assert.equal(admin.status, 201);
+    assert.equal(admin.json.user.is_internal, false);
+    await cleanup(["p20-internal-admin@example.invalid"]);
     const offWithSites = await call("PATCH", `/admin/users/${id}`, "superadmin", { is_internal: false, site_ids: [2] });
     assert.equal(offWithSites.status, 200);
     assert.equal(offWithSites.json.user.is_internal, false);
