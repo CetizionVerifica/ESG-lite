@@ -113,8 +113,9 @@ export const ImportRowShape = z
     /**
      * Smart import provenance (XI0): how the row's mapping was found and how
      * sure the mapper was. Kept on import_plan_row.input for the "Needs
-     * attention" review filter (XI5) and for learning (XI3); the engine
-     * never reads it.
+     * attention" review filter (XI5) and for learning (XI3). The engine reads
+     * it only to raise the LOW_CONFIDENCE_MATCH warning (an "llm" match below
+     * 0.8); it never changes a factor, unit or total.
      */
     meta: ImportRowMetaSchema.optional(),
   })

@@ -165,6 +165,12 @@ test("commit copies a smart-import row's meta (source, confidence) onto extra_da
       ],
     });
     assert.equal(created.status, 201, JSON.stringify(created.json));
+    // Shyam 2026-10-14: a confirmed AI match below 0.8 stays a warning for the approver; the row is still ready.
+    const b2 = created.json.rows.find((r) => r.row_ref === "Fuel!B2");
+    const b3 = created.json.rows.find((r) => r.row_ref === "Fuel!B3");
+    assert.equal(b2.state, "ready");
+    assert.deepEqual(b2.issues.map((i) => [i.code, i.severity]), [["LOW_CONFIDENCE_MATCH", "warning"]]);
+    assert.deepEqual(b3.issues, []);
     const patched = await call("PATCH", `/imports/plans/${created.json.plan_id}`, "manager", { version: created.json.version, changes: [{ row_ref: "Fuel!B2", set: { activity_value: 110 } }] });
     assert.equal(patched.status, 200, JSON.stringify(patched.json));
     const res = await call("POST", `/imports/plans/${created.json.plan_id}/commit`, "manager", { version: patched.json.version, skip_rows_with_issues: false, idempotency_key: "xi5-meta-" + created.json.plan_id });
