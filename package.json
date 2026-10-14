@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node scripts/migrate-all.cjs && node dist/index.js",
+    "start:no-migrate": "node dist/index.js",
     "seed:superadmin": "ts-node src/seeds/seedSuperAdmin.ts",
     "seed:emissions": "ts-node src/seeds/seedEmissionsFromExcel.ts",
     "migrate:all": "node scripts/migrate-all.cjs",
