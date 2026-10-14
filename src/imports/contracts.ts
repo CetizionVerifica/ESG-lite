@@ -79,6 +79,17 @@ export const TOTAL_LIKE_KEYS = [
   "unit",
 ] as const;
 
+export const MappingSourceSchema = z.enum(["profile", "rules", "llm"]);
+export type MappingSource = z.infer<typeof MappingSourceSchema>;
+
+export const ImportRowMetaSchema = z
+  .object({
+    source: MappingSourceSchema,
+    confidence: z.number().min(0).max(1),
+  })
+  .strip();
+export type ImportRowMeta = z.infer<typeof ImportRowMetaSchema>;
+
 /** The row's fields without the value-or-fields rule; `ImportRowSchema` adds it. */
 export const ImportRowShape = z
   .object({
@@ -97,6 +108,13 @@ export const ImportRowShape = z
     fields: z.record(z.string().max(100), fieldValue).optional(),
     /** Stored in extra_data.notes. */
     notes: z.string().max(IMPORT_LIMITS.NOTES_MAX_CHARS).optional(),
+    /**
+     * Smart import provenance (XI0): how the row's mapping was found and how
+     * sure the mapper was. Kept on import_plan_row.input for the "Needs
+     * attention" review filter (XI5) and for learning (XI3); the engine
+     * never reads it.
+     */
+    meta: ImportRowMetaSchema.optional(),
   })
   .strip();
 
@@ -151,7 +169,7 @@ export const parseImportRows = (raw: unknown): ParsedImportRows => {
 // ---------------------------------------------------------------------------
 
 export const RowIssueCodeSchema = z.enum(ROW_ISSUE_CODE_LIST as [string, ...string[]]);
-export const RowIssueSeveritySchema = z.enum(["error", "warning"]);
+export const RowIssueSeveritySchema = z.enum(["error", "warning", "info"]);
 
 export const RowIssueSchema = z.object({
   code: RowIssueCodeSchema,
@@ -368,6 +386,12 @@ export const CreatePlanBodySchema = z.object({
   /** Required for a Superadmin; ignored for other roles (their own company). */
   company_id: positiveInt.optional(),
   rows: ImportRowsSchema,
+  /**
+   * Smart import (XI0): the confirmed mapping the rows were made from, kept
+   * on import_plan.mapping so XI3 can learn from it on commit. bulk_upload
+   * only; validated by MappingProposalSchema in ./mapping.
+   */
+  mapping: z.unknown().optional(),
 });
 export type CreatePlanBody = z.infer<typeof CreatePlanBodySchema>;
 
