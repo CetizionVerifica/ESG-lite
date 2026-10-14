@@ -52,3 +52,6 @@ Plan: `docs/excel-import/` (00-plan, 01-contracts, modules/XI0–XI6). Approved 
 - `limits.ts`: `MAPPING_*` (20 sheets, 15 sample rows, 200 distinct values, 8,000 prompt tokens, 1 model call per sheet, 10 propose calls per 10 minutes, confirm below 0.8, 300-char texts).
 - Entities: `Company.ai_import_enabled` (default false, toggled through `PUT /admin/companies/:id`, validated as boolean), `ImportPlan.mapping` (jsonb, nullable). `migrate:ai-import` (`src/scripts/addAiImportColumns.ts`, two `ADD COLUMN IF NOT EXISTS`). `plans/scope.ts` `isAiImportEnabled(companyId)` reads as off until the column exists.
 - Fixtures `ci/fixtures/xi0/*.json` are shared byte for byte with python_AI_service; both repos' tests pin their sha256, so change a fixture in both repos and update both pins. Tests `ci/unit/xi0-mapping.test.cjs` (im0's code count moved to 20).
+
+## Mapping memory (XI3, 2026-10-14)
+`src/imports/profiles/` (spec and as-built notes in its CLAUDE.md): table `import_mapping_profile` (`migrate:mapping-profiles`), `GET /imports/mapping-profiles`, `DELETE /imports/mapping-profiles/:id`, learning on `onBatchCommitted` for bulk_upload plans that carried a confirmed proposal. `src/imports/router.ts` gained one line; `src/index.ts` registers the listener next to IM4's.

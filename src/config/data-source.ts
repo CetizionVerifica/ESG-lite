@@ -27,6 +27,7 @@ import { PcfResult } from "../entities/PcfResult";
 import { SupplierRequest } from "../entities/SupplierRequest";
 import { McpToolCall } from "../entities/McpToolCall";
 import { ImportPlan, ImportPlanRow, ImportPlanMatch } from "../entities/ImportPlan";
+import { ImportMappingProfile } from "../entities/ImportMappingProfile";
 import { OauthClient } from "../entities/OauthClient";
 import { OauthGrant } from "../entities/OauthGrant";
 import { OauthCode } from "../entities/OauthCode";
@@ -67,6 +68,7 @@ const entities = [
     ImportPlan,
     ImportPlanRow,
     ImportPlanMatch,
+    ImportMappingProfile,
     OauthClient,
     OauthGrant,
     OauthCode,

@@ -14,7 +14,7 @@ export class AuditLog {
   id!: number;
 
   @Column()
-  entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping";
+  entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping" | "import_mapping_profile";
 
   @Column()
   entity_id!: number;
