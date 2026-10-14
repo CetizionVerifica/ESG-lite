@@ -11,6 +11,7 @@ const q = async (sql, params) => (await withDb((db) => db.query(sql, params))).r
 const ids = (res) => res.json.data.map((e) => e.pk_id).sort((a, b) => a - b);
 const PLAN_1 = "11111111-1111-4111-8111-000000000005";
 const PLAN_2 = "22222222-2222-4222-8222-000000000005";
+const PLAN_API = "33333333-3333-4333-8333-000000000005";
 const meta = (confidence, extra = {}) => JSON.stringify({ row_ref: "x", site_id: 1, category_id: 1, period: { kind: "monthly", date: "2025-05-01" }, activity_name: "Diesel", activity_value: 1, activity_unit: "litre", meta: { source: "llm", confidence, ...extra } });
 const noMeta = JSON.stringify({ row_ref: "x", site_id: 1, category_id: 1, period: { kind: "monthly", date: "2025-05-01" }, activity_name: "Diesel", activity_value: 1, activity_unit: "litre" });
 const emission = (id, batch, site, creator, ref) =>
@@ -19,7 +20,8 @@ const emission = (id, batch, site, creator, ref) =>
 test.before(async () => {
   await withDb(async (db) => {
     await db.query(`INSERT INTO import_plan (plan_id, company_id, created_by, channel, source_name, status, version, upload_batch_id, expires_at)
-                    VALUES ($1, 1, 2, 'bulk_upload', 'messy.xlsx', 'committed', 3, 'xi5-batch', now()), ($2, 2, 6, 'bulk_upload', 'other.xlsx', 'committed', 3, 'xi5-other', now())`, [PLAN_1, PLAN_2]);
+                    VALUES ($1, 1, 2, 'bulk_upload', 'messy.xlsx', 'committed', 3, 'xi5-batch', now()), ($2, 2, 6, 'bulk_upload', 'other.xlsx', 'committed', 3, 'xi5-other', now()),
+                           ($3, 1, 2, 'api', 'api.json', 'committed', 3, 'xi5-api', now())`, [PLAN_1, PLAN_2, PLAN_API]);
     await db.query(`INSERT INTO import_plan_row (plan_id, row_ref, position, input, state, issues, result) VALUES
       ($1, 'Fuel!B2', 0, $3::jsonb, 'ready', '[]', '{}'),
       ($1, 'Fuel!B3', 1, $4::jsonb, 'ready', '[]', '{}'),
@@ -30,24 +32,27 @@ test.before(async () => {
     await db.query(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, upload_batch_id, extra_data) VALUES
       ${emission(971, "xi5-batch", 1, 2, "Fuel!B2")}, ${emission(972, "xi5-batch", 1, 2, "Fuel!B3")}, ${emission(973, "xi5-batch", 1, 2, "Fuel!B4")},
       ${emission(974, "xi5-batch", 1, 2, "Fuel!B5")}, ${emission(975, "xi5-batch", 1, 2, "Fuel!B6")},
-      ${emission(976, "xi5-other", 3, 6, "Fuel!B2")}`);
+      ${emission(976, "xi5-other", 3, 6, "Fuel!B2")},
+      ${emission(977, "xi5-batch", 1, 2, "Fuel!B7")}, ${emission(978, "xi5-api", 1, 2, "Fuel!B2")}, ${emission(979, "xi5-batch", 1, 2, "Fuel!B8")}`);
+    await db.query(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period) VALUES
+      (980, '{"activity_value": 980}', 980, 'tCO2e', '2025-05-31', 'pending', 5, 1, 1, 'monthly')`);
   });
 });
 
 test.after(async () => {
   await withDb(async (db) => {
-    await db.query(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id BETWEEN 971 AND 976`);
-    await db.query(`DELETE FROM emission WHERE pk_id BETWEEN 971 AND 976`);
-    await db.query(`DELETE FROM import_plan WHERE plan_id IN ($1, $2)`, [PLAN_1, PLAN_2]);
+    await db.query(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id BETWEEN 971 AND 980`);
+    await db.query(`DELETE FROM emission WHERE pk_id BETWEEN 971 AND 980`);
+    await db.query(`DELETE FROM import_plan WHERE plan_id IN ($1, $2, $3)`, [PLAN_1, PLAN_2, PLAN_API]);
   });
 });
 
 test("attention=1 lists the low-confidence, flagged and edited rows of a batch; the summary counts them", async () => {
   const all = await call("GET", "/user/emissions?page=1&limit=50&batchId=xi5-batch", "manager");
   assert.equal(all.status, 200, JSON.stringify(all.json));
-  assert.deepEqual(ids(all), [971, 972, 973, 974, 975]);
+  assert.deepEqual(ids(all), [971, 972, 973, 974, 975, 977, 979]);
   assert.equal(all.json.summary.attention_count, 3);
-  assert.equal(all.json.summary.pending_count, 5);
+  assert.equal(all.json.summary.pending_count, 7);
 
   const some = await call("GET", "/user/emissions?page=1&limit=50&batchId=xi5-batch&attention=1", "manager");
   assert.equal(some.status, 200, JSON.stringify(some.json));
@@ -103,12 +108,45 @@ test("approving your own upload is allowed and audited as 'Approved by the uploa
   assert.equal(batch.status, 200, JSON.stringify(batch.json));
   const rows = await q(`SELECT entity_id, reason FROM audit_log WHERE entity_type = 'emission' AND entity_id IN (973, 974, 975) ORDER BY entity_id`);
   assert.deepEqual(rows, [{ entity_id: 973, reason: "Approved by the uploader" }, { entity_id: 974, reason: null }, { entity_id: 975, reason: "Approved by the uploader" }]);
-  // A rejection by the uploader carries no such note.
+  // The uploader may not reject their own rows: decision 6 is about approving only.
   await q(`UPDATE emission SET status = 'pending', reviewed_by = NULL, reviewed_at = NULL WHERE pk_id = 973`);
   const reject = await call("PUT", "/user/emissions/973/reject", "manager", { comment: "Wrong unit" });
-  assert.equal(reject.status, 200, JSON.stringify(reject.json));
-  [row] = await q(`SELECT reason, changed_fields FROM audit_log WHERE entity_type = 'emission' AND entity_id = 973 ORDER BY id DESC LIMIT 1`);
-  assert.deepEqual([row.reason, row.changed_fields.approved_by_uploader], ["Wrong unit", undefined]);
+  assert.equal(reject.status, 403, JSON.stringify(reject.json));
+  assert.equal((await call("PUT", "/user/emissions/bulk-reject", "manager", { ids: [973], comment: "Wrong unit" })).status, 403);
+});
+
+test("review fixes: an edit after commit keeps the row's import link, flags it and ends the uploader's right to approve it", async () => {
+  // The batch approve above approved 977 and 979; back to pending for this test.
+  await q(`UPDATE emission SET status = 'pending', reviewed_by = NULL, reviewed_at = NULL WHERE pk_id IN (977, 979)`);
+  // The uploader edits their uploaded row 977: the import provenance survives the new extra_data.
+  const edit = await call("PUT", "/user/emissions/977", "manager", { extra_data: { note: "fixed by hand" } });
+  assert.equal(edit.status, 200, JSON.stringify(edit.json));
+  const [after] = await q(`SELECT extra_data FROM emission WHERE pk_id = 977`);
+  assert.deepEqual(after.extra_data, { note: "fixed by hand", import: { channel: "bulk_upload", row_ref: "Fuel!B7", edited: true, edited_by: 2 } });
+  // It now needs attention, though its plan row (none here) says nothing.
+  const some = await call("GET", "/user/emissions?page=1&limit=50&batchId=xi5-batch&attention=1&status=pending", "manager");
+  assert.ok(ids(some).includes(977), JSON.stringify(ids(some)));
+  assert.ok(!ids(some).includes(979));
+  // And the uploader may no longer approve it, alone or with the batch.
+  assert.equal((await call("PUT", "/user/emissions/977/approve", "manager", {})).status, 403);
+  assert.equal((await call("PUT", "/user/emissions/batch/xi5-batch/approve", "manager", {})).status, 403);
+  // An untouched row of the same batch still may be approved by the uploader.
+  assert.equal((await call("PUT", "/user/emissions/979/approve", "manager", {})).status, 200);
+  // A typed edit of a row that never came from an import adds no import key.
+  const typed = await call("PUT", "/user/emissions/980", "superadmin", { extra_data: { note: "x" } });
+  assert.equal(typed.status, 200, JSON.stringify(typed.json));
+  assert.deepEqual((await q(`SELECT extra_data FROM emission WHERE pk_id = 980`))[0].extra_data, { note: "x" });
+});
+
+test("review fixes: the uploader exception is for bulk uploads only, and the audit note needs an uploaded row", async () => {
+  // A row of an API batch the manager sent is not theirs to approve.
+  assert.equal((await call("PUT", "/user/emissions/978/approve", "manager", {})).status, 403);
+  assert.equal((await call("PUT", "/user/emissions/batch/xi5-api/approve", "manager", {})).status, 403);
+  // A Superadmin approving their own typed entry is not "Approved by the uploader".
+  const sa = await call("PUT", "/user/emissions/980/approve", "superadmin", {});
+  assert.equal(sa.status, 200, JSON.stringify(sa.json));
+  const [row] = await q(`SELECT reason, changed_fields FROM audit_log WHERE entity_type = 'emission' AND entity_id = 980 AND action = 'approve' ORDER BY id DESC LIMIT 1`);
+  assert.deepEqual([row.reason, row.changed_fields.approved_by_uploader], [null, undefined]);
 });
 
 test("PATCH /imports/plans marks an edited smart-import row (meta.edited) so Review rows can flag it", async () => {
@@ -121,6 +159,8 @@ test("PATCH /imports/plans marks an edited smart-import row (meta.edited) so Rev
       rows: [
         { ...base, row_ref: "a", period: { kind: "monthly", date: "2019-01-01" }, meta: { source: "llm", confidence: 0.9 } },
         { ...base, row_ref: "b", period: { kind: "monthly", date: "2019-02-01" } },
+        { ...base, row_ref: "c", activity_name: "HSD", period: { kind: "monthly", date: "2019-03-01" }, meta: { source: "rules", confidence: 0.95 } },
+        { ...base, row_ref: "d", activity_name: "Petrol", period: { kind: "monthly", date: "2019-04-01" }, meta: { source: "rules", confidence: 0.95 } },
       ],
     });
     assert.equal(created.status, 201, JSON.stringify(created.json));
@@ -133,6 +173,14 @@ test("PATCH /imports/plans marks an edited smart-import row (meta.edited) so Rev
     const b = patched.json.rows.find((r) => r.row_ref === "b");
     assert.deepEqual(a.input.meta, { source: "llm", confidence: 0.9, edited: true });
     assert.equal(b.input.meta, undefined, "rows without smart-import meta are not flagged");
+    // Correcting an activity match flags the rows it applies to (same site, category and wording).
+    const matched = await call("PATCH", `/imports/plans/${created.json.plan_id}`, "manager", {
+      version: patched.json.version,
+      activity_matches: [{ site_id: 1, category_id: 1, sheet_name: " hsd ", factor_name: "Diesel" }],
+    });
+    assert.equal(matched.status, 200, JSON.stringify(matched.json));
+    assert.equal(matched.json.rows.find((r) => r.row_ref === "c").input.meta.edited, true);
+    assert.equal(matched.json.rows.find((r) => r.row_ref === "d").input.meta.edited, undefined);
     // Un-edited rows keep their meta as sent.
     assert.equal(created.json.rows.find((r) => r.row_ref === "a").input.meta.edited, undefined);
     await call("POST", `/imports/plans/${created.json.plan_id}/cancel`, "manager");

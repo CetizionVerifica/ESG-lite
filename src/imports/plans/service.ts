@@ -12,6 +12,7 @@ import { IMPORT_LIMITS, PLAN_EXPIRY_MS } from "../limits";
 import { emitBatchCommitted, WriterContext } from "../writer";
 import { buildWriterContext, isMcpEnabled, TokenUser } from "./scope";
 import { getEmissionWriter } from "./writerRegistry";
+import { normalizeName } from "../../services/emissionWrite/resolve";
 import { validatePlanMapping } from "../profiles/service";
 import type { MappingProposal } from "../mapping";
 
@@ -392,6 +393,15 @@ export const patchPlan = async (
         .orUpdate(["factor_name"], ["plan_id", "site_id", "category_id", "sheet_name"])
         .execute();
       if (match.save_mapping) await saveMapping(m, ctx, plan, match);
+      // A corrected activity match changes how those rows resolve, so they
+      // are edited rows too (XI5 "Needs attention"), when they carry meta.
+      for (const r of rows) {
+        const input = r.input as ImportRow;
+        if (!input.meta || input.meta.edited || input.site_id !== match.site_id || input.category_id !== match.category_id) continue;
+        if (normalizeName(input.activity_name) !== normalizeName(match.sheet_name)) continue;
+        r.input = { ...input, meta: { ...input.meta, edited: true } };
+        await m.getRepository(ImportPlanRow).update({ id: r.id }, { input: r.input });
+      }
     }
     const totalLike = new Set([
       ...rows.filter((r) => (r.issues as RowIssue[]).some((i) => i.code === "CLIENT_TOTAL_IGNORED")).map((r) => r.row_ref),

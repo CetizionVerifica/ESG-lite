@@ -119,11 +119,11 @@ router.get("/emissions/export", exportEmissions);
 router.get("/emissions/breakdown", getEmissionBreakdown);
 
 // Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
-router.put("/emissions/bulk-approve", requireReviewer, guardEmissionIdsReview, auditReview("emission", "ids"), bulkApproveEmissions);
-router.put("/emissions/bulk-reject", requireReviewer, guardEmissionIdsReview, auditReview("emission", "ids"), bulkRejectEmissions);
+router.put("/emissions/bulk-approve", requireReviewer, guardEmissionIdsReview("approve"), auditReview("emission", "ids"), bulkApproveEmissions);
+router.put("/emissions/bulk-reject", requireReviewer, guardEmissionIdsReview("reject"), auditReview("emission", "ids"), bulkRejectEmissions);
 router.delete("/emissions/bulk-delete", guardEmissionIds, guardApprovedDelete("emission", "ids"), auditReview("emission", "ids"), bulkDeleteEmissions);
-router.put("/emissions/batch/:batchId/approve", requireReviewer, guardBatch(true), auditReview("emission", "batch"), approveEmissionsByBatch);
-router.put("/emissions/batch/:batchId/reject", requireReviewer, guardBatch(true), auditReview("emission", "batch"), rejectEmissionsByBatch);
+router.put("/emissions/batch/:batchId/approve", requireReviewer, guardBatch("approve"), auditReview("emission", "batch"), approveEmissionsByBatch);
+router.put("/emissions/batch/:batchId/reject", requireReviewer, guardBatch("reject"), auditReview("emission", "batch"), rejectEmissionsByBatch);
 router.delete("/emissions/batch/:batchId", guardBatch(), guardApprovedDelete("emission", "batch"), auditReview("emission", "batch"), deleteEmissionsByBatch);
 router.get("/emissions/batches", guardQuerySites("siteIds"), getEmissionBatches);
 
@@ -132,8 +132,8 @@ router.put("/emissions/manager-edit/:id", requireReviewer, guardEmissionParam(),
 
 // Routes with :id parameter
 router.get("/emissions/:id/factor", guardEmissionParam(), getEmissionFactorForEmission);
-router.put("/emissions/:id/approve", requireReviewer, guardEmissionReview(), auditReview("emission", "param"), approveEmission);
-router.put("/emissions/:id/reject", requireReviewer, guardEmissionReview(), auditReview("emission", "param"), rejectEmission);
+router.put("/emissions/:id/approve", requireReviewer, guardEmissionReview("id", "approve"), auditReview("emission", "param"), approveEmission);
+router.put("/emissions/:id/reject", requireReviewer, guardEmissionReview("id", "reject"), auditReview("emission", "param"), rejectEmission);
 router.put("/emissions/:id", guardEmissionParam(), updateEmission);
 router.delete("/emissions/:id", guardEmissionParam(), guardApprovedDelete("emission", "param"), auditReview("emission", "param"), deleteEmission);
 

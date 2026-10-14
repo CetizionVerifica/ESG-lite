@@ -13,11 +13,11 @@ import { UserRole } from "../types/type";
 
 type Guard = (req: AuthRequest, res: Response, next: NextFunction) => unknown;
 type Entity = "emission" | "production_data";
-type Snapshot = { id: number; status: string; amount: string | null; created_by: number | null };
+type Snapshot = { id: number; status: string; amount: string | null; created_by: number | null; uploaded: boolean };
 
-const TABLES: Record<Entity, { table: string; key: string; amount: string; creator: string }> = {
-  emission: { table: "emission", key: "pk_id", amount: "total_emission", creator: "created_by" },
-  production_data: { table: "production_data", key: "production_id", amount: "quantity", creator: "created_by" },
+const TABLES: Record<Entity, { table: string; key: string; amount: string; creator: string; uploaded: string }> = {
+  emission: { table: "emission", key: "pk_id", amount: "total_emission", creator: "created_by", uploaded: "upload_batch_id IS NOT NULL" },
+  production_data: { table: "production_data", key: "production_id", amount: "quantity", creator: "created_by", uploaded: "false" },
 };
 
 /** Audit reason when the approver is the person who submitted or uploaded the row (smart-import decision 6). */
@@ -56,7 +56,7 @@ async function snapshot(entity: Entity, ids: number[]): Promise<Map<number, Snap
   if (!ids.length) return new Map();
   const t = TABLES[entity];
   const rows: Snapshot[] = await AppDataSource.query(
-    `SELECT ${t.key} AS id, status, ${t.amount}::text AS amount, ${t.creator} AS created_by FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
+    `SELECT ${t.key} AS id, status, ${t.amount}::text AS amount, ${t.creator} AS created_by, ${t.uploaded} AS uploaded FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
     [ids]
   );
   return new Map(rows.map((r) => [Number(r.id), r]));
@@ -85,7 +85,7 @@ async function writeAudit(entity: Entity, before: Map<number, Snapshot>, req: Au
     }
     // The uploader approving their own row is allowed (decision 6) and noted.
     let rowReason = reason;
-    if (action === "approve" && old.created_by !== null && Number(old.created_by) === Number(req.user?.userId)) {
+    if (action === "approve" && old.uploaded === true && old.created_by !== null && Number(old.created_by) === Number(req.user?.userId)) {
       rowReason = reason ? `${APPROVED_BY_UPLOADER}. ${reason}` : APPROVED_BY_UPLOADER;
       changed.approved_by_uploader = { old: null, new: true };
     }
