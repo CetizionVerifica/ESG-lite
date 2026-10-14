@@ -364,6 +364,29 @@ test("commit: refused with issues unless skipped; rows land pending in one batch
   await dropBatch(batchId);
 });
 
+test("channel bulk_upload (IM11): any signed-in user of the client plans and commits; the batch reads as a bulk upload", async () => {
+  // The Bulk upload page's rows arrive through python_AI_service with the user's own token.
+  const refusedChannel = await create("manager", [row()], { channel: "upload" });
+  assert.equal(refusedChannel.status, 400, "unknown channel");
+  const { status, json: plan } = await create("manager", [row({ row_ref: "bu1", activity_value: 1000 })], { channel: "bulk_upload", source_name: "fuel-june.csv" });
+  assert.equal(status, 201, JSON.stringify(plan));
+  assert.equal(plan.channel, "bulk_upload");
+  const done = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: plan.version, skip_rows_with_issues: true, idempotency_key: "bu-" + plan.plan_id });
+  assert.equal(done.status, 200, JSON.stringify(done.json));
+  const batchId = done.json.committed.upload_batch_id;
+  const saved = await withDb(async (db) => (await db.query(`SELECT status, total_emission::float AS t, extra_data FROM emission WHERE upload_batch_id = $1`, [batchId])).rows);
+  assert.deepEqual(saved.map((s) => [s.status, s.t, s.extra_data.import.channel]), [["pending", 2680, "bulk_upload"]]);
+  const audit = await withDb((db) => db.query(`SELECT reason FROM audit_log WHERE entity_type = 'emission' AND entity_id IN (SELECT pk_id FROM emission WHERE upload_batch_id = $1)`, [batchId]));
+  assert.match(audit.rows[0].reason, /^Imported via Bulk upload by CI Manager \(batch /);
+  // Both batch lists name the channel, and the channel filter finds it.
+  const mine = (await call("GET", "/imports/batches?channel=bulk_upload", "manager")).json.find((x) => x.upload_batch_id === batchId);
+  assert.deepEqual([mine.channel, mine.source_name, mine.pending], ["bulk_upload", "fuel-june.csv", 1]);
+  assert.ok(!(await call("GET", "/imports/batches?channel=api", "manager")).json.some((x) => x.upload_batch_id === batchId));
+  const app = (await call("GET", "/user/emissions/batches", "manager")).json.filter((x) => x.upload_batch_id === batchId);
+  assert.deepEqual([...new Set(app.map((x) => x.channel))], ["bulk_upload"]);
+  await dropBatch(batchId);
+});
+
 test("commit re-checks the rows: an entry saved after planning is caught", async () => {
   const { json: plan } = await create("manager", [row({ row_ref: "late", period: { kind: "monthly", date: "2025-05-01" } })]);
   assert.equal(plan.counts.ready, 1);
