@@ -1,26 +1,31 @@
 # Release checklist (backend)
 
-Nothing in the Docker image or `npm start` changes the database schema, and
-`TYPEORM_SYNC` stays off in production. Schema changes ship as idempotent
-migration scripts (`migrate:*` in `package.json`), so every release runs them
-explicitly.
+Schema changes ship as idempotent migration scripts (`migrate:*` in
+`package.json`); `TYPEORM_SYNC` stays off in production. `npm start` (the
+Docker image's command) runs all of them through `scripts/migrate-all.cjs` and
+then starts the API, so a release needs no manual migration step.
 
 ## Every release
 
 1. Back up the production database (snapshot or `pg_dump`).
-2. Build the new image.
-3. Run the migrations against the production database with the new image,
-   before the new version takes traffic:
+2. Build and deploy the new image from `production`.
+3. On start the container runs every `migrate:*` script in the order
+   `package.json` lists them and stops at the first failure; the API does not
+   start until they all pass. Each script uses `IF NOT EXISTS`, so running it on
+   a database that already has a change is a no-op. If the container fails to
+   start, read its log: the failing migration is named; fix the cause and
+   redeploy.
+4. Check the API logs for errors.
 
-   ```bash
-   docker run --rm --env-file .env <new-image> npm run migrate:all
-   ```
+To run the migrations separately (for example before switching traffic on a
+platform with a release phase), use `npm run migrate:all` with the new image and
+set `SKIP_MIGRATIONS=true` on the running service:
 
-   `migrate:all` runs every `migrate:*` script in the order `package.json`
-   lists them and stops at the first failure. Each script uses
-   `IF NOT EXISTS`, so running it on a database that already has a change is a
-   no-op. If it fails, do not switch traffic; fix the cause and run it again.
-4. Start the new version and check the API logs for errors.
+```bash
+docker run --rm --env-file .env <new-image> npm run migrate:all
+```
+
+`npm run start:no-migrate` starts the API without the migration step.
 
 ## Environment
 
