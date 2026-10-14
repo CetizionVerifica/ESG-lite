@@ -13,6 +13,7 @@ import { emitBatchCommitted, WriterContext } from "../writer";
 import { buildWriterContext, isMcpEnabled, TokenUser } from "./scope";
 import { getEmissionWriter } from "./writerRegistry";
 import { validatePlanMapping } from "../profiles/service";
+import type { MappingProposal } from "../mapping";
 
 /**
  * Import plans (docs/mcp-import/backend/IM2-import-plans-api/CLAUDE.md).
@@ -251,7 +252,7 @@ const assertChannelAllowed = async (ctx: WriterContext, channel: ImportChannel) 
 
 export const createPlan = async (
   user: TokenUser,
-  body: { source_name: string; channel: ImportChannel; company_id?: number; rows: ImportRow[]; mapping?: unknown },
+  body: { source_name: string; channel: ImportChannel; company_id?: number; rows: ImportRow[]; mapping?: MappingProposal },
   totalLike: Set<string>,
 ) => {
   const ctx = await buildWriterContext(user, body.company_id);

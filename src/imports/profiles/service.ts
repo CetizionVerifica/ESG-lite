@@ -106,20 +106,21 @@ export const deleteProfile = async (user: TokenUser, id: string): Promise<{ id: 
 // ---------- the plan side: validating and storing a confirmed proposal ----------
 
 /**
- * `POST /imports/plans` with `mapping` (XI0 leaves it unknown): only a
- * bulk_upload plan may carry one, the client's switch must be on, it must
- * parse as a MappingProposal, and its site must be one the caller may import
- * into (never another client's, never a site a Manager does not hold). What
- * comes back is what gets stored on import_plan.mapping and learned on commit.
+ * `POST /imports/plans` with `mapping`: the controller has already parsed it
+ * as a MappingProposal (`CreatePlanWithMappingBodySchema`, XI0 follow-up
+ * #124), so a malformed proposal never gets here. What this adds is the
+ * part a schema cannot know: only a bulk_upload plan may carry one, the
+ * client's switch must be on, and its site must be one the caller may
+ * import into (never another client's, never a site a Manager does not
+ * hold). What comes back is stored on import_plan.mapping and learned on
+ * commit.
  */
-export const validatePlanMapping = async (ctx: WriterContext, channel: string, raw: unknown): Promise<MappingProposal | null> => {
-  if (raw === undefined || raw === null) return null;
+export const validatePlanMapping = async (ctx: WriterContext, channel: string, mapping: MappingProposal | undefined | null): Promise<MappingProposal | null> => {
+  if (mapping === undefined || mapping === null) return null;
   if (channel !== "bulk_upload") throw new ImportError("IMPORT_VALIDATION", [{ path: "mapping", message: "mapping is only accepted on bulk_upload plans" }]);
   await assertAiImportEnabled(ctx.company_id);
-  const parsed = MappingProposalSchema.safeParse(raw);
-  if (!parsed.success) throw new ImportError("IMPORT_VALIDATION", parsed.error.issues.slice(0, 20).map((i) => ({ path: ["mapping", ...i.path].join("."), message: i.message })));
-  if (!ctx.allowed_site_ids.includes(parsed.data.site_id)) throw new ImportError("IMPORT_FORBIDDEN", { site_id: parsed.data.site_id });
-  return parsed.data;
+  if (!ctx.allowed_site_ids.includes(mapping.site_id)) throw new ImportError("IMPORT_FORBIDDEN", { site_id: mapping.site_id });
+  return mapping;
 };
 
 // ---------- learning on commit ----------

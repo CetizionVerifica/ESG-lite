@@ -15,6 +15,28 @@ const { AI_IMPORT_STATEMENTS } = require(path.resolve("dist/scripts/addAiImportC
 
 const fixture = (name) => JSON.parse(fs.readFileSync(path.resolve("ci/fixtures/xi0", name), "utf8"));
 
+// sha256 of each shared fixture. python_AI_service/ci/tests/test_mapping_contracts.py
+// pins the same values, so the two copies cannot drift apart silently.
+// Update both when a fixture changes on purpose.
+const FIXTURE_SHA256 = {
+  "profile-valid.json": "d46cff40ae067d8345351ae493d9bc480662ba8d2a177b9a34daf2ff8a0e4b37",
+  "proposal-bad-fingerprint.json": "4d5cbbc0f82642ab5945a0d4532011e487be08f3288bcc22f6f996dc97682805",
+  "proposal-confidence-over-1.json": "b156638fe1d1af27ff29a4e97f1951b66cff6b7ea3d0c5d84f11e2d568fc93ff",
+  "proposal-other-site.json": "55986fef5e9685393ddf2fbcfdb36a55e4d3b24025efb74ce2063392a9a6f85c",
+  "proposal-valid.json": "0635d17429adcd9276527cbc83c9be1beadf97ef4b2322e336a11f16e2b54a95",
+  "row-with-meta.json": "50de2a7136e885fd8e38cda815d07d43d2a1b32e244e9d52cff1f9f2c7d47c48",
+};
+
+test("the shared fixtures are byte-identical to the python_AI_service copies (pinned sha256)", () => {
+  const dir = path.resolve("ci/fixtures/xi0");
+  const present = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+  assert.deepEqual(present, Object.keys(FIXTURE_SHA256).sort());
+  for (const [name, sha] of Object.entries(FIXTURE_SHA256)) {
+    const actual = require("crypto").createHash("sha256").update(fs.readFileSync(path.join(dir, name))).digest("hex");
+    assert.equal(actual, sha, `${name} changed; update the pin here and in python_AI_service`);
+  }
+});
+
 test("the valid proposal fixture parses and keeps every sheet for the chosen site", () => {
   const r = mapping.MappingProposalSchema.safeParse(fixture("proposal-valid.json"));
   assert.equal(r.success, true, JSON.stringify(r.error?.issues));
@@ -92,11 +114,18 @@ test("ImportRow accepts meta, strips unknown meta keys and refuses a bad source"
   assert.equal(contracts.ImportRowSchema.parse(plain).meta, undefined);
 });
 
-test("CreatePlanBody accepts an optional mapping", () => {
+test("CreatePlanBody accepts an optional mapping; the plans controller's schema validates it as a MappingProposal", () => {
   const body = { source_name: "fuel.xlsx", channel: "bulk_upload", rows: [fixture("row-with-meta.json")], mapping: fixture("proposal-valid.json") };
   assert.equal(contracts.CreatePlanBodySchema.safeParse(body).success, true);
+  assert.equal(mapping.CreatePlanWithMappingBodySchema.safeParse(body).success, true);
+  for (const bad of ["proposal-other-site.json", "proposal-bad-fingerprint.json"]) {
+    const r = mapping.CreatePlanWithMappingBodySchema.safeParse({ ...body, mapping: fixture(bad) });
+    assert.equal(r.success, false, bad);
+    assert.equal(r.error.issues[0].path[0], "mapping");
+  }
+  assert.equal(mapping.CreatePlanWithMappingBodySchema.safeParse({ ...body, mapping: "yes" }).success, false);
   delete body.mapping;
-  assert.equal(contracts.CreatePlanBodySchema.safeParse(body).success, true);
+  assert.equal(mapping.CreatePlanWithMappingBodySchema.safeParse(body).success, true);
 });
 
 test("new row issue codes have severities, info included; SITE_NOT_ALLOWED is reused for other-site rows", () => {

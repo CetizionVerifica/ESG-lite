@@ -1,5 +1,7 @@
 # Contracts for the smart Excel import (XI0)
 
+> **As built (ESG-lite #121, python_AI_service #33, 2026-10-14).** Code: ESG-lite `src/imports/mapping.ts` (+ `contracts.ts`, `errors.ts`, `limits.ts`), python `app/schemas/mapping.py`; tests `ci/unit/xi0-mapping.test.cjs` and `ci/tests/test_mapping_contracts.py`; fixtures `ci/fixtures/xi0/` in both repos. Names below are the as-built ones: `MappingProposal.site_id` (one site per upload), `SheetProposal.site_id` + `site_column` instead of a resolved site, `ProposedActivityMatch` has no `site_id` (the sheet's site applies), row code `SITE_NOT_ALLOWED` (existing) instead of `SITE_OUT_OF_SCOPE`, `MappingProfile.site_id` always set. XI1–XI6 build from these.
+
 Additive to `/mnt/project-files/mcp-import/01-contracts.md` (IM0, built in ESG-lite `src/imports/contracts.ts`). `ImportRow`, `PlannedRow`, `RowIssue`, the plans endpoints and their error codes stay as they are.
 
 ## 1. Sheet fingerprint
@@ -19,21 +21,21 @@ SheetProposal {
   data_rows: int                      // after dropping subtotal/total/blank rows
   layout: "rows" | "months_as_columns"
   site_id:  int                        // the site chosen on screen 1; the proposal never changes it
-  site_column: { column: string, values: { text: string, matches_site: boolean }[] } | null   // informational; rows whose text does not match the chosen site get SITE_OUT_OF_SCOPE
+  site_column: { column: string, values: { text: string, matches_site: boolean }[] } | null   // informational; rows whose text does not match the chosen site get SITE_NOT_ALLOWED
   category: Resolved<category_id>     // one category per sheet, or a column
   period:   { kind: "column", column: string }
           | { kind: "monthly_fixed", date: "YYYY-MM-DD" }
           | { kind: "yearly", year_type: "CY"|"FY", year: int }
           | { kind: "months_as_columns", columns: { column: string, date: "YYYY-MM-DD" }[] }
   fields: FieldMapping[]              // one per form field of the category (value, unit, extra_*)
-  activities: ActivityMatch[]         // distinct sheet wordings → factor names
+  activities: ProposedActivityMatch[] // distinct sheet wordings → factor names
   confidence: number                  // 0..1, min over required parts
   source: "profile" | "rules" | "llm" | "mixed"
 }
 Resolved<T> = { kind: "fixed", id: T, label: string, confidence, source }
             | { kind: "column", column: string, values: { text: string, id: T|null, confidence, source }[] }
 FieldMapping { key: string, label: string, required: boolean, column: string|null, confidence, source, skipped: boolean }
-ActivityMatch { sheet_text: string, site_id: int, category_id: int, factor_name: string|null, confidence, source, save_mapping: boolean }
+ProposedActivityMatch { sheet_text: string, category_id: int, factor_name: string|null, confidence, source, save_mapping: boolean }   // site = the sheet's site_id
 ```
 Rules:
 - Every `site_id`, `category_id`, field `key` and `factor_name` must exist in the caller's `ImportContext` (IM3). The engine drops anything else from the model's output and records it as `NOT_IN_CONTEXT` on the sheet so the FE can show "The sheet names Plant 9, which you cannot import into".
@@ -67,7 +69,7 @@ import_mapping_profile (
 ## 5. New row issue codes (added to `ROW_ISSUE_CODES`)
 | Code | Severity | When |
 |---|---|---|
-| `SITE_OUT_OF_SCOPE` | error | The row names a site other than the one chosen for this upload (held by the caller or not) |
+| `SITE_NOT_ALLOWED` (existing IM0 code, reused) | error | The row names a site other than the one chosen for this upload (held by the caller or not) |
 | `CATEGORY_NOT_ASSIGNED` | error | The category is not assigned to that site, or not in the User's grants |
 | `NOT_IN_CONTEXT` | error | The model named something the context does not contain (sheet-level, mirrored on rows) |
 | `LOW_CONFIDENCE_MATCH` | warning | Activity or column matched by the LLM below 0.8 and confirmed by the user; shown in "Needs attention" (XI5) |

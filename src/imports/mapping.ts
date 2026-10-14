@@ -12,7 +12,7 @@
  */
 import { z } from "zod";
 import { IMPORT_LIMITS } from "./limits";
-import { ImportRowMetaSchema, MappingSourceSchema, YearTypeSchema } from "./contracts";
+import { CreatePlanBodySchema, ImportRowMetaSchema, MappingSourceSchema, YearTypeSchema } from "./contracts";
 
 const positiveInt = z.number().int().positive();
 const confidence = z.number().min(0).max(1);
@@ -106,6 +106,16 @@ export const MappingProposalSchema = z
   .strip()
   .refine((p) => p.sheets.every((s) => s.site_id === p.site_id), { message: "every sheet must be for the proposal's site", path: ["sheets"] });
 export type MappingProposal = z.infer<typeof MappingProposalSchema>;
+
+/**
+ * `POST /imports/plans` body with `mapping` validated as a MappingProposal.
+ * Lives here, not in contracts.ts, because this module already imports from
+ * contracts (a lazy back-reference would be circular at load time). The plans
+ * controller parses with this, so an invalid proposal is a 400
+ * IMPORT_VALIDATION with a `mapping.…` path like any other body error.
+ */
+export const CreatePlanWithMappingBodySchema = CreatePlanBodySchema.extend({ mapping: MappingProposalSchema.optional() });
+export type CreatePlanWithMappingBody = z.infer<typeof CreatePlanWithMappingBodySchema>;
 
 /** `GET /imports/mapping-profiles` row (XI3). sheet_proposal is a SheetProposal without `activities[].save_mapping`. */
 export const MappingProfileSchema = z.object({
