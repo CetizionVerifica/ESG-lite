@@ -12,6 +12,7 @@ import { IMPORT_LIMITS, PLAN_EXPIRY_MS } from "../limits";
 import { emitBatchCommitted, WriterContext } from "../writer";
 import { buildWriterContext, isMcpEnabled, TokenUser } from "./scope";
 import { getEmissionWriter } from "./writerRegistry";
+import { validatePlanMapping } from "../profiles/service";
 
 /**
  * Import plans (docs/mcp-import/backend/IM2-import-plans-api/CLAUDE.md).
@@ -250,11 +251,14 @@ const assertChannelAllowed = async (ctx: WriterContext, channel: ImportChannel) 
 
 export const createPlan = async (
   user: TokenUser,
-  body: { source_name: string; channel: ImportChannel; company_id?: number; rows: ImportRow[] },
+  body: { source_name: string; channel: ImportChannel; company_id?: number; rows: ImportRow[]; mapping?: unknown },
   totalLike: Set<string>,
 ) => {
   const ctx = await buildWriterContext(user, body.company_id);
   await assertChannelAllowed(ctx, body.channel);
+  // Smart import (XI3): a confirmed MappingProposal rides on a bulk_upload
+  // plan and is learned as a profile when the plan commits.
+  const mapping = await validatePlanMapping(ctx, body.channel, body.mapping);
   assertRowLimits(body.rows.length, 0);
   assertRowRefsUnique(body.rows, new Set());
   const drafts = await planRepo()
@@ -272,6 +276,7 @@ export const createPlan = async (
         source_name: body.source_name,
         status: "draft",
         version: 0,
+        mapping,
         expires_at: new Date(Date.now() + TTL_MS),
       }),
     );
@@ -395,12 +400,13 @@ export const patchPlan = async (
 };
 
 /**
- * `save_mapping` (decision D5): a Superadmin or the client's Admin may turn a
- * plan match into a P23 category mapping, so the sheet wording resolves on
- * every later import of that site × category. Other roles keep the match on
- * the plan only. The mapping is by name (no pinned factor id), so the year
- * fallback of the engine still applies. The site and category must be in the
- * caller's scope.
+ * `save_mapping` (decision D5, widened by the smart-import plan's decision 5
+ * on 2026-10-14): a Superadmin, the client's Admin, or a Manager for a site
+ * they hold may turn a plan match into a P23 category mapping, so the sheet
+ * wording resolves on every later import of that site × category. Users keep
+ * the match on the plan only. The mapping is by name (no pinned factor id),
+ * so the year fallback of the engine still applies. The site and category
+ * must be in the caller's scope (for a Manager: one of their user_sites).
  *
  * Only new mappings are written: where the company already has a mapping for
  * that site, category and sheet wording (made here or in the app, pinned or
@@ -411,7 +417,7 @@ export const patchPlan = async (
  * audit_log row (entity_type "category_mapping").
  */
 const saveMapping = async (m: EntityManager, ctx: WriterContext, plan: ImportPlan, match: ActivityMatch) => {
-  if (ctx.role !== UserRole.SUPERADMIN && ctx.role !== UserRole.ADMIN) return;
+  if (ctx.role !== UserRole.SUPERADMIN && ctx.role !== UserRole.ADMIN && ctx.role !== UserRole.MANAGER) return;
   if (!ctx.allowed_site_ids.includes(match.site_id) || !(ctx.allowed_category_ids_by_site[match.site_id] ?? []).includes(match.category_id)) {
     throw new ImportError("IMPORT_FORBIDDEN", { site_id: match.site_id, category_id: match.category_id });
   }

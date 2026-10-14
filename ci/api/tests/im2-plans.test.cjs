@@ -193,8 +193,9 @@ test("patch: fix a value, skip a row, match an activity name; the plan is recalc
   assert.deepEqual([p1.state, p1.input.activity_value, p1.result.total_tco2e], ["ready", 250, 670]);
   const p2 = res.json.rows.find((r) => r.row_ref === "p2");
   assert.deepEqual([p2.state, p2.result.activity.matched_by, p2.result.activity.factor_name], ["ready", "plan_match", "Diesel"]);
-  // A Manager's save_mapping stays on the plan: no P23 mapping is written (D5).
-  assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel'`)).rows[0].n)), 0);
+  // A Manager's save_mapping for a site they hold writes the P23 mapping (D5 as widened by XI3 decision 5); the next test's Admin save is a new wording.
+  assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel' AND created_by = 2`)).rows[0].n)), 1);
+  await withDb((db) => db.query(`DELETE FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel' AND created_by = 2`));
   const p3 = res.json.rows.find((r) => r.row_ref === "p3");
   assert.deepEqual([p3.state, p3.issues, p3.result], ["skipped", [], undefined]);
   // Un-skip brings the row back into the plan.
