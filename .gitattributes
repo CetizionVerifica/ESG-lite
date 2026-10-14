@@ -1,0 +1,4 @@
+# Shared XI0 fixtures are pinned by sha256 in both repos: keep their bytes (LF) on every OS.
+ci/fixtures/xi0/** -text
+# The MCP guide is length-checked and served verbatim: keep it LF on every OS.
+src/mcp/guide/*.md text eol=lf

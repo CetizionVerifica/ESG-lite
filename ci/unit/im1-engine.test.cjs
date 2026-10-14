@@ -187,3 +187,20 @@ test("duplicate identity uses the month, the activity and the spec's identity co
 function pick(m) {
   return m ? { id: m.factor.emission_factor_id, fallback: m.fallback_year } : null;
 }
+
+test("unit spellings from client sheets resolve to the canonical unit; existing conversions are unchanged", () => {
+  const { getConversionFactor, unitsMatchExact } = require(path.resolve("dist/services/emissionWrite/units.js"));
+  // Indian records: metric tonne, city-gas standard cubic metre, litre abbreviations
+  assert.equal(getConversionFactor("MT", "tonne"), 1);
+  assert.equal(getConversionFactor("MT", "kg"), 1000);
+  assert.equal(getConversionFactor("SCM", "Cubic meter"), 1);
+  assert.equal(getConversionFactor("Ltr", "litre"), 1);
+  assert.equal(getConversionFactor("Ltrs", "kl"), 0.001);
+  assert.ok(unitsMatchExact("Litres", "litre"));
+  assert.ok(unitsMatchExact("kgs", "Kg"));
+  // unchanged
+  assert.equal(getConversionFactor("kwh", "mwh"), 0.001);
+  assert.equal(getConversionFactor("tonne", "kg"), 1000);
+  assert.equal(getConversionFactor("litre", "kg"), null);
+  assert.ok(!unitsMatchExact("kwh", "mwh"));
+});
