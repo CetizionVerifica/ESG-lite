@@ -41,7 +41,7 @@ async function main() {
   try {
     for (const q of [...EXTENSIONS, ...TABLES, ...INDEXES]) await qr.query(q);
     for (const [name, q] of FOREIGN_KEYS) {
-      const found = await qr.query(`SELECT 1 FROM pg_constraint WHERE conname = $1`, [name]);
+      const found = await qr.query(`SELECT 1 FROM pg_constraint WHERE conname = $1 AND conrelid = 'import_mapping_profile'::regclass`, [name]);
       if (found.length === 0) await qr.query(q);
     }
     await qr.commitTransaction();

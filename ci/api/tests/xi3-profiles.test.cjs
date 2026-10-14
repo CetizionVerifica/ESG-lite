@@ -10,6 +10,8 @@ const { call, withDb } = require("../helpers.cjs");
 
 const FP_A = "a".repeat(64);
 const FP_B = "b".repeat(64);
+const FP_C = "c".repeat(64);
+const FP_D = "d".repeat(64);
 const q = async (sql, params) => (await withDb((db) => db.query(sql, params))).rows;
 
 let seq = 0;
@@ -61,7 +63,7 @@ test.after(async () => {
     for (const b of batches) await db.query(`DELETE FROM emission WHERE upload_batch_id = $1`, [b]);
     await db.query(`DELETE FROM audit_log WHERE entity_type = 'import_mapping_profile' OR (entity_type = 'category_mapping' AND entity_id IN (SELECT id FROM emission_category_mapping WHERE company_category_name = 'XI3 diesel'))`);
     await db.query(`DELETE FROM emission_category_mapping WHERE company_category_name = 'XI3 diesel'`);
-    await db.query(`DELETE FROM import_mapping_profile WHERE fingerprint IN ($1, $2)`, [FP_A, FP_B]);
+    await db.query(`DELETE FROM import_mapping_profile WHERE fingerprint IN ($1, $2, $3, $4)`, [FP_A, FP_B, FP_C, FP_D]);
     await db.query(`DELETE FROM emission_factors WHERE emission_factor_id IN (930, 931)`);
     await db.query(`UPDATE company SET ai_import_enabled = false WHERE company_id IN (1, 2)`);
   });
@@ -135,8 +137,8 @@ test("learn on commit: one profile per sheet, confirmed by the committer, uses c
 
   // Excluded sheets are not learned; a column category stores NULL and still upserts onto one row.
   const column = { kind: "column", column: "Category", values: [{ text: "Fuel", id: 1, confidence: 0.8, source: "llm" }] };
-  await committed("manager", [row()], proposal([sheet({ sheet_name: "Skip me", fingerprint: FP_B, excluded: true }), sheet({ sheet_name: "Mixed", fingerprint: FP_B, category: column })]));
-  await committed("manager", [row()], proposal([sheet({ sheet_name: "Mixed", fingerprint: FP_B, category: column })]));
+  await committed("manager", [row(), row({ row_ref: `Mixed!B${seq}` })], proposal([sheet({ sheet_name: "Skip me", fingerprint: FP_B, excluded: true }), sheet({ sheet_name: "Mixed", fingerprint: FP_B, category: column })]));
+  await committed("manager", [row({ row_ref: `Mixed!B${seq + 1}` })], proposal([sheet({ sheet_name: "Mixed", fingerprint: FP_B, category: column })]));
   const b = await profiles(FP_B);
   assert.deepEqual(b.map((p) => [p.site_id, p.category_id, p.uses, p.sheet_proposal.sheet_name]), [[1, null, 2, "Mixed"]]);
 
@@ -173,7 +175,7 @@ test("fingerprint hit: served to the company for a site the caller holds; never 
   const site2 = await call("GET", `/imports/mapping-profiles?fingerprint=${FP_A}&site_id=2`, "manager");
   assert.deepEqual([site2.status, site2.json], [200, []]);
   // Unknown fingerprint: empty; bad query: 400.
-  assert.deepEqual((await call("GET", `/imports/mapping-profiles?fingerprint=${"c".repeat(64)}&site_id=1`, "manager")).json, []);
+  assert.deepEqual((await call("GET", `/imports/mapping-profiles?fingerprint=${"e".repeat(64)}&site_id=1`, "manager")).json, []);
   assert.equal((await call("GET", `/imports/mapping-profiles?fingerprint=short&site_id=1`, "manager")).status, 400);
   assert.equal((await call("GET", `/imports/mapping-profiles?fingerprint=${FP_A}`, "manager")).status, 400);
   // Superadmin names the client.
@@ -188,6 +190,52 @@ test("fingerprint hit: served to the company for a site the caller holds; never 
   assert.deepEqual([admin.status, admin.json.length], [200, 1]);
   const adminOther = await call("GET", `/imports/mapping-profiles?fingerprint=${FP_A}&site_id=1&company_id=2`, "admin");
   assert.deepEqual([adminOther.status, adminOther.json.code], [403, "IMPORT_FORBIDDEN"]);
+});
+
+test("review fixes: only sheets that wrote rows teach, the committer confirms, one profile per key, categories are scope-checked", async () => {
+  // A sheet whose rows were all skipped (or that has no rows at all) is not learned.
+  const skipped = await create("manager", [row({ row_ref: "Good!B1" }), row({ row_ref: "Bad!B1", activity_name: "No such fuel" })], {
+    mapping: proposal([sheet({ sheet_name: "Good", fingerprint: FP_C }), sheet({ sheet_name: "Bad", fingerprint: FP_D }), sheet({ sheet_name: "Empty", fingerprint: FP_D, category: { kind: "fixed", id: 2, label: "Purchased Electricity", confidence: 1, source: "rules" } })]),
+  });
+  assert.equal(skipped.status, 201, JSON.stringify(skipped.json));
+  const res = await call("POST", `/imports/plans/${skipped.json.plan_id}/commit`, "manager", { version: skipped.json.version, skip_rows_with_issues: true, idempotency_key: "xi3-skip-" + skipped.json.plan_id });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  batches.push(res.json.committed.upload_batch_id);
+  assert.deepEqual((await profiles(FP_C)).map((p) => p.sheet_proposal.sheet_name), ["Good"]);
+  assert.deepEqual(await profiles(FP_D), [], "the sheet whose rows were skipped and the sheet with no rows teach nothing");
+
+  // Two sheets with the same layout in one workbook: one profile, uses counted once.
+  // A Superadmin commits the Manager's plan, so the Superadmin is the one who confirmed it.
+  const twin = await create("manager", [row({ row_ref: "Jan!B1" }), row({ row_ref: "Feb!B1" })], { mapping: proposal([sheet({ sheet_name: "Jan", fingerprint: FP_D }), sheet({ sheet_name: "Feb", fingerprint: FP_D })]) });
+  assert.equal(twin.status, 201, JSON.stringify(twin.json));
+  const byAdmin = await call("POST", `/imports/plans/${twin.json.plan_id}/commit`, "superadmin", { version: twin.json.version, skip_rows_with_issues: false, idempotency_key: "xi3-twin-" + twin.json.plan_id });
+  assert.equal(byAdmin.status, 200, JSON.stringify(byAdmin.json));
+  batches.push(byAdmin.json.committed.upload_batch_id);
+  assert.deepEqual((await profiles(FP_D)).map((p) => [p.uses, p.confirmed_by]), [[1, 5]]);
+
+  // Categories the caller may not import into on that site are refused, not learned.
+  const site2Cat3 = await create("manager", [row({ site_id: 2 })], { mapping: proposal([sheet({ site_id: 2, category: { kind: "fixed", id: 3, label: "Business Travel", confidence: 1, source: "llm" } })], 2) });
+  assert.deepEqual([site2Cat3.status, site2Cat3.json.code, site2Cat3.json.details.category_ids], [403, "IMPORT_FORBIDDEN", [3]], "category 3 is not assigned to site 2");
+  const activityCat = await create("manager", [row({ site_id: 2 })], { mapping: proposal([sheet({ site_id: 2, activities: [{ sheet_text: "Taxi", category_id: 4, factor_name: "Taxi", confidence: 0.9, source: "llm", save_mapping: false }] })], 2) });
+  assert.deepEqual([activityCat.status, activityCat.json.details.category_ids], [403, [4]]);
+  const columnCat = await create("multiSiteUser", [row()], { mapping: proposal([sheet({ category: { kind: "column", column: "Type", values: [{ text: "Fuel", id: 1, confidence: 1, source: "rules" }, { text: "Travel", id: 3, confidence: 0.9, source: "llm" }] } })]) });
+  assert.deepEqual([columnCat.status, columnCat.json.details.category_ids], [403, [3]], "a User's grants are categories 1 and 2");
+
+  // Reads follow a User's category grants: a profile for a category outside them is hidden,
+  // a column profile shows only the granted values and activities.
+  await withDb((db) => db.query(
+    `INSERT INTO import_mapping_profile (company_id, site_id, category_id, fingerprint, sheet_proposal, confirmed_by, confirmed_at, uses) VALUES
+      (1, 1, 3, $1, $2, 2, now(), 1), (1, 1, NULL, $1, $3, 2, now() - interval '1 minute', 1)`,
+    [FP_C, JSON.stringify(sheet({ fingerprint: FP_C, category: { kind: "fixed", id: 3, label: "Business Travel", confidence: 1, source: "rules" }, activities: [{ sheet_text: "Taxi", category_id: 3, factor_name: "Taxi", confidence: 1, source: "rules", save_mapping: false }] })),
+      JSON.stringify(sheet({ fingerprint: FP_C, category: { kind: "column", column: "Type", values: [{ text: "Fuel", id: 1, confidence: 1, source: "rules" }, { text: "Travel", id: 3, confidence: 1, source: "rules" }] }, activities: [{ sheet_text: "HSD", category_id: 1, factor_name: "Diesel", confidence: 1, source: "rules", save_mapping: false }, { sheet_text: "Taxi", category_id: 3, factor_name: "Taxi", confidence: 1, source: "rules", save_mapping: false }] }))],
+  ));
+  const manager = await call("GET", `/imports/mapping-profiles?fingerprint=${FP_C}&site_id=1`, "manager");
+  assert.equal(manager.json.length, 3, "a Manager holds every category of the site");
+  const granted = await call("GET", `/imports/mapping-profiles?fingerprint=${FP_C}&site_id=1`, "multiSiteUser");
+  assert.equal(granted.status, 200, JSON.stringify(granted.json));
+  assert.deepEqual(granted.json.map((p) => p.category_id), [1, null]);
+  const col = granted.json.find((p) => p.category_id === null).sheet_proposal;
+  assert.deepEqual([col.category.values.map((v) => v.id), col.activities.map((a) => a.sheet_text)], [[1], ["HSD"]]);
 });
 
 test("forget: the confirming Manager, the client's Admin or a Superadmin; a User is refused; another client sees nothing", async () => {
