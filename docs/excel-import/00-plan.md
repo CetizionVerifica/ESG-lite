@@ -37,11 +37,11 @@ Everything below the mapping step is built and scoped. What is missing is the **
 1. One calculation engine (IM1). The mapper never computes, converts or sends totals; anything it sends is ignored (`CLIENT_TOTAL_IGNORED`).
 2. Plan, then commit. Nothing reaches `emission` until the manager commits the current plan version.
 3. Pending only. Imported rows are `pending`; approval happens in Approvals, per row or per batch.
-4. **Scope is enforced by ESG-lite, never by the model.** The LLM only ever sees the context ESG-lite returned for the caller's token, and every row it proposes is re-checked by `buildWriterContext` at plan and again at commit. A row for a site or category outside the caller's scope is an issue on that row (`SITE_OUT_OF_SCOPE`, `CATEGORY_NOT_ASSIGNED`), never silently reassigned and never written.
+4. **Scope is enforced by ESG-lite, never by the model.** The LLM only ever sees the context ESG-lite returned for the caller's token, and every row it proposes is re-checked by `buildWriterContext` at plan and again at commit. A row for a site or category outside the caller's scope is an issue on that row (`SITE_NOT_ALLOWED`, `CATEGORY_NOT_ASSIGNED`), never silently reassigned and never written.
 5. **Mapping memory is per company.** Nothing learned from one client's sheets (header names, activity wording, layouts) is ever read while serving another client. A built-in synonym dictionary ships in code; it is not learned from client data.
 6. Data-safety CI: additive, nullable, idempotent `migrate:*` scripts; the golden calculation snapshot must not move.
 7. Off by default: a per-client switch (`company.ai_import_enabled`) that Superadmin turns on, separate from `mcp_enabled`.
-8. **Site-wise only (Shyam, 2026-10-14).** Every upload is for one site, picked on the first screen from the sites the caller holds. One plan and one batch per site. A sheet row that names another site gets `SITE_OUT_OF_SCOPE` and is never reassigned; a workbook covering several sites is uploaded once per site.
+8. **Site-wise only (Shyam, 2026-10-14).** Every upload is for one site, picked on the first screen from the sites the caller holds. One plan and one batch per site. A sheet row that names another site gets `SITE_NOT_ALLOWED` and is never reassigned; a workbook covering several sites is uploaded once per site.
 
 ## 5. Architecture
 
@@ -94,7 +94,7 @@ Model choice inside A (Shyam decides, decision 2): Claude (Sonnet class) through
 |---|---|---|
 | Who can open the page | Manager, Admin, Superadmin (User keeps today's contributor path) | FE route roles + ESG-lite role check on every `/imports` call (route guard is cosmetic; the API is the gate) |
 | Which sites and categories a proposal may name | Only those in the caller's import context (Manager: `user_sites`; User: site + category grants; Admin: company; Superadmin: named client) | ESG-lite IM3 context (what the LLM is shown) and `buildWriterContext` at plan and commit (what gets written) |
-| A sheet naming any site other than the chosen one | Row issue `SITE_OUT_OF_SCOPE` on every such row (whether or not the caller holds that site); the rest of the file still plans; commit refuses the plan unless those rows are skipped explicitly | ESG-lite IM2 (`skip_rows_with_issues` is per plan; XI0 adds row-level skip-by-issue-code) |
+| A sheet naming any site other than the chosen one | Row issue `SITE_NOT_ALLOWED` on every such row (whether or not the caller holds that site); the rest of the file still plans; commit refuses the plan unless those rows are skipped explicitly | ESG-lite IM2 (`skip_rows_with_issues` is per plan; XI0 adds row-level skip-by-issue-code) |
 | Mapping memory | Table keyed by `company_id`; read and write only through the caller's writer context; a profile for site X is served only to callers whose scope includes site X | ESG-lite XI3 |
 | P23 category mappings written from a match | Today Superadmin and Admin (D5); decision 5 asks whether Managers may, for their own sites | ESG-lite IM2 `save_mapping` |
 | Uploaded file | Owned by the uploader (`_own_document`); deleted after commit; never readable by another principal | python_AI_service (existing) |
