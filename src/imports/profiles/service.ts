@@ -2,7 +2,7 @@ import { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import { AuditLog } from "../../entities/AuditLog";
 import { ImportMappingProfile } from "../../entities/ImportMappingProfile";
-import { ImportPlan } from "../../entities/ImportPlan";
+import { ImportPlan, ImportPlanRow } from "../../entities/ImportPlan";
 import { UserRole } from "../../types/type";
 import { resolveUserCompanyId } from "../../utils/companyScope";
 import { ImportError } from "../errors";
@@ -63,7 +63,27 @@ export const listProfiles = async (user: TokenUser, rawQuery: Query): Promise<Ma
     where: { company_id: ctx.company_id, site_id: query.site_id, fingerprint: query.fingerprint },
     order: { confirmed_at: "DESC", updated_at: "DESC" },
   });
-  return rows.map(profileView);
+  const allowedCats = ctx.allowed_category_ids_by_site[query.site_id] ?? [];
+  return rows.map((p) => visibleToCategories(p, allowedCats)).filter((p): p is ImportMappingProfile => p !== null).map(profileView);
+};
+
+/**
+ * A profile as a caller with these categories may see it (a User with
+ * category grants holds only some of a site's categories). A fixed category
+ * outside the list hides the profile; a column category keeps only the
+ * values and activities of categories in the list. Other roles hold every
+ * category assigned to the site, so for them nothing changes.
+ */
+export const visibleToCategories = (p: ImportMappingProfile, allowed: number[]): ImportMappingProfile | null => {
+  const sheet = p.sheet_proposal as SheetProposal;
+  if (p.category_id !== null && p.category_id !== undefined) {
+    if (!allowed.includes(Number(p.category_id))) return null;
+  }
+  const ok = (id: number | null) => id === null || allowed.includes(Number(id));
+  const category = sheet.category.kind === "column" ? { ...sheet.category, values: sheet.category.values.filter((v) => ok(v.id)) } : sheet.category;
+  const activities = sheet.activities.filter((a) => allowed.includes(Number(a.category_id)));
+  if (category === sheet.category && activities.length === sheet.activities.length) return p;
+  return Object.assign(Object.create(Object.getPrototypeOf(p)), p, { sheet_proposal: { ...sheet, category, activities } });
 };
 
 /**
@@ -120,6 +140,18 @@ export const validatePlanMapping = async (ctx: WriterContext, channel: string, m
   if (channel !== "bulk_upload") throw new ImportError("IMPORT_VALIDATION", [{ path: "mapping", message: "mapping is only accepted on bulk_upload plans" }]);
   await assertAiImportEnabled(ctx.company_id);
   if (!ctx.allowed_site_ids.includes(mapping.site_id)) throw new ImportError("IMPORT_FORBIDDEN", { site_id: mapping.site_id });
+  // Every category the proposal names must be one the caller may import into
+  // on that site, or it would be learned into the company's memory.
+  const allowed = ctx.allowed_category_ids_by_site[mapping.site_id] ?? [];
+  mapping.sheets.forEach((sheet, i) => {
+    if (sheet.excluded) return;
+    const named = [
+      ...(sheet.category.kind === "fixed" ? [sheet.category.id] : sheet.category.values.map((v) => v.id).filter((id): id is number => id !== null)),
+      ...sheet.activities.map((a) => a.category_id),
+    ];
+    const outside = [...new Set(named.filter((id) => !allowed.includes(Number(id))))];
+    if (outside.length) throw new ImportError("IMPORT_FORBIDDEN", { site_id: mapping.site_id, category_ids: outside, sheet: i });
+  });
   return mapping;
 };
 
@@ -141,6 +173,12 @@ export const toStoredSheet = (sheet: SheetProposal): SheetProposal => ({
  * failure here must not undo or report against a commit that succeeded.
  * Returns the number of profiles written.
  */
+/** The sheet part of a row_ref ("Sheet!Cell"); a sheet name may itself contain "!". */
+export const sheetOfRowRef = (ref: string): string => {
+  const i = ref.lastIndexOf("!");
+  return i < 0 ? ref : ref.slice(0, i);
+};
+
 export const learnFromBatch = async (event: BatchCommittedEvent): Promise<number> => {
   if (event.channel !== "bulk_upload") return 0;
   const plan = await AppDataSource.getRepository(ImportPlan).findOne({ where: { upload_batch_id: event.upload_batch_id, status: "committed" } });
@@ -151,15 +189,32 @@ export const learnFromBatch = async (event: BatchCommittedEvent): Promise<number
     return 0;
   }
   if (Number(plan.company_id) !== event.company_id) return 0; // never learn across companies
-  let written = 0;
+  // Learn only from sheets the batch actually wrote rows for: a sheet whose
+  // rows were all issues or skipped taught nothing, and its mapping may be the
+  // reason. Committed rows are the plan's ready rows; row_ref is "Sheet!Cell".
+  const readyRefs: { row_ref: string }[] = await AppDataSource.getRepository(ImportPlanRow).find({ select: { row_ref: true }, where: { plan_id: plan.plan_id, state: "ready" } });
+  const writtenSheets = new Set(readyRefs.map((r) => sheetOfRowRef(r.row_ref)));
+  const confirmedBy = event.committed_by ?? event.created_by;
+  // One profile per company × fingerprint × site × category: two sheets with
+  // the same layout in one workbook are one learning step, not two.
+  const byKey = new Map<string, { sheet: SheetProposal; categoryId: number | null }>();
   for (const sheet of parsed.data.sheets) {
     if (sheet.excluded) continue;
-    if (!event.site_ids.includes(sheet.site_id)) continue; // the batch wrote nothing for that site
+    if (!event.site_ids.includes(sheet.site_id)) continue;
+    if (!writtenSheets.has(sheet.sheet_name)) continue;
     const categoryId = sheet.category.kind === "fixed" ? sheet.category.id : null;
-    await AppDataSource.transaction(async (m) => {
-      // Serialise upserts of one company × fingerprint (the unique key treats
-      // NULL category_id as distinct, so the check below must not race).
-      await m.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`import_mapping_profile:${plan.company_id}:${sheet.fingerprint}`]);
+    byKey.set(`${sheet.fingerprint}:${sheet.site_id}:${categoryId ?? ""}`, { sheet, categoryId });
+  }
+  if (!byKey.size) return 0;
+  let written = 0;
+  // One transaction for the batch: either every profile it teaches is
+  // written or none is.
+  await AppDataSource.transaction(async (m) => {
+    const fingerprints = [...new Set([...byKey.values()].map((v) => v.sheet.fingerprint))].sort();
+    // Serialise upserts of one company × fingerprint (the unique key treats
+    // NULL category_id as distinct, so the check below must not race).
+    for (const fp of fingerprints) await m.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`import_mapping_profile:${plan.company_id}:${fp}`]);
+    for (const { sheet, categoryId } of byKey.values()) {
       const existing = await repo(m)
         .createQueryBuilder("p")
         .where("p.company_id = :company AND p.fingerprint = :fp AND p.site_id = :site AND p.category_id IS NOT DISTINCT FROM :cat", {
@@ -172,9 +227,9 @@ export const learnFromBatch = async (event: BatchCommittedEvent): Promise<number
       const now = new Date();
       const stored = toStoredSheet(sheet);
       if (existing) {
-        await repo(m).update({ id: existing.id }, { sheet_proposal: stored as any, confirmed_by: event.created_by, confirmed_at: now, uses: Number(existing.uses) + 1 });
+        await repo(m).update({ id: existing.id }, { sheet_proposal: stored as any, confirmed_by: confirmedBy, confirmed_at: now, uses: Number(existing.uses) + 1 });
         const after = (await repo(m).findOne({ where: { id: existing.id } }))!;
-        await writeAudit(m, event.created_by, "update", after, `Learned from import plan ${plan.plan_id} (batch ${event.upload_batch_id})`, { uses: { old: Number(existing.uses), new: Number(after.uses) } });
+        await writeAudit(m, confirmedBy, "update", after, `Learned from import plan ${plan.plan_id} (batch ${event.upload_batch_id})`, { uses: { old: Number(existing.uses), new: Number(after.uses) } });
       } else {
         const saved = await repo(m).save(
           repo(m).create({
@@ -183,16 +238,16 @@ export const learnFromBatch = async (event: BatchCommittedEvent): Promise<number
             category_id: categoryId,
             fingerprint: sheet.fingerprint,
             sheet_proposal: stored,
-            confirmed_by: event.created_by,
+            confirmed_by: confirmedBy,
             confirmed_at: now,
             uses: 1,
           }),
         );
-        await writeAudit(m, event.created_by, "create", saved, `Learned from import plan ${plan.plan_id} (batch ${event.upload_batch_id})`, { uses: { old: null, new: 1 } });
+        await writeAudit(m, confirmedBy, "create", saved, `Learned from import plan ${plan.plan_id} (batch ${event.upload_batch_id})`, { uses: { old: null, new: 1 } });
       }
       written += 1;
-    });
-  }
+    }
+  });
   return written;
 };
 
