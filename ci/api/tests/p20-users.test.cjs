@@ -116,6 +116,35 @@ test("update sets profile fields and narrows categories within the person's site
   }
 });
 
+test("a person's sites must all belong to one client, on create and on update", async () => {
+  // Sites 1 and 2 belong to CI Steel Co, site 3 to CI Other Co.
+  const mixedEmail = "p20-mixed@example.invalid";
+  const email = "p20-one-client@example.invalid";
+  await cleanup([mixedEmail, email]);
+  try {
+    const mixed = await call("POST", "/admin/users", "superadmin", { email: mixedEmail, password: "Mixed-pass-1", role: "User", site_ids: [1, 3] });
+    assert.equal(mixed.status, 400);
+    assert.match(mixed.json.message, /one client.*CI Steel Co.*CI Other Co/);
+    const notCreated = await withDb((db) => db.query(`SELECT 1 FROM "user" WHERE email = $1`, [mixedEmail]));
+    assert.equal(notCreated.rows.length, 0);
+
+    const created = await call("POST", "/admin/users", "superadmin", { email, password: "One-client-1", role: "Manager", site_ids: [1, 2] });
+    assert.equal(created.status, 201);
+    const id = created.json.user.user_id;
+
+    const moved = await call("PATCH", `/admin/users/${id}`, "superadmin", { site_ids: [2, 3] });
+    assert.equal(moved.status, 400);
+    assert.match(moved.json.message, /one client/);
+    const sites = await withDb((db) => db.query(`SELECT site_id FROM user_sites WHERE user_id = $1 ORDER BY site_id`, [id]));
+    assert.deepEqual(sites.rows.map((r) => r.site_id), [1, 2]);
+
+    // Another client's sites on their own are fine.
+    assert.equal((await call("PATCH", `/admin/users/${id}`, "superadmin", { site_ids: [3] })).status, 200);
+  } finally {
+    await cleanup([mixedEmail, email]);
+  }
+});
+
 test("create still requires email and role", async () => {
   assert.equal((await call("POST", "/admin/users", "superadmin", { role: "User" })).status, 400);
   assert.equal((await call("POST", "/admin/users", "superadmin", { email: "x@example.invalid" })).status, 400);

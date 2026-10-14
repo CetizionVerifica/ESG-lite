@@ -111,6 +111,18 @@ const profileFields = (body: any): { error?: string; fields: Partial<User> } => 
   return { fields };
 };
 
+/**
+ * A person works for one client, so their sites must all belong to one
+ * company: a mix would show them (and let them enter) another client's data.
+ * Sites must be loaded with their company. Returns the 400 message, or null.
+ */
+export const mixedCompaniesError = (sites: Site[]): string | null => {
+  const names = new Map<number, string>();
+  for (const site of sites) if (site.company) names.set(site.company.company_id, site.company.name);
+  if (names.size <= 1) return null;
+  return `A person's sites must all belong to one client. These sites belong to ${names.size} clients: ${[...names.values()].join(", ")}.`;
+};
+
 /** Collect all unique categories from a list of sites (loaded with categories relation). */
 const collectSiteCategories = (sites: Site[]): Category[] => {
   const seen = new Set<number>();
@@ -208,8 +220,12 @@ export const createUser = async (req: Request, res: Response) => {
     if ((role === UserRole.MANAGER || role === UserRole.USER) && site_ids && Array.isArray(site_ids) && site_ids.length > 0) {
       const sites = await siteRepo.find({
         where: { site_id: In(site_ids) },
-        relations: ["categories"],
+        relations: ["categories", "company"],
       });
+      const mixed = mixedCompaniesError(sites);
+      if (mixed) {
+        return res.status(400).json({ message: mixed });
+      }
 
       const user = repo.create({
         ...profile.fields,
@@ -338,8 +354,12 @@ export const updateUser = async (req: Request, res: Response) => {
       if (site_ids.length > 0) {
         const sites = await siteRepo.find({
           where: { site_id: In(site_ids) },
-          relations: ["categories"],
+          relations: ["categories", "company"],
         });
+        const mixed = mixedCompaniesError(sites);
+        if (mixed) {
+          return res.status(400).json({ message: mixed });
+        }
         user.sites = sites;
         // Re-seed categories: grant all categories from new sites
         user.categories = collectSiteCategories(sites);
