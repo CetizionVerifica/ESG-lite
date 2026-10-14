@@ -120,17 +120,30 @@ type Table = { table: string; key: string };
 const EMISSION: Table = { table: "emission", key: "pk_id" };
 const PRODUCTION: Table = { table: "production_data", key: "production_id" };
 
-async function rowsOf(t: Table, ids: number[]) {
+type ScopedRow = { id: number; site_id: number; created_by: number | null; upload_batch_id: string | null };
+
+async function rowsOf(t: Table, ids: number[]): Promise<ScopedRow[]> {
   if (!ids.length) return [];
+  const batch = t === EMISSION ? "upload_batch_id" : "NULL::text AS upload_batch_id";
   return AppDataSource.query(
-    `SELECT ${t.key} AS id, site_id, created_by FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
+    `SELECT ${t.key} AS id, site_id, created_by, ${batch} FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
     [ids]
-  ) as Promise<{ id: number; site_id: number; created_by: number | null }[]>;
+  );
 }
 
 /**
+ * Nobody reviews their own typed entries (audit F-01/F-02). Rows that came in
+ * through an upload batch are the exception (smart-import decision 6, Shyam
+ * 2026-10-14): the manager who uploaded a file may approve its rows, and the
+ * audit row then says "Approved by the uploader" (audit.middleware).
+ */
+const selfReview = (req: AuthRequest, rows: { created_by: number | null; upload_batch_id: string | null }[]) =>
+  req.user?.role !== UserRole.SUPERADMIN && rows.some((r) => !r.upload_batch_id && Number(r.created_by) === Number(req.user?.userId));
+
+/**
  * Records named by `:param` or by `ids[]` in the body must sit on the
- * caller's sites. With `review`, the caller must also not be their creator.
+ * caller's sites. With `review`, the caller must also not be their creator
+ * (uploaded rows excepted, see selfReview).
  */
 const guardRecords = (t: Table, from: { param?: string; bodyIds?: boolean }, review = false): Guard =>
   wrap(async (req, res, next) => {
@@ -141,9 +154,7 @@ const guardRecords = (t: Table, from: { param?: string; bodyIds?: boolean }, rev
     const visible = rows.filter((r) => !allowed || allowed.has(Number(r.site_id)));
     if (from.param && !visible.length) return res.status(404).json(NOT_FOUND);
     if (visible.length < rows.length) return forbidden(res);
-    if (review && req.user?.role !== UserRole.SUPERADMIN && rows.some((r) => Number(r.created_by) === Number(req.user?.userId))) {
-      return res.status(403).json(SELF_REVIEW);
-    }
+    if (review && selfReview(req, rows)) return res.status(403).json(SELF_REVIEW);
     next();
   });
 
@@ -158,8 +169,8 @@ export const guardProductionIdsReview = guardRecords(PRODUCTION, { bodyIds: true
 /** Every row of an upload batch must be on the caller's sites. */
 export const guardBatch = (review = false): Guard =>
   wrap(async (req, res, next) => {
-    const rows: { site_id: number; created_by: number | null }[] = await AppDataSource.query(
-      `SELECT site_id, created_by FROM emission WHERE upload_batch_id = $1`,
+    const rows: { site_id: number; created_by: number | null; upload_batch_id: string | null }[] = await AppDataSource.query(
+      `SELECT site_id, created_by, upload_batch_id FROM emission WHERE upload_batch_id = $1`,
       [String(req.params.batchId)]
     );
     const allowed = await allowedSites(req);
@@ -167,9 +178,7 @@ export const guardBatch = (review = false): Guard =>
       return res.status(404).json(NOT_FOUND);
     }
     if (allowed && rows.some((r) => !allowed.has(Number(r.site_id)))) return forbidden(res);
-    if (review && req.user?.role !== UserRole.SUPERADMIN && rows.some((r) => Number(r.created_by) === Number(req.user?.userId))) {
-      return res.status(403).json(SELF_REVIEW);
-    }
+    if (review && selfReview(req, rows)) return res.status(403).json(SELF_REVIEW);
     next();
   });
 

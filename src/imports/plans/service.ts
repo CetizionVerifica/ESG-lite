@@ -369,7 +369,10 @@ export const patchPlan = async (
         if (!merged.success) {
           throw new ImportError("IMPORT_VALIDATION", merged.error.issues.slice(0, 20).map((i) => ({ path: [c.row_ref, ...i.path].join("."), message: i.message })));
         }
-        r.input = merged.data;
+        // A row the user corrected before commit is one the reviewer should
+        // look at again (XI5 "Needs attention"); the flag rides on meta, which
+        // only smart-import rows carry.
+        r.input = merged.data.meta ? { ...merged.data, meta: { ...merged.data.meta, edited: true } } : merged.data;
       }
       if (c.skip === true) r.state = "skipped";
       if (c.skip === false && r.state === "skipped") r.state = "issue";

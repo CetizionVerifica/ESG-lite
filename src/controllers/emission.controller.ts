@@ -35,6 +35,7 @@ import {
 } from "../reporting/ghg-data";
 import { pcfDataChanged } from "../pcf/staleness";
 import { enrichFeraRows, pendingReviewCountSql } from "../utils/feraFold";
+import { IMPORT_LIMITS } from "../imports/limits";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -75,6 +76,23 @@ const emissionSearchSql = (a: { e: string; c: string; s: string; u: string }) =>
                  AND (v.val #>> '{}') ILIKE :search ESCAPE '\\')
     OR CAST(${a.e}.pk_id AS text) = :searchExact)`;
 
+// XI5 "Needs attention": rows of an upload batch the reviewer should look at
+// first. A row needs attention when the plan row it came from was matched
+// below the confirmation threshold (meta.confidence < 0.8, or a
+// LOW_CONFIDENCE_MATCH issue) or was edited by the uploader before commit
+// (meta.edited). Joined through the batch's import plan and the row_ref IM1
+// stores on emission.extra_data.import; rows without a plan (older batches,
+// Claude and API rows without meta) never need attention. `alias` is the
+// emission alias of the query it is pasted into.
+const attentionSql = (alias: string) =>
+  `EXISTS (SELECT 1 FROM import_plan ap JOIN import_plan_row ar ON ar.plan_id = ap.plan_id
+            WHERE ap.upload_batch_id = ${alias}.upload_batch_id
+              AND ar.row_ref = ${alias}.extra_data -> 'import' ->> 'row_ref'
+              AND (COALESCE((ar.input -> 'meta' ->> 'confidence')::float, 1) < :attentionBelow
+                   OR (ar.input -> 'meta' ->> 'edited') = 'true'
+                   OR ar.issues @> '[{"code":"LOW_CONFIDENCE_MATCH"}]'::jsonb))`;
+const ATTENTION_BELOW = IMPORT_LIMITS.MAPPING_CONFIRM_BELOW;
+
 // Get emissions by site, category, and date (with optional pagination).
 // Optional sort=<EMISSION_SORTS key>&order=asc|desc and search=<text>; without
 // them the result is exactly as before (newest id first, no text filter).
@@ -84,6 +102,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     // batchId=<upload_batch_id>: only that upload batch's rows (P07 "Review rows"
     // on an upload batch). Site scoping below still applies.
     const batchId = typeof req.query.batchId === "string" ? req.query.batchId.trim().slice(0, 100) : "";
+    // attention=1 (with batchId only): just the rows that need attention (XI5).
+    const attention = Boolean(batchId) && ["1", "true"].includes(String(req.query.attention ?? ""));
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     // categoryIds=1,2 (several) or the older categoryId=1.
     if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
@@ -136,6 +156,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     if (batchId) {
       qb.andWhere("emission.upload_batch_id = :batchId", { batchId });
+      if (attention) qb.andWhere(attentionSql("emission"), { attentionBelow: ATTENTION_BELOW });
     }
 
     if (date) {
@@ -201,6 +222,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       }
       if (batchId) {
         summaryQb.andWhere("emission.upload_batch_id = :batchId", { batchId });
+        // Attention count over the batch's rows as filtered so far (before the
+        // attention filter itself), so the chip can say "Needs attention (n)".
+        summaryQb.addSelect(`COUNT(*) FILTER (WHERE ${attentionSql("emission")})`, "attention_count").setParameter("attentionBelow", ATTENTION_BELOW);
+        if (attention) summaryQb.andWhere(attentionSql("emission"), { attentionBelow: ATTENTION_BELOW });
       }
       if (date) {
         const [y, m] = (date as string).split("-");
@@ -236,6 +261,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
           pending_review_count: parseInt(summaryRow?.pending_review_count) || 0,
           approved_count: parseInt(summaryRow?.approved_count) || 0,
           rejected_count: parseInt(summaryRow?.rejected_count) || 0,
+          // Rows of the batch that need attention (XI5); only with batchId.
+          ...(batchId ? { attention_count: parseInt(summaryRow?.attention_count) || 0 } : {}),
         },
       });
     }

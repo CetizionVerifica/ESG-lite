@@ -13,12 +13,15 @@ import { UserRole } from "../types/type";
 
 type Guard = (req: AuthRequest, res: Response, next: NextFunction) => unknown;
 type Entity = "emission" | "production_data";
-type Snapshot = { id: number; status: string; amount: string | null };
+type Snapshot = { id: number; status: string; amount: string | null; created_by: number | null };
 
-const TABLES: Record<Entity, { table: string; key: string; amount: string }> = {
-  emission: { table: "emission", key: "pk_id", amount: "total_emission" },
-  production_data: { table: "production_data", key: "production_id", amount: "quantity" },
+const TABLES: Record<Entity, { table: string; key: string; amount: string; creator: string }> = {
+  emission: { table: "emission", key: "pk_id", amount: "total_emission", creator: "created_by" },
+  production_data: { table: "production_data", key: "production_id", amount: "quantity", creator: "created_by" },
 };
+
+/** Audit reason when the approver is the person who submitted or uploaded the row (smart-import decision 6). */
+export const APPROVED_BY_UPLOADER = "Approved by the uploader";
 
 /** Where the target ids come from: `:id`, body `ids[]` or `:batchId`. */
 type Source = "param" | "ids" | "batch";
@@ -53,7 +56,7 @@ async function snapshot(entity: Entity, ids: number[]): Promise<Map<number, Snap
   if (!ids.length) return new Map();
   const t = TABLES[entity];
   const rows: Snapshot[] = await AppDataSource.query(
-    `SELECT ${t.key} AS id, status, ${t.amount}::text AS amount FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
+    `SELECT ${t.key} AS id, status, ${t.amount}::text AS amount, ${t.creator} AS created_by FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
     [ids]
   );
   return new Map(rows.map((r) => [Number(r.id), r]));
@@ -80,9 +83,15 @@ async function writeAudit(entity: Entity, before: Map<number, Snapshot>, req: Au
     } else {
       continue;
     }
+    // The uploader approving their own row is allowed (decision 6) and noted.
+    let rowReason = reason;
+    if (action === "approve" && old.created_by !== null && Number(old.created_by) === Number(req.user?.userId)) {
+      rowReason = reason ? `${APPROVED_BY_UPLOADER}. ${reason}` : APPROVED_BY_UPLOADER;
+      changed.approved_by_uploader = { old: null, new: true };
+    }
     const n = values.length;
     rows.push(`($${n + 1}, $${n + 2}, $${n + 3}, $${n + 4}::jsonb, $${n + 5}, $${n + 6})`);
-    values.push(entity, id, action, JSON.stringify(changed), reason, req.user?.userId ?? null);
+    values.push(entity, id, action, JSON.stringify(changed), rowReason, req.user?.userId ?? null);
   }
   if (!rows.length) return;
   await AppDataSource.query(

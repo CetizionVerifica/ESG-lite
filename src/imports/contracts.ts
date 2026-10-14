@@ -86,6 +86,8 @@ export const ImportRowMetaSchema = z
   .object({
     source: MappingSourceSchema,
     confidence: z.number().min(0).max(1),
+    /** Set by PATCH /imports/plans when the user changed the row before commit (XI5 "Needs attention"). */
+    edited: z.boolean().optional(),
   })
   .strip();
 export type ImportRowMeta = z.infer<typeof ImportRowMetaSchema>;
