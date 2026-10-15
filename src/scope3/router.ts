@@ -8,9 +8,11 @@
  */
 import { Router } from "express";
 import boundaryRouter from "./boundary/router";
+import assetsRouter from "./assets/router";
 
 const router = Router();
 
 router.use(boundaryRouter); // S3-1: /scope3/categories, /scope3/category-map
+router.use(assetsRouter); // S3-11: /scope3/investments, /scope3/assets/sites
 
 export default router;

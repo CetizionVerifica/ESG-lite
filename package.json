@@ -34,6 +34,8 @@
     "migrate:scope3-factor-meta": "ts-node src/scripts/migrateScope3FactorMeta.ts",
     "migrate:scope3-fera-sub": "ts-node src/scripts/migrateScope3FeraSub.ts",
     "migrate:scope3-review-checks": "ts-node src/scripts/migrateScope3ReviewChecks.ts",
+    "migrate:scope3-assets": "ts-node src/scripts/migrateScope3Assets.ts",
+    "migrate:scope3-asset-forms": "ts-node src/scripts/migrateScope3AssetForms.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "test:scope3-golden": "node ci/golden/scope3/run.cjs",

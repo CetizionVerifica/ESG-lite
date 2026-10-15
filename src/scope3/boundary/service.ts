@@ -10,6 +10,7 @@ import { isGhgCategoryNumber } from "../taxonomy/number";
 import { Scope3Error } from "../contracts/errors";
 import { BoundaryError } from "./errors";
 import { companyScope3Categories, ensureBoundaryRows, isScope3Sql, Queryable, refreshProposals } from "../taxonomy/service";
+import { leaseNotes } from "../assets/service";
 
 export const BOUNDARY_STATUSES = ["included", "excluded", "not_relevant", "screening"] as const;
 export type BoundaryStatus = (typeof BOUNDARY_STATUSES)[number];
@@ -77,6 +78,8 @@ export async function getBoundary(companyId: number) {
     summary,
     unmapped_count: categories.filter((m) => m.ghg_category === null).length,
     categories: list,
+    // S3-11: leased and franchised sites with where their energy belongs (never moves rows).
+    lease_sites: await leaseNotes(companyId),
   };
 }
 

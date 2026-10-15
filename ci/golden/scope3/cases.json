@@ -782,7 +782,7 @@
         }
       ],
       "expected_kgco2e": 1320,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "The guidance prints 1,325 because it rounds the refrigerant to 0.67 kg; 1,320 is exact (01-contracts.md §9)."
     },
@@ -812,7 +812,7 @@
         }
       ],
       "expected_kgco2e": 3000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "Partner-reported figure with an identity factor (01-contracts.md §10)."
     },
@@ -865,7 +865,7 @@
         }
       ],
       "expected_kgco2e": 355000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "Partner-reported scope 1+2 with an identity factor (01-contracts.md §10)."
     },
@@ -922,7 +922,7 @@
         }
       ],
       "expected_kgco2e": 23500000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11"
     },
     {
@@ -972,7 +972,7 @@
         }
       ],
       "expected_kgco2e": 493000000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11"
     },
     {
@@ -1044,11 +1044,10 @@
           "share": 0.1
         }
       ],
-      "expected_kgco2e": 2242500,
+      "expected_kgco2e": 2332500,
       "status": "skip",
       "owner": "S3-11",
-      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). Runs once S3-5 spend.ts is merged.",
-      "open_question": "The formula's investee 4 term (5,500,000 × 60 % × 2 + 5,500,000 × 40 % × 1.5) × 10 % gives 990,000, so the rows sum to 2,332,500, not 2,242,500. Confirm the expected figure before turning this case on."
+      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). The guidance prints 2,242,500 because it writes the investee 4 term as 900,000; its own inputs give 990,000, so the exact total is 2,332,500 (S3-11). Runs once S3-5 spend.ts is merged."
     },
     {
       "id": "ex-10.1",

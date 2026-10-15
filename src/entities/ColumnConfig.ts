@@ -41,7 +41,10 @@ export interface EmissionCategoryMapping {
 // ids of the method dropdown (activity_data stores option ids for selects).
 export interface MethodCalculation {
   multiply: string[];      // column names whose values multiply together
-  percent?: string[];      // subset of multiply entered as percentages (divided by 100)
+  percent?: string[];      // subset of multiply/divide entered as percentages (divided by 100)
+  // S3-11 (shared spec addition, 01-contracts.md §6; S3-9 builds on it): fields
+  // the product is divided by, each > 0. A field also in `percent` divides by value / 100.
+  divide?: string[];
   activity_unit?: string;  // unit the product is in (preselects activity_data_unit)
 }
 

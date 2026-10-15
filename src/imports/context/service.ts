@@ -183,7 +183,7 @@ function requiredColumns(config: ColumnConfig, spec: ColumnConfig["calculation"]
     if (spec.mode === "per_method" && spec.method_column) required.add(spec.method_column);
     const methods = Object.entries(spec.methods || {});
     const perField = new Map<string, string[]>();
-    for (const [name, m] of methods) for (const f of m?.multiply || []) perField.set(f, [...(perField.get(f) || []), name]);
+    for (const [name, m] of methods) for (const f of [...(m?.multiply || []), ...(m?.divide || [])]) perField.set(f, [...(perField.get(f) || []), name]); // divide: S3-11
     for (const [f, names] of perField) {
       if (names.length === methods.length) required.add(f);
       else requiredFor.set(f, names);

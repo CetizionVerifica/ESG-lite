@@ -109,7 +109,7 @@ export function resolveSpecMethod(
   return { method, key: methodKey };
 }
 
-// Multiply the method's fields together. Every listed field must hold a
+// Multiply the method's fields together (then divide by its `divide` fields). Every listed field must hold a
 // number greater than zero — a missing weight or a zero distance makes the
 // whole row meaningless, so it errors in plain language instead of silently
 // computing with fewer fields. Fields listed under `percent` are entered as
@@ -154,6 +154,24 @@ export function computeSpecActivityValue(
       product *= value / 100;
     } else {
       product *= value;
+    }
+  }
+
+  // `divide` (S3-11, 01-contracts.md §6): leased-space shares such as
+  // your area ÷ (building area × occupancy). Same rule as multiply: every
+  // field > 0, percentages ≤ 100.
+  for (const fieldName of method.divide ?? []) {
+    const value = parsePositiveNumber(activity_data[fieldName]);
+    if (value === null) {
+      return { ok: false, message: `Please enter a number greater than 0 in "${fieldName}".` };
+    }
+    if (percentFields.has(fieldName)) {
+      if (value > 100) {
+        return { ok: false, message: `"${fieldName}" is a percentage — it cannot be more than 100.` };
+      }
+      product /= value / 100;
+    } else {
+      product /= value;
     }
   }
 
