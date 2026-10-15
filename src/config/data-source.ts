@@ -34,6 +34,7 @@ import { OauthCode } from "../entities/OauthCode";
 import { OauthToken } from "../entities/OauthToken";
 import { CompanyScope3Category } from "../entities/CompanyScope3Category";
 import { CategoryGhgMapProposal } from "../entities/CategoryGhgMapProposal";
+import { Investment } from "../entities/Investment";
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -77,6 +78,7 @@ const entities = [
     OauthToken,
     CompanyScope3Category,
     CategoryGhgMapProposal,
+    Investment, // S3-11
 ];
 
 // Parse DATABASE_URL to extract connection parameters
