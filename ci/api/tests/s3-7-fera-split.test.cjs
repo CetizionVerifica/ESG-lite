@@ -205,6 +205,29 @@ test("S3-15 checks never hold the two twins of one parent as duplicates of each 
   }
 });
 
+test("a row with twins is still held when an unlinked row duplicates it", async () => {
+  const e = await typed(2, "2025-02-14", "kwh", "Grid AU", 1000);
+  assert.equal(e.status, 201, JSON.stringify(e.json));
+  const parent = e.json.emission.pk_id;
+  // An older upload's copy of the parent: same site, category, date and activity, no FERA link.
+  const [{ pk_id: copy }] = await withDb(async (db) =>
+    (await db.query(
+      `INSERT INTO emission (site_id, category_id, date_of_reporting, reporting_period, year_type, activity_data, activity_data_unit, total_emission, unit, status)
+       SELECT site_id, category_id, date_of_reporting, reporting_period, year_type, activity_data, activity_data_unit, total_emission, unit, 'pending'
+         FROM emission WHERE pk_id = $1 RETURNING pk_id`,
+      [parent],
+    )).rows,
+  );
+  try {
+    const res = await call("PUT", "/user/emissions/bulk-approve", "otherManager", { ids: [parent], only_ready: true });
+    assert.equal(res.status, 200, JSON.stringify(res.json));
+    assert.deepEqual(res.json.approved, [], "the family is not approved past its duplicate");
+    assert.ok(res.json.skipped.some((s) => s.id === parent && s.held.includes("NO_DUPLICATE")), JSON.stringify(res.json.skipped));
+  } finally {
+    await withDb((db) => db.query(`DELETE FROM emission WHERE pk_id = $1`, [copy]));
+  }
+});
+
 test("bulk approve of one twin carries the whole family", async () => {
   const e = await typed(2, "2025-12-15", "kwh", "Grid AU", 1000);
   assert.equal(e.status, 201, JSON.stringify(e.json));
