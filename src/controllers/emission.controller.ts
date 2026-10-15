@@ -12,6 +12,7 @@ import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
 import { getConversionFactor, unitsMatchExact } from "../services/emissionWrite/units";
 import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage } from "../services/emissionWrite";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
@@ -945,19 +946,9 @@ export const deleteEmission = async (req: Request, res: Response) => {
       });
     }
 
-    // Also delete the linked FERA entry (bi-directional)
-    const idsToDelete = [emission.pk_id];
-    if (emission.fera_linked_id) {
-      idsToDelete.push(emission.fera_linked_id);
-    }
-    // Every emission that links back to this one (a Scope 2 row may have a
-    // T&D-loss twin too, S3-7)
-    const linkedBack = await repo.find({
-      where: { fera_linked_id: emission.pk_id },
-    });
-    for (const l of linkedBack) {
-      if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
-    }
+    // Also delete the linked FERA entries: the whole family, whichever row
+    // was picked (a Scope 2 row may have a T&D-loss twin too, S3-7)
+    const idsToDelete = [emission.pk_id, ...(await feraFamilyIds(repo, emission))];
 
     // Delete related documents first (in case DB cascade is not set)
     const files = await documentFilesForEmissions(idsToDelete);
@@ -1591,11 +1582,8 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
     await repo.save(emission);
 
     // Auto-approve linked FERA entries (bidirectional)
-    const feraLinkedIds: number[] = [];
-    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
-    // Every twin linking back: the upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
-    const linkedBack = await repo.find({ where: { fera_linked_id: emission.pk_id } });
-    for (const l of linkedBack) if (!feraLinkedIds.includes(l.pk_id)) feraLinkedIds.push(l.pk_id);
+    // The whole family, whichever row was picked: parent, upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
+    const feraLinkedIds = await feraFamilyIds(repo, emission);
     for (const fId of feraLinkedIds) {
       const feraEmission = await repo.findOne({ where: { pk_id: fId } });
       if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
@@ -1707,11 +1695,8 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
     await repo.save(emission);
 
     // Auto-reject linked FERA entries (bidirectional)
-    const feraLinkedIds: number[] = [];
-    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
-    // Every twin linking back: the upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
-    const linkedBack = await repo.find({ where: { fera_linked_id: emission.pk_id } });
-    for (const l of linkedBack) if (!feraLinkedIds.includes(l.pk_id)) feraLinkedIds.push(l.pk_id);
+    // The whole family, whichever row was picked: parent, upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
+    const feraLinkedIds = await feraFamilyIds(repo, emission);
     for (const fId of feraLinkedIds) {
       const feraEmission = await repo.findOne({ where: { pk_id: fId } });
       if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {

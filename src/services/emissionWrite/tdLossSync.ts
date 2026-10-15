@@ -8,7 +8,9 @@
  *                                    review state copied from the parent
  *   twin exists, no factor applies → total 0, no snapshot, back to Pending
  *                                    with a note saying why
- *   no twin, factor applies        → created, as a new entry would get it
+ *   no twin, factor applies        → created, as a new entry would get it,
+ *                                    unless the FERA category is mode-locked
+ *                                    for the period (prepareEntry's rule)
  */
 import { AppDataSource } from "../../config/data-source";
 import { Emission, EmissionStatus } from "../../entities/Emission";
@@ -16,6 +18,7 @@ import { ContextCache } from "./context";
 import { factorSnapshot } from "./compute";
 import { targetYearFor } from "./resolve";
 import { tdLossTwinFor } from "./methods/fera";
+import { findModeLockConflict } from "../reportingPeriod";
 
 export const syncTdLossTwin = async (parent: Emission, activity_data: Record<string, any> | null | undefined): Promise<Emission | null> => {
   try {
@@ -29,6 +32,17 @@ export const syncTdLossTwin = async (parent: Emission, activity_data: Record<str
       ? tdLossTwinFor(ctx, activity_data.emission_category, { ...activity_data }, parent.activity_data_unit, targetYearFor(parent.date_of_reporting))
       : null;
     if (!existing && !twin) return null;
+    if (!existing && twin) {
+      // A new twin respects the lock on its own category, as a new entry's twins do.
+      const conflict = await findModeLockConflict(repo, {
+        site_id,
+        category_id: twin.category_id,
+        reporting_period: parent.reporting_period,
+        year_type: parent.year_type,
+        date_of_reporting: new Date(parent.date_of_reporting),
+      });
+      if (conflict) return null;
+    }
 
     const row =
       existing ??

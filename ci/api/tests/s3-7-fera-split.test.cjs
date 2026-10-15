@@ -147,6 +147,51 @@ test("an edit recalculates the T&D twin alongside the upstream twin", async () =
   assert.deepEqual(after.map((t) => [t.scope3_sub, t.total, t.status]), [["3b_upstream_electricity", 0.2, "pending"], ["3c_td_losses", 0, "pending"]]);
 });
 
+test("acting on one twin directly carries the whole family", async () => {
+  const familyOf = (parentId) =>
+    withDb(async (db) => (await db.query(`SELECT pk_id, status::text AS status FROM emission WHERE pk_id = $1 OR fera_linked_id = $1 ORDER BY pk_id`, [parentId])).rows);
+
+  // Approving the T&D twin approves the parent and the upstream twin too.
+  const a = await typed(2, "2025-09-30", "kwh", "Grid AU", 1000);
+  assert.equal(a.status, 201, JSON.stringify(a.json));
+  const ok = await call("PUT", `/user/emissions/${a.json.td_loss_emission.pk_id}/approve`, "otherManager", {});
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.deepEqual((await familyOf(a.json.emission.pk_id)).map((r) => r.status), ["approved", "approved", "approved"]);
+
+  // Rejecting the upstream twin rejects the T&D twin too.
+  const r = await typed(2, "2025-10-31", "kwh", "Grid AU", 1000);
+  const no = await call("PUT", `/user/emissions/${r.json.fera_emission.pk_id}/reject`, "otherManager", { comment: "Wrong meter" });
+  assert.equal(no.status, 200, JSON.stringify(no.json));
+  assert.deepEqual((await familyOf(r.json.emission.pk_id)).map((x) => x.status), ["rejected", "rejected", "rejected"]);
+
+  // Deleting the T&D twin leaves no orphan upstream twin behind.
+  const d = await typed(2, "2025-11-30", "kwh", "Grid AU", 1000);
+  const del = await call("DELETE", `/user/emissions/${d.json.td_loss_emission.pk_id}`, "otherUser");
+  assert.equal(del.status, 200, JSON.stringify(del.json));
+  assert.deepEqual(await familyOf(d.json.emission.pk_id), []);
+  assert.deepEqual(await withDb(async (db) => (await db.query(`SELECT pk_id FROM emission WHERE pk_id = $1`, [d.json.fera_emission.pk_id])).rows), []);
+});
+
+test("an edit never creates a T&D twin in a mode-locked FERA category", async () => {
+  const e = await typed(2, "2025-12-31", "kwh", "Grid US", 1000);
+  assert.equal(e.status, 201, JSON.stringify(e.json));
+  const id = e.json.emission.pk_id;
+  // A yearly FERA row for CY 2025 locks monthly FERA rows in that year.
+  const [{ pk_id: yearly }] = await withDb(async (db) =>
+    (await db.query(
+      `INSERT INTO emission (site_id, category_id, date_of_reporting, reporting_period, year_type, activity_data, activity_data_unit, total_emission, unit, status)
+       VALUES (${SITE}, 5, '2025-12-31', 'yearly', 'CY', '{}', 'kwh', 0, 'tCO2e', 'pending') RETURNING pk_id`,
+    )).rows,
+  );
+  try {
+    const edit = await call("PUT", `/user/emissions/${id}`, "otherUser", { activity_data: { emission_category: "Grid AU", activity_value: "1000" }, activity_data_unit: "kwh" });
+    assert.equal(edit.status, 200, JSON.stringify(edit.json));
+    assert.deepEqual((await twinsOf(id)).map((t) => t.scope3_sub), ["3b_upstream_electricity"], "no 3c twin is created under the lock");
+  } finally {
+    await withDb((db) => db.query(`DELETE FROM emission WHERE pk_id = $1`, [yearly]));
+  }
+});
+
 test("a Cat 4 row on a WTT-inclusive factor is flagged and keeps its total", async () => {
   const rows = [
     { row_ref: "Haul!B2", site_id: SITE, category_id: FREIGHT, period: { kind: "monthly", date: "2025-08-15" }, activity_name: "HGV S3-7 summed", activity_value: 1000, activity_unit: "tonne.km" },
