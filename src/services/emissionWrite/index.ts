@@ -24,6 +24,7 @@ import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, pla
 import { computeTotal, factorSnapshot, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
+import { refreshChecksSafely } from "../../scope3/review/service";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -107,6 +108,7 @@ export const insertEntry = async (
   entry: PreparedEntry,
   batch: BatchInfo | null,
   audit: AuditInfo | null,
+  opts: { deferChecks?: boolean } = {},
 ): Promise<{ emission: Emission; fera: Emission | null }> => {
   const repo = tx.getRepository(Emission);
   const { input } = entry;
@@ -161,6 +163,8 @@ export const insertEntry = async (
       );
     }
   }
+  // S3-15 review checks; insertRows defers them and refreshes the whole batch once.
+  if (!opts.deferChecks) await refreshChecksSafely(tx, fera ? [emission.pk_id, fera.pk_id] : [emission.pk_id]);
   return { emission, fera };
 };
 
@@ -419,7 +423,7 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     // which the attention filter reads from the plan row.
     if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
-    const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit);
+    const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
     inserted += 1;
     ids.push(emission.pk_id);
     if (fera) {
@@ -427,6 +431,7 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
       ids.push(fera.pk_id);
     }
   }
+  await refreshChecksSafely(tx, ids);
   return { inserted, fera_inserted, ids };
 };
 
