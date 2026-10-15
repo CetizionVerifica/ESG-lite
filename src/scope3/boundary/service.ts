@@ -5,8 +5,10 @@
  * rows (entity_type scope3_*) with old and new values.
  */
 import { AppDataSource } from "../../config/data-source";
-import { GHG_CATEGORIES, isGhgCategoryNumber } from "../contracts/ghgCategory";
+import { GHG_CATEGORIES } from "../contracts/ghgCategory";
+import { isGhgCategoryNumber } from "../taxonomy/number";
 import { Scope3Error } from "../contracts/errors";
+import { BoundaryError } from "./errors";
 import { companyScope3Categories, ensureBoundaryRows, isScope3Sql, Queryable, refreshProposals } from "../taxonomy/service";
 
 export const BOUNDARY_STATUSES = ["included", "excluded", "not_relevant", "screening"] as const;
@@ -56,7 +58,7 @@ export async function getBoundary(companyId: number) {
       key: c.key,
       name: c.name,
       direction: c.direction,
-      methods: c.methods,
+      methods: c.methods.map((m) => m.key),
       status,
       reason: r?.reason ?? null,
       method_note: r?.method_note ?? null,
@@ -88,7 +90,7 @@ export interface BoundaryUpdate {
 const textOrNull = (value: unknown, field: string): string | null | undefined => {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  if (typeof value !== "string" || value.length > MAX_TEXT) throw new Scope3Error("SCOPE3_VALIDATION", { field });
+  if (typeof value !== "string" || value.length > MAX_TEXT) throw new BoundaryError("SCOPE3_VALIDATION", { field });
   const t = value.trim();
   return t === "" ? null : t;
 };
@@ -96,7 +98,7 @@ const textOrNull = (value: unknown, field: string): string | null | undefined =>
 export async function updateBoundaryRow(companyId: number, n: number, body: BoundaryUpdate, userId: number) {
   if (!isGhgCategoryNumber(n)) throw new Scope3Error("GHG_CATEGORY_INVALID", { field: "n" });
   if (body.status !== undefined && !BOUNDARY_STATUSES.includes(body.status as BoundaryStatus)) {
-    throw new Scope3Error("SCOPE3_VALIDATION", { field: "status", allowed: BOUNDARY_STATUSES });
+    throw new BoundaryError("SCOPE3_VALIDATION", { field: "status", allowed: BOUNDARY_STATUSES });
   }
   const reason = textOrNull(body.reason, "reason");
   const methodNote = textOrNull(body.method_note, "method_note");
@@ -104,12 +106,12 @@ export async function updateBoundaryRow(companyId: number, n: number, body: Boun
   if (body.relevance !== undefined) {
     if (body.relevance === null) relevance = null;
     else if (typeof body.relevance !== "object" || Array.isArray(body.relevance)) {
-      throw new Scope3Error("SCOPE3_VALIDATION", { field: "relevance" });
+      throw new BoundaryError("SCOPE3_VALIDATION", { field: "relevance" });
     } else {
       relevance = {};
       for (const [k, v] of Object.entries(body.relevance as Record<string, unknown>)) {
         if (!(RELEVANCE_KEYS as readonly string[]).includes(k) || typeof v !== "boolean") {
-          throw new Scope3Error("SCOPE3_VALIDATION", { field: `relevance.${k}`, allowed: RELEVANCE_KEYS });
+          throw new BoundaryError("SCOPE3_VALIDATION", { field: `relevance.${k}`, allowed: RELEVANCE_KEYS });
         }
         relevance[k] = v;
       }
@@ -191,19 +193,19 @@ export interface MapConfirmation {
  */
 export async function confirmCategoryMap(companyId: number, confirm: unknown, userId: number) {
   if (!Array.isArray(confirm) || confirm.length === 0 || confirm.length > 500) {
-    throw new Scope3Error("SCOPE3_VALIDATION", { field: "confirm" });
+    throw new BoundaryError("SCOPE3_VALIDATION", { field: "confirm" });
   }
   const items: MapConfirmation[] = confirm.map((c: any, i: number) => {
     const categoryId = Number(c?.category_id);
     const n = Number(c?.ghg_category);
-    if (!Number.isInteger(categoryId) || categoryId <= 0) throw new Scope3Error("SCOPE3_VALIDATION", { field: `confirm[${i}].category_id` });
+    if (!Number.isInteger(categoryId) || categoryId <= 0) throw new BoundaryError("SCOPE3_VALIDATION", { field: `confirm[${i}].category_id` });
     if (!isGhgCategoryNumber(n)) throw new Scope3Error("GHG_CATEGORY_INVALID", { field: `confirm[${i}].ghg_category` });
     return { category_id: categoryId, ghg_category: n };
   });
 
   const own = new Map((await companyScope3Categories(companyId)).map((c) => [c.category_id, c]));
   const missing = items.filter((i) => !own.has(i.category_id)).map((i) => i.category_id);
-  if (missing.length) throw new Scope3Error("SCOPE3_NOT_FOUND", { category_ids: missing });
+  if (missing.length) throw new BoundaryError("SCOPE3_NOT_FOUND", { category_ids: missing });
 
   await ensureBoundaryRows(companyId);
   return AppDataSource.transaction(async (m) => {
@@ -230,11 +232,11 @@ export async function confirmCategoryMap(companyId: number, confirm: unknown, us
 
 export async function setConsolidationApproach(companyId: number, value: unknown, userId: number) {
   if (typeof value !== "string" || !CONSOLIDATION_APPROACHES.includes(value as ConsolidationApproach)) {
-    throw new Scope3Error("SCOPE3_VALIDATION", { field: "consolidation_approach", allowed: CONSOLIDATION_APPROACHES });
+    throw new BoundaryError("SCOPE3_VALIDATION", { field: "consolidation_approach", allowed: CONSOLIDATION_APPROACHES });
   }
   return AppDataSource.transaction(async (m) => {
     const [row]: any[] = await m.query(`SELECT consolidation_approach FROM company WHERE company_id = $1 FOR UPDATE`, [companyId]);
-    if (!row) throw new Scope3Error("SCOPE3_NOT_FOUND");
+    if (!row) throw new BoundaryError("SCOPE3_NOT_FOUND");
     if (row.consolidation_approach !== value) {
       await m.query(`UPDATE company SET consolidation_approach = $1 WHERE company_id = $2`, [value, companyId]);
       await audit(m, "scope3_consolidation", companyId, "update", { consolidation_approach: { old: row.consolidation_approach, new: value } }, userId, null);

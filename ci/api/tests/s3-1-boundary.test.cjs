@@ -146,7 +146,7 @@ test("category create/update: ghg_category only on Scope 3, required once the ma
   assert.equal(wrongScope.json.code, "GHG_CATEGORY_INVALID");
 
   const missing = await call("POST", "/admin/categories", "superadmin", { category_name: "CI S3-1 Freight", scope: "Scope 3" });
-  assert.equal(missing.status, 400);
+  assert.equal(missing.status, 422);
   assert.equal(missing.json.code, "GHG_CATEGORY_REQUIRED");
 
   const created = await call("POST", "/admin/categories", "superadmin", { category_name: "CI S3-1 Freight", scope: "Scope 3", ghg_category: 4 });

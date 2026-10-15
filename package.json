@@ -33,6 +33,7 @@
     "migrate:scope3-taxonomy": "ts-node src/scripts/migrateScope3Taxonomy.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
+    "test:scope3-golden": "node ci/golden/scope3/run.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"
   },
   "keywords": [],

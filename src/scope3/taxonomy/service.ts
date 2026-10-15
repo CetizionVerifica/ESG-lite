@@ -8,7 +8,8 @@
  * company × category, the confirmed number lives on category.ghg_category.
  */
 import { AppDataSource } from "../../config/data-source";
-import { GHG_CATEGORIES, GhgCategoryNumber, isGhgCategoryNumber } from "../contracts/ghgCategory";
+import { GHG_CATEGORIES, GhgCategoryNumber } from "../contracts/ghgCategory";
+import { isGhgCategoryNumber } from "./number";
 import { proposeGhgCategory } from "./propose";
 
 /** Anything with TypeORM's `query` (DataSource, EntityManager, QueryRunner). */

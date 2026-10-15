@@ -5,7 +5,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 
-const { GHG_CATEGORIES, isGhgCategoryNumber } = require(path.resolve("dist/scope3/contracts/ghgCategory.js"));
+const { GHG_CATEGORIES } = require(path.resolve("dist/scope3/contracts/ghgCategory.js"));
+const { isGhgCategoryNumber } = require(path.resolve("dist/scope3/taxonomy/number.js"));
 const { proposeGhgCategory } = require(path.resolve("dist/scope3/taxonomy/propose.js"));
 const { isScope3 } = require(path.resolve("dist/scope3/taxonomy/service.js"));
 

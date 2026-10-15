@@ -1,10 +1,10 @@
 /**
- * The /scope3 router, mounted once in src/index.ts behind `authenticate`.
- * Each module adds one `router.use` line.
+ * Scope 3 API (S3-0): mounted once at `/scope3` in src/index.ts, behind
+ * `authenticate`. Empty until the modules add their routes.
  *
- * STAND-IN written by S3-1 ahead of S3-0 (ESG-lite #134), which owns this
- * file and the mount. When S3-0 merges, take S3-0's version and add the
- * S3-1 line below to it.
+ * Each module appends ONE line here, in module order, and keeps its own
+ * routes in its folder (docs/scope3/03-lane-map.md, shared files):
+ *   router.use(taxonomyRouter); // S3-1
  */
 import { Router } from "express";
 import boundaryRouter from "./boundary/router";
