@@ -30,6 +30,32 @@ export const periodWindow = (
     return { start: `${y - 1}-04-01`, end: `${y}-03-31` };
 };
 
+// The latest clock anywhere (UTC+14): a period counts as started once it has
+// started for the earliest timezone, so nobody is refused their own current
+// month in the first hours after midnight.
+const EARLIEST_TIMEZONE_MS = 14 * 60 * 60 * 1000;
+
+/**
+ * The 400 message when an edit would move a row into a month (monthly) or a
+ * CY/FY year (yearly) that hasn't started yet, else null. Same wording as the
+ * import path (emissionWrite/period.ts toStoredPeriod).
+ */
+export const futurePeriodError = (
+    reportingPeriod: ReportingPeriod,
+    yearType: YearType | null | undefined,
+    date: Date,
+    now: Date = new Date(),
+): string | null => {
+    if (Number.isNaN(date.getTime())) return null;
+    const latest = new Date(now.getTime() + EARLIEST_TIMEZONE_MS).toISOString().slice(0, 10);
+    if (reportingPeriod === "monthly") {
+        const month = date.toISOString().slice(0, 7);
+        return month > latest.slice(0, 7) ? `${month} is in the future; monthly data can only be filed for months that have started.` : null;
+    }
+    if (yearType && periodWindow(yearType, date).start > latest) return `${yearType} ${date.getUTCFullYear()} has not started yet.`;
+    return null;
+};
+
 /** A yearly row's date_of_reporting must be its period-end date. */
 export const isValidPeriodEnd = (yearType: YearType, d: Date): boolean => {
     const month = d.getUTCMonth() + 1;

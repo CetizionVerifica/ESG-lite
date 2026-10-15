@@ -433,7 +433,7 @@ test("a manager edit can't move an entry into a period that hasn't started", asy
   }
 });
 
-test("a contributor's update with an empty, zero or negative amount is refused and keeps the total", async () => {
+test("a contributor's update with an empty, zero or negative amount is refused and keeps the total; a future month too", async () => {
   await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (901, 'Diesel', 2.68, 'litre', 2024, 1, 1)");
   await q(`INSERT INTO emission (pk_id, activity_data, activity_data_unit, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, created_at)
            VALUES (990, '{"activity_value": 100, "emission_category": "Diesel"}', 'litre', 0.27, 'tCO2e', '2025-06-30', 'pending', 1, 1, 1, 'monthly', now())`);
@@ -441,8 +441,11 @@ test("a contributor's update with an empty, zero or negative amount is refused a
     for (const amount of ["", 0, "0", -50]) {
       const r = await call("PUT", "/user/emissions/990", "user", { activity_data: { activity_value: amount, emission_category: "Diesel" } });
       assert.equal(r.status, 400, `amount ${JSON.stringify(amount)}: ${JSON.stringify(r.json)}`);
-      assert.match(r.json.message, /greater than 0/);
     }
+    const now = new Date();
+    const future = await call("PUT", "/user/emissions/990", "user", { date_of_reporting: `${now.getUTCFullYear() + 1}-01-31` });
+    assert.equal(future.status, 400);
+    assert.match(future.json.message, /is in the future/);
     const [kept] = await q("SELECT total_emission, activity_data FROM emission WHERE pk_id = 990");
     assert.equal(Number(kept.total_emission), 0.27);
     assert.equal(kept.activity_data.activity_value, 100);
