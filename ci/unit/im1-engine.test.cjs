@@ -7,7 +7,7 @@ const assert = require("node:assert/strict");
 const path = require("path");
 
 const { FactorIndex, MappingIndex, resolveActivity, suggestNames, targetYearFor, planMatchFor } = require(path.resolve("dist/services/emissionWrite/resolve.js"));
-const { computeTotal, feraTwinFor, totalFor } = require(path.resolve("dist/services/emissionWrite/compute.js"));
+const { computeTotal, feraGap, feraTwinFor, totalFor } = require(path.resolve("dist/services/emissionWrite/compute.js"));
 const { toStoredPeriod, monthsCovered } = require(path.resolve("dist/services/emissionWrite/period.js"));
 const { planModeConflicts, planIdentity, findDuplicate, isLowConfidenceAiMatch } = require(path.resolve("dist/services/emissionWrite/checks.js"));
 const { getConversionFactor, unitsMatchExact } = require(path.resolve("dist/services/emissionWrite/units.js"));
@@ -161,6 +161,19 @@ test("unit helpers behave as before", () => {
   // S3-4: a missing unit on either side is no longer a match.
   assert.equal(unitsMatchExact(null, "kwh"), false);
   assert.equal(unitsMatchExact("kwh", ""), false);
+});
+
+test("S3-4: why a FERA twin is missing, in words (feraGap)", () => {
+  const fera = (factors) => ctx({ fera: { category_id: 9, factors: new FactorIndex(factors) } });
+  // Glochem's real case: the FERA factor is "Natural Gas", the fuel "Natural gas".
+  const gas = fera([factor(40, "Natural Gas", 2021, 0.3, "cubic meter")]);
+  assert.equal(feraGap(gas, "Natural gas", "cubic meter", 2021), 'the 2021 FERA factor is named "Natural Gas", not "Natural gas" (FERA names must match exactly)');
+  assert.equal(feraGap(gas, "Natural gas", "cubic meter", 2019), 'there is no 2019 FERA factor for "Natural gas"');
+  // LSHS: fuel per litre, FERA per kWh.
+  const lshs = fera([factor(41, "LSHS", 2021, 0.5, "kwh")]);
+  assert.equal(feraGap(lshs, "LSHS", "litre", 2021), `"litre" can't be converted to the FERA factor unit "kwh"`);
+  assert.equal(feraGap(lshs, "Refrigerant R32", "kg", 2021), null, "no FERA factors at all for the activity: FERA does not apply");
+  assert.equal(feraGap(ctx(), "LSHS", "litre", 2021), null, "no FERA category: FERA does not apply");
 });
 
 test("S3-4: forms offer only currencies the table converts", () => {

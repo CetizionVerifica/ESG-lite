@@ -180,7 +180,13 @@ export const feraGap = (ctx: CategoryContext, emissionCategory: string, activity
   if (!ctx.fera || ctx.spec || !emissionCategory) return null;
   const factor = ctx.fera.factors.findExactForYear(emissionCategory, targetYear);
   if (!factor) {
-    return ctx.fera.factors.knows(emissionCategory) ? `there is no ${targetYear} FERA factor for "${emissionCategory}"` : null;
+    if (!ctx.fera.factors.knows(emissionCategory)) return null;
+    // FERA names must match exactly (findExactForYear); say so when only the spelling differs.
+    const near = ctx.fera.factors.find(emissionCategory, targetYear);
+    if (near && !near.fallback_year) {
+      return `the ${targetYear} FERA factor is named "${near.factor.emission_category_name}", not "${emissionCategory}" (FERA names must match exactly)`;
+    }
+    return `there is no ${targetYear} FERA factor for "${emissionCategory}"`;
   }
   if (!factorHasUnit(factor)) return `the FERA factor for "${emissionCategory}" has no unit`;
   if (!activity_unit) return `the entry has no unit to convert to the FERA factor unit "${factor.denominator_unit}"`;

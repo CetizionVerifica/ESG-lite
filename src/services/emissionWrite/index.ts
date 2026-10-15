@@ -96,13 +96,6 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   let feraSkipped: string | undefined;
   if (activity_data.emission_category) {
     fera = feraTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
-    // The site has a FERA category and this activity has FERA factors, but none for the year: say so (S3-4).
-    if (!fera && ctx.fera && !ctx.spec && ctx.fera.factors.knows(activity_data.emission_category) && !ctx.fera.factors.findExactForYear(activity_data.emission_category, targetYear)) {
-      warnings.push({
-        code: "FERA_FACTOR_MISSING",
-        message: `No ${targetYear} FERA factor for "${activity_data.emission_category}", so no fuel- and energy-related (Category 3) row was added.`,
-      });
-    }
     if (fera) {
       const conflict = await checks.modeLock(input.site_id, fera.category_id, input.period);
       if (conflict) {
@@ -111,6 +104,18 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       }
     } else {
       feraSkipped = feraGap(ctx, activity_data.emission_category, unit, targetYear) ?? undefined;
+    }
+    // FERA applies (the site has it and the activity has FERA factors) but no twin was made: say why,
+    // never silently (S3-4): no factor for the year, a unit that doesn't convert (LSHS per litre vs a
+    // FERA factor per kWh), or the FERA category filed the other way.
+    if (feraSkipped) {
+      const name = activity_data.emission_category;
+      warnings.push({
+        code: "FERA_FACTOR_MISSING",
+        message: feraSkipped.startsWith("there is no ")
+          ? `No ${targetYear} FERA factor for "${name}", so no fuel- and energy-related (Category 3) row was added.`
+          : `No fuel- and energy-related (Category 3) row was added: ${feraSkipped}.`,
+      });
     }
   }
 
