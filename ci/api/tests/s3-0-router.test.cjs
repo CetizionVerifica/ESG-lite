@@ -4,7 +4,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { call } = require("../helpers.cjs");
 
-test("/scope3 needs a token and has no routes yet", async () => {
-  assert.equal((await call("GET", "/scope3/categories", null)).status, 401);
-  assert.equal((await call("GET", "/scope3/categories", "admin")).status, 404);
+test("/scope3 needs a token; unknown paths give 404", async () => {
+  // A path no module will add, so this keeps holding once S3-1 adds routes.
+  assert.equal((await call("GET", "/scope3/__no_such_route__", null)).status, 401);
+  assert.equal((await call("GET", "/scope3/__no_such_route__", "admin")).status, 404);
 });

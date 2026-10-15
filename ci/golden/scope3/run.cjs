@@ -50,6 +50,7 @@ const rowKg = (k, row, i) => {
     activity_data: { emission_category: row.label, activity_value: String(value) },
     activity_unit: row.unit,
     method: k.method,
+    proxy: k.proxy,
   });
   if (!result.ok) throw new Error(`${k.id}: row ${i} (${row.label}) gives ${result.issue.code}: ${result.issue.message}`);
   const c = result.computed;
@@ -70,7 +71,13 @@ for (const k of file.cases) {
     continue;
   }
   if (!k.rows.length) {
-    if (run) console.log(`-    ${k.id}: report-level case, checked by its owner's runner (${k.owner})`);
+    // Report-level cases are checked through the API by their owner (S3-13);
+    // here a run case needs rows, or nothing would check it.
+    if (run) {
+      console.log(`FAIL ${k.id.padEnd(22)} ${k.owner.padEnd(6)} runs without rows`);
+      ran++;
+      failed++;
+    }
     continue;
   }
   let actual;

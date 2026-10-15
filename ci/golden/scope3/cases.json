@@ -1097,6 +1097,11 @@
       "category": null,
       "method": "unknown",
       "formula": "known 850,000 kg at 85 % coverage → proxy 150,000 kg",
+      "proxy": {
+        "basis": "coverage",
+        "coverage_pct": 85,
+        "from": "known 850,000 kg"
+      },
       "factors": {
         "scale": {
           "kgco2e_per_unit": 1,
@@ -1127,6 +1132,11 @@
       "category": null,
       "method": "unknown",
       "formula": "2 sites 1,000 t CO₂e for 500 t output; missing site 250 t output → proxy 500,000 kg",
+      "proxy": {
+        "basis": "intensity",
+        "coverage_pct": 66.67,
+        "from": "2 sites, 500 t output"
+      },
       "factors": {
         "intensity": {
           "kgco2e_per_unit": 2000,

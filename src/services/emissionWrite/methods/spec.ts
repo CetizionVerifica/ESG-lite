@@ -7,6 +7,7 @@
  */
 import { computeSpecActivityValue } from "../../calculationSpec";
 import type { RowIssueCode } from "../../../imports/errors";
+import type { CalculationSpec } from "../../../entities/ColumnConfig";
 import type { CategoryContext, ComputeResult, EngineRow } from "../compute";
 import { applyFactor } from "./activity";
 
@@ -16,12 +17,13 @@ const specIssueCode = (message: string): RowIssueCode =>
 
 /**
  * `row.activity_data` is updated: the computed product is written into
- * `activity_value`, as the typed-entry path does.
+ * `activity_value`, as the typed-entry path does. compute.ts picks this file
+ * only when the category has a spec.
  */
 export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
-  if (!ctx.spec) throw new Error("spec method called for a category without a spec");
+  const spec = ctx.spec as CalculationSpec;
   let unit = row.activity_unit;
-  const computed = computeSpecActivityValue(ctx.spec, row.activity_data, unit);
+  const computed = computeSpecActivityValue(spec, row.activity_data, unit);
   if (!computed.ok) {
     return { ok: false, issue: { code: specIssueCode(computed.message), message: computed.message } };
   }

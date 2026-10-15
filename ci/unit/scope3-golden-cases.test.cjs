@@ -7,7 +7,11 @@ const assert = require("node:assert/strict");
 const path = require("path");
 
 const cat = require(path.resolve("dist/scope3/contracts/ghgCategory.js"));
-const { cases } = require(path.resolve("ci/golden/scope3/cases.json"));
+const schemas = require(path.resolve("dist/scope3/contracts/schemas.js"));
+const { cases, tolerance } = require(path.resolve("ci/golden/scope3/cases.json"));
+
+/** The same rule as ci/golden/scope3/run.cjs, read from cases.json. */
+const within = (actual, expected) => Math.abs(actual - expected) <= Math.max(tolerance.kg, Math.abs(expected) * tolerance.relative);
 
 const rowsKg = (c) => c.rows.reduce((s, r) => s + r.quantity * (r.share ?? 1) * c.factors[r.factor].kgco2e_per_unit, 0);
 
@@ -31,7 +35,7 @@ test("each guidance example uses a method its category offers", () => {
 test("rows multiply out to the expected kgCO₂e, unless the case carries an open question", () => {
   for (const c of cases.filter((k) => k.rows.length && !k.open_question)) {
     const sum = rowsKg(c);
-    assert.ok(Math.abs(sum - c.expected_kgco2e) <= Math.max(0.5, c.expected_kgco2e * 0.001), `${c.id}: rows give ${sum}`);
+    assert.ok(within(sum, c.expected_kgco2e), `${c.id}: rows give ${sum}`);
   }
 });
 
@@ -40,4 +44,10 @@ test("a run case has figures and no open question", () => {
     assert.equal(typeof c.expected_kgco2e, "number", `${c.id} runs without an expected figure`);
     assert.equal(c.open_question, undefined, `${c.id} runs with an open question`);
   }
+});
+
+test("proxy cases carry a valid emission.proxy, so the engine routes them to methods/proxy.ts", () => {
+  const proxies = cases.filter((c) => c.owner === "S3-12");
+  assert.ok(proxies.length >= 2);
+  for (const c of proxies) assert.ok(schemas.ProxySchema.safeParse(c.proxy).success, c.id);
 });

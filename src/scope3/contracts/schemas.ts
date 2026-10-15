@@ -125,7 +125,7 @@ export const FactorMetadataSchema = GasPartsSchema.extend({
   dataset: text(100),
   dataset_version: z.string().max(100).nullable().optional(),
   biogenic_co2_kg: nonNegative.nullable().optional(),
-  includes_wtt: z.boolean().default(false),
+  includes_wtt: z.boolean().optional(), // column default false; no parse default, so an edit that omits it keeps the stored value
   price_base_year: year.nullable().optional(),
   price_currency: currency.nullable().optional(),
 }).refine((f) => f.factor_type !== "eeio_spend" || (f.price_base_year != null && f.price_currency != null), {
@@ -163,7 +163,7 @@ export const EmissionScope3FieldsSchema = z.object({
   method: MethodSchema.nullable().optional(), // S3-3
   dq: DqSchema.nullable().optional(), // S3-3
   data_type: DataTypeSchema.nullable().optional(), // S3-3
-  is_estimate: z.boolean().default(false), // S3-3
+  is_estimate: z.boolean().optional(), // S3-3; column default false, no parse default (see includes_wtt)
   total_kgco2e: decimalString.nullable().optional(), // S3-4, beside total_emission
   fx: FxSchema.nullable().optional(), // S3-5
   supplier_id: id.nullable().optional(), // S3-6
