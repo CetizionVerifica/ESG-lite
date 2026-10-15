@@ -24,6 +24,7 @@ import { connectRabbitMQ } from "./config/rabbitmq";
 import { startEmailConsumer } from "./workers/emailConsumer";
 import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
+import { logMailStatus } from "./config/mailer";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
 import { assertJwtSecret } from "./utils/jwt";
@@ -127,6 +128,7 @@ connectWithRetry()
         startHeartbeat();
         registerUploadNotifyListener(); // IM4
         registerMappingMemoryListener(onBatchCommitted); // XI3
+        logMailStatus();
         const port = Number(process.env.PORT) || 3000;
         server = app.listen(port, () => {
             console.log(`🚀 Server running on http://localhost:${port}`);
