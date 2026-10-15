@@ -31,7 +31,10 @@ const ctx = {
 
 const tolerance = (expected) => Math.max(file.tolerance.kg, Math.abs(expected) * file.tolerance.relative);
 
-/** kgCO₂e of one row: total_kgco2e once S3-3 fills it, else the 2 dp tCO₂e × 1000. */
+/**
+ * kgCO₂e of one row: the engine's kg figure once it has one (`total_kgco2e`
+ * per 01-contracts.md §6; S3-4 #137 names it `total_kg`), else the 2 dp tCO₂e × 1000.
+ */
 const rowKg = (k, row, i) => {
   const f = k.factors[row.factor];
   if (!f) throw new Error(`${k.id}: row ${i} names unknown factor "${row.factor}"`);
@@ -54,7 +57,8 @@ const rowKg = (k, row, i) => {
   });
   if (!result.ok) throw new Error(`${k.id}: row ${i} (${row.label}) gives ${result.issue.code}: ${result.issue.message}`);
   const c = result.computed;
-  return c.total_kgco2e !== undefined ? Number(c.total_kgco2e) : c.total * 1000;
+  const kg = c.total_kgco2e ?? c.total_kg;
+  return kg !== undefined ? Number(kg) : c.total * 1000;
 };
 
 let failed = 0;
