@@ -114,13 +114,14 @@ export const startEmailConsumer = async () => {
         throw new Error(`Invalid email type: ${data.type}`);
       }
 
-      await sendEmailForApprove({
+      const sent = await sendEmailForApprove({
         to: data.email,
         subject: template.subject,
         html: template.html,
       });
 
-      console.log(`Email sent via Mailgun to ${data.email} (${data.type})`);
+      // sendEmailForApprove returns nothing when Mailgun isn't configured.
+      console.log(sent ? `Email sent via Mailgun to ${data.email} (${data.type})` : `Email NOT sent (Mailgun not configured): ${data.email} (${data.type})`);
       channel.ack(msg);
 
       // Throttle: wait 1s between emails to stay under Mailgun rate limits
