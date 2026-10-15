@@ -171,6 +171,25 @@ export const feraTwinFor = (ctx: CategoryContext, emissionCategory: string, acti
   };
 };
 
+/**
+ * Why a row that could have a FERA twin has none, for an edit that must say
+ * so (S3-4): the site has a FERA category, the activity is named and the
+ * category has no spec. Null when a twin is possible or FERA does not apply.
+ */
+export const feraGap = (ctx: CategoryContext, emissionCategory: string, activity_unit: string | null | undefined, targetYear: number): string | null => {
+  if (!ctx.fera || ctx.spec || !emissionCategory) return null;
+  const factor = ctx.fera.factors.findExactForYear(emissionCategory, targetYear);
+  if (!factor) {
+    return ctx.fera.factors.knows(emissionCategory) ? `there is no ${targetYear} FERA factor for "${emissionCategory}"` : null;
+  }
+  if (!factorHasUnit(factor)) return `the FERA factor for "${emissionCategory}" has no unit`;
+  if (!activity_unit) return `the entry has no unit to convert to the FERA factor unit "${factor.denominator_unit}"`;
+  if (!unitsMatchExact(factor.denominator_unit, activity_unit) && !getConversionFactor(activity_unit, factor.denominator_unit)) {
+    return `"${activity_unit}" can't be converted to the FERA factor unit "${factor.denominator_unit}"`;
+  }
+  return null;
+};
+
 export const factorSnapshot = (f: EmissionFactor) => ({
   emission_factor_id: f.emission_factor_id,
   emission_category_name: f.emission_category_name,

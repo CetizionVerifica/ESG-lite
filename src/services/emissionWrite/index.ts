@@ -21,7 +21,7 @@ import type { ActivityMatch, ImportRow, PlannedRow, RowIssue, StrippedTotal } fr
 import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../../imports/writer";
 import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
-import { computeTotal, factorSnapshot, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
+import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 
@@ -54,6 +54,8 @@ export interface PreparedEntry {
   fera: FeraTwin | null;
   /** Never block (01-contracts §7): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING. Typed entries return them too (S3-4). */
   warnings: EngineIssue[];
+  /** When FERA applies but no twin was made: why (an edit puts it on the twin it can't recalculate). */
+  feraSkipped?: string;
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -91,6 +93,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   }
 
   let fera: FeraTwin | null = null;
+  let feraSkipped: string | undefined;
   if (activity_data.emission_category) {
     fera = feraTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
     // The site has a FERA category and this activity has FERA factors, but none for the year: say so (S3-4).
@@ -102,11 +105,16 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     }
     if (fera) {
       const conflict = await checks.modeLock(input.site_id, fera.category_id, input.period);
-      if (conflict) fera = null; // the twin respects the lock on its own category; skipped, never fatal
+      if (conflict) {
+        fera = null; // the twin respects the lock on its own category; skipped, never fatal
+        feraSkipped = `the FERA category is filed ${conflict.conflicting_period} for this period`;
+      }
+    } else {
+      feraSkipped = feraGap(ctx, activity_data.emission_category, unit, targetYear) ?? undefined;
     }
   }
 
-  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, warnings } };
+  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
 };
 
 export interface AuditInfo {
