@@ -33,10 +33,14 @@ export interface SpecComputationError {
 export type SpecComputation = SpecComputationOk | SpecComputationError;
 
 // "tonne.km", "Tonne KM", "tonne-km", "tonne_km", "tkm" → "tonne.km"
+// S3-8: "m³.day", "m3 day" → "m3.day"; "pallet day", "teu day"; "kWh" → "kwh"; "litres" → "litre".
+// Mirrored in ESG-lite_FE src/lib/emissions/emissionCalc.ts.
 export function normalizeUnitKey(unit: unknown): string {
-  let u = String(unit ?? "").trim().toLowerCase().replace(/[\s_\-]+/g, ".");
+  let u = String(unit ?? "").trim().toLowerCase().replace(/[\s_\-]+/g, ".").replace(/³/g, "3");
   if (u === "tkm" || u === "t.km" || u === "tonnes.km" || u === "tonne.kms") u = "tonne.km";
   if (u === "kms") u = "km";
+  if (u === "litres" || u === "liters" || u === "liter") u = "litre";
+  if (u === "pallets.day") u = "pallet.day";
   return u;
 }
 
