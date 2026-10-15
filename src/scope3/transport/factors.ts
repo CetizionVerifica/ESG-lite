@@ -15,6 +15,8 @@ export interface TransportFactor {
   unit: string;
   factor_type: "life_cycle" | "other";
   gwp_set: "AR5" | "AR6";
+  /** ISO-3166 alpha-2 or GLO (S3-2 `geography`): DEFRA factors are UK ones. */
+  geography: string;
   dataset: string;
   /** Per factor year: the value, the dataset version and where it was read. */
   values: Record<string, { value: number; dataset_version: string; from: string }>;
@@ -26,6 +28,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     unit: "litre",
     factor_type: "life_cycle",
     gwp_set: "AR5",
+    geography: "GB",
     dataset: "DEFRA",
     values: {
       2024: { value: 3.1238, dataset_version: "2024", from: "Fuels row 71 litres 2.51279 + WTT- fuels row 70 litres 0.61101" },
@@ -37,6 +40,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     unit: "litre",
     factor_type: "life_cycle",
     gwp_set: "AR5",
+    geography: "GB",
     dataset: "DEFRA",
     values: {
       2024: { value: 2.66534, dataset_version: "2024", from: "Fuels row 95 litres 2.0844 + WTT- fuels row 94 litres 0.58094" },
@@ -48,6 +52,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     unit: "litre",
     factor_type: "life_cycle",
     gwp_set: "AR5",
+    geography: "GB",
     dataset: "DEFRA",
     values: {
       2024: { value: 1.74264, dataset_version: "2024", from: "Fuels row 35 litres 1.55713 + WTT- fuels row 34 litres 0.18551" },
@@ -59,6 +64,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     unit: "kWh",
     factor_type: "life_cycle",
     gwp_set: "AR5",
+    geography: "GB",
     dataset: "DEFRA",
     values: {
       2024: { value: 0.21311, dataset_version: "2024", from: "Fuels row 41 kWh (Gross CV) 0.1829 + WTT- fuels row 40 kWh (Gross CV) 0.03021" },
@@ -70,6 +76,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     unit: "kg",
     factor_type: "other",
     gwp_set: "AR6",
+    geography: "GLO",
     dataset: "IPCC AR6",
     values: {
       2024: { value: 1530, dataset_version: "AR6 WG1 Table 7.SM.7", from: "D7: R134a 1530" },
@@ -81,6 +88,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     unit: "kg",
     factor_type: "other",
     gwp_set: "AR6",
+    geography: "GLO",
     dataset: "IPCC AR6",
     values: {
       2024: { value: 2256, dataset_version: "AR6 WG1 Table 7.SM.7", from: "D7: R410A 2256 (50 % R32, 50 % R125)" },

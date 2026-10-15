@@ -1,0 +1,1176 @@
+{
+  "about": "Scope 3 golden cases (S3-0), from docs/scope3/01-contracts.md §9 and the module specs' Golden cases sections. guidance_ref.lines are the plan's line references. Every case starts as skip; its owner module turns it to run (and fills in the figures where the docs give none). ci/golden/scope3/run.cjs runs the run cases.",
+  "tolerance": {
+    "kg": 0.5,
+    "relative": 0.001,
+    "rule": "fail when |actual - expected| > max(0.5 kg, 0.1 % of expected)"
+  },
+  "row_model": "Each row: activity_value = quantity × (share ?? 1) in `unit`, with factor `factors[row.factor]` (kg CO2e per unit). An owner may replace a case's rows with its method's own inputs; expected_kgco2e stays.",
+  "cases": [
+    {
+      "id": "ex-1.1",
+      "guidance_ref": {
+        "example": "1.1",
+        "lines": "L1754"
+      },
+      "source": "S3-6 spec",
+      "category": 1,
+      "method": "supplier_specific",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-6",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+    },
+    {
+      "id": "ex-1.2",
+      "guidance_ref": {
+        "example": "1.2",
+        "lines": "L1832 (formula 1.2)"
+      },
+      "source": "S3-6 spec",
+      "category": 1,
+      "method": "hybrid",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-6",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+    },
+    {
+      "id": "ex-1.3",
+      "guidance_ref": {
+        "example": "1.3",
+        "lines": "L1942 (formula 1.3)"
+      },
+      "source": "S3-6 spec",
+      "category": 1,
+      "method": "hybrid",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-6",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+    },
+    {
+      "id": "ex-1.4",
+      "guidance_ref": {
+        "example": "1.4",
+        "lines": "L1754-2125 (Cat 1)"
+      },
+      "source": "01-contracts.md §9",
+      "category": 1,
+      "method": "average_data",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-6",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Owner to confirm: no module spec lists 1.4."
+    },
+    {
+      "id": "ex-1.5",
+      "guidance_ref": {
+        "example": "1.5",
+        "lines": "L2074 (formula 1.5)"
+      },
+      "source": "S3-5 spec",
+      "category": 1,
+      "method": "spend_based",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-5",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+    },
+    {
+      "id": "ex-3.x-upstream-fuels",
+      "guidance_ref": {
+        "example": "3.x",
+        "lines": "L2577-2660 (Cat 3)"
+      },
+      "source": "S3-7 spec",
+      "category": 3,
+      "method": "average_data",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-7",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3a_upstream_fuels."
+    },
+    {
+      "id": "ex-3.x-upstream-electricity",
+      "guidance_ref": {
+        "example": "3.x",
+        "lines": "L2577-2660 (Cat 3)"
+      },
+      "source": "S3-7 spec",
+      "category": 3,
+      "method": "average_data",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-7",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3b_upstream_electricity."
+    },
+    {
+      "id": "ex-3.x-td-losses",
+      "guidance_ref": {
+        "example": "3.x",
+        "lines": "L2542-2581, L2577-2660"
+      },
+      "source": "S3-7 spec",
+      "category": 3,
+      "method": "average_data",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-7",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3c_td_losses: electricity × loss rate × life-cycle grid factor."
+    },
+    {
+      "id": "ex-4.1",
+      "guidance_ref": {
+        "example": "4.1",
+        "lines": "L2939-2968"
+      },
+      "source": "S3-8 spec",
+      "category": 4,
+      "method": "fuel_based",
+      "formula": "diesel 50,000 + 80,000 + 90,000 L × 3, R410a 50 kg × 2,000, share 100 %",
+      "factors": {
+        "diesel": {
+          "kgco2e_per_unit": 3,
+          "unit": "litre"
+        },
+        "r410a": {
+          "kgco2e_per_unit": 2000,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Diesel",
+          "quantity": 220000,
+          "unit": "litre",
+          "factor": "diesel"
+        },
+        {
+          "label": "R410a leak",
+          "quantity": 50,
+          "unit": "kg",
+          "factor": "r410a"
+        }
+      ],
+      "expected_kgco2e": 760000,
+      "status": "run",
+      "owner": "S3-8"
+    },
+    {
+      "id": "ex-4.2",
+      "guidance_ref": {
+        "example": "4.2",
+        "lines": "L3249-3288"
+      },
+      "source": "S3-8 spec",
+      "category": 4,
+      "method": "distance_based",
+      "formula": "2 t × 2,000 km × 0.2 + 1 × 3,000 × 1.0 + 6 × 4,000 × 0.05",
+      "factors": {
+        "road": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "tonne.km"
+        },
+        "air": {
+          "kgco2e_per_unit": 1,
+          "unit": "tonne.km"
+        },
+        "sea": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "tonne.km"
+        }
+      },
+      "rows": [
+        {
+          "label": "Road",
+          "quantity": 4000,
+          "unit": "tonne.km",
+          "factor": "road"
+        },
+        {
+          "label": "Air",
+          "quantity": 3000,
+          "unit": "tonne.km",
+          "factor": "air"
+        },
+        {
+          "label": "Sea",
+          "quantity": 24000,
+          "unit": "tonne.km",
+          "factor": "sea"
+        }
+      ],
+      "expected_kgco2e": 5000,
+      "status": "run",
+      "owner": "S3-8"
+    },
+    {
+      "id": "ex-4.4",
+      "guidance_ref": {
+        "example": "4.4",
+        "lines": "L3420-3448"
+      },
+      "source": "S3-8 and S3-5 specs",
+      "category": 4,
+      "method": "spend_based",
+      "formula": "20,000 × 0.04 + 30,000 × 0.15 + 40,000 × 0.05 USD",
+      "factors": {
+        "road": {
+          "kgco2e_per_unit": 0.04,
+          "unit": "USD"
+        },
+        "air": {
+          "kgco2e_per_unit": 0.15,
+          "unit": "USD"
+        },
+        "sea": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "USD"
+        }
+      },
+      "rows": [
+        {
+          "label": "Road",
+          "quantity": 20000,
+          "unit": "USD",
+          "factor": "road"
+        },
+        {
+          "label": "Air",
+          "quantity": 30000,
+          "unit": "USD",
+          "factor": "air"
+        },
+        {
+          "label": "Sea",
+          "quantity": 40000,
+          "unit": "USD",
+          "factor": "sea"
+        }
+      ],
+      "expected_kgco2e": 7300,
+      "status": "skip",
+      "owner": "S3-5",
+      "note": "Listed by S3-8 (runs once S3-5 spend.ts is merged) and by S3-5; S3-5 turns it on."
+    },
+    {
+      "id": "ex-4.5",
+      "guidance_ref": {
+        "example": "4.5",
+        "lines": "L3535-3592"
+      },
+      "source": "S3-8 spec",
+      "category": 4,
+      "method": "site_specific",
+      "formula": "(10,000 kWh × 0.8 + 1,000 × 0.25) × 25 % + (15,000 × 0.8 + 2,000 × 0.25) × 25 % (shares 100/400 and 200/800)",
+      "factors": {
+        "electricity": {
+          "kgco2e_per_unit": 0.8,
+          "unit": "kwh"
+        },
+        "natural_gas": {
+          "kgco2e_per_unit": 0.25,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Facility 1 electricity",
+          "quantity": 10000,
+          "unit": "kwh",
+          "factor": "electricity",
+          "share": 0.25
+        },
+        {
+          "label": "Facility 1 gas",
+          "quantity": 1000,
+          "unit": "kwh",
+          "factor": "natural_gas",
+          "share": 0.25
+        },
+        {
+          "label": "Facility 2 electricity",
+          "quantity": 15000,
+          "unit": "kwh",
+          "factor": "electricity",
+          "share": 0.25
+        },
+        {
+          "label": "Facility 2 gas",
+          "quantity": 2000,
+          "unit": "kwh",
+          "factor": "natural_gas",
+          "share": 0.25
+        }
+      ],
+      "expected_kgco2e": 5187.5,
+      "status": "run",
+      "owner": "S3-8",
+      "note": "Compare on summed total_kgco2e (rows of 62.5 and 125 kg round to 0.06 and 0.13 t)."
+    },
+    {
+      "id": "ex-4.6",
+      "guidance_ref": {
+        "example": "4.6",
+        "lines": "L3633-3653"
+      },
+      "source": "S3-8 spec",
+      "category": 4,
+      "method": "average_data",
+      "formula": "4,000 m³ × 2 d × 0.01 + 4,000 × 2 × 0.02",
+      "factors": {
+        "distribution_center": {
+          "kgco2e_per_unit": 0.01,
+          "unit": "m3.day"
+        },
+        "supermarket": {
+          "kgco2e_per_unit": 0.02,
+          "unit": "m3.day"
+        }
+      },
+      "rows": [
+        {
+          "label": "Distribution center",
+          "quantity": 8000,
+          "unit": "m3.day",
+          "factor": "distribution_center"
+        },
+        {
+          "label": "Supermarkets",
+          "quantity": 8000,
+          "unit": "m3.day",
+          "factor": "supermarket"
+        }
+      ],
+      "expected_kgco2e": 240,
+      "status": "run",
+      "owner": "S3-8"
+    },
+    {
+      "id": "ex-9.1",
+      "guidance_ref": {
+        "example": "9.1",
+        "lines": "L4950-4971"
+      },
+      "source": "S3-8 spec",
+      "category": 9,
+      "method": "distance_based",
+      "formula": "4 t × 2,000 km × 0.2",
+      "factors": {
+        "road": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "tonne.km"
+        }
+      },
+      "rows": [
+        {
+          "label": "Road",
+          "quantity": 8000,
+          "unit": "tonne.km",
+          "factor": "road"
+        }
+      ],
+      "expected_kgco2e": 1600,
+      "status": "run",
+      "owner": "S3-8"
+    },
+    {
+      "id": "ex-5.1",
+      "guidance_ref": {
+        "example": "5.1",
+        "lines": "L3777-3850 (Cat 5)"
+      },
+      "source": "01-contracts.md §9",
+      "category": 5,
+      "method": "waste_type_specific",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-8",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Owner to confirm: no module spec lists Cat 5."
+    },
+    {
+      "id": "ex-5.2",
+      "guidance_ref": {
+        "example": "5.2",
+        "lines": "L3777-3850 (Cat 5)"
+      },
+      "source": "01-contracts.md §9",
+      "category": 5,
+      "method": "average_data",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": null,
+      "status": "skip",
+      "owner": "S3-8",
+      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Owner to confirm: no module spec lists Cat 5."
+    },
+    {
+      "id": "ex-6.1",
+      "guidance_ref": {
+        "example": "6.1",
+        "lines": "L4258-4321"
+      },
+      "source": "S3-9 spec",
+      "category": 6,
+      "method": "distance_based",
+      "formula": "road 10/2 × 50 × 1 + 20/2 × 200 × 2 + 100/3 × 100 × 4 (vehicle-km), air 10 × 10,000 × 5 + 20 × 15,000 × 6 + 100 × 12,000 × 5 (passenger-km)",
+      "factors": {
+        "road_1": {
+          "kgco2e_per_unit": 1,
+          "unit": "vehicle.km"
+        },
+        "road_2": {
+          "kgco2e_per_unit": 2,
+          "unit": "vehicle.km"
+        },
+        "road_4": {
+          "kgco2e_per_unit": 4,
+          "unit": "vehicle.km"
+        },
+        "air_5": {
+          "kgco2e_per_unit": 5,
+          "unit": "passenger.km"
+        },
+        "air_6": {
+          "kgco2e_per_unit": 6,
+          "unit": "passenger.km"
+        }
+      },
+      "rows": [
+        {
+          "label": "Road group 1",
+          "quantity": 250,
+          "unit": "vehicle.km",
+          "factor": "road_1"
+        },
+        {
+          "label": "Road group 2",
+          "quantity": 2000,
+          "unit": "vehicle.km",
+          "factor": "road_2"
+        },
+        {
+          "label": "Road group 3",
+          "quantity": 3333.3333333333335,
+          "unit": "vehicle.km",
+          "factor": "road_4"
+        },
+        {
+          "label": "Air group 1",
+          "quantity": 100000,
+          "unit": "passenger.km",
+          "factor": "air_5"
+        },
+        {
+          "label": "Air group 2",
+          "quantity": 300000,
+          "unit": "passenger.km",
+          "factor": "air_6"
+        },
+        {
+          "label": "Air group 3",
+          "quantity": 1200000,
+          "unit": "passenger.km",
+          "factor": "air_5"
+        }
+      ],
+      "expected_kgco2e": 8317583.33,
+      "status": "skip",
+      "owner": "S3-9"
+    },
+    {
+      "id": "ex-7.1",
+      "guidance_ref": {
+        "example": "7.1",
+        "lines": "L4454-4495"
+      },
+      "source": "S3-9 spec",
+      "category": 7,
+      "method": "distance_based",
+      "formula": "A rail 5×/wk 10 km; B rail 4×/wk 10 km, car 1×/wk 15 km; C car 5×/wk 20 km; 48 weeks; rail 0.1, car 0.2 → rail 8,640 km, car 11,040 km",
+      "factors": {
+        "rail": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "passenger.km"
+        },
+        "car": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "vehicle.km"
+        }
+      },
+      "rows": [
+        {
+          "label": "Rail",
+          "quantity": 8640,
+          "unit": "passenger.km",
+          "factor": "rail"
+        },
+        {
+          "label": "Car",
+          "quantity": 11040,
+          "unit": "vehicle.km",
+          "factor": "car"
+        }
+      ],
+      "expected_kgco2e": 3072,
+      "status": "skip",
+      "owner": "S3-9",
+      "note": "Run it through the survey path, not just the form (S3-9 spec)."
+    },
+    {
+      "id": "ex-7.2",
+      "guidance_ref": {
+        "example": "7.2",
+        "lines": "L4542-4581"
+      },
+      "source": "S3-9 spec",
+      "category": 7,
+      "method": "average_data",
+      "formula": "10,000 employees × (50 % rail 10 km × 0.1, 30 % car 15 km × 0.2, 5 % bus 5 km × 0.1) × 2 × 235 days",
+      "factors": {
+        "rail": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "passenger.km"
+        },
+        "car": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "vehicle.km"
+        },
+        "bus": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "passenger.km"
+        }
+      },
+      "rows": [
+        {
+          "label": "Rail",
+          "quantity": 23500000,
+          "unit": "passenger.km",
+          "factor": "rail"
+        },
+        {
+          "label": "Car",
+          "quantity": 21150000,
+          "unit": "vehicle.km",
+          "factor": "car"
+        },
+        {
+          "label": "Bus",
+          "quantity": 1175000,
+          "unit": "passenger.km",
+          "factor": "bus"
+        }
+      ],
+      "expected_kgco2e": 6697500,
+      "status": "skip",
+      "owner": "S3-9",
+      "note": "The foot row has factor 0 and is skipped (S3-9 spec)."
+    },
+    {
+      "id": "ex-8.1",
+      "guidance_ref": {
+        "example": "8.1",
+        "lines": "L4702-4755"
+      },
+      "source": "S3-11 spec, 01-contracts.md §9",
+      "category": 8,
+      "method": "asset_specific",
+      "formula": "gas 1,500 kWh × 0.2, electricity 3,000 × 0.7, refrigerant 5 kg × 1,500, each × 200 ÷ (2,000 × 75 %)",
+      "factors": {
+        "natural_gas": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "kwh"
+        },
+        "electricity": {
+          "kgco2e_per_unit": 0.7,
+          "unit": "kwh"
+        },
+        "refrigerant": {
+          "kgco2e_per_unit": 1500,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Natural gas",
+          "quantity": 1500,
+          "unit": "kwh",
+          "factor": "natural_gas",
+          "share": 0.13333333333333333
+        },
+        {
+          "label": "Electricity",
+          "quantity": 3000,
+          "unit": "kwh",
+          "factor": "electricity",
+          "share": 0.13333333333333333
+        },
+        {
+          "label": "Refrigerant",
+          "quantity": 5,
+          "unit": "kg",
+          "factor": "refrigerant",
+          "share": 0.13333333333333333
+        }
+      ],
+      "expected_kgco2e": 1320,
+      "status": "skip",
+      "owner": "S3-11",
+      "note": "The guidance prints 1,325 because it rounds the refrigerant to 0.67 kg; 1,320 is exact (01-contracts.md §9)."
+    },
+    {
+      "id": "ex-13.1",
+      "guidance_ref": {
+        "example": "13.1",
+        "lines": "L5754-5774"
+      },
+      "source": "S3-11 spec",
+      "category": 13,
+      "method": "lessee_specific",
+      "formula": "9,000 kgCO₂e × 5,000 ÷ 15,000",
+      "factors": {
+        "reported": {
+          "kgco2e_per_unit": 1,
+          "unit": "kgco2e"
+        }
+      },
+      "rows": [
+        {
+          "label": "Lessee scope 1+2, floor-space share",
+          "quantity": 9000,
+          "unit": "kgco2e",
+          "factor": "reported",
+          "share": 0.3333333333333333
+        }
+      ],
+      "expected_kgco2e": 3000,
+      "status": "skip",
+      "owner": "S3-11",
+      "note": "Partner-reported figure with an identity factor (01-contracts.md §10)."
+    },
+    {
+      "id": "ex-14.1",
+      "guidance_ref": {
+        "example": "14.1",
+        "lines": "L5893-5907"
+      },
+      "source": "S3-11 spec",
+      "category": 14,
+      "method": "franchise_specific",
+      "formula": "(100,000 + 20,000) + (25,000 + 10,000) + (30,000 + 10,000) + (90,000 + 30,000) + (30,000 + 10,000)",
+      "factors": {
+        "reported": {
+          "kgco2e_per_unit": 1,
+          "unit": "kgco2e"
+        }
+      },
+      "rows": [
+        {
+          "label": "Franchisee 1",
+          "quantity": 120000,
+          "unit": "kgco2e",
+          "factor": "reported"
+        },
+        {
+          "label": "Franchisee 2",
+          "quantity": 35000,
+          "unit": "kgco2e",
+          "factor": "reported"
+        },
+        {
+          "label": "Franchisee 3",
+          "quantity": 40000,
+          "unit": "kgco2e",
+          "factor": "reported"
+        },
+        {
+          "label": "Franchisee 4",
+          "quantity": 120000,
+          "unit": "kgco2e",
+          "factor": "reported"
+        },
+        {
+          "label": "Franchisee 5",
+          "quantity": 40000,
+          "unit": "kgco2e",
+          "factor": "reported"
+        }
+      ],
+      "expected_kgco2e": 355000,
+      "status": "skip",
+      "owner": "S3-11",
+      "note": "Partner-reported scope 1+2 with an identity factor (01-contracts.md §10)."
+    },
+    {
+      "id": "ex-14.2",
+      "guidance_ref": {
+        "example": "14.2",
+        "lines": "L5955-5970"
+      },
+      "source": "S3-11 spec",
+      "category": 14,
+      "method": "average_data",
+      "formula": "100 × 30,000 + 150 × 30,000 + 400 × 10,000 + 700 × 10,000 + 500 × 10,000",
+      "factors": {
+        "food": {
+          "kgco2e_per_unit": 30000,
+          "unit": "m2"
+        },
+        "clothing": {
+          "kgco2e_per_unit": 10000,
+          "unit": "m2"
+        }
+      },
+      "rows": [
+        {
+          "label": "Food 1",
+          "quantity": 100,
+          "unit": "m2",
+          "factor": "food"
+        },
+        {
+          "label": "Food 2",
+          "quantity": 150,
+          "unit": "m2",
+          "factor": "food"
+        },
+        {
+          "label": "Clothing 3",
+          "quantity": 400,
+          "unit": "m2",
+          "factor": "clothing"
+        },
+        {
+          "label": "Clothing 4",
+          "quantity": 700,
+          "unit": "m2",
+          "factor": "clothing"
+        },
+        {
+          "label": "Clothing 5",
+          "quantity": 500,
+          "unit": "m2",
+          "factor": "clothing"
+        }
+      ],
+      "expected_kgco2e": 23500000,
+      "status": "skip",
+      "owner": "S3-11"
+    },
+    {
+      "id": "ex-15.1",
+      "guidance_ref": {
+        "example": "15.1",
+        "lines": "L6258-6290"
+      },
+      "source": "S3-11 spec",
+      "category": 15,
+      "method": "investment_specific",
+      "formula": "120,000 t × 40 % + 200,000 × 15 % + 1,600,000 × 25 % + 60,000 × 25 % (493,000 t)",
+      "factors": {
+        "reported": {
+          "kgco2e_per_unit": 1,
+          "unit": "kgco2e"
+        }
+      },
+      "rows": [
+        {
+          "label": "Investment 1",
+          "quantity": 120000000,
+          "unit": "kgco2e",
+          "factor": "reported",
+          "share": 0.4
+        },
+        {
+          "label": "Investment 2",
+          "quantity": 200000000,
+          "unit": "kgco2e",
+          "factor": "reported",
+          "share": 0.15
+        },
+        {
+          "label": "Investment 3",
+          "quantity": 1600000000,
+          "unit": "kgco2e",
+          "factor": "reported",
+          "share": 0.25
+        },
+        {
+          "label": "Investment 4",
+          "quantity": 60000000,
+          "unit": "kgco2e",
+          "factor": "reported",
+          "share": 0.25
+        }
+      ],
+      "expected_kgco2e": 493000000,
+      "status": "skip",
+      "owner": "S3-11"
+    },
+    {
+      "id": "ex-15.2",
+      "guidance_ref": {
+        "example": "15.2",
+        "lines": "L6347-6393"
+      },
+      "source": "S3-11 spec",
+      "category": 15,
+      "method": "average_data",
+      "formula": "(3,000,000 × 0.6) × 5 % + (7,500,000 × 0.5) × 15 % + (1,150,000 × 3) × 20 % + (5,500,000 × 60 % × 2 + 5,500,000 × 40 % × 1.5) × 10 %",
+      "factors": {
+        "telecom": {
+          "kgco2e_per_unit": 0.6,
+          "unit": "USD"
+        },
+        "pharma": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "USD"
+        },
+        "energy": {
+          "kgco2e_per_unit": 3,
+          "unit": "USD"
+        },
+        "food_bev": {
+          "kgco2e_per_unit": 2,
+          "unit": "USD"
+        },
+        "apparel": {
+          "kgco2e_per_unit": 1.5,
+          "unit": "USD"
+        }
+      },
+      "rows": [
+        {
+          "label": "Investee 1",
+          "quantity": 3000000,
+          "unit": "USD",
+          "factor": "telecom",
+          "share": 0.05
+        },
+        {
+          "label": "Investee 2",
+          "quantity": 7500000,
+          "unit": "USD",
+          "factor": "pharma",
+          "share": 0.15
+        },
+        {
+          "label": "Investee 3",
+          "quantity": 1150000,
+          "unit": "USD",
+          "factor": "energy",
+          "share": 0.2
+        },
+        {
+          "label": "Investee 4 food",
+          "quantity": 3300000,
+          "unit": "USD",
+          "factor": "food_bev",
+          "share": 0.1
+        },
+        {
+          "label": "Investee 4 apparel",
+          "quantity": 2200000,
+          "unit": "USD",
+          "factor": "apparel",
+          "share": 0.1
+        }
+      ],
+      "expected_kgco2e": 2242500,
+      "status": "skip",
+      "owner": "S3-11",
+      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). Runs once S3-5 spend.ts is merged.",
+      "open_question": "The formula's investee 4 term (5,500,000 × 60 % × 2 + 5,500,000 × 40 % × 1.5) × 10 % gives 990,000, so the rows sum to 2,332,500, not 2,242,500. Confirm the expected figure before turning this case on."
+    },
+    {
+      "id": "ex-10.1",
+      "guidance_ref": {
+        "example": "10.1",
+        "lines": "L5096-5128"
+      },
+      "source": "S3-10 spec",
+      "category": 10,
+      "method": "site_specific",
+      "formula": "gas 3,500 kWh × 0.2 + electricity 2,000 kWh × 0.5 + waste 50 kg × 0.5, share 100 %",
+      "factors": {
+        "natural_gas": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "kwh"
+        },
+        "electricity": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "kwh"
+        },
+        "waste": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Natural gas",
+          "quantity": 3500,
+          "unit": "kwh",
+          "factor": "natural_gas"
+        },
+        {
+          "label": "Electricity",
+          "quantity": 2000,
+          "unit": "kwh",
+          "factor": "electricity"
+        },
+        {
+          "label": "Waste",
+          "quantity": 50,
+          "unit": "kg",
+          "factor": "waste"
+        }
+      ],
+      "expected_kgco2e": 1725,
+      "status": "skip",
+      "owner": "S3-10"
+    },
+    {
+      "id": "ex-10.2",
+      "guidance_ref": {
+        "example": "10.2",
+        "lines": "L5174-5191"
+      },
+      "source": "S3-10 spec",
+      "category": 10,
+      "method": "average_data",
+      "formula": "1,000 kg × 1.5",
+      "factors": {
+        "processing": {
+          "kgco2e_per_unit": 1.5,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Processing",
+          "quantity": 1000,
+          "unit": "kg",
+          "factor": "processing"
+        }
+      ],
+      "expected_kgco2e": 1500,
+      "status": "skip",
+      "owner": "S3-10"
+    },
+    {
+      "id": "ex-11.1",
+      "guidance_ref": {
+        "example": "11.1",
+        "lines": "L5348-5385"
+      },
+      "source": "S3-10 spec",
+      "category": 11,
+      "method": "direct_use",
+      "formula": "1,000 × 11,500 × 1.3 + 1,100 × 1,900 × 1.5 + 2,000 × 20,000 × 0.2 kWh × 0.5",
+      "factors": {
+        "electricity": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Product 1",
+          "quantity": 14950000,
+          "unit": "kwh",
+          "factor": "electricity"
+        },
+        {
+          "label": "Product 2",
+          "quantity": 3135000,
+          "unit": "kwh",
+          "factor": "electricity"
+        },
+        {
+          "label": "Product 3",
+          "quantity": 8000000,
+          "unit": "kwh",
+          "factor": "electricity"
+        }
+      ],
+      "expected_kgco2e": 13042500,
+      "status": "skip",
+      "owner": "S3-10"
+    },
+    {
+      "id": "ex-11.3",
+      "guidance_ref": {
+        "example": "11.3",
+        "lines": "L5589-5613"
+      },
+      "source": "S3-10 spec",
+      "category": 11,
+      "method": "direct_use",
+      "formula": "10 engines × 300,000 km × 4 % (20 t / 500 t) × 0.3 kg/km",
+      "factors": {
+        "per_km": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "km"
+        }
+      },
+      "rows": [
+        {
+          "label": "Engines",
+          "quantity": 3000000,
+          "unit": "km",
+          "factor": "per_km",
+          "share": 0.04
+        }
+      ],
+      "expected_kgco2e": 36000,
+      "status": "skip",
+      "owner": "S3-10"
+    },
+    {
+      "id": "ex-12.1",
+      "guidance_ref": {
+        "example": "12.1",
+        "lines": "L5691-5713"
+      },
+      "source": "S3-10 spec",
+      "category": 12,
+      "method": "waste_type_specific",
+      "formula": "10,000 kg × 90 % × 0.3 + 10,000 × 10 % × 1.0",
+      "factors": {
+        "landfill": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "kg"
+        },
+        "incineration": {
+          "kgco2e_per_unit": 1,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Landfill",
+          "quantity": 10000,
+          "unit": "kg",
+          "factor": "landfill",
+          "share": 0.9
+        },
+        {
+          "label": "Incineration",
+          "quantity": 10000,
+          "unit": "kg",
+          "factor": "incineration",
+          "share": 0.1
+        }
+      ],
+      "expected_kgco2e": 3700,
+      "status": "skip",
+      "owner": "S3-10",
+      "note": "The 0 % recycling row is not created (S3-10 spec)."
+    },
+    {
+      "id": "intro-proxy-coverage",
+      "guidance_ref": {
+        "example": "constructed",
+        "lines": "L1189-1196"
+      },
+      "source": "S3-12 spec",
+      "category": null,
+      "method": "unknown",
+      "formula": "known 850,000 kg at 85 % coverage → proxy 150,000 kg",
+      "proxy": {
+        "basis": "coverage",
+        "coverage_pct": 85,
+        "from": "known 850,000 kg"
+      },
+      "factors": {
+        "scale": {
+          "kgco2e_per_unit": 1,
+          "unit": "kgco2e"
+        }
+      },
+      "rows": [
+        {
+          "label": "Missing 15 % from the known 85 %",
+          "quantity": 850000,
+          "unit": "kgco2e",
+          "factor": "scale",
+          "share": 0.17647058823529413
+        }
+      ],
+      "expected_kgco2e": 150000,
+      "status": "skip",
+      "owner": "S3-12",
+      "note": "Proxy rows go through methods/proxy.ts."
+    },
+    {
+      "id": "intro-proxy-intensity",
+      "guidance_ref": {
+        "example": "constructed",
+        "lines": "L1189-1196"
+      },
+      "source": "S3-12 spec",
+      "category": null,
+      "method": "unknown",
+      "formula": "2 sites 1,000 t CO₂e for 500 t output; missing site 250 t output → proxy 500,000 kg",
+      "proxy": {
+        "basis": "intensity",
+        "coverage_pct": 66.67,
+        "from": "2 sites, 500 t output"
+      },
+      "factors": {
+        "intensity": {
+          "kgco2e_per_unit": 2000,
+          "unit": "tonne"
+        }
+      },
+      "rows": [
+        {
+          "label": "Missing site output",
+          "quantity": 250,
+          "unit": "tonne",
+          "factor": "intensity"
+        }
+      ],
+      "expected_kgco2e": 500000,
+      "status": "skip",
+      "owner": "S3-12"
+    },
+    {
+      "id": "report-cat4-cat9",
+      "guidance_ref": {
+        "example": "constructed",
+        "lines": null
+      },
+      "source": "01-contracts.md §9, S3-13 spec",
+      "category": null,
+      "method": "unknown",
+      "formula": "post ex-4.2 and ex-9.1, approve, read GET /reports/ghg/scope3 → Cat 4 = 5.00 t, Cat 9 = 1.60 t, Scope 3 = 6.60 t",
+      "factors": {},
+      "rows": [],
+      "expected_kgco2e": 6600,
+      "status": "skip",
+      "owner": "S3-13",
+      "note": "Report-level case; S3-13 moves it to ci/golden/scope3/report.json and checks it through the API."
+    }
+  ]
+}

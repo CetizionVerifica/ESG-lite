@@ -14,7 +14,8 @@ export class AuditLog {
   id!: number;
 
   @Column()
-  entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping" | "import_mapping_profile";
+  // S3-0: Scope 3 modules write their own `scope3_*` entity types (boundary, base year, locks, supplier factors).
+  entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping" | "import_mapping_profile" | `scope3_${string}`;
 
   @Column()
   entity_id!: number;

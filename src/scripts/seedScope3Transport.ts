@@ -21,7 +21,6 @@
 // that column exists, the existing transport categories (13 upstream, 18
 // downstream) are used.
 // TODO(S3-3): write `method_options` (METHOD_OPTIONS, UNITS_BY_METHOD) once the column exists.
-// TODO(S3-2): write factor_type, gwp_set, dataset, dataset_version from factors.ts once the columns exist.
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 import { ColumnEntity } from "../entities/Column";
@@ -185,6 +184,12 @@ async function main() {
             source: `${f.dataset} ${v.dataset_version} (S3-8)`,
             emission_category_name: f.name,
             global_category_name: f.name,
+            // S3-2 factor metadata
+            factor_type: f.factor_type,
+            gwp_set: f.gwp_set,
+            geography: f.geography,
+            dataset: f.dataset,
+            dataset_version: v.dataset_version,
           }),
         );
         factorsAdded++;

@@ -13,6 +13,7 @@ import { UserRole } from "../types/type";
 import { log } from "../utils/logger";
 import { issueInvite, unusablePasswordHash } from "../services/invite";
 import { EntityManager } from "typeorm";
+import { refreshChecksSafely } from "../scope3/review/service";
 import {
   type FiledEntry,
   type HistoricalPlan,
@@ -184,9 +185,10 @@ const uploadHistorical = async (req: Request, res: Response) => {
       );
     }
     const repo = m.getRepository(Emission);
+    const savedIds: number[] = [];
     for (const p of plan.rows.filter((r) => r.status === "import")) {
       const row = rows[p.row - 1];
-      await repo.save(
+      const saved = await repo.save(
         repo.create({
           activity_data: activityDataFor(row),
           total_emission: p.total!,
@@ -199,7 +201,9 @@ const uploadHistorical = async (req: Request, res: Response) => {
           review_comment: row.notes ? String(row.notes) : undefined,
         }),
       );
+      savedIds.push(saved.pk_id);
     }
+    await refreshChecksSafely(m, savedIds);
     return { plan, created: newUsers };
   });
 
@@ -355,6 +359,7 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
 
     // Process emissions
     let emissionsCreated = 0;
+    const createdIds: number[] = [];
     let emissionsSkipped = 0;
 
     for (const row of rows) {
@@ -438,12 +443,15 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
         });
 
         await emissionRepo.save(emission);
+        createdIds.push(emission.pk_id);
         emissionsCreated++;
       } catch (error) {
         console.error("Error processing row:", error);
         emissionsSkipped++;
       }
     }
+
+    await refreshChecksSafely(AppDataSource.manager, createdIds);
 
     log.info("Upload", "Excel upload complete", {
       totalRows: rows.length,

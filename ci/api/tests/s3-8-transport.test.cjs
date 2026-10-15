@@ -85,6 +85,13 @@ test("migrate:scope3-transport sets up the standard form once; the second run wr
   assert.deepEqual(custom.calculation, { mode: "per_unit", methods: { km: { multiply: ["Km"] } } }, "the client's form is untouched");
   assert.equal((await q(`SELECT count(*)::int AS n FROM unit WHERE site_id = ${CUSTOM_SITE} AND category_id = ${UP}`))[0].n, 0, "no units added to a client's form");
 
+  // Seeded factors carry S3-2's metadata.
+  const meta = await q(`SELECT emission_category_name AS n, factor_type, gwp_set, geography, dataset, dataset_version FROM emission_factors WHERE site_id = ${SITE} AND category_id = ${UP} AND year = 2025 AND emission_category_name IN ('Fuel - Diesel (average biofuel blend) [litre]', 'Refrigerant - R410A [kg]') ORDER BY 1`);
+  assert.deepEqual(meta, [
+    { n: "Fuel - Diesel (average biofuel blend) [litre]", factor_type: "life_cycle", gwp_set: "AR5", geography: "GB", dataset: "DEFRA", dataset_version: "2025" },
+    { n: "Refrigerant - R410A [kg]", factor_type: "other", gwp_set: "AR6", geography: "GLO", dataset: "IPCC AR6", dataset_version: "AR6 WG1 Table 7.SM.7" },
+  ]);
+
   const second = seed();
   assert.match(second, /configs written: 0 · units added: 0 · factors added: 0/);
   assert.deepEqual(await state(), after1);

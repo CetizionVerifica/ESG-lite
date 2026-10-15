@@ -62,3 +62,9 @@ MCP-09, MCP-10, MCP-11, MCP-22 (golden).
 4. **Warnings never block** (`01-contracts.md` §7). Errors block the row only, never the whole batch, except for the existing all-or-nothing import plan rules.
 5. **FE mirror:** when a method changes, update `ESG-lite_FE/src/lib/emissions/emissionCalc.ts` in the FE PR of the same module, so the preview matches. The FE never sends a total (`CLIENT_TOTAL_IGNORED` stays).
 6. **Edits:** `updateEmission`, `managerUpdateEmission` and the FERA recalculation move onto `computeRow` in S3-4, so edits get methods and DQ too.
+
+### As built (S3-0, 2026-10-15)
+- `methods/activity.ts` (`compute`, `applyFactor`, `totalFor`), `methods/spec.ts` and `methods/fera.ts` (`feraTwinFor`) hold the old `compute.ts` bodies unchanged. `spend`, `supplier`, `hybrid` and `proxy` re-export activity's `compute` with a TODO naming their module.
+- `compute.ts` keeps the types and `factorSnapshot`, adds `computeRow(ctx, row)` (spec category → spec; `row.proxy` → proxy; `row.method` spend_based / supplier_specific / hybrid → their file; else activity) and keeps `computeTotal` as a wrapper, so `index.ts` is unchanged. Rows carry no method yet; the form's `method_options[0]` fallback comes with S3-3.
+- `Computed` gains optional `total_kgco2e`, `method`, `dq`, `data_type`, all unset. Golden snapshot byte-identical before and after (sha256 of the LF file `bd2f996f…`).
+- Tests: `ci/unit/scope3-engine-split.test.cjs`.
