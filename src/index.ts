@@ -15,6 +15,8 @@ import wellKnownRoutes from "./oauth/wellKnown";
 import importsRouter from "./imports/router";
 import internalImportsRouter from "./routes/internalImports.routes";
 import supplierPublicRoutes from "./routes/supplierPublic.routes";
+import scope3Router from "./scope3/router";
+import { companyRouter as scope3CompanyRouter } from "./scope3/boundary/router";
 import { registerUploadNotifyListener } from "./services/uploadNotify";
 import { registerMappingMemoryListener } from "./imports/profiles/service";
 import { onBatchCommitted } from "./imports/writer";
@@ -85,6 +87,8 @@ app.use("/.well-known", wellKnownRoutes);
 app.use("/imports", authenticate, importsRouter);
 app.use("/internal/imports", internalImportsRouter); // IM4, service key
 app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, no account
+app.use("/scope3", authenticate, scope3Router); // Scope 3 (S3-0 mount; stand-in until S3-0 merges)
+app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
 
 let server: any;
 

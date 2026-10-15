@@ -1,4 +1,5 @@
 import {
+  Check,
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -11,6 +12,7 @@ import { EmissionFactor } from "./EmissionFactor";
 import { ColumnConfig } from "./ColumnConfig";
 
 @Entity()
+@Check("CHK_category_ghg_category", `"ghg_category" IS NULL OR ("ghg_category" >= 1 AND "ghg_category" <= 15)`)
 export class Category {
   @PrimaryGeneratedColumn()
   category_id!: number;
@@ -20,6 +22,11 @@ export class Category {
 
   @Column({ type: "varchar", nullable: true })
   scope?: string;
+
+  // GHG Protocol Scope 3 category number 1–15 (S3-1). Only on Scope 3
+  // categories; null until a Superadmin confirms it (Unmapped).
+  @Column({ type: "smallint", nullable: true })
+  ghg_category?: number | null;
 
   @ManyToMany(() => Site, site => site.categories)
   sites!: Site[];
