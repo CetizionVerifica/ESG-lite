@@ -11,6 +11,7 @@ import {
 import { Category } from "./Category";
 import { Site } from "./Site";
 import { User } from "./User";
+import { Supplier } from "./Supplier";
 
 export enum EmissionStatus {
   PENDING = "pending",
@@ -105,4 +106,12 @@ export class Emission {
     source: string;
     year: number;
   } | null;
+
+  // S3-6 · which supplier this row's goods came from, when it is known
+  // (migrate:scope3-suppliers). Set on Cat 1 and Cat 2 rows entered with a
+  // supplier; the supplier-specific and hybrid methods read the supplier's
+  // own figures through it.
+  @ManyToOne(() => Supplier, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "supplier_id" })
+  supplier!: Supplier | null;
 }

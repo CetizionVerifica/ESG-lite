@@ -32,6 +32,9 @@ import { OauthClient } from "../entities/OauthClient";
 import { OauthGrant } from "../entities/OauthGrant";
 import { OauthCode } from "../entities/OauthCode";
 import { OauthToken } from "../entities/OauthToken";
+import { Supplier } from "../entities/Supplier";
+import { SupplierFactor } from "../entities/SupplierFactor";
+import { SupplierFacilityData } from "../entities/SupplierFacilityData";
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -73,6 +76,10 @@ const entities = [
     OauthGrant,
     OauthCode,
     OauthToken,
+    // S3-6
+    Supplier,
+    SupplierFactor,
+    SupplierFacilityData,
 ];
 
 // Parse DATABASE_URL to extract connection parameters
