@@ -105,4 +105,9 @@ export class Emission {
     source: string;
     year: number;
   } | null;
+  // S3-4: the total in kgCO₂e at 4 dp beside total_emission (tCO₂e, 2 dp), so
+  // small rows keep their precision (D5). Written by emissionWrite on every
+  // insert and edit; older rows backfilled as total_emission × 1000.
+  @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
+  total_kgco2e!: string | null;
 }

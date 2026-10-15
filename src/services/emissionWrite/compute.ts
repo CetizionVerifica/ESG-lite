@@ -44,11 +44,21 @@ export const round2 = (n: number): number => Math.round(n * 100) / 100;
 export const totalFor = (activityValue: number, factor: EmissionFactor): number =>
   Math.round(((activityValue * factor.factor_value) / 1000) * 100) / 100;
 
+/**
+ * kgCO₂e at 4 dp for `emission.total_kgco2e` (S3-4, D5): the same product as
+ * the tCO₂e total, never rounded before multiplying. A string, as numeric
+ * columns read back.
+ */
+export const kgFor = (quantityInFactorUnit: number, factor: EmissionFactor): string =>
+  (Math.round(quantityInFactorUnit * Number(factor.factor_value) * 10000) / 10000).toFixed(4);
+
 export interface Computed {
   activityValue: number;
   activity_unit: string;
   conversion?: number;
   total: number;
+  /** kgCO₂e at 4 dp (S3-4). */
+  total_kg: string;
 }
 
 export type ComputeResult = { ok: true; computed: Computed } | { ok: false; issue: EngineIssue };
@@ -79,10 +89,10 @@ export const computeTotal = (
   }
 
   if (activityValue <= 0) {
-    return { ok: true, computed: { activityValue, activity_unit: unit, total: 0 } };
+    return { ok: true, computed: { activityValue, activity_unit: unit, total: 0, total_kg: "0.0000" } };
   }
   if (unitsMatchExact(factor.denominator_unit, unit)) {
-    return { ok: true, computed: { activityValue, activity_unit: unit, total: totalFor(activityValue, factor) } };
+    return { ok: true, computed: { activityValue, activity_unit: unit, total: totalFor(activityValue, factor), total_kg: kgFor(activityValue, factor) } };
   }
   const conversionFactor = getConversionFactor(unit, factor.denominator_unit);
   if (!conversionFactor) {
@@ -99,7 +109,13 @@ export const computeTotal = (
   const convertedValue = activityValue * conversionFactor;
   return {
     ok: true,
-    computed: { activityValue, activity_unit: unit, conversion: conversionFactor, total: Math.round(((convertedValue * factor.factor_value) / 1000) * 100) / 100 },
+    computed: {
+      activityValue,
+      activity_unit: unit,
+      conversion: conversionFactor,
+      total: Math.round(((convertedValue * factor.factor_value) / 1000) * 100) / 100,
+      total_kg: kgFor(convertedValue, factor),
+    },
   };
 };
 
@@ -112,6 +128,8 @@ export interface FeraTwin {
   factor: EmissionFactor;
   activityValue: number;
   total: number;
+  /** kgCO₂e at 4 dp (S3-4). */
+  total_kg: string;
 }
 
 /**
@@ -127,7 +145,13 @@ export const feraTwinFor = (ctx: CategoryContext, emissionCategory: string, acti
   if (activityValue <= 0) return null;
   const conv = unitsMatchExact(factor.denominator_unit, activity_unit) ? 1 : getConversionFactor(activity_unit as any, factor.denominator_unit);
   if (!conv) return null;
-  return { category_id: ctx.fera.category_id, factor, activityValue, total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100 };
+  return {
+    category_id: ctx.fera.category_id,
+    factor,
+    activityValue,
+    total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100,
+    total_kg: kgFor(activityValue * conv, factor),
+  };
 };
 
 export const factorSnapshot = (f: EmissionFactor) => ({

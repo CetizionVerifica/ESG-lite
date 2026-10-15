@@ -87,7 +87,7 @@ test("totals use the typed-entry expression and rounding", () => {
   assert.equal(totalFor(1.25, index.find("Grid Electricity", 2024).factor), 0.89); // 1.25 × 708 / 1000 = 0.885 → 0.89
   assert.equal(totalFor(0.001, index.find("Grid Electricity", 2024).factor), 0); // tiny totals round to 0 but stay rows
   const direct = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", activity_value: "1000" }, "litre");
-  assert.deepEqual(direct, { ok: true, computed: { activityValue: 1000, activity_unit: "litre", total: 2680 } });
+  assert.deepEqual(direct, { ok: true, computed: { activityValue: 1000, activity_unit: "litre", total: 2680, total_kg: "2680000.0000" } });
   const converted = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", quantity: "500" }, "gallon");
   assert.equal(converted.ok, true);
   assert.equal(converted.computed.conversion, 3.78541);
@@ -98,7 +98,23 @@ test("totals use the typed-entry expression and rounding", () => {
   assert.equal(bad.issue.message, 'Unit mismatch: Expected "litre" but received "kg". No conversion available.');
   assert.deepEqual(bad.issue.extra, { expected_unit: "litre", received_unit: "kg" });
   const zero = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", activity_value: "0" }, "litre");
-  assert.deepEqual(zero, { ok: true, computed: { activityValue: 0, activity_unit: "litre", total: 0 } });
+  assert.deepEqual(zero, { ok: true, computed: { activityValue: 0, activity_unit: "litre", total: 0, total_kg: "0.0000" } });
+});
+
+test("S3-4: total_kgco2e keeps 4 dp where the tCO2e total rounds to 0.01 t (D5)", () => {
+  const grid = index.find("Grid Electricity", 2024).factor; // 708 kg/kWh
+  const tiny = computeTotal(ctx(), grid, { emission_category: "Grid Electricity", activity_value: "0.001" }, "kwh");
+  assert.equal(tiny.computed.total, 0); // 0.000708 t rounds away, as before
+  assert.equal(tiny.computed.total_kg, "0.7080"); // the kg column keeps it
+  const half = computeTotal(ctx(), grid, { emission_category: "Grid Electricity", activity_value: "1.25" }, "kwh");
+  assert.deepEqual([half.computed.total, half.computed.total_kg], [0.89, "885.0000"]); // never rounded before multiplying
+  const converted = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", quantity: "500" }, "gallon");
+  assert.equal(converted.computed.total_kg, (Math.round(500 * 3.78541 * 2680 * 10000) / 10000).toFixed(4));
+  const fera = feraTwinFor(
+    ctx({ fera: { category_id: 9, factors: new FactorIndex([factor(20, "Diesel", 2024, 610.5, "litre")]) } }),
+    "Diesel", { emission_category: "Diesel", activity_value: "3" }, "litre", 2024,
+  );
+  assert.deepEqual([fera.total, fera.total_kg], [1.83, "1831.5000"]);
 });
 
 test("spec categories multiply their fields and report missing or invalid fields", () => {

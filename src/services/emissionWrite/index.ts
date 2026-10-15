@@ -126,6 +126,7 @@ export const insertEntry = async (
     activity_data: input.activity_data,
     extra_data: input.extra_data || {},
     total_emission: entry.computed?.total ?? 0,
+    total_kgco2e: entry.computed?.total_kg ?? "0.0000",
     emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
   });
   await repo.save(emission);
@@ -137,6 +138,7 @@ export const insertEntry = async (
       category: { category_id: entry.fera.category_id },
       activity_data: input.activity_data,
       total_emission: entry.fera.total,
+      total_kgco2e: entry.fera.total_kg,
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
     });
