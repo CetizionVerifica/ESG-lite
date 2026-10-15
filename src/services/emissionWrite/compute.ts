@@ -28,7 +28,12 @@ export interface CategoryContext {
   factors: FactorIndex;
   /** The site's FERA category and its factors, when the site has one. */
   fera: { category_id: number; factors: FactorIndex } | null;
+  /** The form's unit options for site × category (`unit` table). With exactly one, an entry without a unit is in that unit (S3-4). */
+  formUnits?: string[];
 }
+
+/** A factor with no unit can't be checked against the quantity's unit (S3-4). */
+export const factorHasUnit = (factor: EmissionFactor): boolean => !!String(factor.denominator_unit ?? "").trim();
 
 export interface EngineIssue {
   code: RowIssueCode;
@@ -91,6 +96,16 @@ export const computeTotal = (
   if (activityValue <= 0) {
     return { ok: true, computed: { activityValue, activity_unit: unit, total: 0, total_kg: "0.0000" } };
   }
+  if (!factorHasUnit(factor)) {
+    return {
+      ok: false,
+      issue: {
+        code: "UNIT_REQUIRED",
+        message: `The emission factor "${factor.emission_category_name}" has no unit, so the quantity can't be checked against it. Give the factor its unit on the Emission factors page.`,
+        field: "activity_unit",
+      },
+    };
+  }
   if (unitsMatchExact(factor.denominator_unit, unit)) {
     return { ok: true, computed: { activityValue, activity_unit: unit, total: totalFor(activityValue, factor), total_kg: kgFor(activityValue, factor) } };
   }
@@ -141,6 +156,8 @@ export const feraTwinFor = (ctx: CategoryContext, emissionCategory: string, acti
   if (!ctx.fera || ctx.spec || !emissionCategory) return null;
   const factor = ctx.fera.factors.findExactForYear(emissionCategory, targetYear);
   if (!factor) return null;
+  // No unit on either side: nothing to check the quantity against, so no twin (S3-4).
+  if (!activity_unit || !factorHasUnit(factor)) return null;
   const activityValue = pickActivityValue(activity_data, ctx.selectColumns);
   if (activityValue <= 0) return null;
   const conv = unitsMatchExact(factor.denominator_unit, activity_unit) ? 1 : getConversionFactor(activity_unit as any, factor.denominator_unit);

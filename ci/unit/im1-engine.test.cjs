@@ -157,8 +157,25 @@ test("unit helpers behave as before", () => {
   assert.equal(getConversionFactor("MWh", "kwh"), 1000);
   assert.equal(getConversionFactor("ton", "kg"), 1000);
   assert.equal(getConversionFactor("kg", "litre"), null);
-  assert.equal(unitsMatchExact(null, "kwh"), true);
   assert.equal(unitsMatchExact("kWh ", "kwh"), true);
+  // S3-4: a missing unit on either side is no longer a match.
+  assert.equal(unitsMatchExact(null, "kwh"), false);
+  assert.equal(unitsMatchExact("kwh", ""), false);
+});
+
+test("S3-4: a factor with no unit is UNIT_REQUIRED, never applied unchecked", () => {
+  const noUnit = factor(30, "Mystery fuel", 2024, 1000, "");
+  const r = computeTotal(ctx(), noUnit, { emission_category: "Mystery fuel", activity_value: "10" }, "litre");
+  assert.equal(r.ok, false);
+  assert.equal(r.issue.code, "UNIT_REQUIRED");
+  assert.match(r.issue.message, /"Mystery fuel" has no unit/);
+  const nullUnit = computeTotal(ctx(), { ...noUnit, denominator_unit: null }, { emission_category: "Mystery fuel", activity_value: "10" }, "litre");
+  assert.equal(nullUnit.issue.code, "UNIT_REQUIRED");
+  // No FERA twin without a unit on both sides.
+  const fera = (unit) => ({ fera: { category_id: 9, factors: new FactorIndex([factor(21, "Diesel", 2024, 610.5, unit)]) } });
+  assert.equal(feraTwinFor(ctx(fera("litre")), "Diesel", { emission_category: "Diesel", activity_value: "3" }, null, 2024), null);
+  assert.equal(feraTwinFor(ctx(fera("")), "Diesel", { emission_category: "Diesel", activity_value: "3" }, "litre", 2024), null);
+  assert.notEqual(feraTwinFor(ctx(fera("litre")), "Diesel", { emission_category: "Diesel", activity_value: "3" }, "litre", 2024), null);
 });
 
 test("periods map to stored columns; future months and unstarted years are invalid", () => {

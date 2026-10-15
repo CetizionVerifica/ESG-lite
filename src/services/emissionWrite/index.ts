@@ -63,7 +63,8 @@ export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; is
  */
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
-  let unit = input.activity_data_unit;
+  // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
+  let unit = input.activity_data_unit || (ctx.formUnits?.length === 1 ? ctx.formUnits[0] : input.activity_data_unit);
   let factor: EmissionFactor | null = null;
   let computed: Computed | null = null;
   const targetYear = targetYearFor(input.period.date_of_reporting);

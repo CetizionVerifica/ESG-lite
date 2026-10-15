@@ -97,6 +97,9 @@ export const ROW_ISSUE_CODES = {
   NOT_IN_CONTEXT: "error",
   LOW_CONFIDENCE_MATCH: "warning",
   PIVOT_EMPTY_CELL: "info",
+  // Scope 3 engine integrity (S3-4, docs/scope3/01-contracts.md §7).
+  UNIT_REQUIRED: "error",
+  FERA_FACTOR_MISSING: "warning",
 } as const;
 
 export type RowIssueCode = keyof typeof ROW_ISSUE_CODES;
