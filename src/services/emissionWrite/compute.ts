@@ -13,6 +13,7 @@ import { getConversionFactor, unitsMatchExact } from "./units";
 import type { FactorIndex } from "./resolve";
 import type { RowIssueCode } from "../../imports/errors";
 import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
+import { feraSubFor, upstreamFeraFactor, type Scope3Sub } from "./methods/fera";
 
 /** Loaded once per site × category and shared by every row of that pair. */
 export interface CategoryContext {
@@ -113,6 +114,8 @@ export interface FeraTwin {
   factor: EmissionFactor;
   activityValue: number;
   total: number;
+  /** Category 3 sub-activity (S3-7): 3a, 3b or 3c. */
+  scope3_sub: Scope3Sub;
 }
 
 /**
@@ -122,13 +125,20 @@ export interface FeraTwin {
  */
 export const feraTwinFor = (ctx: CategoryContext, emissionCategory: string, activity_data: Record<string, any>, activity_unit: string | null | undefined, targetYear: number): FeraTwin | null => {
   if (!ctx.fera || ctx.spec || !emissionCategory) return null;
-  const factor = ctx.fera.factors.findExactForYear(emissionCategory, targetYear);
+  // S3-7: the same exact lookup as before, minus td_loss factors (those make the 3c twin).
+  const factor = upstreamFeraFactor(ctx, emissionCategory, targetYear);
   if (!factor) return null;
   const activityValue = pickActivityValue(activity_data, ctx.selectColumns);
   if (activityValue <= 0) return null;
   const conv = unitsMatchExact(factor.denominator_unit, activity_unit) ? 1 : getConversionFactor(activity_unit as any, factor.denominator_unit);
   if (!conv) return null;
-  return { category_id: ctx.fera.category_id, factor, activityValue, total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100 };
+  return {
+    category_id: ctx.fera.category_id,
+    factor,
+    activityValue,
+    total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100,
+    scope3_sub: feraSubFor(ctx.scope),
+  };
 };
 
 export const factorSnapshot = (f: EmissionFactor) => ({

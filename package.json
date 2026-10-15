@@ -31,6 +31,7 @@
     "migrate:ai-import": "ts-node src/scripts/addAiImportColumns.ts",
     "migrate:mapping-profiles": "ts-node src/scripts/createImportMappingProfileTable.ts",
     "migrate:scope3-factor-meta": "ts-node src/scripts/migrateScope3FactorMeta.ts",
+    "migrate:scope3-fera-sub": "ts-node src/scripts/migrateScope3FeraSub.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"
