@@ -7,7 +7,7 @@ import { Category } from "../entities/Category";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
 
-/** A manager's team is the contributors (role User) on their sites; Admins and other managers are not theirs to manage. */
+/** A manager's team is the contributors (role User) on their sites; Admins, other managers and the team's own internal accounts are not theirs to manage. */
 const NOT_TEAM = "You can only manage people with the User role on your sites.";
 
 const userRepo = AppDataSource.getRepository(User);
@@ -47,6 +47,8 @@ export const getManagerUsers = async (req: AuthRequest, res: Response) => {
       .leftJoin("user.site", "site")
       .leftJoin("user.sites", "msite")
       .where("user.role = :role", { role: UserRole.USER })
+      // Internal (PlanetPulse team) accounts are managed by a Superadmin, not the client.
+      .andWhere("user.is_internal = false")
       .andWhere(
         new Brackets((qb) => {
           qb.where("site.site_id IN (:...ids)", { ids: managerSiteIds }).orWhere("msite.site_id IN (:...ids)", { ids: managerSiteIds });
@@ -135,7 +137,7 @@ export const getUserCategories = async (req: AuthRequest, res: Response) => {
     if (sharedSiteIds.length === 0) {
       return res.status(403).json({ message: "User is not on your sites" });
     }
-    if (targetUser.role !== UserRole.USER) {
+    if (targetUser.role !== UserRole.USER || targetUser.is_internal) {
       return res.status(403).json({ message: NOT_TEAM });
     }
 
@@ -203,7 +205,7 @@ export const updateUserCategories = async (req: AuthRequest, res: Response) => {
     if (sharedSiteIds.length === 0) {
       return res.status(403).json({ message: "User is not on your sites" });
     }
-    if (targetUser.role !== UserRole.USER) {
+    if (targetUser.role !== UserRole.USER || targetUser.is_internal) {
       return res.status(403).json({ message: NOT_TEAM });
     }
 

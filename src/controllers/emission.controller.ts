@@ -20,7 +20,7 @@ import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeade
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
-import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
+import { validatePeriodFields, findModeLockConflict, periodWindow } from "../services/reportingPeriod";
 import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
 import { getSelectColumns, pickActivityValue } from "../services/activityValue";
@@ -678,6 +678,12 @@ const targetYear = reportingDate.getFullYear() - 1;
             activity_data.activity_value = String(activityValue);
           } else {
           activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
+          }
+
+          // New values without an amount above 0 would keep the old total next to
+          // them (the forms block this; a direct API call doesn't), as for managers.
+          if (!(activityValue > 0)) {
+            return res.status(400).json({ message: "Enter an amount greater than 0. Nothing was changed." });
           }
 
           if (activityValue > 0) {
@@ -3153,6 +3159,15 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       });
       if (periodError) {
         return res.status(400).json({ message: periodError });
+      }
+      // No moving an entry into a period that hasn't started (as imports refuse,
+      // emissionWrite/period.ts); the edit form already stops at this month.
+      const today = new Date().toISOString().slice(0, 10);
+      if (period === "monthly" && newDate.toISOString().slice(0, 7) > today.slice(0, 7)) {
+        return res.status(400).json({ message: `${newDate.toISOString().slice(0, 7)} is in the future; monthly data can only be filed for months that have started.` });
+      }
+      if (period === "yearly" && emission.year_type && periodWindow(emission.year_type, newDate).start > today) {
+        return res.status(400).json({ message: `${emission.year_type} ${newDate.getUTCFullYear()} has not started yet.` });
       }
       const conflict = await findModeLockConflict(repo, {
         site_id: emission.site.site_id,

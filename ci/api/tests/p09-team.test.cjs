@@ -58,3 +58,19 @@ test("a manager still reads and changes a contributor's category access", async 
     for (const r of before) await q("INSERT INTO user_categories (user_id, category_id) VALUES (7, $1)", [r.category_id]);
   }
 });
+
+test("the team's internal accounts are not on a client manager's Team page", async () => {
+  // User 7 is a contributor on the manager's sites 1 and 2; mark it internal.
+  await q('UPDATE "user" SET is_internal = true WHERE user_id = 7');
+  try {
+    const list = await call("GET", "/manager/users", "manager");
+    assert.equal(list.status, 200);
+    assert.deepEqual(list.json.map((u) => u.user_id), [1]);
+    const read = await call("GET", "/manager/users/7/categories", "manager");
+    assert.equal(read.status, 403);
+    assert.match(read.json.message, /User role/);
+    assert.equal((await call("PUT", "/manager/users/7/categories", "manager", { category_ids: [] })).status, 403);
+  } finally {
+    await q('UPDATE "user" SET is_internal = false WHERE user_id = 7');
+  }
+});
