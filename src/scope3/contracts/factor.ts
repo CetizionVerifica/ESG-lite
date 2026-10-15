@@ -59,3 +59,11 @@ export const factorTypeAllowed = (n: number, type: FactorType): boolean => {
   const allowed = ALLOWED_FACTOR_TYPES[n as GhgCategoryNumber];
   return !allowed || allowed.includes(type);
 };
+
+// S3-2 additions (factor upload and snapshot).
+/** Gas parts a factor may carry, in kg per denominator unit (other_kgco2e in kgCO₂e). */
+export const GAS_PART_FIELDS = ["co2_kg", "ch4_kg", "n2o_kg", "other_kgco2e"] as const;
+export type GasPartField = (typeof GAS_PART_FIELDS)[number];
+
+export const isFactorType = (v: unknown): v is FactorType => typeof v === "string" && (FACTOR_TYPES as readonly string[]).includes(v);
+export const isGwpSet = (v: unknown): v is GwpSet => typeof v === "string" && (GWP_SETS as readonly string[]).includes(v);
