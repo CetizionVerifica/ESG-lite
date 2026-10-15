@@ -24,4 +24,6 @@ RUN npm run build
 ENV NODE_ENV=production
 EXPOSE 3000
 
+# `npm start` runs the idempotent migrations (scripts/migrate-all.cjs) and then
+# the API, so a deploy needs no separate migration step.
 CMD ["npm", "start"]

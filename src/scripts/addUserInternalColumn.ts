@@ -5,7 +5,7 @@
 //
 //   npm run migrate:user-internal
 //
-// Run it before the build that ships the column (migrate:all on release).
+// npm start runs it (scripts/migrate-all.cjs) before the API starts.
 // Idempotent (IF NOT EXISTS) and additive.
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";

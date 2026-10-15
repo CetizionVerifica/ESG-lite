@@ -20,7 +20,7 @@ import { ImportError, rowIssueSeverity, type RowIssueCode } from "../../imports/
 import type { ActivityMatch, ImportRow, PlannedRow, RowIssue, StrippedTotal } from "../../imports/contracts";
 import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../../imports/writer";
 import { ContextCache, type LoadedContext } from "./context";
-import { CheckCache, findDuplicate, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
+import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
 import { computeTotal, factorSnapshot, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
@@ -320,6 +320,7 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     const first = seenIdentity.get(identity);
     if (first) issues.push(issue("DUPLICATE_IN_PLAN", `Same site, category, period and activity as row ${first}.`));
     else seenIdentity.set(identity, row.row_ref);
+    if (isLowConfidenceAiMatch(row.meta)) issues.push(issue("LOW_CONFIDENCE_MATCH", "Matched by the AI below 80 %; the uploader confirmed it."));
 
     const all = [...issues, ...errors];
     if (errors.length) {
@@ -413,6 +414,10 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     const entry = entries[i];
     if (!entry || !entry.factor) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: [row.row_ref] });
     const extra_data: Record<string, any> = { import: { channel: batch.channel, row_ref: row.row_ref } };
+    // Smart-import provenance for Review rows' "Matched by" (XI5): how the row
+    // was mapped and how sure the mapper was. Never the pre-commit edit flag,
+    // which the attention filter reads from the plan row.
+    if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
     const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit);
     inserted += 1;

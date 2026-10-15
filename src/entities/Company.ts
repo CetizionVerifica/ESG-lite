@@ -56,6 +56,14 @@ export class Company {
   @Column({ default: false })
   mcp_enabled!: boolean;
 
+  // "Smart import" for Managers and Admins (smart Excel import, XI0). Off by
+  // default: with it off POST /v1/excel/propose and the in-app smart flow
+  // answer AI_IMPORT_DISABLED_FOR_CLIENT. Superadmin toggles it through
+  // PUT /admin/companies/:id. Separate from mcp_enabled (Claude/MCP stays
+  // Superadmin only).
+  @Column({ default: false })
+  ai_import_enabled!: boolean;
+
   // When the client was onboarded (redesign P16 Console activity); NULL for
   // clients that predate migrate:company-created-at. Set by
   // stampCompanyOnboarded after a company is created. No default here and

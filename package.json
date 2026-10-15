@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node scripts/migrate-all.cjs && node dist/index.js",
+    "start:no-migrate": "node dist/index.js",
     "seed:superadmin": "ts-node src/seeds/seedSuperAdmin.ts",
     "seed:emissions": "ts-node src/seeds/seedEmissionsFromExcel.ts",
     "migrate:all": "node scripts/migrate-all.cjs",
@@ -27,6 +28,8 @@
     "migrate:upload-notification-index": "ts-node src/scripts/addUploadNotificationIndex.ts",
     "migrate:supplier-requests": "ts-node src/scripts/createSupplierRequestTable.ts",
     "migrate:user-internal": "ts-node src/scripts/addUserInternalColumn.ts",
+    "migrate:ai-import": "ts-node src/scripts/addAiImportColumns.ts",
+    "migrate:mapping-profiles": "ts-node src/scripts/createImportMappingProfileTable.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"

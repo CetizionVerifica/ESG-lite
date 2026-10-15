@@ -29,6 +29,7 @@ export const IMPORT_ERRORS = {
   MCP_SUPERADMIN_ONLY: { status: 403, message: "Only Superadmin accounts can use Claude imports." },
   IMPORT_FORBIDDEN: { status: 403, message: "You are not allowed to do that." },
   MCP_DISABLED_FOR_CLIENT: { status: 403, message: "Claude imports are switched off for this client." },
+  AI_IMPORT_DISABLED_FOR_CLIENT: { status: 403, message: "Smart import is switched off for this client." },
   [CLIENT_INACTIVE_CODE]: { status: 403, message: CLIENT_INACTIVE_MESSAGE },
 } as const;
 
@@ -91,6 +92,11 @@ export const ROW_ISSUE_CODES = {
   DISTANCE_REQUIRED: "error",
   FACTOR_FALLBACK_YEAR: "warning",
   CLIENT_TOTAL_IGNORED: "warning",
+  // Smart Excel import (XI0). SITE_NOT_ALLOWED above is also the code for a
+  // sheet row that names a site other than the one chosen for the upload.
+  NOT_IN_CONTEXT: "error",
+  LOW_CONFIDENCE_MATCH: "warning",
+  PIVOT_EMPTY_CELL: "info",
 } as const;
 
 export type RowIssueCode = keyof typeof ROW_ISSUE_CODES;

@@ -9,7 +9,7 @@ const path = require("path");
 const { FactorIndex, MappingIndex, resolveActivity, suggestNames, targetYearFor, planMatchFor } = require(path.resolve("dist/services/emissionWrite/resolve.js"));
 const { computeTotal, feraTwinFor, totalFor } = require(path.resolve("dist/services/emissionWrite/compute.js"));
 const { toStoredPeriod, monthsCovered } = require(path.resolve("dist/services/emissionWrite/period.js"));
-const { planModeConflicts, planIdentity, findDuplicate } = require(path.resolve("dist/services/emissionWrite/checks.js"));
+const { planModeConflicts, planIdentity, findDuplicate, isLowConfidenceAiMatch } = require(path.resolve("dist/services/emissionWrite/checks.js"));
 const { getConversionFactor, unitsMatchExact } = require(path.resolve("dist/services/emissionWrite/units.js"));
 
 const factor = (id, name, year, value, unit, global = name) => ({
@@ -187,3 +187,31 @@ test("duplicate identity uses the month, the activity and the spec's identity co
 function pick(m) {
   return m ? { id: m.factor.emission_factor_id, fallback: m.fallback_year } : null;
 }
+
+test("unit spellings from client sheets resolve to the canonical unit; existing conversions are unchanged", () => {
+  const { getConversionFactor, unitsMatchExact } = require(path.resolve("dist/services/emissionWrite/units.js"));
+  // Indian records: metric tonne, city-gas standard cubic metre, litre abbreviations
+  assert.equal(getConversionFactor("MT", "tonne"), 1);
+  assert.equal(getConversionFactor("MT", "kg"), 1000);
+  assert.equal(getConversionFactor("SCM", "Cubic meter"), 1);
+  assert.equal(getConversionFactor("Ltr", "litre"), 1);
+  assert.equal(getConversionFactor("Ltrs", "kl"), 0.001);
+  assert.ok(unitsMatchExact("Litres", "litre"));
+  assert.ok(unitsMatchExact("kgs", "Kg"));
+  // unchanged
+  assert.equal(getConversionFactor("kwh", "mwh"), 0.001);
+  assert.equal(getConversionFactor("tonne", "kg"), 1000);
+  assert.equal(getConversionFactor("litre", "kg"), null);
+  assert.ok(!unitsMatchExact("kwh", "mwh"));
+});
+
+test("a confirmed AI match below 0.8 is a low-confidence match; profile, rules and rows without meta are not", () => {
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.6 }), true);
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.79 }), true);
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.8 }), false, "the threshold itself is confident enough");
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.9 }), false);
+  assert.equal(isLowConfidenceAiMatch({ source: "rules", confidence: 0.5 }), false);
+  assert.equal(isLowConfidenceAiMatch({ source: "profile", confidence: 0.5 }), false);
+  assert.equal(isLowConfidenceAiMatch(undefined), false, "Claude and API rows carry no meta");
+  assert.equal(isLowConfidenceAiMatch(null), false);
+});

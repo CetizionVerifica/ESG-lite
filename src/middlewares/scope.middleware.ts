@@ -120,19 +120,44 @@ type Table = { table: string; key: string };
 const EMISSION: Table = { table: "emission", key: "pk_id" };
 const PRODUCTION: Table = { table: "production_data", key: "production_id" };
 
-async function rowsOf(t: Table, ids: number[]) {
+/** What the self-review rule needs to know about a row. `uploader_may_approve` is true only for an untouched row of a bulk upload. */
+type ReviewFacts = { created_by: number | null; uploader_may_approve: boolean };
+type ScopedRow = { id: number; site_id: number } & ReviewFacts;
+
+// A row of a bulk-upload batch (a plan with channel bulk_upload, or a batch
+// with no plan: legacy bulk upload) that nobody edited after commit.
+const UPLOADER_MAY_APPROVE = (alias: string) => `(${alias}.upload_batch_id IS NOT NULL
+  AND COALESCE((${alias}.extra_data -> 'import' ->> 'edited') = 'true', false) = false
+  AND COALESCE((SELECT ip.channel FROM import_plan ip WHERE ip.upload_batch_id = ${alias}.upload_batch_id LIMIT 1), 'bulk_upload') = 'bulk_upload')`;
+
+async function rowsOf(t: Table, ids: number[]): Promise<ScopedRow[]> {
   if (!ids.length) return [];
+  const may = t === EMISSION ? UPLOADER_MAY_APPROVE("e") : "false";
   return AppDataSource.query(
-    `SELECT ${t.key} AS id, site_id, created_by FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
+    `SELECT e.${t.key} AS id, e.site_id, e.created_by, ${may} AS uploader_may_approve FROM ${t.table} e WHERE e.${t.key} = ANY($1::int[])`,
     [ids]
-  ) as Promise<{ id: number; site_id: number; created_by: number | null }[]>;
+  );
 }
 
 /**
- * Records named by `:param` or by `ids[]` in the body must sit on the
- * caller's sites. With `review`, the caller must also not be their creator.
+ * Nobody reviews their own entries (audit F-01/F-02). The one exception
+ * (smart-import decision 6, Shyam 2026-10-14): the manager who uploaded a
+ * bulk-upload file may APPROVE its rows, as long as nobody edited the row
+ * after commit; the audit row then says "Approved by the uploader"
+ * (audit.middleware). Rejecting their own rows, approving a row they or
+ * anyone else edited, and rows of Claude or API batches stay blocked.
  */
-const guardRecords = (t: Table, from: { param?: string; bodyIds?: boolean }, review = false): Guard =>
+type ReviewAction = "approve" | "reject";
+const selfReview = (req: AuthRequest, rows: ReviewFacts[], action: ReviewAction) =>
+  req.user?.role !== UserRole.SUPERADMIN &&
+  rows.some((r) => Number(r.created_by) === Number(req.user?.userId) && !(action === "approve" && r.uploader_may_approve === true));
+
+/**
+ * Records named by `:param` or by `ids[]` in the body must sit on the
+ * caller's sites. With `review`, the caller must also not be their creator
+ * (uploaded rows excepted, see selfReview).
+ */
+const guardRecords = (t: Table, from: { param?: string; bodyIds?: boolean }, review: ReviewAction | false = false): Guard =>
   wrap(async (req, res, next) => {
     const ids = from.param ? toIds(req.params[from.param]) : toIds(req.body?.ids);
     if (!ids.length) return next(); // the handler reports the missing ids
@@ -141,25 +166,23 @@ const guardRecords = (t: Table, from: { param?: string; bodyIds?: boolean }, rev
     const visible = rows.filter((r) => !allowed || allowed.has(Number(r.site_id)));
     if (from.param && !visible.length) return res.status(404).json(NOT_FOUND);
     if (visible.length < rows.length) return forbidden(res);
-    if (review && req.user?.role !== UserRole.SUPERADMIN && rows.some((r) => Number(r.created_by) === Number(req.user?.userId))) {
-      return res.status(403).json(SELF_REVIEW);
-    }
+    if (review && selfReview(req, rows, review)) return res.status(403).json(SELF_REVIEW);
     next();
   });
 
 export const guardEmissionParam = (param = "id") => guardRecords(EMISSION, { param });
 export const guardEmissionIds = guardRecords(EMISSION, { bodyIds: true });
-export const guardEmissionReview = (param = "id") => guardRecords(EMISSION, { param }, true);
-export const guardEmissionIdsReview = guardRecords(EMISSION, { bodyIds: true }, true);
+export const guardEmissionReview = (param = "id", action: ReviewAction = "reject") => guardRecords(EMISSION, { param }, action);
+export const guardEmissionIdsReview = (action: ReviewAction = "reject") => guardRecords(EMISSION, { bodyIds: true }, action);
 export const guardProductionParam = (param = "id") => guardRecords(PRODUCTION, { param });
-export const guardProductionReview = (param = "id") => guardRecords(PRODUCTION, { param }, true);
-export const guardProductionIdsReview = guardRecords(PRODUCTION, { bodyIds: true }, true);
+export const guardProductionReview = (param = "id") => guardRecords(PRODUCTION, { param }, "reject");
+export const guardProductionIdsReview = guardRecords(PRODUCTION, { bodyIds: true }, "reject");
 
 /** Every row of an upload batch must be on the caller's sites. */
-export const guardBatch = (review = false): Guard =>
+export const guardBatch = (review: ReviewAction | false = false): Guard =>
   wrap(async (req, res, next) => {
-    const rows: { site_id: number; created_by: number | null }[] = await AppDataSource.query(
-      `SELECT site_id, created_by FROM emission WHERE upload_batch_id = $1`,
+    const rows: ({ site_id: number } & ReviewFacts)[] = await AppDataSource.query(
+      `SELECT e.site_id, e.created_by, ${UPLOADER_MAY_APPROVE("e")} AS uploader_may_approve FROM emission e WHERE e.upload_batch_id = $1`,
       [String(req.params.batchId)]
     );
     const allowed = await allowedSites(req);
@@ -167,9 +190,7 @@ export const guardBatch = (review = false): Guard =>
       return res.status(404).json(NOT_FOUND);
     }
     if (allowed && rows.some((r) => !allowed.has(Number(r.site_id)))) return forbidden(res);
-    if (review && req.user?.role !== UserRole.SUPERADMIN && rows.some((r) => Number(r.created_by) === Number(req.user?.userId))) {
-      return res.status(403).json(SELF_REVIEW);
-    }
+    if (review && selfReview(req, rows, review)) return res.status(403).json(SELF_REVIEW);
     next();
   });
 

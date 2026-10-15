@@ -193,8 +193,9 @@ test("patch: fix a value, skip a row, match an activity name; the plan is recalc
   assert.deepEqual([p1.state, p1.input.activity_value, p1.result.total_tco2e], ["ready", 250, 670]);
   const p2 = res.json.rows.find((r) => r.row_ref === "p2");
   assert.deepEqual([p2.state, p2.result.activity.matched_by, p2.result.activity.factor_name], ["ready", "plan_match", "Diesel"]);
-  // A Manager's save_mapping stays on the plan: no P23 mapping is written (D5).
-  assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel'`)).rows[0].n)), 0);
+  // A Manager's save_mapping for a site they hold writes the P23 mapping (D5 as widened by XI3 decision 5); the next test's Admin save is a new wording.
+  assert.equal(await withDb(async (db) => Number((await db.query(`SELECT count(*) AS n FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel' AND created_by = 2`)).rows[0].n)), 1);
+  await withDb((db) => db.query(`DELETE FROM emission_category_mapping WHERE company_category_name = 'Unknown diesel' AND created_by = 2`));
   const p3 = res.json.rows.find((r) => r.row_ref === "p3");
   assert.deepEqual([p3.state, p3.issues, p3.result], ["skipped", [], undefined]);
   // Un-skip brings the row back into the plan.
@@ -361,6 +362,29 @@ test("commit: refused with issues unless skipped; rows land pending in one batch
   assert.equal(app.status, 200);
   assert.deepEqual([...new Set(app.json.filter((x) => x.upload_batch_id === batchId).map((x) => x.channel))], ["api"]);
   assert.ok(app.json.filter((x) => x.upload_batch_id !== batchId).every((x) => x.channel === "bulk_upload"), "batches made without a plan read as bulk upload");
+  await dropBatch(batchId);
+});
+
+test("channel bulk_upload (IM11): any signed-in user of the client plans and commits; the batch reads as a bulk upload", async () => {
+  // The Bulk upload page's rows arrive through python_AI_service with the user's own token.
+  const refusedChannel = await create("manager", [row()], { channel: "upload" });
+  assert.equal(refusedChannel.status, 400, "unknown channel");
+  const { status, json: plan } = await create("manager", [row({ row_ref: "bu1", activity_value: 1000 })], { channel: "bulk_upload", source_name: "fuel-june.csv" });
+  assert.equal(status, 201, JSON.stringify(plan));
+  assert.equal(plan.channel, "bulk_upload");
+  const done = await call("POST", `/imports/plans/${plan.plan_id}/commit`, "manager", { version: plan.version, skip_rows_with_issues: true, idempotency_key: "bu-" + plan.plan_id });
+  assert.equal(done.status, 200, JSON.stringify(done.json));
+  const batchId = done.json.committed.upload_batch_id;
+  const saved = await withDb(async (db) => (await db.query(`SELECT status, total_emission::float AS t, extra_data FROM emission WHERE upload_batch_id = $1`, [batchId])).rows);
+  assert.deepEqual(saved.map((s) => [s.status, s.t, s.extra_data.import.channel]), [["pending", 2680, "bulk_upload"]]);
+  const audit = await withDb((db) => db.query(`SELECT reason FROM audit_log WHERE entity_type = 'emission' AND entity_id IN (SELECT pk_id FROM emission WHERE upload_batch_id = $1)`, [batchId]));
+  assert.match(audit.rows[0].reason, /^Imported via Bulk upload by CI Manager \(batch /);
+  // Both batch lists name the channel, and the channel filter finds it.
+  const mine = (await call("GET", "/imports/batches?channel=bulk_upload", "manager")).json.find((x) => x.upload_batch_id === batchId);
+  assert.deepEqual([mine.channel, mine.source_name, mine.pending], ["bulk_upload", "fuel-june.csv", 1]);
+  assert.ok(!(await call("GET", "/imports/batches?channel=api", "manager")).json.some((x) => x.upload_batch_id === batchId));
+  const app = (await call("GET", "/user/emissions/batches", "manager")).json.filter((x) => x.upload_batch_id === batchId);
+  assert.deepEqual([...new Set(app.map((x) => x.channel))], ["bulk_upload"]);
   await dropBatch(batchId);
 });
 

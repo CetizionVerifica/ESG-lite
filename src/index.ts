@@ -16,6 +16,8 @@ import importsRouter from "./imports/router";
 import internalImportsRouter from "./routes/internalImports.routes";
 import supplierPublicRoutes from "./routes/supplierPublic.routes";
 import { registerUploadNotifyListener } from "./services/uploadNotify";
+import { registerMappingMemoryListener } from "./imports/profiles/service";
+import { onBatchCommitted } from "./imports/writer";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectRabbitMQ } from "./config/rabbitmq";
@@ -124,6 +126,7 @@ connectWithRetry()
         // Start server immediately — don't block on RabbitMQ
         startHeartbeat();
         registerUploadNotifyListener(); // IM4
+        registerMappingMemoryListener(onBatchCommitted); // XI3
         const port = Number(process.env.PORT) || 3000;
         server = app.listen(port, () => {
             console.log(`🚀 Server running on http://localhost:${port}`);
