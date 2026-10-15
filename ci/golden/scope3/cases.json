@@ -643,7 +643,7 @@
         }
       ],
       "expected_kgco2e": 8317583.33,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9"
     },
     {
@@ -681,9 +681,9 @@
         }
       ],
       "expected_kgco2e": 3072,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9",
-      "note": "Run it through the survey path, not just the form (S3-9 spec)."
+      "note": "Run it through the survey path, not just the form (S3-9 spec): ci/unit/scope3-travel.test.cjs plans the survey and runs its rows through the Category 7 form; here the rows are the survey's per-mode sums."
     },
     {
       "id": "ex-7.2",
@@ -730,7 +730,7 @@
         }
       ],
       "expected_kgco2e": 6697500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9",
       "note": "The foot row has factor 0 and is skipped (S3-9 spec)."
     },

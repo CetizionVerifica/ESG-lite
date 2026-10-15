@@ -457,6 +457,7 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     // which the attention filter reads from the plan row.
     if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
+    if (row.survey) extra_data.survey = row.survey; // S3-9 commuting survey scaling
     const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
     inserted += 1;
     ids.push(emission.pk_id);

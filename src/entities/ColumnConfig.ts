@@ -42,8 +42,8 @@ export interface EmissionCategoryMapping {
 export interface MethodCalculation {
   multiply: string[];      // column names whose values multiply together
   percent?: string[];      // subset of multiply/divide entered as percentages (divided by 100)
-  // S3-11 (shared spec addition, 01-contracts.md §6; S3-9 builds on it): fields
-  // the product is divided by, each > 0. A field also in `percent` divides by value / 100.
+  // S3-9 (shared spec addition, 01-contracts.md §6; also used by S3-8, S3-10, S3-11):
+  // fields the product is divided by, each > 0. A field also in `percent` divides by value / 100.
   divide?: string[];
   activity_unit?: string;  // unit the product is in (preselects activity_data_unit)
 }
@@ -54,7 +54,9 @@ export interface CalculationSpec {
   //             Weight × Distance, km → Distance alone). Keys of `methods` are
   //             normalized unit names (lowercase, separators as ".").
   mode: "per_method" | "per_unit";
-  method_column?: string;              // per_method only: the select column
+  // per_method only: the select column, or "@method" (S3-9): the row's
+  // calculation method picks the fields (calculationSpec.ts ROW_METHOD_COLUMN).
+  method_column?: string;
   identity_columns?: string[];         // columns added to the duplicate-entry identity
   methods: { [methodKeyOrUnit: string]: MethodCalculation };
   // per_unit only: rows saved BEFORE the spec existed carry only the already
