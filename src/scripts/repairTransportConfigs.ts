@@ -9,7 +9,7 @@
 //   • Both factor groups reachable ([tonne.km] and [km] twins), Rail added
 //     (mapped to the existing "Road - Rail" factor), Flight capitalised.
 //   • Exactly one numeric distance column (removes the stray second one).
-//   • Units: km + tonne.km only (removes kg / g.km / kg.km for these categories).
+//   • Units: the S3-8 list (configs.ts UNITS); removes g.km / kg.km for these categories.
 //   • Sites assigned but without factors get the standard DEFRA set copied
 //     from the template site (24, Chieron).
 //   • Legacy two-part duplicate factor names (e.g. "Van - Diesel",
@@ -30,82 +30,30 @@ import "reflect-metadata";
 import { In, Not } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { ColumnEntity } from "../entities/Column";
-import { ColumnConfig, CalculationSpec } from "../entities/ColumnConfig";
+import { ColumnConfig } from "../entities/ColumnConfig";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Emission } from "../entities/Emission";
 import { Unit } from "../entities/Unit";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
+import {
+  COL_CLASS,
+  COL_MODE,
+  COL_VEHICLE,
+  COLUMNS,
+  CONFIG_NAME_PREFIX,
+  STRAY_UNITS,
+  UNITS,
+  transportForm,
+  withPaidBy,
+} from "../scope3/transport/configs";
 
+// The standard form itself (columns, options, mapping, spec, units) lives in
+// src/scope3/transport/configs.ts (S3-8); migrate:scope3-transport applies it on
+// every start. This by-hand script keeps its extra repairs (template factors,
+// legacy names, the LPG 2024 value) and writes the same form.
 const CATEGORY_IDS = [13, 18];
 const TEMPLATE_SITE_ID = 24; // Chieron — complete DEFRA freight set
-const CONFIG_NAME_PREFIX = "Transport - Standard";
-
-// Column names (select columns reuse the existing global entities by name)
-const COL_MODE = "Travel Mode";
-const COL_VEHICLE = "Vehicle Type";
-const COL_CLASS = "Fuel Type/Class";
-const COL_REF = "Shipment Ref";
-const COL_WEIGHT = "Weight (tonne)";
-const COL_DISTANCE = "Distance travelled";
-
-const COLUMNS: Array<{ name: string; type: string }> = [
-  { name: COL_MODE, type: "select" },
-  { name: COL_VEHICLE, type: "select" },
-  { name: COL_CLASS, type: "select" },
-  { name: COL_REF, type: "text" },
-  { name: COL_WEIGHT, type: "number" },
-  { name: COL_DISTANCE, type: "number" },
-];
-
-const VAN_FUELS = ["Battery electric vehicle", "CNG", "Diesel", "LPG", "Petrol", "Plug in Hybrid electric vehicle", "Unknown"];
-const BOTH = (base: string) => [`${base} [tonne.km]`, `${base} [km]`];
-
-const VEHICLES_BY_MODE: Record<string, string[]> = {
-  Road: ["HGV (all diesel)", "HGV refrigerated (all diesel)", "Van"],
-  Rail: ["Freight train"],
-  Air: ["Flight"],
-  Sea: ["Cargo ship"],
-};
-
-const CLASSES_BY_VEHICLE: Record<string, string[]> = {
-  "HGV (all diesel)": BOTH("All rigids"),
-  "HGV refrigerated (all diesel)": BOTH("All rigids"),
-  Van: VAN_FUELS.flatMap(BOTH),
-  "Freight train": ["Rail freight [tonne.km]"],
-  Flight: ["Domestic", "International"],
-  "Cargo ship": ["General Cargo"],
-};
-
-// label chain "Mode|Vehicle|Class" → factor emission_category_name
-function buildMapping(): Record<string, string> {
-  const m: Record<string, string> = {};
-  for (const [mode, vehicles] of Object.entries(VEHICLES_BY_MODE)) {
-    for (const vehicle of vehicles) {
-      for (const cls of CLASSES_BY_VEHICLE[vehicle]) {
-        const key = `${mode}|${vehicle}|${cls}`;
-        if (mode === "Rail") m[key] = "Road - Rail";              // existing 2-part factor
-        else if (mode === "Air") m[key] = `Air - flight - ${cls}`; // factor keeps lowercase "flight"
-        else m[key] = `${mode} - ${vehicle} - ${cls}`;
-      }
-    }
-  }
-  return m;
-}
-
-const CALCULATION: CalculationSpec = {
-  mode: "per_unit",
-  identity_columns: [COL_REF],
-  legacy_field: COL_DISTANCE,
-  methods: {
-    "tonne.km": { multiply: [COL_WEIGHT, COL_DISTANCE], activity_unit: "tonne.km" },
-    km: { multiply: [COL_DISTANCE], activity_unit: "km" },
-  },
-};
-
-const UNITS = ["km", "tonne.km"];
-const STRAY_UNITS = ["kg", "g.km", "kg.km"];
-const opt = (s: string) => ({ id: s, label: s });
 
 async function main() {
   const args = process.argv.slice(2);
@@ -139,22 +87,12 @@ async function main() {
     }
     columnByName.set(c.name, entity);
   }
-  const modeCol = columnByName.get(COL_MODE)!;
-  const vehicleCol = columnByName.get(COL_VEHICLE)!;
-  const classCol = columnByName.get(COL_CLASS)!;
-
-  const allVehicles = Object.values(VEHICLES_BY_MODE).flat();
-  const allClasses = Array.from(new Set(Object.values(CLASSES_BY_VEHICLE).flat()));
-  const columnOptions = {
-    [String(modeCol.pk_id)]: Object.keys(VEHICLES_BY_MODE).map(opt),
-    [String(vehicleCol.pk_id)]: allVehicles.map(opt),
-    [String(classCol.pk_id)]: allClasses.map(opt),
-  };
-  const dependentOptions = {
-    [COL_VEHICLE]: Object.fromEntries(Object.entries(VEHICLES_BY_MODE).map(([mode, v]) => [mode, v.map(opt)])),
-    [COL_CLASS]: Object.fromEntries(Object.entries(CLASSES_BY_VEHICLE).map(([veh, c]) => [veh, c.map(opt)])),
-  };
-  const mapping = buildMapping();
+  const form = transportForm({
+    mode: columnByName.get(COL_MODE)!.pk_id,
+    vehicle: columnByName.get(COL_VEHICLE)!.pk_id,
+    cls: columnByName.get(COL_CLASS)!.pk_id,
+  });
+  const mapping = form.emission_category_mapping;
 
   const templateFactors = await factorRepo.find({
     where: { site: { site_id: TEMPLATE_SITE_ID }, category: { category_id: In(CATEGORY_IDS) } },
@@ -185,18 +123,18 @@ async function main() {
       console.log(`  config: updating pk ${config.pk_id} ("${config.config_name}")`);
     }
     config.columns = COLUMNS.map((c) => columnByName.get(c.name)!);
-    config.column_options = columnOptions;
-    config.column_dependencies = { [COL_VEHICLE]: COL_MODE, [COL_CLASS]: COL_VEHICLE };
-    config.dependent_options = dependentOptions;
+    config.column_options = form.column_options;
+    config.column_dependencies = form.column_dependencies;
+    config.dependent_options = form.dependent_options;
     config.emission_category_mapping = mapping;
-    config.extra_fields = config.extra_fields ?? [];
-    config.calculation = CALCULATION;
+    config.extra_fields = withPaidBy(config.extra_fields);
+    config.calculation = form.calculation;
     await configRepo.save(config);
     if (existing.length > 1) {
       console.log(`  NOTE: ${existing.length - 1} extra config(s) exist for this site+category (only the first is used by the app): ${existing.slice(1).map((c) => c.pk_id).join(", ")}`);
     }
 
-    // 3. Units: ensure km + tonne.km, drop strays (transport categories only)
+    // 3. Units: ensure the standard list, drop strays (transport categories only)
     for (const u of UNITS) {
       const has = await unitRepo.findOne({ where: { unit_name: u, site: { site_id }, category: { category_id } }, relations: ["site", "category"] });
       if (!has) {

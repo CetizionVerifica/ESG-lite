@@ -30,6 +30,7 @@
     "migrate:user-internal": "ts-node src/scripts/addUserInternalColumn.ts",
     "migrate:ai-import": "ts-node src/scripts/addAiImportColumns.ts",
     "migrate:mapping-profiles": "ts-node src/scripts/createImportMappingProfileTable.ts",
+    "migrate:scope3-transport": "ts-node src/scripts/seedScope3Transport.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"
