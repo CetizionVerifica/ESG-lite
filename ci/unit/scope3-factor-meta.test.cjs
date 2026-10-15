@@ -141,3 +141,19 @@ test("backfill: WTT, GWP set and dataset from the source text", () => {
   assert.equal(backfill.datasetFrom("ecoinvent 3.10"), "ecoinvent");
   assert.equal(backfill.datasetFrom("supplier sheet"), null);
 });
+
+test("new factors start on AR6 unless a GWP set is given (D7)", () => {
+  assert.deepEqual(meta.withNewFactorDefaults({}), { gwp_set: "AR6" });
+  assert.deepEqual(meta.withNewFactorDefaults({ gwp_set: "AR5" }), { gwp_set: "AR5" });
+  assert.deepEqual(meta.withNewFactorDefaults({ gwp_set: null }), { gwp_set: null });
+});
+
+test("a spend (EEIO) factor needs its price base year and currency (S3-0 rule)", () => {
+  assert.equal(meta.eeioPriceProblem({ factor_type: "combustion" }), null);
+  assert.equal(meta.eeioPriceProblem({ factor_type: "eeio_spend", price_base_year: 2022, price_currency: "USD" }), null);
+  assert.deepEqual(meta.eeioPriceProblem({ factor_type: "eeio_spend", price_base_year: 2022 }), {
+    ok: false,
+    field: "price_base_year",
+    message: "A spend (EEIO) factor needs its price base year and currency.",
+  });
+});

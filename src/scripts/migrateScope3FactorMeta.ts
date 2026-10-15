@@ -6,11 +6,18 @@
 //
 //   npm run migrate:scope3-factor-meta
 //
-// Idempotent: columns are added IF NOT EXISTS, the widening runs only while
-// the column is still narrower, and the backfill only writes rows whose
-// factor_type is still NULL (1,000 at a time), so a factor someone typed
-// later is never overwritten. Statements match what TypeORM generates for
-// EmissionFactor, so ci/schema-diff.cjs sees nothing left to do.
+// Idempotent: columns are added IF NOT EXISTS and the widening runs only
+// while the column is still narrower. The backfill runs once: it writes rows
+// whose factor_type is still NULL (1,000 at a time) and then records itself in
+// scope3_migration_state, so later starts never re-guess a factor created
+// after deploy or one an admin cleared. If it stops half way, the next start
+// finishes it (a typed factor is never overwritten). Statements match what
+// TypeORM generates for EmissionFactor, so ci/schema-diff.cjs sees nothing
+// left to do.
+//
+// Rollback: there is no down script. The previous release reads the wider
+// column fine, so rolling the code back is safe; narrowing factor_value back
+// to numeric(10,4) would round any value entered with more than 4 decimals.
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 import { backfillMeta } from "../scope3/factors/backfill";
@@ -36,6 +43,10 @@ const WIDEN_FACTOR_VALUE = `ALTER TABLE "emission_factors" ALTER COLUMN "factor_
 
 const BATCH = 1000;
 
+// One row per one-time Scope 3 data step that is done; not an entity (only migrate scripts read it).
+const STATE_TABLE = `CREATE TABLE IF NOT EXISTS "scope3_migration_state" ("name" character varying(80) NOT NULL, "done_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_scope3_migration_state" PRIMARY KEY ("name"))`;
+export const BACKFILL_STEP = "s3-2-factor-type-backfill";
+
 async function main() {
   await AppDataSource.initialize();
   try {
@@ -50,6 +61,13 @@ async function main() {
       console.log("emission_factors.factor_value widened to numeric(18,8).");
     }
     console.log("emission_factors S3-2 metadata columns present.");
+
+    await AppDataSource.query(STATE_TABLE);
+    const done = await AppDataSource.query(`SELECT 1 FROM "scope3_migration_state" WHERE "name" = $1`, [BACKFILL_STEP]);
+    if (done.length) {
+      console.log("emission_factors.factor_type backfill already done.");
+      return;
+    }
 
     // Backfill factor_type (and, on the same rows, includes_wtt, gwp_set and
     // dataset from the source text). Rows that already have a type are left
@@ -92,6 +110,7 @@ async function main() {
         updated += ids.length;
       }
     }
+    await AppDataSource.query(`INSERT INTO "scope3_migration_state" ("name") VALUES ($1) ON CONFLICT DO NOTHING`, [BACKFILL_STEP]);
     console.log(`emission_factors.factor_type backfilled on ${updated} factor(s).`);
   } finally {
     await AppDataSource.destroy();

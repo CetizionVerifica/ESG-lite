@@ -143,7 +143,11 @@ test("a 0.00012345 factor survives upload and calculation at 8 decimals", async 
   }
 });
 
-test("migrate:scope3-factor-meta backfills untyped factors and is safe to run twice", async () => {
+const clearBackfillMarker = (db) =>
+  db.query(`DO $$ BEGIN IF to_regclass('scope3_migration_state') IS NOT NULL THEN DELETE FROM scope3_migration_state WHERE name = 's3-2-factor-type-backfill'; END IF; END $$`);
+
+test("migrate:scope3-factor-meta backfills untyped factors once and is safe to run twice", async () => {
+  await withDb(clearBackfillMarker);
   const before = await withDb(async (db) =>
     (await db.query(`SELECT emission_factor_id AS id FROM emission_factors WHERE factor_type IS NULL`)).rows.map((r) => r.id),
   );
@@ -186,8 +190,15 @@ test("migrate:scope3-factor-meta backfills untyped factors and is safe to run tw
     assert.equal(again.status, 0, again.stderr);
     const kept = await withDb(async (db) => (await db.query(`SELECT factor_type FROM emission_factors WHERE emission_factor_id = $1`, [ids[3]])).rows[0]);
     assert.equal(kept.factor_type, "process");
+    // The backfill is one-time: a factor cleared or added untyped after it ran stays untyped on later starts.
+    await withDb((db) => db.query(`UPDATE emission_factors SET factor_type = NULL WHERE emission_factor_id = $1`, [ids[0]]));
+    const later = spawnSync(process.execPath, [script], { env: process.env, encoding: "utf8" });
+    assert.equal(later.status, 0, later.stderr);
+    const cleared = await withDb(async (db) => (await db.query(`SELECT factor_type FROM emission_factors WHERE emission_factor_id = $1`, [ids[0]])).rows[0]);
+    assert.equal(cleared.factor_type, null);
   } finally {
     await withDb(async (db) => {
+      await clearBackfillMarker(db);
       await db.query(`DELETE FROM emission_factors WHERE emission_factor_id = ANY($1)`, [ids]);
       // Leave the shared fixture as it was for the other test files.
       await db.query(`UPDATE emission_factors SET factor_type = NULL, includes_wtt = false, gwp_set = NULL, dataset = NULL WHERE emission_factor_id = ANY($1)`, [before]);
