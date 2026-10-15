@@ -11,6 +11,7 @@ import type { EmissionFactor } from "../../entities/EmissionFactor";
 import type { CalculationSpec } from "../../entities/ColumnConfig";
 import type { FactorIndex } from "./resolve";
 import type { RowIssueCode } from "../../imports/errors";
+import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
 import * as activity from "./methods/activity";
@@ -118,8 +119,11 @@ export const factorSnapshot = (f: EmissionFactor) => ({
   emission_factor_id: f.emission_factor_id,
   emission_category_name: f.emission_category_name,
   global_category_name: f.global_category_name || undefined,
-  factor_value: f.factor_value,
+  // numeric(18,8) since S3-2: written with 4 decimals or more, as before.
+  factor_value: factorValueText(f.factor_value) as EmissionFactor["factor_value"],
   denominator_unit: f.denominator_unit,
   source: f.source,
   year: f.year,
+  // S3-2: factor_type, gwp_set, geography, dataset, dataset_version, gases.
+  ...metaSnapshot(f),
 });
