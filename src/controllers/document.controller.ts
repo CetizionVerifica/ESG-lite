@@ -7,9 +7,22 @@ import cloudinary from "../config/cloudinary";
 import { destroyStoredFile, uniqueFileName } from "../utils/storedFiles";
 import { Readable } from "stream";
 import { accessibleSiteIds } from "../utils/companyScope";
+import { refreshChecksSafely } from "../scope3/review/service";
 import { EntityManager, In } from "typeorm";
 
 const documentRepo = AppDataSource.getRepository(EmissionDocument);
+// S3-15: EVIDENCE_ATTACHED reads the documents linked to an entry.
+const emissionIdsOfDocuments = async (documentIds: number[]): Promise<number[]> => {
+  if (!documentIds.length) return [];
+  const rows: Array<{ emission_id: number | null }> = await AppDataSource.query(
+    "SELECT DISTINCT emission_id FROM emission_document WHERE document_id = ANY($1) AND emission_id IS NOT NULL",
+    [documentIds],
+  );
+  return rows.map((r) => Number(r.emission_id));
+};
+const refreshEvidenceChecks = (emissionIds: Array<number | string | null | undefined>) =>
+  refreshChecksSafely(AppDataSource.manager, emissionIds.map(Number).filter((n) => Number.isInteger(n) && n > 0));
+
 const emissionRepo = AppDataSource.getRepository(Emission);
 
 // Documents a caller may read: those on an entry at one of their sites, plus
@@ -124,6 +137,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
     });
 
     await documentRepo.save(document);
+    if (emission_id) await refreshEvidenceChecks([emission_id]);
 
     const savedDocument = await documentRepo.findOne({
       where: { document_id: document.document_id },
@@ -200,6 +214,7 @@ export const uploadMultipleDocuments = async (req: AuthRequest, res: Response) =
       await documentRepo.save(document);
       uploadedDocuments.push(document);
     }
+    if (emission_id) await refreshEvidenceChecks([emission_id]);
 
     const savedDocuments = await documentRepo.find({
       where: uploadedDocuments.map((d) => ({ document_id: d.document_id })),
@@ -323,6 +338,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
       document.description = description;
     }
 
+    const previousEmissionIds = emission_id !== undefined ? await emissionIdsOfDocuments([document.document_id]) : [];
     if (emission_id !== undefined) {
       if (emission_id === null) {
         document.emission = null as any;
@@ -343,6 +359,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     }
 
     await documentRepo.save(document);
+    if (emission_id !== undefined) await refreshEvidenceChecks([...previousEmissionIds, emission_id]);
 
     const updatedDocument = await documentRepo.findOne({
       where: { document_id: document.document_id },
@@ -376,7 +393,9 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const linkedEmissions = await emissionIdsOfDocuments([document.document_id]);
     const { filesDeleted } = await deleteDocumentRows([document.document_id]);
+    await refreshEvidenceChecks(linkedEmissions);
     // The document's own file goes once no other document links it; an
     // AI-service invoice's file is handled by deleteDocumentRows.
     await removeDeletedDocumentFiles(ownFiles([document]));
@@ -411,7 +430,9 @@ export const bulkDeleteDocuments = async (req: AuthRequest, res: Response) => {
       where: await scopedDocumentWhere(req, { document_id: In(ids.map((id: unknown) => Number(id)).filter(Number.isInteger)) }),
     });
 
+    const linkedEmissions = await emissionIdsOfDocuments(documents.map((d) => d.document_id));
     const { affected, filesDeleted } = await deleteDocumentRows(documents.map((d) => d.document_id));
+    await refreshEvidenceChecks(linkedEmissions);
     await removeDeletedDocumentFiles(ownFiles(documents));
 
     return res.status(200).json({
@@ -673,6 +694,7 @@ export const linkInvoiceDocuments = async (req: AuthRequest, res: Response) => {
       return out;
     });
 
+    await refreshEvidenceChecks(emissionIds);
     return res.status(201).json({ message: "Invoice linked", documents });
   } catch (error) {
     if (error instanceof LinkError) return res.status(error.status).json({ message: error.message });
