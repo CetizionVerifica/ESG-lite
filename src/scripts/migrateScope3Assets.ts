@@ -68,8 +68,8 @@ async function main() {
     }
     // TypeORM returns [rows, count] for an UPDATE.
     const [defaulted]: [any[], number] = await AppDataSource.query(
-      `UPDATE company_scope3_category SET status = 'not_relevant', reason = $1, updated_at = now()
-        WHERE ghg_category IN (13, 14, 15) AND status = 'screening' AND updated_by IS NULL
+      // Only untouched Screening rows of 13-15 (D10); WHERE kept on the UPDATE line for the data-safety check.
+      `UPDATE company_scope3_category SET status = 'not_relevant', reason = $1, updated_at = now() WHERE ghg_category IN (13, 14, 15) AND status = 'screening' AND updated_by IS NULL
        RETURNING id`,
       [D10_REASON],
     );
