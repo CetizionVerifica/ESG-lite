@@ -96,6 +96,8 @@ test("Category 6 selects: mode → class → radiative forcing (air only); every
   // With RF is listed first (the default the spec asks for).
   for (const opts of Object.values(f.dependent_options[C.COL_RF])) assert.deepEqual(opts.map((o) => o.label), ["With RF", "Without RF"]);
   assert.deepEqual(Object.keys(f.dependent_options[C.COL_RF]).sort(), [...C.CLASSES_BY_MODE.Air].sort());
+  // No fallback RF list, so non-air classes show no RF select.
+  assert.deepEqual(f.column_options["13"], []);
   const mapping = f.emission_category_mapping;
   for (const [mode, classes] of Object.entries(C.CLASSES_BY_MODE)) {
     for (const cls of classes) {

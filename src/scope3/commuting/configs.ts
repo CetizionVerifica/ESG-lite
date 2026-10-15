@@ -259,7 +259,8 @@ export function formFields(form: TravelForm, selectIds: Record<string, number>):
       column_options: {
         [String(selectIds[COL_TRIP_MODE])]: TRIP_MODES.map(opt),
         [String(selectIds[COL_TRIP_CLASS])]: [...new Set(Object.values(CLASSES_BY_MODE).flat())].map(opt),
-        [String(selectIds[COL_RF])]: RF_OPTIONS.map(opt),
+        // No fallback list: a rail, bus, taxi, car or hotel class has no RF choice, and the form hides the select.
+        [String(selectIds[COL_RF])]: [],
       },
       column_dependencies: { [COL_TRIP_CLASS]: COL_TRIP_MODE, [COL_RF]: COL_TRIP_CLASS },
       dependent_options: {
