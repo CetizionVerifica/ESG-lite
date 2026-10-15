@@ -71,7 +71,8 @@ export async function refreshProposals(companyId: number, q: Queryable = AppData
       [c.category_id, companyId, p.ghg_category, p.confidence, p.basis],
     );
     if (inserted.length) proposed++;
-    if (exact) {
+    // Only when the proposal is new: a number someone cleared stays cleared.
+    if (exact && inserted.length) {
       const updated: any[] = await q.query(
         `UPDATE category SET ghg_category = $1 WHERE category_id = $2 AND ghg_category IS NULL RETURNING category_id`,
         [p.ghg_category, c.category_id],
@@ -141,13 +142,14 @@ export async function categoryNumberFor(categoryId: number, q: Queryable = AppDa
 }
 
 /**
- * The map counts as confirmed once at least one proposal was confirmed and no
+ * The map counts as confirmed once a person confirmed at least one proposal
+ * (the system's own exact-name matches don't count) and no
  * Scope 3 category with a proposal is still waiting for its number. From then
  * on a new Scope 3 category must come with a number (GHG_CATEGORY_REQUIRED).
  */
 export async function isMapConfirmed(q: Queryable = AppDataSource): Promise<boolean> {
   const [row]: any[] = await q.query(
-    `SELECT EXISTS (SELECT 1 FROM category_ghg_map_proposal WHERE confirmed_at IS NOT NULL) AS any_confirmed,
+    `SELECT EXISTS (SELECT 1 FROM category_ghg_map_proposal WHERE confirmed_by IS NOT NULL) AS any_confirmed,
             EXISTS (SELECT 1 FROM category_ghg_map_proposal p JOIN category c ON c.category_id = p.category_id
                      WHERE p.confirmed_at IS NULL AND c.ghg_category IS NULL AND ${isScope3Sql("c")}) AS any_open`,
   );

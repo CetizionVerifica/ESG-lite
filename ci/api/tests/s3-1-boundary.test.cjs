@@ -166,6 +166,30 @@ test("category create/update: ghg_category only on Scope 3, required once the ma
   await withDb((db) => db.query(`DELETE FROM category WHERE category_id = $1`, [id]));
 });
 
+test("the system's own exact-name matches don't count as a confirmed map", async () => {
+  // Leave only the backfill's exact-name confirmation (no person): not confirmed yet.
+  const saved = await withDb((db) => db.query(`SELECT id, confirmed_by FROM category_ghg_map_proposal WHERE confirmed_by IS NOT NULL`));
+  await withDb((db) => db.query(`UPDATE category_ghg_map_proposal SET confirmed_by = NULL`));
+  try {
+    const created = await call("POST", "/admin/categories", "superadmin", { category_name: "CI S3-1 Unnumbered", scope: "Scope 3" });
+    assert.equal(created.status, 201, JSON.stringify(created.json));
+    await withDb((db) => db.query(`DELETE FROM category WHERE category_id = $1`, [created.json.category.category_id]));
+  } finally {
+    for (const r of saved.rows) {
+      await withDb((db) => db.query(`UPDATE category_ghg_map_proposal SET confirmed_by = $2 WHERE id = $1`, [r.id, r.confirmed_by]));
+    }
+  }
+});
+
+test("a number cleared on an exact-named category stays cleared", async () => {
+  const cleared = await call("PUT", "/admin/categories/3", "superadmin", { ghg_category: null });
+  assert.equal(cleared.status, 200, JSON.stringify(cleared.json));
+  assert.equal((await call("GET", "/scope3/category-map", "admin")).status, 200);
+  const row = await withDb((db) => db.query(`SELECT ghg_category FROM category WHERE category_id = 3`));
+  assert.equal(row.rows[0].ghg_category, null);
+  await withDb((db) => db.query(`UPDATE category SET ghg_category = 6 WHERE category_id = 3`));
+});
+
 test("migrate:scope3-taxonomy runs twice without duplicates or overwrites", () => {
   const run = () =>
     spawnSync(process.execPath, [path.join(ROOT, "dist/scripts/migrateScope3Taxonomy.js")], {
