@@ -4,7 +4,7 @@
  * store. Spec: src/scope3/contracts/factor.CLAUDE.md.
  */
 import { z } from "zod";
-import { ALLOWED_FACTOR_TYPES, FACTOR_TYPES, GWP_SETS, type FactorType } from "../contracts/factor";
+import { ALLOWED_FACTOR_TYPES, DEFAULT_GWP_SET, FACTOR_TYPES, GWP_SETS, type FactorType } from "../contracts/factor";
 import type { EmissionFactor } from "../../entities/EmissionFactor";
 
 /** §7 codes this module raises (S3-0 lists them in contracts/errors.ts). */
@@ -77,6 +77,20 @@ export function parseFactorMeta(body: unknown): MetaResult {
   return { ok: false, field, message: `${field} ${issue.message}`.trim() };
 }
 
+/** D7: a new factor (create or bulk) with no GWP set given starts on AR6. Update leaves it alone. */
+export function withNewFactorDefaults(meta: FactorMeta): FactorMeta {
+  return meta.gwp_set === undefined ? { ...meta, gwp_set: DEFAULT_GWP_SET } : meta;
+}
+
+/**
+ * S3-0's rule (FactorMetadataSchema): a spend (EEIO) factor needs its price
+ * base year and currency. Checked on the factor as it will be stored.
+ */
+export function eeioPriceProblem(f: { factor_type?: string | null; price_base_year?: number | null; price_currency?: string | null }): MetaResult | null {
+  if (f.factor_type !== "eeio_spend" || (f.price_base_year != null && f.price_currency != null)) return null;
+  return { ok: false, field: "price_base_year", message: "A spend (EEIO) factor needs its price base year and currency." };
+}
+
 /** True when a denominator unit is missing or blank (UNIT_REQUIRED). */
 export const unitMissing = (unit: unknown) => typeof unit !== "string" || unit.trim() === "";
 
@@ -95,7 +109,7 @@ export type FactorWarning = { code: typeof FACTOR_TYPE_MISMATCH; message: string
 /** FACTOR_TYPE_MISMATCH when the type is outside the list for its category's number. Never blocks. */
 export function factorTypeWarning(ghgCategory: number | null, factorType: FactorType | null | undefined): FactorWarning | null {
   if (ghgCategory === null || !factorType) return null;
-  const allowed = ALLOWED_FACTOR_TYPES[ghgCategory];
+  const allowed = ALLOWED_FACTOR_TYPES[ghgCategory as keyof typeof ALLOWED_FACTOR_TYPES];
   if (!allowed || allowed.includes(factorType)) return null;
   return {
     code: FACTOR_TYPE_MISMATCH,

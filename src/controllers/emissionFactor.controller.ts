@@ -6,7 +6,7 @@ import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { FACTOR_TYPES } from "../scope3/contracts/factor";
-import { factorTypeWarning, ghgCategoryOf, parseFactorMeta, unitMissing, UNIT_REQUIRED } from "../scope3/factors/meta";
+import { eeioPriceProblem, factorTypeWarning, ghgCategoryOf, parseFactorMeta, unitMissing, UNIT_REQUIRED, withNewFactorDefaults } from "../scope3/factors/meta";
 
 const repo = AppDataSource.getRepository(EmissionFactor);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -151,6 +151,8 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
     }
     const meta = parseFactorMeta(req.body);
     if (!meta.ok) return res.status(400).json({ message: meta.message, field: meta.field });
+    const eeio = eeioPriceProblem(meta.meta);
+    if (eeio && !eeio.ok) return res.status(400).json({ message: eeio.message, field: eeio.field });
 
     // Validate site exists
     const site = await siteRepo.findOne({ where: { site_id } });
@@ -193,7 +195,7 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
       denominator_unit: normalizeUnit(denominator_unit),
       source: source?.trim() || null,
       emission_category_name: emission_category_name?.trim() || null,
-      ...meta.meta,
+      ...withNewFactorDefaults(meta.meta),
     });
 
     await repo.save(emissionFactor);
@@ -308,6 +310,10 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
     if (source !== undefined) emissionFactor.source = source?.trim() || null;
     if (emission_category_name !== undefined) emissionFactor.emission_category_name = emission_category_name?.trim() || null;
     Object.assign(emissionFactor, meta.meta);
+    // Only when this edit touches the type or price fields: backfilled spend factors have no price yet.
+    const touchesPrice = ["factor_type", "price_base_year", "price_currency"].some((k) => k in meta.meta);
+    const eeio = touchesPrice ? eeioPriceProblem(emissionFactor) : null;
+    if (eeio && !eeio.ok) return res.status(400).json({ message: eeio.message, field: eeio.field });
 
     await repo.save(emissionFactor);
 
@@ -467,8 +473,10 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
         continue;
       }
       const meta = parseFactorMeta(factor);
-      if (!meta.ok) {
-        results.errors.push(`${meta.message} for "${emission_category_name || "N/A"}", year ${year}`);
+      const metaProblem = meta.ok ? eeioPriceProblem(meta.meta) : meta;
+      if (!meta.ok || (metaProblem && !metaProblem.ok)) {
+        const message = metaProblem && !metaProblem.ok ? metaProblem.message : "";
+        results.errors.push(`${message} for "${emission_category_name || "N/A"}", year ${year}`);
         results.skipped++;
         continue;
       }
@@ -516,7 +524,7 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
         emission_category_name: emission_category_name?.trim() || null,
         global_category_name: global_category_name?.trim() || null,
         upload_batch_id,
-        ...meta.meta,
+        ...withNewFactorDefaults(meta.meta),
       });
 
       await repo.save(emissionFactor);
