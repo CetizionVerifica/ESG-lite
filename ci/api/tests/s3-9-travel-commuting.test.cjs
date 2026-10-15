@@ -223,6 +223,8 @@ test("migrate:scope3-travel runs twice: one form per site × category, its units
 test("Category 6 rows: vehicle.km by occupancy, divide by 0 → FIELD_REQUIRED, legacy rows keep their product", async () => {
   const run = runScript("migrateScope3Travel", ["1"]);
   assert.equal(run.status, 0, run.stderr + run.stdout);
+  // The survey tests above leave draft plans; drop them so this manager stays under the open-draft limit.
+  await withDb((db) => db.query(`DELETE FROM import_plan WHERE source_name LIKE 'Commuting survey%' AND status = 'draft'`));
   const base = { site_id: 1, category_id: CAT6, period: { kind: "monthly", date: "2025-06-15" } };
   const rows = [
     // 6.1 road: 10 travellers, 2 per car, 50 km × 0.2 → 250 vehicle.km → 0.05 t
