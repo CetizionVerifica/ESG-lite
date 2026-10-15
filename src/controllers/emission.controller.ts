@@ -4,13 +4,15 @@ import { Emission, EmissionStatus } from "../entities/Emission";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import { In } from "typeorm";
+import { In, IsNull, Not, Or } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
 import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
 import { getConversionFactor, unitsMatchExact } from "../services/emissionWrite/units";
 import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage } from "../services/emissionWrite";
+import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
@@ -512,12 +514,13 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       if (duplicate.fera_linked_id) {
         idsToDelete.push(duplicate.fera_linked_id);
       }
-      // Check if any other emission links back to this one (reverse FERA link)
-      const linkedBack = await repo.findOne({
+      // Every emission that links back to this one (reverse FERA link; a
+      // Scope 2 row may have a T&D-loss twin too, S3-7)
+      const linkedBack = await repo.find({
         where: { fera_linked_id: duplicate.pk_id },
       });
-      if (linkedBack) {
-        idsToDelete.push(linkedBack.pk_id);
+      for (const l of linkedBack) {
+        if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
       }
       // Delete related documents first, then their stored files
       const replacedFiles = await documentFilesForEmissions(idsToDelete);
@@ -552,7 +555,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     if (!prepared.ok) {
       return res.status(400).json({ message: prepared.issue.message, ...(prepared.issue.extra ?? {}) });
     }
-    const { emission, fera: feraEmission } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
+    const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
 
     const savedEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -574,6 +577,9 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       message: "Emission created successfully",
       emission: savedEmission,
       fera_emission: savedFera,
+      // S3-7: the Category 3 T&D-loss twin of a Scope 2 entry, and warnings that never block.
+      ...(tdLoss ? { td_loss_emission: await repo.findOne({ where: { pk_id: tdLoss.pk_id }, relations: ["site", "category", "created_by"] }) } : {}),
+      ...(prepared.entry.warnings.length ? { warnings: prepared.entry.warnings.map(({ code, message }) => ({ code, message })) } : {}),
     });
   } catch (error) {
     console.error("Create emission error:", error);
@@ -740,9 +746,10 @@ const targetYear = reportingDate.getFullYear() - 1;
     if (activity_data !== undefined && emission.fera_linked_id) {
       updatedFeraEmission = await recalculateLinkedFera(emission, activity_data);
     }
+    const tdLossTwin = activity_data !== undefined ? await syncTdLossTwin(emission, activity_data) : null;
 
     // S3-15 review checks of the row, its twin and the next month (also where the row used to be).
-    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, updatedFeraEmission?.pk_id].filter(Boolean) as number[], priorCheckKeys);
+    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, updatedFeraEmission?.pk_id, tdLossTwin?.pk_id].filter(Boolean) as number[], priorCheckKeys);
 
     // Create audit log for user edit
     try {
@@ -818,8 +825,9 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
       ? await repo.findOne({ where: { pk_id: emission.fera_linked_id }, relations: ["site", "category"] })
       : null;
     // Also check reverse link
+    // (Never the T&D-loss twin: syncTdLossTwin keeps that one in step, S3-7.)
     const reverseFeraEmission = !feraEmission
-      ? await repo.findOne({ where: { fera_linked_id: emission.pk_id }, relations: ["site", "category"] })
+      ? await repo.findOne({ where: { fera_linked_id: emission.pk_id, scope3_sub: Or(IsNull(), Not("3c_td_losses")) }, relations: ["site", "category"] })
       : null;
     const linkedFera = feraEmission || reverseFeraEmission;
 
@@ -845,11 +853,15 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
         : new Date(emission.date_of_reporting);
       const feraTargetYear = reportingDate.getFullYear() - 1;
 
-      // Find FERA emission factor (same 4-level fallback as parent)
+      // Find FERA emission factor (same 4-level fallback as parent). Never a
+      // td_loss factor: that one makes the T&D-loss twin, kept in step by
+      // syncTdLossTwin (S3-7), and taking it here would count T&D twice.
+      const notTdLoss = Or(IsNull(), Not("td_loss"));
       let feraFactor = await emissionFactorRepo.findOne({
         where: {
           site: { site_id: emission.site.site_id },
           category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
           emission_category_name: activity_data.emission_category,
           year: feraTargetYear,
         },
@@ -859,6 +871,7 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
           where: {
             site: { site_id: emission.site.site_id },
             category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
             global_category_name: activity_data.emission_category,
             year: feraTargetYear,
           },
@@ -869,6 +882,7 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
           where: {
             site: { site_id: emission.site.site_id },
             category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
             emission_category_name: activity_data.emission_category,
           },
         });
@@ -878,6 +892,7 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
           where: {
             site: { site_id: emission.site.site_id },
             category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
             global_category_name: activity_data.emission_category,
           },
         });
@@ -948,18 +963,9 @@ export const deleteEmission = async (req: Request, res: Response) => {
       });
     }
 
-    // Also delete the linked FERA entry (bi-directional)
-    const idsToDelete = [emission.pk_id];
-    if (emission.fera_linked_id) {
-      idsToDelete.push(emission.fera_linked_id);
-    }
-    // Check if any other emission links back to this one
-    const linkedBack = await repo.findOne({
-      where: { fera_linked_id: emission.pk_id },
-    });
-    if (linkedBack && !idsToDelete.includes(linkedBack.pk_id)) {
-      idsToDelete.push(linkedBack.pk_id);
-    }
+    // Also delete the linked FERA entries: the whole family, whichever row
+    // was picked (a Scope 2 row may have a T&D-loss twin too, S3-7)
+    const idsToDelete = [emission.pk_id, ...(await feraFamilyIds(repo, emission))];
     // S3-15: the next month's threshold check compares against these rows.
     const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
 
@@ -1169,11 +1175,15 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
     for (const e of emissionsToApprove) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
     if (feraIds.length > 0) {
       await repo
         .createQueryBuilder()
@@ -1603,10 +1613,8 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
     await repo.save(emission);
 
     // Auto-approve linked FERA entries (bidirectional)
-    const feraLinkedIds: number[] = [];
-    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
-    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
-    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    // The whole family, whichever row was picked: parent, upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
+    const feraLinkedIds = await feraFamilyIds(repo, emission);
     for (const fId of feraLinkedIds) {
       const feraEmission = await repo.findOne({ where: { pk_id: fId } });
       if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
@@ -1718,10 +1726,8 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
     await repo.save(emission);
 
     // Auto-reject linked FERA entries (bidirectional)
-    const feraLinkedIds: number[] = [];
-    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
-    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
-    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    // The whole family, whichever row was picked: parent, upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
+    const feraLinkedIds = await feraFamilyIds(repo, emission);
     for (const fId of feraLinkedIds) {
       const feraEmission = await repo.findOne({ where: { pk_id: fId } });
       if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
@@ -1854,11 +1860,15 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
     for (const e of emissionsToApprove) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
 
     if (feraIds.length > 0) {
       await repo
@@ -1991,11 +2001,15 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
     for (const e of emissionsToReject) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
 
     if (feraIds.length > 0) {
       await repo
@@ -3331,12 +3345,13 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // Keep the FERA twin in step (audit F-07). A manager edit does not send
     // the row back to review, so the twin keeps the parent's review state.
     let feraEmission: Emission | null = null;
+    let tdLossTwin: Emission | null = null;
     let feraWarning: string | undefined;
     if (activity_data !== undefined) {
       // The same twin recalculateLinkedFera picks: the forward link first.
       const [twinBefore] = emission.fera_linked_id
         ? await repo.query(`SELECT total_emission, status FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
-        : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
+        : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 AND scope3_sub IS DISTINCT FROM '3c_td_losses' LIMIT 1`, [emission.pk_id]);
       feraEmission = await recalculateLinkedFera(emission, activity_data);
       if (feraEmission && (feraEmission as Emission & { recalcSkipped?: boolean }).recalcSkipped) {
         // The twin couldn't be recalculated and went back to review.
@@ -3353,11 +3368,13 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
         // Return the twin as stored, with the review state just copied over.
         feraEmission = await repo.findOne({ where: { pk_id: feraEmission.pk_id } });
       }
+      // The T&D-loss twin (S3-7) follows the parent's new numbers and review state.
+      tdLossTwin = await syncTdLossTwin(emission, activity_data);
     }
     if (Number(oldTotal) !== Number(emission.total_emission)) {
       changedFields.total_emission = { old: oldTotal, new: emission.total_emission };
     }
-    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, feraEmission?.pk_id].filter(Boolean) as number[], priorCheckKeys);
+    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, feraEmission?.pk_id, tdLossTwin?.pk_id].filter(Boolean) as number[], priorCheckKeys);
 
     // Write audit log
     const auditRepo = AppDataSource.getRepository(AuditLog);

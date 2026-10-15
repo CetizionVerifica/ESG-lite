@@ -202,7 +202,9 @@ export const PlannedRowResultSchema = z.object({
   activity_unit: z.string(),
   conversion: z.number().optional(),
   total_tco2e: z.number(),
-  fera: z.object({ category_id: positiveInt, total_tco2e: z.number() }).optional(),
+  fera: z.object({ category_id: positiveInt, total_tco2e: z.number(), scope3_sub: z.string().optional() }).optional(),
+  /** S3-7: the Category 3 T&D-loss twin of a Scope 2 row, when a td_loss factor exists. */
+  td_loss: z.object({ category_id: positiveInt, total_tco2e: z.number() }).optional(),
   reporting_date: isoDate,
   reporting_period: ReportingPeriodSchema,
   year_type: YearTypeSchema.optional(),
