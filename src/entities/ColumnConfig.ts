@@ -117,6 +117,17 @@ export class ColumnConfig {
   @Column({ type: "jsonb", nullable: true })
   calculation?: CalculationSpec | null;
 
+  // S3-3 · the methods this form offers, most specific first
+  // (docs/scope3/01-contracts.md §1, migrate:scope3-row-quality). Null or one
+  // entry means the method is fixed and the form shows it as a read-only line;
+  // two or more make the add-data method picker appear. A row naming a method
+  // outside this list is refused with METHOD_NOT_ALLOWED.
+  //
+  // The entries are `Method` keys from src/scope3/contracts/ghgCategory.ts
+  // (S3-0); the type gets imported in part 2 of this module.
+  @Column({ type: "jsonb", nullable: true })
+  method_options?: string[] | null;
+
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({
     name: "column_config_columns",

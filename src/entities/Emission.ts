@@ -105,4 +105,33 @@ export class Emission {
     source: string;
     year: number;
   } | null;
+
+  // S3-3 · how the row was calculated and how good its data is
+  // (docs/scope3/01-contracts.md §3, migrate:scope3-row-quality).
+  //
+  // `method` is a `Method` key and `dq` a `Dq`, both from
+  // src/scope3/contracts/ (S3-0). They are typed structurally until those
+  // contracts land, and the types get imported in part 2 of this module.
+  // Scope 1 and Scope 2 rows carry no method; legacy Scope 3 rows the backfill
+  // could not place carry 'average_data'.
+  @Column({ type: "varchar", length: 40, nullable: true })
+  method!: string | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  dq!: {
+    technology: 1 | 2 | 3;
+    geography: 1 | 2 | 3;
+    time: 1 | 2 | 3;
+    completeness: 1 | 2 | 3;
+    reliability: 1 | 2 | 3;
+    overall: 1 | 2 | 3;
+    source: "auto" | "manual";
+  } | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  data_type!: "primary" | "secondary" | null;
+
+  // For example a distance the route helper worked out rather than one entered.
+  @Column({ type: "boolean", default: false })
+  is_estimate!: boolean;
 }
