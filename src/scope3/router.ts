@@ -7,7 +7,10 @@
  *   router.use(taxonomyRouter); // S3-1
  */
 import { Router } from "express";
+import boundaryRouter from "./boundary/router";
 
 const router = Router();
+
+router.use(boundaryRouter); // S3-1: /scope3/categories, /scope3/category-map
 
 export default router;

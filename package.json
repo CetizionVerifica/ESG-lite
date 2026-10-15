@@ -30,6 +30,7 @@
     "migrate:user-internal": "ts-node src/scripts/addUserInternalColumn.ts",
     "migrate:ai-import": "ts-node src/scripts/addAiImportColumns.ts",
     "migrate:mapping-profiles": "ts-node src/scripts/createImportMappingProfileTable.ts",
+    "migrate:scope3-taxonomy": "ts-node src/scripts/migrateScope3Taxonomy.ts",
     "migrate:scope3-factor-meta": "ts-node src/scripts/migrateScope3FactorMeta.ts",
     "migrate:scope3-fera-sub": "ts-node src/scripts/migrateScope3FeraSub.ts",
     "migrate:scope3-review-checks": "ts-node src/scripts/migrateScope3ReviewChecks.ts",
