@@ -98,6 +98,13 @@ export const UNIT_ALIASES: Record<string, string> = {
   kilograms: "kg",
 };
 
+/**
+ * The currencies the conversion table converts (S3-4). Forms offer only these:
+ * GBP, BHD, SAR and AED were offered but had no rate. S3-5 replaces this with
+ * a real FX source (FX_RATE_FALLBACK when a rate is missing).
+ */
+export const CONVERTIBLE_CURRENCIES = ["INR", "USD", "EUR"] as const;
+
 export const canonicalUnit = (unit: string | null | undefined): string => {
   const u = (unit ?? "").toLowerCase().trim();
   return UNIT_ALIASES[u] ?? u;

@@ -163,6 +163,18 @@ test("unit helpers behave as before", () => {
   assert.equal(unitsMatchExact("kwh", ""), false);
 });
 
+test("S3-4: forms offer only currencies the table converts", () => {
+  const { CONVERTIBLE_CURRENCIES } = require(path.resolve("dist/services/emissionWrite/units.js"));
+  const { getDefaultExtraFieldsByName } = require(path.resolve("dist/utils/defaultExtraFields.js"));
+  for (const c of CONVERTIBLE_CURRENCIES) {
+    assert.ok(CONVERTIBLE_CURRENCIES.some((o) => o !== c && getConversionFactor(c, o)), `${c} converts to another currency`);
+  }
+  for (const name of ["Purchased Goods and Services", "Capital Goods"]) {
+    const currency = (getDefaultExtraFieldsByName(name) || []).find((f) => f.key === "currency");
+    if (currency) assert.deepEqual(currency.options.filter((o) => !CONVERTIBLE_CURRENCIES.includes(o)), [], `${name}: no unconvertible currency`);
+  }
+});
+
 test("S3-4: a factor with no unit is UNIT_REQUIRED, never applied unchecked", () => {
   const noUnit = factor(30, "Mystery fuel", 2024, 1000, "");
   const r = computeTotal(ctx(), noUnit, { emission_category: "Mystery fuel", activity_value: "10" }, "litre");
