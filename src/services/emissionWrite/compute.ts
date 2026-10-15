@@ -1,17 +1,28 @@
 /**
- * The calculation (IM1): activity data × factor → tCO₂e, plus the FERA twin.
- * Pure of database access; the caller supplies the loaded CategoryContext.
+ * The calculation (IM1, split by S3-0): picks the method file for a row and
+ * returns its total. Pure of database access; the caller supplies the loaded
+ * CategoryContext.
  *
- * Every expression here is the one createEmission used, in the same order of
- * operations, so stored numbers do not move (ci/golden).
+ * The bodies live in `methods/` (01-contracts.md §6). Today every row goes to
+ * `methods/spec.ts` (categories with a spec) or `methods/activity.ts`, with
+ * the same expressions as before, so stored numbers do not move (ci/golden).
  */
 import type { EmissionFactor } from "../../entities/EmissionFactor";
 import type { CalculationSpec } from "../../entities/ColumnConfig";
-import { computeSpecActivityValue } from "../calculationSpec";
-import { pickActivityValue } from "../activityValue";
-import { getConversionFactor, unitsMatchExact } from "./units";
 import type { FactorIndex } from "./resolve";
 import type { RowIssueCode } from "../../imports/errors";
+import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
+import type { Method } from "../../scope3/contracts/ghgCategory";
+import type { Dq, DataType } from "../../scope3/contracts/dq";
+import * as activity from "./methods/activity";
+import * as spec from "./methods/spec";
+import * as spend from "./methods/spend";
+import * as supplier from "./methods/supplier";
+import * as hybrid from "./methods/hybrid";
+import * as proxy from "./methods/proxy";
+
+export { totalFor, kgFor, factorHasUnit } from "./methods/activity";
+export { feraTwinFor, feraGap, type FeraTwin } from "./methods/fera";
 
 /** Loaded once per site × category and shared by every row of that pair. */
 export interface CategoryContext {
@@ -32,9 +43,6 @@ export interface CategoryContext {
   formUnits?: string[];
 }
 
-/** A factor with no unit can't be checked against the quantity's unit (S3-4). */
-export const factorHasUnit = (factor: EmissionFactor): boolean => !!String(factor.denominator_unit ?? "").trim();
-
 export interface EngineIssue {
   code: RowIssueCode;
   message: string;
@@ -45,31 +53,60 @@ export interface EngineIssue {
 
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-/** tCO₂e for a value in the factor's unit, rounded as the controller did. */
-export const totalFor = (activityValue: number, factor: EmissionFactor): number =>
-  Math.round(((activityValue * factor.factor_value) / 1000) * 100) / 100;
-
-/**
- * kgCO₂e at 4 dp for `emission.total_kgco2e` (S3-4, D5): the same product as
- * the tCO₂e total, never rounded before multiplying. A string, as numeric
- * columns read back.
- */
-export const kgFor = (quantityInFactorUnit: number, factor: EmissionFactor): string =>
-  (Math.round(quantityInFactorUnit * Number(factor.factor_value) * 10000) / 10000).toFixed(4);
-
 export interface Computed {
   activityValue: number;
   activity_unit: string;
   conversion?: number;
   total: number;
-  /** kgCO₂e at 4 dp (S3-4). */
-  total_kg: string;
+  /** Scope 3 fields (01-contracts.md §6). Unset until their modules fill them; S3-4 fills total_kgco2e (kgCO₂e at 4 dp). */
+  total_kgco2e?: string;
+  method?: Method;
+  dq?: Dq;
+  data_type?: DataType;
 }
 
 export type ComputeResult = { ok: true; computed: Computed } | { ok: false; issue: EngineIssue };
 
+/** One row as the method files see it. */
+export interface EngineRow {
+  factor: EmissionFactor;
+  /** Spec categories write the computed product into `activity_value`. */
+  activity_data: Record<string, any>;
+  activity_unit: string;
+  /** The row's calculation method; missing means the category's default. */
+  method?: Method | null;
+  /** Set on estimated rows (S3-12). */
+  proxy?: unknown;
+}
+
+/** Every method file exports `compute(ctx, row)`. */
+type MethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeResult };
+
 /**
- * One row's total, given its (possibly spec-computed) activity value.
+ * The method file for a row. Spec categories always use the spec; otherwise
+ * the row's method, falling back to activity × factor.
+ * TODO(S3-3): fall back to the form's `method_options[0]` when the row has none.
+ */
+const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
+  if (ctx.spec) return spec;
+  if (row.proxy) return proxy;
+  switch (row.method) {
+    case "spend_based":
+      return spend;
+    case "supplier_specific":
+      return supplier;
+    case "hybrid":
+      return hybrid;
+    default:
+      return activity;
+  }
+};
+
+/** One row's total, from the method file the row picks. */
+export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult => methodFileFor(ctx, row).compute(ctx, row);
+
+/**
+ * One row's total (the pre-S3 signature, used by index.ts).
  * `activity_data` may be updated: spec categories write the computed product
  * into `activity_value`, as the typed-entry path does.
  */
@@ -78,130 +115,17 @@ export const computeTotal = (
   factor: EmissionFactor,
   activity_data: Record<string, any>,
   activity_unit: string,
-): ComputeResult & { activity_unit?: string } => {
-  let activityValue = 0;
-  let unit = activity_unit;
-  if (ctx.spec) {
-    const computed = computeSpecActivityValue(ctx.spec, activity_data, unit);
-    if (!computed.ok) {
-      return { ok: false, issue: { code: specIssueCode(computed.message), message: computed.message } };
-    }
-    activityValue = computed.value;
-    if (computed.unitKey) unit = computed.unitKey;
-    activity_data.activity_value = String(activityValue);
-  } else {
-    activityValue = pickActivityValue(activity_data, ctx.selectColumns);
-  }
-
-  if (activityValue <= 0) {
-    return { ok: true, computed: { activityValue, activity_unit: unit, total: 0, total_kg: "0.0000" } };
-  }
-  if (!factorHasUnit(factor)) {
-    return {
-      ok: false,
-      issue: {
-        code: "UNIT_REQUIRED",
-        message: `The emission factor "${factor.emission_category_name}" has no unit, so the quantity can't be checked against it. Give the factor its unit on the Emission factors page.`,
-        field: "activity_unit",
-      },
-    };
-  }
-  if (unitsMatchExact(factor.denominator_unit, unit)) {
-    return { ok: true, computed: { activityValue, activity_unit: unit, total: totalFor(activityValue, factor), total_kg: kgFor(activityValue, factor) } };
-  }
-  const conversionFactor = getConversionFactor(unit, factor.denominator_unit);
-  if (!conversionFactor) {
-    return {
-      ok: false,
-      issue: {
-        code: "UNIT_NOT_CONVERTIBLE",
-        message: `Unit mismatch: Expected "${factor.denominator_unit}" but received "${unit}". No conversion available.`,
-        field: "activity_unit",
-        extra: { expected_unit: factor.denominator_unit, received_unit: unit },
-      },
-    };
-  }
-  const convertedValue = activityValue * conversionFactor;
-  return {
-    ok: true,
-    computed: {
-      activityValue,
-      activity_unit: unit,
-      conversion: conversionFactor,
-      total: Math.round(((convertedValue * factor.factor_value) / 1000) * 100) / 100,
-      total_kg: kgFor(convertedValue, factor),
-    },
-  };
-};
-
-/** Spec messages that mean "a field is missing" vs "a field holds a wrong option". */
-const specIssueCode = (message: string): RowIssueCode =>
-  /not configured|cannot be more than 100|Please select a unit|Please choose/.test(message) ? "FIELD_INVALID" : "FIELD_REQUIRED";
-
-export interface FeraTwin {
-  category_id: number;
-  factor: EmissionFactor;
-  activityValue: number;
-  total: number;
-  /** kgCO₂e at 4 dp (S3-4). */
-  total_kg: string;
-}
-
-/**
- * The FERA twin a row spawns, or null (no FERA category, no factor for the
- * year, no quantity, or a unit that can't be converted). Never for spec
- * categories. Mode-lock on the FERA category is the caller's check.
- */
-export const feraTwinFor = (ctx: CategoryContext, emissionCategory: string, activity_data: Record<string, any>, activity_unit: string | null | undefined, targetYear: number): FeraTwin | null => {
-  if (!ctx.fera || ctx.spec || !emissionCategory) return null;
-  const factor = ctx.fera.factors.findExactForYear(emissionCategory, targetYear);
-  if (!factor) return null;
-  // No unit on either side: nothing to check the quantity against, so no twin (S3-4).
-  if (!activity_unit || !factorHasUnit(factor)) return null;
-  const activityValue = pickActivityValue(activity_data, ctx.selectColumns);
-  if (activityValue <= 0) return null;
-  const conv = unitsMatchExact(factor.denominator_unit, activity_unit) ? 1 : getConversionFactor(activity_unit as any, factor.denominator_unit);
-  if (!conv) return null;
-  return {
-    category_id: ctx.fera.category_id,
-    factor,
-    activityValue,
-    total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100,
-    total_kg: kgFor(activityValue * conv, factor),
-  };
-};
-
-/**
- * Why a row that could have a FERA twin has none, for an edit that must say
- * so (S3-4): the site has a FERA category, the activity is named and the
- * category has no spec. Null when a twin is possible or FERA does not apply.
- */
-export const feraGap = (ctx: CategoryContext, emissionCategory: string, activity_unit: string | null | undefined, targetYear: number): string | null => {
-  if (!ctx.fera || ctx.spec || !emissionCategory) return null;
-  const factor = ctx.fera.factors.findExactForYear(emissionCategory, targetYear);
-  if (!factor) {
-    if (!ctx.fera.factors.knows(emissionCategory)) return null;
-    // FERA names must match exactly (findExactForYear); say so when only the spelling differs.
-    const near = ctx.fera.factors.find(emissionCategory, targetYear);
-    if (near && !near.fallback_year) {
-      return `the ${targetYear} FERA factor is named "${near.factor.emission_category_name}", not "${emissionCategory}" (FERA names must match exactly)`;
-    }
-    return `there is no ${targetYear} FERA factor for "${emissionCategory}"`;
-  }
-  if (!factorHasUnit(factor)) return `the FERA factor for "${emissionCategory}" has no unit`;
-  if (!activity_unit) return `the entry has no unit to convert to the FERA factor unit "${factor.denominator_unit}"`;
-  if (!unitsMatchExact(factor.denominator_unit, activity_unit) && !getConversionFactor(activity_unit, factor.denominator_unit)) {
-    return `"${activity_unit}" can't be converted to the FERA factor unit "${factor.denominator_unit}"`;
-  }
-  return null;
-};
+): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit });
 
 export const factorSnapshot = (f: EmissionFactor) => ({
   emission_factor_id: f.emission_factor_id,
   emission_category_name: f.emission_category_name,
   global_category_name: f.global_category_name || undefined,
-  factor_value: f.factor_value,
+  // numeric(18,8) since S3-2: written with 4 decimals or more, as before.
+  factor_value: factorValueText(f.factor_value) as EmissionFactor["factor_value"],
   denominator_unit: f.denominator_unit,
   source: f.source,
   year: f.year,
+  // S3-2: factor_type, gwp_set, geography, dataset, dataset_version, gases.
+  ...metaSnapshot(f),
 });

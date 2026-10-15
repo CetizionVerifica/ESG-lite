@@ -32,8 +32,9 @@ import {
   type GhgFilters,
 } from "../reporting/ghg-data";
 import { pcfDataChanged } from "../pcf/staleness";
-import { enrichFeraRows, pendingReviewCountSql } from "../utils/feraFold";
-import { IMPORT_LIMITS } from "../imports/limits";
+import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
+import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
+import { checkKeysFor, refreshChecks, refreshChecksSafely } from "../scope3/review/service";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -74,14 +75,6 @@ const emissionSearchSql = (a: { e: string; c: string; s: string; u: string }) =>
                  AND (v.val #>> '{}') ILIKE :search ESCAPE '\\')
     OR CAST(${a.e}.pk_id AS text) = :searchExact)`;
 
-// XI5 "Needs attention": rows of an upload batch the reviewer should look at
-// first. A row needs attention when the plan row it came from was matched
-// below the confirmation threshold (meta.confidence < 0.8, or a
-// LOW_CONFIDENCE_MATCH issue) or was edited by the uploader before commit
-// (meta.edited), or was edited after commit (extra_data.import.edited). Joined through the batch's import plan and the row_ref IM1
-// stores on emission.extra_data.import; rows without a plan (older batches,
-// Claude and API rows without meta) never need attention. `alias` is the
-// emission alias of the query it is pasted into.
 /**
  * An emission that came from an import keeps `extra_data.import` (channel and
  * row_ref, written by IM1) through every edit, so it stays joined to its plan
@@ -96,15 +89,12 @@ export const keepImportProvenance = (emission: { upload_batch_id?: string | null
   emission.extra_data = { ...next, import: { ...imported, edited: true, edited_by: Number(userId) || null } };
 };
 
-const attentionSql = (alias: string) =>
-  `((${alias}.extra_data -> 'import' ->> 'edited') = 'true'
-    OR EXISTS (SELECT 1 FROM import_plan ap JOIN import_plan_row ar ON ar.plan_id = ap.plan_id
-            WHERE ap.upload_batch_id = ${alias}.upload_batch_id
-              AND ar.row_ref = ${alias}.extra_data -> 'import' ->> 'row_ref'
-              AND (COALESCE((ar.input -> 'meta' ->> 'confidence')::float, 1) < :attentionBelow
-                   OR (ar.input -> 'meta' ->> 'edited') = 'true'
-                   OR ar.issues @> '[{"code":"LOW_CONFIDENCE_MATCH"}]'::jsonb)))`;
-const ATTENTION_BELOW = IMPORT_LIMITS.MAPPING_CONFIRM_BELOW;
+// XI5 "Needs attention" rule: src/utils/importAttention.ts.
+
+// S3-15: a pending row is ready when its stored review checks all pass; a
+// pending row without checks yet is held.
+const READY_SQL = (e: string) => `(${e}.status = 'pending' AND (${e}.checks ->> 'ready') = 'true')`;
+const HELD_SQL = (e: string) => `(${e}.status = 'pending' AND COALESCE(${e}.checks ->> 'ready', 'false') <> 'true')`;
 
 // Get emissions by site, category, and date (with optional pagination).
 // Optional sort=<EMISSION_SORTS key>&order=asc|desc and search=<text>; without
@@ -117,6 +107,13 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     const batchId = typeof req.query.batchId === "string" ? req.query.batchId.trim().slice(0, 100) : "";
     // attention=1 (with batchId only): just the rows that need attention (XI5).
     const attention = Boolean(batchId) && ["1", "true"].includes(String(req.query.attention ?? ""));
+    // ready=1|0 (S3-15): pending rows whose review checks all pass, or the rest
+    // (no checks yet counts as not ready). Other statuses never match.
+    const readyParam = req.query.ready === undefined ? null : String(req.query.ready);
+    if (readyParam !== null && !["1", "0", "true", "false"].includes(readyParam)) {
+      return res.status(400).json({ message: "ready must be 1 or 0" });
+    }
+    const readyFilter = readyParam === null ? null : readyParam === "1" || readyParam === "true";
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     // categoryIds=1,2 (several) or the older categoryId=1.
     if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
@@ -171,6 +168,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       qb.andWhere("emission.upload_batch_id = :batchId", { batchId });
       if (attention) qb.andWhere(attentionSql("emission"), { attentionBelow: ATTENTION_BELOW });
     }
+    if (readyFilter !== null) qb.andWhere(readyFilter ? READY_SQL("emission") : HELD_SQL("emission"));
 
     if (date) {
       // Date format: YYYY-MM (e.g., 2024-01)
@@ -213,6 +211,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         .addSelect(pendingReviewCountSql("emission", "c"), "pending_review_count")
         .addSelect("COUNT(*) FILTER (WHERE emission.status = 'approved')", "approved_count")
         .addSelect("COUNT(*) FILTER (WHERE emission.status = 'rejected')", "rejected_count")
+        .addSelect(`COUNT(*) FILTER (WHERE ${READY_SQL("emission")} AND NOT ${foldedFeraTwinSql("emission", "c")})`, "ready_count")
+        .addSelect(`COUNT(*) FILTER (WHERE ${HELD_SQL("emission")} AND NOT ${foldedFeraTwinSql("emission", "c")})`, "held_count")
         .leftJoin("emission.site", "s")
         .leftJoin("emission.category", "c");
 
@@ -240,6 +240,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         summaryQb.addSelect(`COUNT(*) FILTER (WHERE ${attentionSql("emission")})`, "attention_count").setParameter("attentionBelow", ATTENTION_BELOW);
         if (attention) summaryQb.andWhere(attentionSql("emission"), { attentionBelow: ATTENTION_BELOW });
       }
+      if (readyFilter !== null) summaryQb.andWhere(readyFilter ? READY_SQL("emission") : HELD_SQL("emission"));
       if (date) {
         const [y, m] = (date as string).split("-");
         const startDate = new Date(parseInt(y), parseInt(m) - 1, 1);
@@ -277,6 +278,11 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
           // Rows of the batch that need attention (XI5); only with batchId.
           // `attention` is the spec's and the FE's name; `attention_count` stays for older callers.
           ...(batchId ? { attention: parseInt(summaryRow?.attention_count) || 0, attention_count: parseInt(summaryRow?.attention_count) || 0 } : {}),
+          // S3-15 review checks: pending entries (twins folded) whose checks all
+          // pass, and the rest ("Needs attention" on the approvals tab). `attention`
+          // stays the XI5 batch count above.
+          ready: parseInt(summaryRow?.ready_count) || 0,
+          held: parseInt(summaryRow?.held_count) || 0,
         },
       });
     }
@@ -612,6 +618,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
     const oldDateOfReporting = emission.date_of_reporting;
     const oldActivityDataUnit = emission.activity_data_unit;
     const oldStatus = emission.status;
+    const priorCheckKeys = await checkKeysFor(AppDataSource.manager, [emission.pk_id]);
 
     // Edits use the engine, as a new entry does (S3-4): factor resolution,
     // unit check, snapshot, kgCO₂e total and the FERA twin.
@@ -662,6 +669,9 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
     if (activity_data !== undefined && emission.fera_linked_id) {
       updatedFeraEmission = await recalculateLinkedFera(emission, activity_data, feraTwin, feraSkipped);
     }
+
+    // S3-15 review checks of the row, its twin and the next month (also where the row used to be).
+    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, updatedFeraEmission?.pk_id].filter(Boolean) as number[], priorCheckKeys);
 
     // Create audit log for user edit
     try {
@@ -748,7 +758,7 @@ function applyComputed(emission: Emission, entry: PreparedEntry): void {
     return;
   }
   emission.total_emission = entry.computed.total;
-  emission.total_kgco2e = entry.computed.total_kg;
+  emission.total_kgco2e = entry.computed.total_kgco2e ?? null;
   emission.emission_factor_snapshot = factorSnapshot(entry.factor) as any;
   emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
 }
@@ -785,7 +795,7 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any, twi
       // No category: no factor applies, so the twin carries no total either.
       linkedFera.activity_data = activity_data;
       linkedFera.total_emission = twin ? twin.total : 0;
-      linkedFera.total_kgco2e = twin ? twin.total_kg : "0.0000";
+      linkedFera.total_kgco2e = twin ? twin.total_kgco2e : "0.0000";
       linkedFera.emission_factor_snapshot = (twin ? factorSnapshot(twin.factor) : null) as any;
       linkedFera.date_of_reporting = emission.date_of_reporting;
       linkedFera.activity_data_unit = emission.activity_data_unit;
@@ -833,6 +843,8 @@ export const deleteEmission = async (req: Request, res: Response) => {
     if (linkedBack && !idsToDelete.includes(linkedBack.pk_id)) {
       idsToDelete.push(linkedBack.pk_id);
     }
+    // S3-15: the next month's threshold check compares against these rows.
+    const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
 
     // Delete related documents first (in case DB cascade is not set)
     const files = await documentFilesForEmissions(idsToDelete);
@@ -846,6 +858,7 @@ export const deleteEmission = async (req: Request, res: Response) => {
     await repo.delete(idsToDelete);
     await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
+    await refreshChecksSafely(AppDataSource.manager, [], priorKeys);
 
     log.info("Emission", "Deleted", { ids: idsToDelete, userId: (req as AuthRequest).user?.userId });
 
@@ -912,6 +925,7 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
     let totalDeleted = 0;
     const files: Awaited<ReturnType<typeof documentFilesForEmissions>> = [];
 
+    const priorKeys = await checkKeysFor(AppDataSource.manager, idsArray);
     // Delete in chunks within a transaction
     await AppDataSource.transaction(async (manager) => {
       const docRepo = manager.getRepository(EmissionDocument);
@@ -932,6 +946,7 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
     });
     await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsArray);
+    await refreshChecksSafely(AppDataSource.manager, [], priorKeys);
 
     return res.status(200).json({
       message: `Successfully deleted ${totalDeleted} emission(s)`,
@@ -1182,6 +1197,8 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
 
     // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
+    // S3-15: rejected rows leave the month total the next month's threshold check reads.
+    await refreshChecksSafely(AppDataSource.manager, [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1339,6 +1356,7 @@ export const getEmissionFactorForEmission = async (req: Request, res: Response) 
 
     // Backfill: save snapshot on older records so future lookups are instant
     await repo.update(emissionId, { emission_factor_snapshot: factorData });
+    await refreshChecksSafely(AppDataSource.manager, [Number(emissionId)]);
 
     return res.status(200).json({
       emission_factor: factorData,
@@ -1384,9 +1402,11 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
         .execute();
     }
 
+    const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
     const result = await repo.delete({ upload_batch_id: batchId });
     await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
+    await refreshChecksSafely(AppDataSource.manager, [], priorKeys);
 
     return res.status(200).json({
       message: `Deleted ${result.affected} emission(s) from batch`,
@@ -1597,6 +1617,7 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
     }
 
     await pcfDataChanged("emission", [emission.pk_id, ...feraLinkedIds]);
+    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, ...feraLinkedIds]);
 
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -1663,6 +1684,9 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
 export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { ids, comment } = req.body;
+    // only_ready (S3-15): approve only rows whose review checks all pass; the
+    // rest are skipped and returned with what holds them.
+    const onlyReady = req.body?.only_ready === true;
     const userId = req.user?.userId;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -1671,15 +1695,29 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const emissionsToApprove = await repo.find({
+    const pending = await repo.find({
       where: { pk_id: In(ids), status: EmissionStatus.PENDING },
       relations: ["created_by", "category", "site"],
     });
 
-    if (emissionsToApprove.length === 0) {
+    if (pending.length === 0) {
       return res.status(400).json({
         message: "No pending emissions found to approve",
       });
+    }
+
+    // Stored checks can be stale (a lowered change limit, a factor added
+    // since), so only_ready recomputes them now and decides on the fresh ones.
+    // A row of a pending FERA pair carries what holds either row (the pair
+    // is approved together below), so a held twin or parent is never approved.
+    const fresh = onlyReady ? await refreshChecks(AppDataSource.manager, pending.map((e) => e.pk_id)) : null;
+    const checksNow = (e: Emission) => fresh?.get(e.pk_id) ?? e.checks;
+    let skipped = onlyReady
+      ? pending.filter((e) => checksNow(e)?.ready !== true).map((e) => ({ id: e.pk_id, held: checksNow(e)?.held ?? [] }))
+      : [];
+    const emissionsToApprove = onlyReady ? pending.filter((e) => checksNow(e)?.ready === true) : pending;
+    if (emissionsToApprove.length === 0) {
+      return res.status(200).json({ message: "No ready emissions to approve", approved: [], skipped });
     }
 
     const eligibleIds = emissionsToApprove.map((e) => e.pk_id);
@@ -1714,6 +1752,8 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         .execute();
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
+    // Never report as skipped a row the FERA cascade approved.
+    skipped = skipped.filter((s) => !feraIds.includes(s.id));
 
     // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
@@ -1777,6 +1817,8 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
 
     return res.status(200).json({
       message: `${eligibleIds.length} emissions approved successfully`,
+      approved: eligibleIds,
+      ...(onlyReady ? { skipped } : {}),
     });
   } catch (error) {
     log.error("Emission", "Bulk approve failed", { error: (error as Error).message });
@@ -1850,6 +1892,8 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
 
     // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
+    // S3-15: rejected rows leave the month total the next month's threshold check reads.
+    await refreshChecksSafely(AppDataSource.manager, [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -2990,6 +3034,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (!emission) {
       return res.status(404).json({ message: "Emission not found" });
     }
+    const priorCheckKeys = await checkKeysFor(AppDataSource.manager, [emission.pk_id]);
 
     // A unit-only change must recalculate too — relabelling tonne.km as kg.km
     // while keeping the old total would leave the row off by the conversion
@@ -3133,6 +3178,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (Number(oldTotal) !== Number(emission.total_emission)) {
       changedFields.total_emission = { old: oldTotal, new: emission.total_emission };
     }
+    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, feraEmission?.pk_id].filter(Boolean) as number[], priorCheckKeys);
 
     // Write audit log
     const auditRepo = AppDataSource.getRepository(AuditLog);

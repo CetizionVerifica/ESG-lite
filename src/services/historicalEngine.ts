@@ -10,6 +10,7 @@ import type { EntityManager } from "typeorm";
 import { Emission } from "../entities/Emission";
 import { CheckCache, ContextCache, insertEntry, prepareEntry, type AuditInfo, type PreparedEntry } from "./emissionWrite";
 import { activityDataFor, rowPeriod, type EngineResult, type HistoricalPlan, type HistoricalRow } from "./historicalImport";
+import { refreshChecksSafely } from "../scope3/review/service";
 
 /** Stored as `extra_data.import.channel` on every row these paths write. */
 export const HISTORICAL_CHANNEL = "historical";
@@ -73,15 +74,19 @@ export const insertHistoricalRows = async (
   createdBy: (row: HistoricalRow) => number | null = () => null,
 ): Promise<number> => {
   let inserted = 0;
+  const ids: number[] = [];
   for (const p of plan.rows) {
     if (p.status !== "import") continue;
     const entry = entries.get(p.row);
     if (!entry) continue;
     const row = rows[p.row - 1];
-    const { emission } = await insertEntry(m, createdBy(row), entry, null, audit);
+    const { emission, fera } = await insertEntry(m, createdBy(row), entry, null, audit, { deferChecks: true });
     const notes = row.notes == null ? "" : String(row.notes).trim();
     if (notes) await m.getRepository(Emission).update(emission.pk_id, { review_comment: notes });
+    ids.push(emission.pk_id, ...(fera ? [fera.pk_id] : []));
     inserted++;
   }
+  // The review checks (S3-15) once for the whole sheet, as insertRows does.
+  await refreshChecksSafely(m, ids);
   return inserted;
 };

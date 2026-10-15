@@ -24,6 +24,7 @@ import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, pla
 import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
+import { refreshChecksSafely } from "../../scope3/review/service";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -134,6 +135,7 @@ export const insertEntry = async (
   entry: PreparedEntry,
   batch: BatchInfo | null,
   audit: AuditInfo | null,
+  opts: { deferChecks?: boolean } = {},
 ): Promise<{ emission: Emission; fera: Emission | null }> => {
   const repo = tx.getRepository(Emission);
   const { input } = entry;
@@ -153,7 +155,7 @@ export const insertEntry = async (
     activity_data: input.activity_data,
     extra_data: input.extra_data || {},
     total_emission: entry.computed?.total ?? 0,
-    total_kgco2e: entry.computed?.total_kg ?? "0.0000",
+    total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
     emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
   });
   await repo.save(emission);
@@ -165,7 +167,7 @@ export const insertEntry = async (
       category: { category_id: entry.fera.category_id },
       activity_data: input.activity_data,
       total_emission: entry.fera.total,
-      total_kgco2e: entry.fera.total_kg,
+      total_kgco2e: entry.fera.total_kgco2e,
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
     });
@@ -190,6 +192,8 @@ export const insertEntry = async (
       );
     }
   }
+  // S3-15 review checks; insertRows defers them and refreshes the whole batch once.
+  if (!opts.deferChecks) await refreshChecksSafely(tx, fera ? [emission.pk_id, fera.pk_id] : [emission.pk_id]);
   return { emission, fera };
 };
 
@@ -451,7 +455,7 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     // which the attention filter reads from the plan row.
     if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
-    const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit);
+    const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
     inserted += 1;
     ids.push(emission.pk_id);
     if (fera) {
@@ -459,6 +463,7 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
       ids.push(fera.pk_id);
     }
   }
+  await refreshChecksSafely(tx, ids);
   return { inserted, fera_inserted, ids };
 };
 

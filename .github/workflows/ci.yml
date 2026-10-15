@@ -49,6 +49,8 @@ jobs:
       - run: npm run build
       - name: Unit tests (PCF engine, golden pilot)
         run: npm run test:unit
+      - name: Scope 3 golden cases (worked examples, in memory)
+        run: npm run test:scope3-golden
 
   data-safety:
     name: Data safety

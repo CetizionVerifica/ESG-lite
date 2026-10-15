@@ -176,7 +176,8 @@ const uploadHistorical = async (req: Request, res: Response) => {
         ),
       );
     }
-    // Every total, unit check and FERA twin comes from the engine (S3-4).
+    // Every total, unit check and FERA twin comes from the engine (S3-4), which
+    // also stores the review checks of the rows it inserts (S3-15).
     await insertHistoricalRows(m, plan, entries, rows, await auditFor(m, req, req.file!.originalname || "historical sheet"));
     return { plan, created: newUsers };
   });
@@ -341,6 +342,7 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
       return { plan, emissionsCreated: created };
     });
     const emissionsSkipped = plan.toSkip;
+
 
     log.info("Upload", "Excel upload complete", {
       totalRows: rows.length,
