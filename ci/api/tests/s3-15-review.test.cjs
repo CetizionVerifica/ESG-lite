@@ -114,6 +114,17 @@ test("the company's change limit applies", async () => {
   }
 });
 
+test("only_ready recomputes stale checks: a lowered change limit holds a row stored as ready", async () => {
+  const may = created[created.length - 1];
+  assert.deepEqual(await checksOf(may), { ready: true, held: [] }, "stored verdict from the 60 % limit");
+  const res = await call("PUT", "/user/emissions/bulk-approve", "otherManager", { ids: [may], only_ready: true });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.deepEqual(res.json.approved, []);
+  assert.deepEqual(res.json.skipped, [{ id: may, held: ["WITHIN_THRESHOLD"] }], "44 % is over the default 5 %");
+  assert.deepEqual((await checksOf(may)).held, ["WITHIN_THRESHOLD"], "the fresh verdict is stored");
+  assert.equal((await q("SELECT status FROM emission WHERE pk_id = $1", [may]))[0].status, "pending");
+});
+
 test("NO_DUPLICATE, FACTOR_FOUND and UNIT_OK hold rows", async () => {
   // Typed entries refuse a same-date duplicate (409), so the pair is made the
   // way older uploads leave them: a second row moved onto the same date.
@@ -148,6 +159,8 @@ test("IMPORT_MATCH_SURE reuses the XI5 rule", async () => {
 });
 
 test("the list filters on ready and counts ready and held; only_ready approves just the ready rows", async () => {
+  // Store fresh verdicts first (the IMPORT_MATCH_SURE row above was only computed, not stored).
+  await refreshChecks(AppDataSource.manager, created);
   const pending = (await q(`SELECT pk_id, checks FROM emission WHERE pk_id = ANY($1) AND status = 'pending' ORDER BY pk_id`, [created])).map((r) => ({ id: Number(r.pk_id), ready: r.checks?.ready === true }));
   const readyIds = pending.filter((r) => r.ready).map((r) => r.id);
   const heldIds = pending.filter((r) => !r.ready).map((r) => r.id);

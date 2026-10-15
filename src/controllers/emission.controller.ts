@@ -36,7 +36,7 @@ import {
 import { pcfDataChanged } from "../pcf/staleness";
 import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
 import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
-import { checkKeysFor, refreshChecksSafely } from "../scope3/review/service";
+import { checkKeysFor, refreshChecks, refreshChecksSafely } from "../scope3/review/service";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -1823,10 +1823,14 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Stored checks can be stale (a lowered change limit, a factor added
+    // since), so only_ready recomputes them now and decides on the fresh ones.
+    const fresh = onlyReady ? await refreshChecks(AppDataSource.manager, pending.map((e) => e.pk_id)) : null;
+    const checksNow = (e: Emission) => fresh?.get(e.pk_id) ?? e.checks;
     const skipped = onlyReady
-      ? pending.filter((e) => e.checks?.ready !== true).map((e) => ({ id: e.pk_id, held: e.checks?.held ?? [] }))
+      ? pending.filter((e) => checksNow(e)?.ready !== true).map((e) => ({ id: e.pk_id, held: checksNow(e)?.held ?? [] }))
       : [];
-    const emissionsToApprove = onlyReady ? pending.filter((e) => e.checks?.ready === true) : pending;
+    const emissionsToApprove = onlyReady ? pending.filter((e) => checksNow(e)?.ready === true) : pending;
     if (emissionsToApprove.length === 0) {
       return res.status(200).json({ message: "No ready emissions to approve", approved: [], skipped });
     }
