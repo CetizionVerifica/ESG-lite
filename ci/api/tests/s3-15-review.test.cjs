@@ -203,3 +203,68 @@ test("company 1 can't read or approve company 2's checks", async () => {
   const statuses = await q(`SELECT status FROM emission WHERE pk_id = ANY($1)`, [heldIds]);
   assert.ok(statuses.every((r) => r.status === "pending"));
 });
+
+// A FERA twin as the engine links it: both rows point at each other.
+const addTwin = async (parentId, factorYear) => {
+  const cols = (await q(`SELECT column_name FROM information_schema.columns WHERE table_name = 'emission' AND column_name NOT IN ('pk_id', 'category_id', 'fera_linked_id', 'emission_factor_snapshot', 'checks') ORDER BY ordinal_position`)).map((r) => `"${r.column_name}"`);
+  const [{ pk_id }] = await q(
+    `INSERT INTO emission (${cols.join(", ")}, category_id, fera_linked_id, emission_factor_snapshot)
+     SELECT ${cols.join(", ")}, 5, pk_id, jsonb_set(emission_factor_snapshot, '{year}', to_jsonb($2::int)) FROM emission WHERE pk_id = $1
+     RETURNING pk_id`,
+    [parentId, factorYear],
+  );
+  const twin = Number(pk_id);
+  created.push(twin);
+  await q(`UPDATE emission SET fera_linked_id = $1 WHERE pk_id = $2`, [twin, parentId]);
+  return twin;
+};
+const statusOf = async (id) => (await q("SELECT status FROM emission WHERE pk_id = $1", [id]))[0].status;
+
+test("a pending FERA pair is ready only when both rows are; only_ready never approves a held twin or parent", async () => {
+  const parent = await add("2026-11-10", 100); // nothing in October: passes the threshold
+  await attach(parent);
+  assert.deepEqual(await checksOf(parent), { ready: true, held: [] });
+
+  // The twin's factor fell back a year: it holds the parent too.
+  const twin = await addTwin(parent, 2023);
+  await refreshChecks(AppDataSource.manager, [twin]);
+  assert.deepEqual(await checksOf(parent), { ready: false, held: ["FACTOR_FOUND"] }, "the parent carries what holds its twin");
+  assert.deepEqual(await checksOf(twin), { ready: false, held: ["FACTOR_FOUND"] });
+  const list = await call("GET", `/user/emissions?siteIds=${SITE}&page=1&limit=100&ready=0`, "otherManager");
+  assert.ok(list.json.data.some((e) => e.pk_id === parent), "the pair shows under Needs attention");
+
+  for (const ids of [[parent], [twin], [parent, twin]]) {
+    const res = await call("PUT", "/user/emissions/bulk-approve", "otherManager", { ids, only_ready: true });
+    assert.equal(res.status, 200, JSON.stringify(res.json));
+    assert.deepEqual(res.json.approved, [], JSON.stringify(ids));
+    assert.deepEqual(res.json.skipped.map((s) => s.id).sort((a, b) => a - b), [...ids].sort((a, b) => a - b));
+    assert.equal(await statusOf(parent), "pending");
+    assert.equal(await statusOf(twin), "pending");
+  }
+
+  // With the twin's factor found, the pair is ready and approved together; nothing is reported skipped.
+  await q(`UPDATE emission SET emission_factor_snapshot = jsonb_set(emission_factor_snapshot, '{year}', '2025') WHERE pk_id = $1`, [twin]);
+  await refreshChecks(AppDataSource.manager, [twin]);
+  assert.deepEqual(await checksOf(parent), { ready: true, held: [] });
+  const res = await call("PUT", "/user/emissions/bulk-approve", "otherManager", { ids: [parent], only_ready: true });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.deepEqual(res.json.approved, [parent]);
+  assert.deepEqual(res.json.skipped, []);
+  assert.equal(await statusOf(twin), "approved", "the twin follows its parent");
+});
+
+test("held rows and rows with no checks still approve one by one and through bulk approve without only_ready", async () => {
+  const held = await add("2026-09-10", 100); // no evidence: held
+  assert.equal((await checksOf(held)).ready, false);
+  const single = await call("PUT", `/user/emissions/${held}/approve`, "otherManager", {});
+  assert.equal(single.status, 200, JSON.stringify(single.json));
+  assert.equal(await statusOf(held), "approved");
+
+  const heldBulk = await add("2026-09-12", 100, { activity_data: { emission_category: GAS, activity_value: "10" }, activity_data_unit: "kwh" });
+  const unchecked = await add("2026-09-14", 100);
+  await q(`UPDATE emission SET checks = NULL WHERE pk_id = $1`, [unchecked]);
+  const bulk = await call("PUT", "/user/emissions/bulk-approve", "otherManager", { ids: [heldBulk, unchecked] });
+  assert.equal(bulk.status, 200, JSON.stringify(bulk.json));
+  assert.equal(await statusOf(heldBulk), "approved");
+  assert.equal(await statusOf(unchecked), "approved");
+});

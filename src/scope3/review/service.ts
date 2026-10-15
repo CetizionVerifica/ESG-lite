@@ -21,7 +21,7 @@ import type { CalculationSpec } from "../../entities/ColumnConfig";
 import { attentionSql, ATTENTION_BELOW } from "../../utils/importAttention";
 import { log } from "../../utils/logger";
 import { computeChecks, DEFAULT_THRESHOLD_PCT, type CheckRow } from "./checks";
-import type { RowChecks } from "../contracts/checks";
+import { CHECK_IDS, type RowChecks } from "../contracts/checks";
 
 /** Statuses that count towards a month's total for WITHIN_THRESHOLD (drafts and rejected rows don't). */
 const COUNTED_STATUSES = ["pending", "approved"];
@@ -173,8 +173,51 @@ const duplicates = async (manager: EntityManager, rows: LoadedRow[]): Promise<Ma
   return out;
 };
 
-/** Computes the checks of the pending rows among `rowIds` without storing them. */
+/**
+ * Pending FERA partners of `rowIds` (either direction of the link), as
+ * row id -> partner ids. Approving one row of a pair approves its pending
+ * partner, so the pair is one decision and is ready only when both rows are.
+ */
+const pendingPartners = async (manager: EntityManager, rowIds: number[]): Promise<Map<number, number[]>> => {
+  const out = new Map<number, number[]>();
+  if (!rowIds.length) return out;
+  const rows: Array<{ id: number; partner: number }> = await manager.query(
+    `SELECT e.pk_id AS id, p.pk_id AS partner
+       FROM emission e JOIN emission p ON (p.pk_id = e.fera_linked_id OR p.fera_linked_id = e.pk_id) AND p.pk_id <> e.pk_id
+      WHERE e.pk_id = ANY($1) AND e.status = 'pending' AND p.status = 'pending'`,
+    [rowIds],
+  );
+  for (const r of rows) {
+    const list = out.get(Number(r.id)) ?? [];
+    list.push(Number(r.partner));
+    out.set(Number(r.id), list);
+  }
+  return out;
+};
+
+/**
+ * Computes the checks of the pending rows among `rowIds` without storing
+ * them. Their pending FERA partners are computed too, and each row of a
+ * pending pair carries what holds either row: the pair is approved together.
+ */
 export const computeChecksFor = async (manager: EntityManager, rowIds: number[]): Promise<Map<number, RowChecks>> => {
+  const requested = ids(rowIds);
+  const partners = await pendingPartners(manager, requested);
+  const all = ids([...requested, ...[...partners.values()].flat()]);
+  // A partner's own partners (a twin linked both ways) join the pair as well.
+  for (const [id, list] of await pendingPartners(manager, all.filter((id) => !partners.has(id)))) partners.set(id, list);
+  const own = await computeOwnChecks(manager, all);
+  const out = new Map<number, RowChecks>();
+  for (const [id, checks] of own) {
+    const group = [checks, ...(partners.get(id) ?? []).map((p) => own.get(p)).filter((c): c is RowChecks => !!c)];
+    const held = CHECK_IDS.filter((check) => group.some((c) => c.held.includes(check)));
+    out.set(id, { ready: held.length === 0, held });
+  }
+  return out;
+};
+
+/** Each pending row's checks on its own, without its FERA partner. */
+const computeOwnChecks = async (manager: EntityManager, rowIds: number[]): Promise<Map<number, RowChecks>> => {
   const out = new Map<number, RowChecks>();
   const rows = await loadRows(manager, ids(rowIds));
   if (!rows.length) return out;
@@ -249,5 +292,29 @@ export const refreshChecksSafely = async (manager: EntityManager, rowIds: number
   } catch (error) {
     if (inTx) await manager.query("ROLLBACK TO SAVEPOINT s3_review_checks").catch(() => undefined);
     log.error("Scope3Review", "Check refresh failed", { ids: ids(rowIds).slice(0, 50), error: (error as Error).message });
+  }
+};
+
+/**
+ * Re-checks every pending monthly row of a company, 1,000 at a time (after
+ * its change limit changes, which moves WITHIN_THRESHOLD). Never throws.
+ */
+export const refreshCompanyChecksSafely = async (manager: EntityManager, companyId: number): Promise<void> => {
+  let after = 0;
+  try {
+    for (;;) {
+      const rows: Array<{ pk_id: number }> = await manager.query(
+        `SELECT e.pk_id FROM emission e JOIN site s ON s.site_id = e.site_id
+          WHERE s.company_id = $1 AND e.status = 'pending' AND e.reporting_period = 'monthly' AND e.pk_id > $2
+          ORDER BY e.pk_id LIMIT 1000`,
+        [companyId, after],
+      );
+      if (!rows.length) return;
+      const batch = rows.map((r) => Number(r.pk_id));
+      after = batch[batch.length - 1];
+      await refreshChecksSafely(manager, batch);
+    }
+  } catch (error) {
+    log.error("Scope3Review", "Company check refresh failed", { companyId, after, error: (error as Error).message });
   }
 };

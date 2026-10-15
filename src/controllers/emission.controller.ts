@@ -1825,9 +1825,11 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
 
     // Stored checks can be stale (a lowered change limit, a factor added
     // since), so only_ready recomputes them now and decides on the fresh ones.
+    // A row of a pending FERA pair carries what holds either row (the pair
+    // is approved together below), so a held twin or parent is never approved.
     const fresh = onlyReady ? await refreshChecks(AppDataSource.manager, pending.map((e) => e.pk_id)) : null;
     const checksNow = (e: Emission) => fresh?.get(e.pk_id) ?? e.checks;
-    const skipped = onlyReady
+    let skipped = onlyReady
       ? pending.filter((e) => checksNow(e)?.ready !== true).map((e) => ({ id: e.pk_id, held: checksNow(e)?.held ?? [] }))
       : [];
     const emissionsToApprove = onlyReady ? pending.filter((e) => checksNow(e)?.ready === true) : pending;
@@ -1867,6 +1869,8 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         .execute();
       if (userId) await repo.query(`UPDATE emission SET reviewed_by = $1 WHERE pk_id = ANY($2)`, [userId, feraIds]);
     }
+    // Never report as skipped a row the FERA cascade approved.
+    skipped = skipped.filter((s) => !feraIds.includes(s.id));
 
     // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
