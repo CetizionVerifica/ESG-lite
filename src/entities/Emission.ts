@@ -1,4 +1,4 @@
-import type { Scope3Sub } from "../scope3/contracts/scope3Sub";
+import type { Scope3Sub } from "../scope3/contracts/ghgCategory";
 import {
   Entity,
   PrimaryGeneratedColumn,

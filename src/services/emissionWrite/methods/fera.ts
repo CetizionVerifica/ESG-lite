@@ -14,15 +14,26 @@
  * category whose name or global name is the activity's, uploaded as
  * kgCO₂e per kWh consumed (life-cycle grid factor × loss rate). Nothing here
  * changes the total of a twin that exists today (ci/golden).
+ *
+ * S3-0 moved `feraTwinFor` here from compute.ts; compute.ts re-exports it.
  */
 import type { EmissionFactor } from "../../../entities/EmissionFactor";
 import { pickActivityValue } from "../../activityValue";
 import { getConversionFactor, unitsMatchExact } from "../units";
 import { ghgNumberFromName, scopeNumber } from "../../../scope3/factors/backfill";
-import type { CategoryContext, EngineIssue, FeraTwin } from "../compute";
-import type { Scope3Sub } from "../../../scope3/contracts/scope3Sub";
+import type { CategoryContext, EngineIssue } from "../compute";
+import type { Scope3Sub } from "../../../scope3/contracts/ghgCategory";
 
 export type { Scope3Sub };
+
+export interface FeraTwin {
+  category_id: number;
+  factor: EmissionFactor;
+  activityValue: number;
+  total: number;
+  /** Category 3 sub-activity (S3-7): 3a, 3b or 3c. */
+  scope3_sub: Scope3Sub;
+}
 
 /** Factor types a FERA twin may use (01-contracts §2: Cat 3 → wtt, td_loss). */
 const FERA_FACTOR_TYPES = ["wtt", "td_loss"] as const;
@@ -66,6 +77,18 @@ const twinWith = (ctx: CategoryContext, factor: EmissionFactor, activity_data: R
     total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100,
     scope3_sub,
   };
+};
+
+/**
+ * The 3a/3b FERA twin a row spawns, or null (no FERA category, no factor for
+ * the year, no quantity, or a unit that can't be converted). Never for spec
+ * categories. Mode-lock on the FERA category is the caller's check. The same
+ * exact lookup as before S3-7, minus td_loss factors (those make the 3c twin).
+ */
+export const feraTwinFor = (ctx: CategoryContext, emissionCategory: string, activity_data: Record<string, any>, activity_unit: string | null | undefined, targetYear: number): FeraTwin | null => {
+  if (!ctx.fera || ctx.spec || !emissionCategory) return null;
+  const factor = upstreamFeraFactor(ctx, emissionCategory, targetYear);
+  return factor ? twinWith(ctx, factor, activity_data, activity_unit, feraSubFor(ctx.scope)) : null;
 };
 
 /**

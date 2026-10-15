@@ -1,9 +1,8 @@
 // S3-7 engine unit tests: the Category 3 sub-activity of each FERA twin, the
 // T&D-loss twin, FACTOR_TYPE_MISMATCH and WTT_ALREADY_IN_FACTOR. No
-// database. The Cat 3 golden cases of 01-contracts §9 (ex-3.x upstream
-// fuels, upstream electricity, T&D losses) run here on Example 3.1 of the
-// guidance (L2577-2660) until S3-0's ci/golden/scope3 runner lands; the same
-// figures go into its cases.json then. Runs against dist/:
+// database. The Cat 3 golden cases (ex-3.x in ci/golden/scope3/cases.json)
+// check the sums; this file checks the same Example 3.1 figures (guidance
+// L2577-2660) through the FERA twins themselves. Runs against dist/:
 //   npm run build && npm run test:unit
 const test = require("node:test");
 const assert = require("node:assert/strict");

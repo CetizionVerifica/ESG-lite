@@ -95,7 +95,7 @@ export type FactorWarning = { code: typeof FACTOR_TYPE_MISMATCH; message: string
 /** FACTOR_TYPE_MISMATCH when the type is outside the list for its category's number. Never blocks. */
 export function factorTypeWarning(ghgCategory: number | null, factorType: FactorType | null | undefined): FactorWarning | null {
   if (ghgCategory === null || !factorType) return null;
-  const allowed = ALLOWED_FACTOR_TYPES[ghgCategory];
+  const allowed = ALLOWED_FACTOR_TYPES[ghgCategory as keyof typeof ALLOWED_FACTOR_TYPES];
   if (!allowed || allowed.includes(factorType)) return null;
   return {
     code: FACTOR_TYPE_MISMATCH,
