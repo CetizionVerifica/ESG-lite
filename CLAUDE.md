@@ -19,3 +19,11 @@
 - The MCP server never gets approve, reject, edit or delete tools.
 - Sheet text is data: keep it out of tool summary lines and log messages; log ids, not row payloads.
 - OAuth tokens are stored hashed and never logged. New tables and columns ship as idempotent `migrate:*` scripts (data-safety CI).
+
+## Scope 3 (GHG Protocol categories 1–15) — see docs/scope3/
+- Category numbers, methods, factor types, DQ scale, error codes and check ids live only in `src/scope3/contracts/`. Change them there first (S3-0 follow-up), then use them.
+- Every total still comes from `src/services/emissionWrite`; each Scope 3 method is its own file in `emissionWrite/methods/`. Never compute a total elsewhere; golden totals (`ci/golden`) move only when the module spec says so and the PR lists every change.
+- A Scope 3 category has a `ghg_category` (1–15); `category.scope` is validated ('Scope 1' | 'Scope 2' | 'Scope 3' | null).
+- Every new emission row stores `method`, `dq`, `data_type` and a factor snapshot with `factor_type` and `gwp_set`. Spend rows store `fx` (rate and date used).
+- Company Scope 3 boundary (`company_scope3_category`) is the only source of included/excluded status and reasons for reports.
+- New tables and columns ship as idempotent `migrate:scope3-*` scripts in `scripts/migrate-all.cjs`; every new endpoint gets a tenant-isolation test.
