@@ -5,11 +5,8 @@
  * schema) adds the migration and the endpoint; it imports the schema from
  * here and never redefines it.
  *
- * Left out until an S3-0 follow-up gives their fields (§10 names them
- * without a shape): the `POST /scope3/extrapolate` body, `PUT
- * /scope3/screening/inputs`, the commuting survey, sold-products and
- * investments plan bodies, `GET /reports/ghg/scope3` response, and the S3-15
- * check and history endpoints.
+ * The §5 request bodies and the Scope 3 report row come from the module
+ * specs' "S3-0 follow-up" notes, folded into 01-contracts.md §4–§6.
  */
 import { z } from "zod";
 import { GhgCategoryNumberSchema, MethodSchema, Scope3SubSchema, ScopeSchema } from "./ghgCategory";
@@ -268,6 +265,9 @@ export const SiteLeaseSchema = z.object({
   lease_type: LeaseTypeSchema.nullable().optional(),
 });
 
+/** `company.home_site_id`: company-level rows (Cat 15, franchises) go on the head-office site (§4). */
+export const CompanyHomeSiteSchema = z.object({ home_site_id: id.nullable() });
+
 export const INVESTMENT_TYPES = ["equity", "debt", "project"] as const;
 
 /** `investment`, with the §10 revenue, currency and EEIO sector fields. */
@@ -285,6 +285,11 @@ export const InvestmentSchema = z.object({
   eeio_sector: z.string().max(100).nullable().optional(),
   sector_split: z.record(z.string(), z.number().min(0).max(1)).nullable().optional(),
 });
+
+const yearType = z.enum(["CY", "FY"]);
+
+/** `POST /scope3/investments/plan` → an import plan, one yearly Cat 15 row per investment (S3-11). */
+export const InvestmentsPlanBodySchema = z.object({ site_id: id, year, year_type: yearType });
 
 // ---------------------------------------------------------------------------
 // §4 / §10 Sold products (S3-10)
@@ -312,6 +317,43 @@ export const ProductScope3FieldsSchema = z.object({
   eol_mix: EolMixSchema.nullable().optional(),
 });
 
+/** `PUT /scope3/products/:id/use-profile`. */
+export const PutUseProfileBodySchema = ProductScope3FieldsSchema;
+
+/** `POST /scope3/sold-products/plan` → an import plan (Cat 10, 11, 12). */
+export const SoldProductsPlanBodySchema = z.object({
+  site_id: id,
+  year,
+  year_type: yearType,
+  ghg_category: z.union([z.literal(10), z.literal(11), z.literal(12)]),
+});
+
+// ---------------------------------------------------------------------------
+// §5 Commuting survey (S3-9)
+// ---------------------------------------------------------------------------
+
+export const COMMUTING_SURVEY_MAX_RESPONSES = 20_000;
+
+/** `POST /scope3/commuting/surveys`: `ref` is the client's own code, never a name; responses are not stored. */
+export const CommutingSurveyBodySchema = z.object({
+  site_id: id,
+  year,
+  year_type: yearType,
+  total_employees: z.number().int().positive(),
+  responses: z
+    .array(
+      z.object({
+        ref: z.string().max(100),
+        mode: text(100),
+        one_way_km: nonNegative,
+        days_per_week: z.number().min(0).max(7),
+        weeks_per_year: z.number().min(0).max(53),
+      }),
+    )
+    .min(1)
+    .max(COMMUTING_SURVEY_MAX_RESPONSES),
+});
+
 // ---------------------------------------------------------------------------
 // §4 / §10 Base year and recalculation (S3-14)
 // ---------------------------------------------------------------------------
@@ -332,6 +374,7 @@ export const CompanyBaseYearSchema = z.object({
 export const PutBaseYearBodySchema = CompanyBaseYearSchema.omit({ company_id: true, snapshot: true });
 
 export const RECALCULATION_REASONS = ["methodology", "data_quality", "structural", "error"] as const;
+export const RECALCULATION_STATUSES = ["proposed", "approved", "dismissed"] as const;
 
 /** `recalculation_event`, with the §10 status, note, before and after. */
 export const RecalculationEventSchema = z.object({
@@ -342,7 +385,7 @@ export const RecalculationEventSchema = z.object({
   delta_tco2e: z.number(),
   approved_by: id.nullable().optional(),
   created_at: z.string().optional(),
-  status: z.string().max(50).nullable().optional(),
+  status: z.enum(RECALCULATION_STATUSES).nullable().optional(),
   note: z.string().max(4000).nullable().optional(),
   before: z.unknown().optional(),
   after: z.unknown().optional(),
@@ -385,6 +428,21 @@ export const LockPeriodBodySchema = z.object({ site_id: id.nullable().optional()
 /** `POST /periods/unlock` `{reason}` (`UNLOCK_REASON_REQUIRED`). */
 export const UnlockPeriodBodySchema = LockPeriodBodySchema.extend({ reason: text(2000) });
 
+/** `GET /user/emissions?ready=1|0`. */
+export const ReadyFilterSchema = z.object({ ready: z.enum(["0", "1"]).optional() });
+
+/** `PUT /user/emissions/bulk-approve` `{ids, only_ready}`: rows that aren't ready are skipped and returned. */
+export const BulkApproveBodySchema = z.object({ ids: z.array(id).min(1), only_ready: z.boolean().optional() });
+
+/** `GET /user/emissions/:id/history?months=6`. */
+export const EmissionHistoryQuerySchema = z.object({ months: z.coerce.number().int().min(1).max(24).default(6) });
+
+/** `POST/DELETE /user/my-month/nothing`. */
+export const NothingThisMonthBodySchema = z.object({ site_id: id, category_id: id, month: isoDate });
+
+/** Notification kind for a submitted draft (S3-15). */
+export const DRAFT_SUBMITTED_NOTIFICATION = "draft_submitted";
+
 /** §10 `nothing_this_month`: a contributor's "Nothing this month" for a site, category and period. */
 export const NothingThisMonthSchema = z.object({
   site_id: id,
@@ -399,3 +457,97 @@ export const NothingThisMonthSchema = z.object({
 
 /** `GET /scope3/screening?year=`. */
 export const ScreeningQuerySchema = z.object({ year: z.coerce.number().int().min(1990).max(2100) });
+
+export const SCREENING_BASES = ["spend", "headcount", "revenue", "mass_sold", "other"] as const;
+
+/** `scope3_screening_input`; unique (company_id, year, ghg_category, basis). */
+export const ScreeningInputSchema = z.object({
+  company_id: id,
+  year,
+  ghg_category: GhgCategoryNumberSchema,
+  basis: z.enum(SCREENING_BASES),
+  amount: nonNegative,
+  currency: currency.nullable().optional(),
+  eeio_sector: z.string().max(100).nullable().optional(),
+  note: z.string().max(2000).nullable().optional(),
+  updated_by: id.nullable().optional(),
+  updated_at: z.string().optional(),
+});
+
+/** `PUT /scope3/screening/inputs`. */
+export const PutScreeningInputsBodySchema = z.object({
+  year,
+  inputs: z.array(ScreeningInputSchema.omit({ company_id: true, year: true, updated_by: true, updated_at: true })),
+});
+
+/** `POST /scope3/extrapolate` (`EXTRAPOLATION_BASIS_INVALID` for coverage outside 1–99, no source rows, no production). */
+export const ExtrapolateBodySchema = z.object({
+  ghg_category: GhgCategoryNumberSchema,
+  site_id: id,
+  year,
+  year_type: yearType,
+  basis: z.enum(["coverage", "intensity"]),
+  coverage_pct: z.number().min(1).max(99).optional(),
+  source_filter: z.record(z.string(), z.unknown()).optional(),
+  output_site_ids: z.array(id).optional(),
+});
+
+/** python_AI_service `POST /v1/scope3/eeio-sector` (S3-12). */
+export const EeioSectorRequestSchema = z.object({
+  lines: z.array(z.object({ description: z.string(), supplier: z.string().nullable().optional(), amount: z.number(), currency })).min(1),
+  sectors: z.array(z.object({ code: z.string(), name: z.string() })).min(1),
+});
+export const EeioSectorResponseSchema = z.object({
+  lines: z.array(z.object({ suggestions: z.array(z.object({ code: z.string(), confidence: z.number().min(0).max(100) })).max(3) })),
+});
+
+// ---------------------------------------------------------------------------
+// §5 GHG Scope 3 report (S3-13)
+// ---------------------------------------------------------------------------
+
+/** One row of `GET /reports/ghg/scope3`: a category 1–15, or "Unmapped" (`n: null`). */
+export const Scope3ReportRowSchema = z.object({
+  n: GhgCategoryNumberSchema.nullable(),
+  name: z.string(),
+  direction: z.enum(["upstream", "downstream"]).nullable(),
+  status: BoundaryStatusSchema.nullable(),
+  reason: z.string().nullable(),
+  method_note: z.string().nullable(),
+  tco2e: z.number(),
+  share_pct: z.number(),
+  methods: z.partialRecord(MethodSchema, z.number()),
+  primary_pct: z.number(),
+  value_chain_pct: z.number(),
+  proxy_pct: z.number(),
+  dq: z.object({ overall: z.number().nullable(), good_pct: z.number(), fair_pct: z.number(), poor_pct: z.number() }),
+  datasets: z.array(z.object({ dataset: z.string(), version: z.string().nullable(), factor_type: FactorTypeSchema })),
+  gwp_sets: z.array(GwpSetSchema),
+  /** null = "Not tracked" until `emission.biogenic_kg` is written. */
+  biogenic_tco2e: z.number().nullable(),
+  mapped_categories: z.array(z.object({ category_id: id, name: z.string() })),
+});
+export type Scope3ReportRow = z.infer<typeof Scope3ReportRowSchema>;
+
+// ---------------------------------------------------------------------------
+// §4 Audit
+// ---------------------------------------------------------------------------
+
+/** `audit_log.entity_type` values the Scope 3 modules write (the type accepts any `scope3_*`). */
+export const SCOPE3_AUDIT_ENTITY_TYPES = [
+  "scope3_boundary",
+  "scope3_base_year",
+  "scope3_recalculation",
+  "scope3_period_lock",
+  "scope3_supplier_factor",
+] as const;
+
+// ---------------------------------------------------------------------------
+// §6 Form method options (S3-3 column, used by S3-8 to S3-11)
+// ---------------------------------------------------------------------------
+
+/** `column_config.method_options`: the methods a form offers, most specific first, each with the units it shows. */
+export const MethodOptionsSchema = z
+  .array(z.object({ method: MethodSchema.exclude(["unknown"]), units: z.array(text(50)).min(1) }))
+  .min(1)
+  .refine((opts) => new Set(opts.map((o) => o.method)).size === opts.length, "A method appears twice.");
+export type MethodOptions = z.infer<typeof MethodOptionsSchema>;

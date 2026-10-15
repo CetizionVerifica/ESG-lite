@@ -148,3 +148,38 @@ test("schemas: boundary reasons, GHG numbers only for Scope 3, spend factors, su
   assert.equal(ok(schemas.EmissionStatusSchema, "draft"), true);
   assert.equal(ok(schemas.EmissionScope3FieldsSchema, { method: "spend_based", total_kgco2e: "1234.5678", gas_kg: { CO2: 10 } }), true);
 });
+
+test("schemas for the §5 bodies and shapes folded in from §10 and the module specs", () => {
+  assert.equal(ok(schemas.MethodOptionsSchema, [{ method: "distance_based", units: ["tonne.km"] }, { method: "spend_based", units: ["USD"] }]), true);
+  assert.equal(ok(schemas.MethodOptionsSchema, [{ method: "spend_based", units: ["USD"] }, { method: "spend_based", units: ["EUR"] }]), false);
+  assert.equal(ok(schemas.MethodOptionsSchema, [{ method: "unknown", units: ["kg"] }]), false);
+
+  const ex = { ghg_category: 4, site_id: 1, year: 2026, year_type: "CY", basis: "coverage", coverage_pct: 85 };
+  assert.equal(ok(schemas.ExtrapolateBodySchema, ex), true);
+  assert.equal(ok(schemas.ExtrapolateBodySchema, { ...ex, coverage_pct: 100 }), false);
+  assert.equal(ok(schemas.ExtrapolateBodySchema, { ...ex, basis: "guess" }), false);
+
+  const survey = { site_id: 1, year: 2026, year_type: "CY", total_employees: 3, responses: [{ ref: "A1", mode: "Rail", one_way_km: 10, days_per_week: 5, weeks_per_year: 48 }] };
+  assert.equal(ok(schemas.CommutingSurveyBodySchema, survey), true);
+  assert.equal(ok(schemas.CommutingSurveyBodySchema, { ...survey, responses: [] }), false);
+  assert.equal(ok(schemas.CommutingSurveyBodySchema, { ...survey, responses: [{ ...survey.responses[0], days_per_week: 8 }] }), false);
+
+  assert.equal(ok(schemas.SoldProductsPlanBodySchema, { site_id: 1, year: 2026, year_type: "FY", ghg_category: 12 }), true);
+  assert.equal(ok(schemas.SoldProductsPlanBodySchema, { site_id: 1, year: 2026, year_type: "FY", ghg_category: 9 }), false);
+  assert.equal(ok(schemas.InvestmentsPlanBodySchema, { site_id: 1, year: 2026, year_type: "CY" }), true);
+  assert.equal(ok(schemas.PutScreeningInputsBodySchema, { year: 2026, inputs: [{ ghg_category: 1, basis: "spend", amount: 1e6, currency: "USD" }] }), true);
+  assert.equal(ok(schemas.BulkApproveBodySchema, { ids: [1, 2], only_ready: true }), true);
+  assert.equal(ok(schemas.NothingThisMonthBodySchema, { site_id: 1, category_id: 2, month: "2026-09-01" }), true);
+  assert.equal(schemas.EmissionHistoryQuerySchema.parse({}).months, 6);
+  assert.equal(ok(schemas.RecalculationEventSchema, { company_id: 1, reason: "error", affected_years: [2023], delta_tco2e: -1, status: "maybe" }), false);
+
+  const row = {
+    n: 4, name: "Upstream transportation and distribution", direction: "upstream", status: "included", reason: null, method_note: null,
+    tco2e: 5, share_pct: 100, methods: { distance_based: 100 }, primary_pct: 0, value_chain_pct: 0, proxy_pct: 0,
+    dq: { overall: 2, good_pct: 0, fair_pct: 100, poor_pct: 0 }, datasets: [{ dataset: "DEFRA", version: "2025", factor_type: "life_cycle" }],
+    gwp_sets: ["AR6"], biogenic_tco2e: null, mapped_categories: [{ category_id: 7, name: "Inbound freight" }],
+  };
+  assert.equal(ok(schemas.Scope3ReportRowSchema, row), true);
+  assert.equal(ok(schemas.Scope3ReportRowSchema, { ...row, n: null, direction: null, status: null, name: "Unmapped" }), true);
+  for (const t of schemas.SCOPE3_AUDIT_ENTITY_TYPES) assert.match(t, /^scope3_/);
+});
