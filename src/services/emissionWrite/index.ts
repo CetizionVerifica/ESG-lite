@@ -52,6 +52,8 @@ export interface PreparedEntry {
   factor: EmissionFactor | null;
   computed: Computed | null;
   fera: FeraTwin | null;
+  /** Never block (01-contracts §7): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING. Typed entries return them too (S3-4). */
+  warnings: EngineIssue[];
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -67,6 +69,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   let unit = input.activity_data_unit || (ctx.formUnits?.length === 1 ? ctx.formUnits[0] : input.activity_data_unit);
   let factor: EmissionFactor | null = null;
   let computed: Computed | null = null;
+  const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
   if (activity_data.emission_category && unit) {
@@ -78,6 +81,9 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       };
     }
     factor = match.factor;
+    if (match.fallback_year) {
+      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
+    }
     const result = computeTotal(ctx, factor, activity_data, unit);
     if (!result.ok) return result;
     computed = result.computed;
@@ -87,13 +93,20 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   let fera: FeraTwin | null = null;
   if (activity_data.emission_category) {
     fera = feraTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
+    // The site has a FERA category and this activity has FERA factors, but none for the year: say so (S3-4).
+    if (!fera && ctx.fera && !ctx.spec && ctx.fera.factors.knows(activity_data.emission_category) && !ctx.fera.factors.findExactForYear(activity_data.emission_category, targetYear)) {
+      warnings.push({
+        code: "FERA_FACTOR_MISSING",
+        message: `No ${targetYear} FERA factor for "${activity_data.emission_category}", so no fuel- and energy-related (Category 3) row was added.`,
+      });
+    }
     if (fera) {
       const conflict = await checks.modeLock(input.site_id, fera.category_id, input.period);
       if (conflict) fera = null; // the twin respects the lock on its own category; skipped, never fatal
     }
   }
 
-  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera } };
+  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, warnings } };
 };
 
 export interface AuditInfo {
@@ -311,6 +324,9 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
       errors.push(issue(result.issue.code, result.issue.message, result.issue.field));
     } else if (!result.entry.computed || result.entry.computed.activityValue <= 0) {
       errors.push(issue("MISSING_VALUE", "No quantity greater than 0 was found for this row.", "activity_value"));
+    } else {
+      // FACTOR_FALLBACK_YEAR is already on the row from the resolution above.
+      for (const w of result.entry.warnings) if (w.code === "FERA_FACTOR_MISSING") issues.push(issue(w.code, w.message));
     }
 
     // Duplicates: saved rows (monthly only, as a yearly batch has many rows per activity) and this plan.

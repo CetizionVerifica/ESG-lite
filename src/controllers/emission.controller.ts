@@ -568,6 +568,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       message: "Emission created successfully",
       emission: savedEmission,
       fera_emission: savedFera,
+      // Never block (S3-4): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING, shown on the result line.
+      warnings: prepared.entry.warnings,
     });
   } catch (error) {
     console.error("Create emission error:", error);
