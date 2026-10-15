@@ -6,6 +6,8 @@ import { Site } from "../entities/Site";
 import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
 import { pcfDataChanged } from "../pcf/staleness";
 import { normaliseScope, SCOPE_INVALID_MESSAGE } from "../utils/categoryScope";
+import { resolveCategoryGhgInput } from "../scope3/taxonomy/categoryInput";
+import { Scope3Error } from "../scope3/contracts/errors";
 
 const repo = AppDataSource.getRepository(Category);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -109,12 +111,22 @@ export const createCategory = async (req: Request, res: Response) => {
       targetSiteIds = sites.map((s) => s.site_id);
     }
 
+    // 3b. GHG Protocol category number on Scope 3 categories (S3-1).
+    let ghgCategory: number | null | undefined;
+    try {
+      ghgCategory = await resolveCategoryGhgInput({ scope, ghg_category: req.body.ghg_category, isNew: true });
+    } catch (err) {
+      if (err instanceof Scope3Error) return res.status(err.status).json(err.toBody());
+      throw err;
+    }
+
     // 4️⃣ Create category
     const category = repo.create({
       category_name: category_name.trim(),
       scope: normalisedScope as any, // null = no scope, as before
     });
 
+    if (ghgCategory != null) category.ghg_category = ghgCategory;
     await repo.save(category);
 
     // 5️⃣ Assign to the selected sites and propagate to their users so the
@@ -203,7 +215,7 @@ export const updateCategory = async (req: Request, res: Response) => {
     const { category_name, scope, site_ids } = req.body;
 
     // 1️⃣ Validate input
-    if (!category_name && !scope && site_ids === undefined) {
+    if (!category_name && !scope && site_ids === undefined && req.body.ghg_category === undefined) {
       return res.status(400).json({
         message: "At least one field (category_name, scope or site_ids) is required",
       });
@@ -261,6 +273,22 @@ export const updateCategory = async (req: Request, res: Response) => {
       }
     }
 
+    // 3c. GHG Protocol category number (S3-1): checked against the scope the
+    // category will have after this request.
+    let ghgCategory: number | null | undefined;
+    try {
+      ghgCategory = await resolveCategoryGhgInput({
+        scope: scope !== undefined ? scope : category.scope,
+        ghg_category: req.body.ghg_category,
+        isNew: false,
+        current: category.ghg_category ?? null,
+      });
+    } catch (err) {
+      if (err instanceof Scope3Error) return res.status(err.status).json(err.toBody());
+      throw err;
+    }
+    if (ghgCategory !== undefined) category.ghg_category = ghgCategory;
+
     // 4️⃣ Update category
     const currentSiteIds = (category.sites || []).map((s) => s.site_id);
     if (category_name) category.category_name = category_name.trim();
@@ -275,7 +303,11 @@ export const updateCategory = async (req: Request, res: Response) => {
       await manager.update(
         Category,
         { category_id: category.category_id },
-        { category_name: category.category_name, scope: category.scope ?? (null as any) }
+        {
+          category_name: category.category_name,
+          scope: category.scope ?? (null as any),
+          ghg_category: category.ghg_category ?? (null as any),
+        }
       );
 
       // 5️⃣ Replace the site assignment when site_ids was sent.

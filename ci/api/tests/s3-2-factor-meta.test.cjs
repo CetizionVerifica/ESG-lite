@@ -75,7 +75,8 @@ test("FACTOR_TYPE_MISMATCH is a warning once the category has a GHG number", asy
   if (!hasColumn) return t.skip("category.ghg_category is added by S3-1");
   await withDb((db) => db.query(`UPDATE category SET ghg_category = 6 WHERE category_id = 3`));
   try {
-    const res = await create({ year: 2014, factor_type: "wtt" });
+    // Its own name, so the factor_type=wtt list test below still sees one row.
+    const res = await create({ year: 2014, factor_type: "wtt", emission_category_name: "S3-2 mismatch check" });
     assert.equal(res.status, 201, JSON.stringify(res.json));
     created.push(res.json.emissionFactor.emission_factor_id);
     assert.equal(res.json.warnings[0].code, "FACTOR_TYPE_MISMATCH");
