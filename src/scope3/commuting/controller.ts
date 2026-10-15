@@ -4,7 +4,7 @@ import { Scope3Error } from "../contracts/errors";
 import { ImportError } from "../../imports/errors";
 import { BoundaryError } from "../boundary/errors";
 import { companyForRequest } from "../boundary/access";
-import { planSurvey } from "./survey";
+import { listSurveySites, planSurvey } from "./survey";
 
 type Handler = (req: AuthRequest, res: Response) => Promise<unknown>;
 
@@ -28,4 +28,10 @@ export const postCommutingSurvey = handle("plan commuting survey", async (req, r
   const { company_id: _ignored, ...body } = req.body ?? {};
   const result = await planSurvey(companyId, { userId: Number(req.user?.userId) || 0, role: req.user?.role }, body);
   res.status(result.plan ? 201 : 200).json(result);
+});
+
+/** GET /scope3/commuting/sites: the caller's sites with a Category 7 category. Manager and above. */
+export const getCommutingSites = handle("list commuting sites", async (req, res) => {
+  const companyId = await companyForRequest(req);
+  res.json(await listSurveySites(companyId, { userId: Number(req.user?.userId) || 0, role: req.user?.role }));
 });

@@ -144,6 +144,22 @@ test("survey roles and tenant isolation", async () => {
   assert.equal(cfg.rows[0].n, 0);
 });
 
+test("commuting sites: the caller's own sites with Category 7, roles and tenant isolation", async () => {
+  const manager = await call("GET", "/scope3/commuting/sites", "manager");
+  assert.equal(manager.status, 200);
+  assert.deepEqual(manager.json.sites.map((s) => [s.site_id, s.category_id]), [[1, CAT7]]);
+  const other = await call("GET", "/scope3/commuting/sites", "otherManager");
+  assert.equal(other.status, 200);
+  assert.deepEqual(other.json.sites.map((s) => s.site_id), [3]);
+  // A company 2 token asking for company 1 still gets its own company.
+  const cross = await call("GET", "/scope3/commuting/sites?company_id=1", "otherManager");
+  assert.ok(cross.status === 404 || !cross.json.sites.some((s) => s.site_id === 1));
+  assert.equal((await call("GET", "/scope3/commuting/sites", "user")).status, 403);
+  assert.equal((await call("GET", "/scope3/commuting/sites", "superadmin")).status, 400);
+  assert.deepEqual((await call("GET", "/scope3/commuting/sites?company_id=1", "superadmin")).json.sites.map((s) => s.site_id), [1]);
+  assert.equal((await call("GET", "/scope3/commuting/sites")).status, 401);
+});
+
 test("survey validation: > 20,000 responses, bad numbers, more respondents than staff, no Category 7", async () => {
   const many = Array.from({ length: 20001 }, (_, i) => ({ ref: `r${i}`, mode: "Rail", one_way_km: 1, days_per_week: 5, weeks_per_year: 46 }));
   const big = await call("POST", "/scope3/commuting/surveys", "manager", survey({ responses: many, total_employees: 30000 }));

@@ -1,6 +1,7 @@
 /**
  * S3-9 · the yearly commuting survey → one import plan per site and year.
  *
+ *   GET  /scope3/commuting/sites    the caller's sites with Category 7
  *   POST /scope3/commuting/surveys
  *     {site_id, year, year_type, total_employees, responses: [{ref, mode, one_way_km, days_per_week, weeks_per_year}]}
  *
@@ -156,6 +157,31 @@ async function category7Of(siteId: number): Promise<number | null> {
     [siteId],
   );
   return rows.length ? Number(rows[0].category_id) : null;
+}
+
+/**
+ * GET /scope3/commuting/sites: the caller's sites with a Category 7 category,
+ * for the survey page's site picker (Manager and above; own sites only).
+ */
+export async function listSurveySites(companyId: number, user: TokenUser) {
+  if (!SURVEY_ROLES.has(user.role)) throw new BoundaryError("SCOPE3_FORBIDDEN");
+  const rows: any[] = await AppDataSource.query(
+    `SELECT s.site_id, s.name, MIN(c.category_id) AS category_id
+       FROM site s
+       JOIN site_categories sc ON sc.site_id = s.site_id
+       JOIN category c ON c.category_id = sc.category_id AND c.ghg_category = 7
+      WHERE s.company_id = $1
+      GROUP BY s.site_id, s.name
+      ORDER BY s.name, s.site_id`,
+    [companyId],
+  );
+  const allowed = await accessibleSiteIds(user.userId, user.role);
+  return {
+    company_id: companyId,
+    sites: rows
+      .filter((r) => !allowed || allowed.has(Number(r.site_id)))
+      .map((r) => ({ site_id: Number(r.site_id), name: String(r.name), category_id: Number(r.category_id) })),
+  };
 }
 
 /** Validation issues without input values (refs and modes stay out of responses' details and logs). */
