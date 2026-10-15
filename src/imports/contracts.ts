@@ -92,6 +92,31 @@ export const ImportRowMetaSchema = z
   .strip();
 export type ImportRowMeta = z.infer<typeof ImportRowMetaSchema>;
 
+/**
+ * S3-9: a commuting-survey row scaled from a sample of employees. Stored as
+ * `extra_data.survey` on commit; S3-12 backfills `emission.proxy` from it
+ * (`{basis: "sample", coverage_pct}`). Counts only: no answers, no names.
+ */
+export const ImportRowSurveySchema = z
+  .object({
+    basis: z.literal("sample"),
+    respondents: positiveInt,
+    total_employees: positiveInt,
+    coverage_pct: z.number().min(0).max(100),
+  })
+  .strip();
+export type ImportRowSurvey = z.infer<typeof ImportRowSurveySchema>;
+
+/**
+ * Fields only ESGLite's own services may set on a row (today `survey`, written by the S3-9
+ * commuting survey). Public entry points (POST/PATCH /imports/plans, MCP) drop them so a
+ * client can't mark its own rows as survey-scaled.
+ */
+export function withoutServerFields<T extends { survey?: unknown }>(row: T): Omit<T, "survey"> {
+  const { survey: _s, ...rest } = row;
+  return rest;
+}
+
 /** The row's fields without the value-or-fields rule; `ImportRowSchema` adds it. */
 export const ImportRowShape = z
   .object({
@@ -118,6 +143,8 @@ export const ImportRowShape = z
      * 0.8); it never changes a factor, unit or total.
      */
     meta: ImportRowMetaSchema.optional(),
+    /** S3-9 survey scaling (ImportRowSurveySchema); stored in extra_data.survey. */
+    survey: ImportRowSurveySchema.optional(),
   })
   .strip();
 
