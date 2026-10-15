@@ -7,6 +7,7 @@ import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { UserRole } from "../types/type";
+import { mixedCompaniesError } from "../utils/companyScope";
 
 const repo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -104,6 +105,10 @@ const profileFields = (body: any): { error?: string; fields: Partial<User> } => 
       return { error: "Invalid timezone. Use an IANA name such as Asia/Dubai.", fields };
     }
     fields.timezone = timezone;
+  }
+  if (body.is_internal !== undefined) {
+    if (typeof body.is_internal !== "boolean") return { error: "is_internal must be true or false", fields };
+    fields.is_internal = body.is_internal;
   }
   if (body.category_ids !== undefined && !Array.isArray(body.category_ids)) {
     return { error: "category_ids must be an array", fields };
@@ -208,8 +213,13 @@ export const createUser = async (req: Request, res: Response) => {
     if ((role === UserRole.MANAGER || role === UserRole.USER) && site_ids && Array.isArray(site_ids) && site_ids.length > 0) {
       const sites = await siteRepo.find({
         where: { site_id: In(site_ids) },
-        relations: ["categories"],
+        relations: ["categories", "company"],
       });
+      // Only an internal account may hold several clients' sites.
+      const mixed = profile.fields.is_internal ? null : mixedCompaniesError(sites);
+      if (mixed) {
+        return res.status(400).json({ message: mixed });
+      }
 
       const user = repo.create({
         ...profile.fields,
@@ -251,6 +261,8 @@ export const createUser = async (req: Request, res: Response) => {
       password: hashedPassword,
       role,
       site: site_id ? { site_id } : undefined,
+      // Internal applies to Managers and Users only.
+      is_internal: !!profile.fields.is_internal && (role === UserRole.MANAGER || role === UserRole.USER),
       categories: await pickCategories(siteCategories, category_ids),
     });
 
@@ -292,7 +304,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
     const user = await repo.findOne({
       where: { user_id: parseInt(id) },
-      relations: ["site", "sites", "categories"],
+      relations: ["site", "sites", "sites.company", "categories"],
     });
 
     if (!user) {
@@ -300,6 +312,11 @@ export const updateUser = async (req: Request, res: Response) => {
         message: "User not found",
       });
     }
+    // Whether the person is internal once this save is applied.
+    // Internal accounts are Managers or Users; another role clears it.
+    const nextRole = role || user.role;
+    const internal = (profile.fields.is_internal ?? user.is_internal) && (nextRole === UserRole.MANAGER || nextRole === UserRole.USER);
+    profile.fields.is_internal = internal;
 
     if (name !== undefined) {
       user.name = name?.trim() || null;
@@ -338,8 +355,12 @@ export const updateUser = async (req: Request, res: Response) => {
       if (site_ids.length > 0) {
         const sites = await siteRepo.find({
           where: { site_id: In(site_ids) },
-          relations: ["categories"],
+          relations: ["categories", "company"],
         });
+        const mixed = internal ? null : mixedCompaniesError(sites);
+        if (mixed) {
+          return res.status(400).json({ message: mixed });
+        }
         user.sites = sites;
         // Re-seed categories: grant all categories from new sites
         user.categories = collectSiteCategories(sites);
@@ -363,6 +384,15 @@ export const updateUser = async (req: Request, res: Response) => {
         user.categories = siteWithCats?.categories || [];
       } else {
         user.categories = [];
+      }
+    }
+
+    // Turning "internal" off for someone who keeps several clients' sites
+    // (other edits of an older mixed account still save, as before).
+    if (user.is_internal && !internal && !Array.isArray(site_ids) && site_id === undefined) {
+      const mixed = mixedCompaniesError(user.sites || []);
+      if (mixed) {
+        return res.status(400).json({ message: `${mixed} Remove the other clients' sites before making this a client account.` });
       }
     }
 
