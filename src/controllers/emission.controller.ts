@@ -1175,11 +1175,15 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
     for (const e of emissionsToApprove) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
     if (feraIds.length > 0) {
       await repo
         .createQueryBuilder()
@@ -1856,11 +1860,15 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
     for (const e of emissionsToApprove) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
 
     if (feraIds.length > 0) {
       await repo
@@ -1993,11 +2001,15 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
     for (const e of emissionsToReject) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
 
     if (feraIds.length > 0) {
       await repo

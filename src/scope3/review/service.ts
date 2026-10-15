@@ -147,6 +147,8 @@ const duplicates = async (manager: EntityManager, rows: LoadedRow[]): Promise<Ma
          ON o.site_id = e.site_id AND o.category_id = e.category_id AND o.date_of_reporting = e.date_of_reporting
         AND o.reporting_period = e.reporting_period AND o.pk_id <> e.pk_id
         AND o.pk_id <> COALESCE(e.fera_linked_id, 0) AND COALESCE(o.fera_linked_id, 0) <> e.pk_id
+        -- S3-7: a parent's upstream and T&D twins both link to the parent, never to each other.
+        AND NOT (e.fera_linked_id IS NOT NULL AND o.fera_linked_id = e.fera_linked_id)
       WHERE e.pk_id = ANY($1) AND o.status::text = ANY($2)
       ORDER BY o.pk_id`,
     [rows.map((r) => r.pk_id), COUNTED_STATUSES],

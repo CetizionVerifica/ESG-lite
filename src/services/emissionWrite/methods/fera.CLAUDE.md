@@ -71,4 +71,5 @@ Run the Cat 3 examples from `cases.json` (3.x: upstream fuels, upstream electric
 - Tests: `ci/api/tests/s3-7-fera-split.test.cjs` (twins, imports, approve/reject/delete, edits, WTT flag, migration twice), `ci/unit/s3-7-fera.test.cjs`.
 - Not done here: the S3-4 edit path rewrite will replace `recalculateLinkedFera`; when it lands, `syncTdLossTwin` should move onto its `computeRow` path.
 - Not done here: Build 2's "no factor: no twin, plus `FERA_FACTOR_MISSING`" comes with S3-4 (#137, which adds the code); whichever of S3-4 and S3-7 merges second adds the warning where `prepareEntry` finds no upstream factor.
+- With S3-15: the review checks' duplicate query skips a row's sibling twin (upstream and T&D twins both link to the parent), so a Scope 2 row with a T&D twin is never held as `NO_DUPLICATE`. Bulk and batch approve/reject also carry a picked twin's sibling.
 - Edits: `recalculateLinkedFera` (the edit path's upstream twin) skips `td_loss` factors in all four lookups, so an edit never counts T&D on the upstream twin; its hand-built snapshot carries no `factor_type` until S3-4 moves edits onto `computeRow`.

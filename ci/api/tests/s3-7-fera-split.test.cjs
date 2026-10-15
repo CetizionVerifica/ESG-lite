@@ -196,6 +196,24 @@ test("acting on one twin directly carries the whole family", async () => {
   assert.deepEqual(await withDb(async (db) => (await db.query(`SELECT pk_id FROM emission WHERE pk_id = $1`, [d.json.fera_emission.pk_id])).rows), []);
 });
 
+test("S3-15 checks never hold the two twins of one parent as duplicates of each other", async () => {
+  const e = await typed(2, "2025-03-31", "kwh", "Grid AU", 1000);
+  assert.equal(e.status, 201, JSON.stringify(e.json));
+  const held = async (id) => (await withDb((db) => db.query("SELECT checks FROM emission WHERE pk_id = $1", [id]))).rows[0].checks?.held ?? [];
+  for (const id of [e.json.emission.pk_id, e.json.fera_emission.pk_id, e.json.td_loss_emission.pk_id]) {
+    assert.ok(!(await held(id)).includes("NO_DUPLICATE"), `row ${id} is not held as a duplicate`);
+  }
+});
+
+test("bulk approve of one twin carries the whole family", async () => {
+  const e = await typed(2, "2025-12-15", "kwh", "Grid AU", 1000);
+  assert.equal(e.status, 201, JSON.stringify(e.json));
+  const ok = await call("PUT", "/user/emissions/bulk-approve", "otherManager", { ids: [e.json.fera_emission.pk_id] });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  const rows = (await withDb((db) => db.query(`SELECT status::text AS status FROM emission WHERE pk_id = ANY($1) ORDER BY pk_id`, [[e.json.emission.pk_id, e.json.fera_emission.pk_id, e.json.td_loss_emission.pk_id]]))).rows;
+  assert.deepEqual(rows.map((r) => r.status), ["approved", "approved", "approved"]);
+});
+
 test("an edit never creates a T&D twin in a mode-locked FERA category", async () => {
   const e = await typed(2, "2025-12-31", "kwh", "Grid US", 1000);
   assert.equal(e.status, 201, JSON.stringify(e.json));
