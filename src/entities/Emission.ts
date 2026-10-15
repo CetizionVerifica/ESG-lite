@@ -12,6 +12,7 @@ import {
 import { Category } from "./Category";
 import { Site } from "./Site";
 import { User } from "./User";
+import type { RowChecks } from "../scope3/contracts/checks";
 
 export enum EmissionStatus {
   PENDING = "pending",
@@ -99,6 +100,12 @@ export class Emission {
 
   @Column({ type: "jsonb", nullable: true, default: {} })
   extra_data!: Record<string, any>;
+
+  // S3-15 review checks of a pending row ({ready, held}), written only by
+  // src/scope3/review/service.ts (raw UPDATE), never by entity saves, so a
+  // save of a stale entity can't overwrite a fresher result.
+  @Column({ type: "jsonb", nullable: true, insert: false, update: false })
+  checks!: RowChecks | null;
 
   // Snapshot of the emission factor used at creation time
   // Ensures factor details are always available even if the factor is later deleted/renamed
