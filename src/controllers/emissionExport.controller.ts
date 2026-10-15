@@ -184,7 +184,8 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
         ...activityKeysList.map((key) => ad[key] ?? ""),
         e.activity_data_unit || "",
         Number(e.total_emission),
-        feraTotal !== undefined ? Math.round(feraTotal * 100) / 100 : "",
+        // Summed raw, as the Emission column; the 1e8 rounding only strips float noise from adding the twins.
+        feraTotal !== undefined ? Math.round(feraTotal * 1e8) / 1e8 : "",
         e.date_of_reporting
           ? new Date(e.date_of_reporting).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
           : "",

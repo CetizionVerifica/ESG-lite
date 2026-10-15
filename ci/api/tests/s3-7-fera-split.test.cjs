@@ -22,7 +22,7 @@ const { planRows, insertRows } = require(path.resolve("dist/services/emissionWri
 const SITE = 3;
 const FREIGHT = 120; // a Scope 3 Category 4 category, added below
 const CTX = { user_id: 4, role: "User", company_id: 2, allowed_site_ids: [SITE], allowed_category_ids_by_site: {} };
-const FACTORS = [931, 932, 933, 934, 935, 936, 937, 938, 939];
+const FACTORS = [931, 932, 933, 934, 935, 936, 937, 938, 939, 940];
 
 const typed = (category_id, date, unit, emission_category, activity_value) =>
   call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id, date_of_reporting: date, activity_data_unit: unit, activity_data: { emission_category, activity_value: String(activity_value) } });
@@ -49,7 +49,8 @@ test.before(async () => {
       (936, ${SITE}, 1, 2024, 2680, 'litre', 'CI', 'Diesel S3-7', 'Diesel S3-7', 'combustion', false),
       (937, ${SITE}, 5, 2024, 610, 'litre', 'CI', 'Diesel S3-7', 'Diesel S3-7', 'combustion', false),
       (938, ${SITE}, ${FREIGHT}, 2024, 0.11, 'tonne.km', 'DEFRA freighting goods + WTT, summed', 'HGV S3-7 summed', 'HGV S3-7 summed', 'life_cycle', true),
-      (939, ${SITE}, ${FREIGHT}, 2024, 0.09, 'tonne.km', 'DEFRA freighting goods', 'HGV S3-7 split', 'HGV S3-7 split', 'life_cycle', false)`);
+      (939, ${SITE}, ${FREIGHT}, 2024, 0.09, 'tonne.km', 'DEFRA freighting goods', 'HGV S3-7 split', 'HGV S3-7 split', 'life_cycle', false),
+      (940, ${SITE}, 5, 2023, 0.05, 'kwh', 'CI', 'Grid AU T&D losses', 'Grid AU', 'td_loss', false)`);
   });
   await AppDataSource.initialize();
 });
@@ -145,6 +146,29 @@ test("an edit recalculates the T&D twin alongside the upstream twin", async () =
   assert.equal(mgr.status, 200, JSON.stringify(mgr.json));
   const after = await twinsOf(id);
   assert.deepEqual(after.map((t) => [t.scope3_sub, t.total, t.status]), [["3b_upstream_electricity", 0.2, "pending"], ["3c_td_losses", 0, "pending"]]);
+});
+
+test("an edit into a year with only a td_loss factor never gives the upstream twin that factor", async () => {
+  const e = await typed(2, "2025-08-31", "kwh", "Grid AU", 1000);
+  assert.equal(e.status, 201, JSON.stringify(e.json));
+  const id = e.json.emission.pk_id;
+  // 2024 entries use 2023 factors; the FERA category has only "Grid AU T&D losses" (td_loss) for 2023.
+  const edit = await call("PUT", `/user/emissions/${id}`, "otherUser", { date_of_reporting: "2024-08-31", activity_data: { emission_category: "Grid AU", activity_value: "1000" }, activity_data_unit: "kwh" });
+  assert.equal(edit.status, 200, JSON.stringify(edit.json));
+  const twins = await withDb(async (db) =>
+    (await db.query(
+      `SELECT scope3_sub, (emission_factor_snapshot->>'emission_factor_id')::int AS factor_id, total_emission::float8 AS total
+         FROM emission WHERE fera_linked_id = $1 AND category_id = 5 ORDER BY scope3_sub`,
+      [id],
+    )).rows,
+  );
+  // The upstream twin falls back to the wtt factor of another year (the edit path's any-year step), never to 940.
+  assert.deepEqual(
+    twins.map((t) => [t.scope3_sub, t.factor_id]),
+    [["3b_upstream_electricity", 932], ["3c_td_losses", 940]],
+    "T&D losses are counted once, on the 3c twin",
+  );
+  assert.equal(twins[1].total, 0.05); // 1,000 kWh × 0.05 kg
 });
 
 test("acting on one twin directly carries the whole family", async () => {

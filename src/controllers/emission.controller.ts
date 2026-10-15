@@ -843,11 +843,15 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
         : new Date(emission.date_of_reporting);
       const feraTargetYear = reportingDate.getFullYear() - 1;
 
-      // Find FERA emission factor (same 4-level fallback as parent)
+      // Find FERA emission factor (same 4-level fallback as parent). Never a
+      // td_loss factor: that one makes the T&D-loss twin, kept in step by
+      // syncTdLossTwin (S3-7), and taking it here would count T&D twice.
+      const notTdLoss = Or(IsNull(), Not("td_loss"));
       let feraFactor = await emissionFactorRepo.findOne({
         where: {
           site: { site_id: emission.site.site_id },
           category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
           emission_category_name: activity_data.emission_category,
           year: feraTargetYear,
         },
@@ -857,6 +861,7 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
           where: {
             site: { site_id: emission.site.site_id },
             category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
             global_category_name: activity_data.emission_category,
             year: feraTargetYear,
           },
@@ -867,6 +872,7 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
           where: {
             site: { site_id: emission.site.site_id },
             category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
             emission_category_name: activity_data.emission_category,
           },
         });
@@ -876,6 +882,7 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any): Pr
           where: {
             site: { site_id: emission.site.site_id },
             category: { category_id: linkedFera.category.category_id },
+          factor_type: notTdLoss,
             global_category_name: activity_data.emission_category,
           },
         });
