@@ -5,6 +5,7 @@ import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
 import { pcfDataChanged } from "../pcf/staleness";
+import { normaliseScope, SCOPE_INVALID_MESSAGE } from "../utils/categoryScope";
 
 const repo = AppDataSource.getRepository(Category);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -76,6 +77,11 @@ export const createCategory = async (req: Request, res: Response) => {
         message: "Category name is required",
       });
     }
+    // Only Scope 1, 2, 3 or none (S3-4); spellings like "scope3" are saved as "Scope 3".
+    const normalisedScope = normaliseScope(scope);
+    if (normalisedScope === undefined) {
+      return res.status(400).json({ message: SCOPE_INVALID_MESSAGE, code: "SCOPE_INVALID" });
+    }
 
     // 2️⃣ Check for duplicates (case-insensitive)
     const existing = await repo.findOne({
@@ -106,7 +112,7 @@ export const createCategory = async (req: Request, res: Response) => {
     // 4️⃣ Create category
     const category = repo.create({
       category_name: category_name.trim(),
-      scope: scope ? scope.trim() : null,
+      scope: normalisedScope as any, // null = no scope, as before
     });
 
     await repo.save(category);
@@ -202,6 +208,10 @@ export const updateCategory = async (req: Request, res: Response) => {
         message: "At least one field (category_name, scope or site_ids) is required",
       });
     }
+    // Only Scope 1, 2, 3 or none (S3-4), checked before anything changes.
+    if (scope !== undefined && normaliseScope(scope) === undefined) {
+      return res.status(400).json({ message: SCOPE_INVALID_MESSAGE, code: "SCOPE_INVALID" });
+    }
 
     let targetSiteIds: number[] | null = null;
     if (site_ids !== undefined) {
@@ -256,7 +266,7 @@ export const updateCategory = async (req: Request, res: Response) => {
     if (category_name) category.category_name = category_name.trim();
     // Allow scope to be set to null or a value
     const oldScope = category.scope;
-    if (scope !== undefined) category.scope = scope ? scope.trim() : null;
+    if (scope !== undefined) category.scope = normaliseScope(scope) as any; // null clears it, as before
 
     // Columns, site links and user grants change together or not at all.
     await AppDataSource.transaction(async (manager) => {
