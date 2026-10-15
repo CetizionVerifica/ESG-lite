@@ -20,7 +20,7 @@ import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeade
 import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
-import { validatePeriodFields, findModeLockConflict } from "../services/reportingPeriod";
+import { validatePeriodFields, findModeLockConflict, futurePeriodError } from "../services/reportingPeriod";
 import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
 import { getSelectColumns, pickActivityValue } from "../services/activityValue";
@@ -601,6 +601,14 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
 
     // Capture old values for audit trail
     const oldActivityData = emission.activity_data ? JSON.parse(JSON.stringify(emission.activity_data)) : null;
+    // A new date can't move the entry into a period that hasn't started (as the
+    // manager edit and imports refuse).
+    if (date_of_reporting !== undefined) {
+      const notStarted = futurePeriodError(emission.reporting_period === "yearly" ? "yearly" : "monthly", emission.year_type, new Date(date_of_reporting));
+      if (notStarted) {
+        return res.status(400).json({ message: notStarted });
+      }
+    }
     const oldDateOfReporting = emission.date_of_reporting;
     const oldActivityDataUnit = emission.activity_data_unit;
     const oldStatus = emission.status;
@@ -3153,6 +3161,12 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       });
       if (periodError) {
         return res.status(400).json({ message: periodError });
+      }
+      // No moving an entry into a period that hasn't started, as imports refuse;
+      // the edit form already stops at this month.
+      const notStarted = futurePeriodError(period, emission.year_type, newDate);
+      if (notStarted) {
+        return res.status(400).json({ message: notStarted });
       }
       const conflict = await findModeLockConflict(repo, {
         site_id: emission.site.site_id,
