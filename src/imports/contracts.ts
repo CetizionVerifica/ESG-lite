@@ -107,6 +107,16 @@ export const ImportRowSurveySchema = z
   .strip();
 export type ImportRowSurvey = z.infer<typeof ImportRowSurveySchema>;
 
+/**
+ * Fields only ESGLite's own services may set on a row (today `survey`, written by the S3-9
+ * commuting survey). Public entry points (POST/PATCH /imports/plans, MCP) drop them so a
+ * client can't mark its own rows as survey-scaled.
+ */
+export function withoutServerFields<T extends { survey?: unknown }>(row: T): Omit<T, "survey"> {
+  const { survey: _s, ...rest } = row;
+  return rest;
+}
+
 /** The row's fields without the value-or-fields rule; `ImportRowSchema` adds it. */
 export const ImportRowShape = z
   .object({

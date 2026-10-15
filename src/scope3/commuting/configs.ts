@@ -22,6 +22,7 @@
  * hotel-stay tabs; their values come from factors.ts (seeded where missing)
  * or the client's own factors.
  */
+import { createHash } from "crypto";
 import type { CalculationSpec, ColumnDependencies, DependentOptionsMap, EmissionCategoryMapping } from "../../entities/ColumnConfig";
 import type { Method } from "../contracts/ghgCategory";
 import { ROW_METHOD_COLUMN } from "../../services/calculationSpec";
@@ -282,12 +283,48 @@ export function formFields(form: TravelForm, selectIds: Record<string, number>):
 }
 
 /**
- * A config this module may rewrite: still the standard one by name, or one an
- * earlier run wrote. A client's own form (or one a Superadmin customised) is left alone.
+ * A config this module may rewrite: one an earlier run wrote (the `standard`
+ * marker) whose content still matches the hash that run stored. Any edit since
+ * (a Superadmin changing options, columns or the formula) breaks the hash, and
+ * the form counts as customised from then on. A client's own form has no marker.
  */
-export const isStandardConfig = (config: { config_name?: string | null; calculation?: unknown }): boolean =>
-  (config.config_name ?? "").startsWith(CONFIG_NAME_PREFIX) ||
-  (typeof config.calculation === "object" && config.calculation !== null && (config.calculation as { standard?: unknown }).standard === TRAVEL_STANDARD);
+export const isStandardConfig = (config: StandardContent & { calculation?: unknown }): boolean => {
+  const calc = config.calculation as { standard?: unknown; standard_hash?: unknown } | null | undefined;
+  return !!calc && calc.standard === TRAVEL_STANDARD && typeof calc.standard_hash === "string" && calc.standard_hash === standardHash(config);
+};
+
+/** What the standard-form hash covers: everything a Superadmin can edit on the form. */
+export interface StandardContent {
+  columns?: Array<{ pk_id: number }> | null;
+  column_options?: unknown;
+  column_dependencies?: unknown;
+  dependent_options?: unknown;
+  emission_category_mapping?: unknown;
+  extra_fields?: unknown;
+  calculation?: unknown;
+}
+
+/** JSON with object keys sorted: jsonb reads back with its own key order. */
+export const canon = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canon)
+    : v && typeof v === "object"
+      ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canon((v as Record<string, unknown>)[k])]))
+      : v;
+
+export function standardHash(c: StandardContent): string {
+  const { standard_hash: _h, ...calculation } = (c.calculation ?? {}) as Record<string, unknown>;
+  const content = {
+    columns: (c.columns ?? []).map((x) => x.pk_id).sort((a, b) => a - b),
+    column_options: c.column_options ?? null,
+    column_dependencies: c.column_dependencies ?? null,
+    dependent_options: c.dependent_options ?? null,
+    emission_category_mapping: c.emission_category_mapping ?? null,
+    extra_fields: Array.isArray(c.extra_fields) && c.extra_fields.length ? c.extra_fields : null,
+    calculation,
+  };
+  return createHash("sha256").update(JSON.stringify(canon(content))).digest("hex").slice(0, 32);
+}
 
 // ── Methods (S3-3 column `method_options`; written once S3-3 is merged) ───────
 /** Most specific first (01-contracts.md §1). */

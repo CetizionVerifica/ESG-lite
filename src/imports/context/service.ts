@@ -3,7 +3,7 @@ import { User } from "../../entities/User";
 import { Site } from "../../entities/Site";
 import { UserRole } from "../../types/type";
 import { resolveUserCompanyId } from "../../utils/companyScope";
-import { normalizeUnitKey } from "../../services/calculationSpec";
+import { ROW_METHOD_COLUMN, normalizeUnitKey } from "../../services/calculationSpec";
 import { In } from "typeorm";
 import { ColumnConfig } from "../../entities/ColumnConfig";
 import { ImportError } from "../errors";
@@ -223,6 +223,11 @@ function formFromConfig(config: ColumnConfig): ContextForm {
       ...(parent ? { depends_on: parent } : {}),
       ...(requiredFor.has(col.column_name) ? { required_for: requiredFor.get(col.column_name) } : {}),
     });
+  }
+  // S3-9: "@method" is no column; the row's calculation method picks the fields. List it so
+  // mappers (Claude, smart import) know to send it and which values it takes.
+  if (spec?.mode === "per_method" && spec.method_column === ROW_METHOD_COLUMN && !fields.some((f) => f.key === ROW_METHOD_COLUMN)) {
+    fields.unshift({ key: ROW_METHOD_COLUMN, label: "Calculation method", type: "select", required: true, options: Object.keys(spec.methods || {}) });
   }
   for (const extra of config.extra_fields || []) {
     if (fields.some((f) => f.key === extra.key)) continue;

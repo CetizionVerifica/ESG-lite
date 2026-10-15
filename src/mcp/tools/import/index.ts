@@ -10,6 +10,7 @@ import {
   RowStateSchema,
   ToolInputs,
   parseImportRows,
+  withoutServerFields,
 } from "../../../imports/contracts";
 import { ImportError } from "../../../imports/errors";
 import { IMPORT_LIMITS } from "../../../imports/limits";
@@ -103,10 +104,10 @@ export const importTools: ToolDefinition<any>[] = [
       if (input.plan_id) {
         if (input.version === undefined) throw new ImportError("IMPORT_VALIDATION", [{ path: "version", message: "version is required when plan_id is given" }], "Send the plan's current version when appending with plan_id.");
         const plan = await loadPlanForTool(ctx, input.plan_id, input.company_id);
-        result = await plans.appendRows(user(ctx), plan.plan_id, { version: input.version, rows: parsed.rows }, totalLike);
+        result = await plans.appendRows(user(ctx), plan.plan_id, { version: input.version, rows: parsed.rows.map(withoutServerFields) }, totalLike);
         ctx.log("appended rows", { plan_id: plan.plan_id, rows: parsed.rows.length, version: result.version });
       } else {
-        result = await plans.createPlan(user(ctx), { source_name: input.source_name, channel: "mcp", company_id: input.company_id, rows: parsed.rows }, totalLike);
+        result = await plans.createPlan(user(ctx), { source_name: input.source_name, channel: "mcp", company_id: input.company_id, rows: parsed.rows.map(withoutServerFields) }, totalLike);
         ctx.setPlanId(result.plan_id);
         ctx.log("planned rows", { plan_id: result.plan_id, company_id: input.company_id, rows: parsed.rows.length });
       }
@@ -152,6 +153,7 @@ export const importTools: ToolDefinition<any>[] = [
       let body: z.infer<typeof PatchPlanBodySchema>;
       try {
         body = PatchPlanBodySchema.parse({ version: input.version, changes: input.changes, activity_matches: input.activity_matches });
+        body = { ...body, changes: body.changes?.map((c) => (c.set ? { ...c, set: withoutServerFields(c.set) } : c)) };
       } catch (err) {
         return validation(err);
       }

@@ -17,19 +17,20 @@ const { call, withDb } = require("../helpers.cjs");
 const ROOT = path.resolve(__dirname, "../../..");
 const CAT7 = 931;
 const CAT6 = 932;
+const CAT7_OLD = 933; // Category 7 on site 2 with entries saved before S3-9 and no form
 const RAIL = "Rail - National rail [passenger.km]";
 const CAR = "Car - Average car - Unknown fuel [vehicle.km]";
 const NAME_REF = "Priya Raman (priya.raman@example.invalid)";
 
 const reset = () =>
   withDb(async (db) => {
-    await db.query(`DELETE FROM emission WHERE category_id IN (${CAT7}, ${CAT6})`);
+    await db.query(`DELETE FROM emission WHERE category_id IN (${CAT7}, ${CAT6}, ${CAT7_OLD})`);
     await db.query(`DELETE FROM import_plan WHERE source_name LIKE 'Commuting survey%' OR source_name = 'CI S3-9 travel'`);
-    await db.query(`DELETE FROM site_categories WHERE category_id IN (${CAT7}, ${CAT6})`);
-    await db.query(`DELETE FROM emission_factors WHERE category_id IN (${CAT7}, ${CAT6})`);
-    await db.query(`DELETE FROM unit WHERE category_id IN (${CAT7}, ${CAT6})`);
-    await db.query(`DELETE FROM column_config WHERE category_id IN (${CAT7}, ${CAT6})`);
-    await db.query(`DELETE FROM category WHERE category_id IN (${CAT7}, ${CAT6})`);
+    await db.query(`DELETE FROM site_categories WHERE category_id IN (${CAT7}, ${CAT6}, ${CAT7_OLD})`);
+    await db.query(`DELETE FROM emission_factors WHERE category_id IN (${CAT7}, ${CAT6}, ${CAT7_OLD})`);
+    await db.query(`DELETE FROM unit WHERE category_id IN (${CAT7}, ${CAT6}, ${CAT7_OLD})`);
+    await db.query(`DELETE FROM column_config WHERE category_id IN (${CAT7}, ${CAT6}, ${CAT7_OLD})`);
+    await db.query(`DELETE FROM category WHERE category_id IN (${CAT7}, ${CAT6}, ${CAT7_OLD})`);
   });
 
 test.before(async () => {
@@ -220,6 +221,73 @@ test("migrate:scope3-travel runs twice: one form per site × category, its units
   assert.equal(r.json.details.reason, "COMMUTING_FORM_CUSTOMISED");
 });
 
+test("a site with entries but no form keeps working: the migration and the survey leave it alone", async () => {
+  await withDb(async (db) => {
+    await db.query(`INSERT INTO category (category_id, category_name, scope, ghg_category) VALUES ($1, 'CI Commuting (old)', 'Scope 3', 7)`, [CAT7_OLD]);
+    await db.query(`INSERT INTO site_categories (site_id, category_id) VALUES (2, $1)`, [CAT7_OLD]);
+    // A pre-S3-9 row: one value, unit km, no form.
+    await db.query(
+      `INSERT INTO emission (activity_data, activity_data_unit, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period)
+       VALUES ('{"activity_value": 1200}', 'km', 0.12, 'tCO2e', '2025-06-30', 'pending', 1, $1, 2, 'monthly')`,
+      [CAT7_OLD],
+    );
+  });
+  const run = runScript("migrateScope3Travel", ["2"]);
+  assert.equal(run.status, 0, run.stderr + run.stdout);
+  assert.match(run.stdout, new RegExp(`no form but existing entries, left as they are \\(site/category\\): 2/${CAT7_OLD}`));
+  const cfg = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM column_config WHERE category_id = $1`, [CAT7_OLD]));
+  assert.equal(cfg.rows[0].n, 0);
+  const r = await call("POST", "/scope3/commuting/surveys", "admin", survey({ site_id: 2 }));
+  // Site 2's lowest Category 7 category is the old one.
+  assert.equal(r.status, 400, JSON.stringify(r.json));
+  assert.equal(r.json.details.reason, "COMMUTING_HAS_ENTRIES");
+  const after = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM column_config WHERE category_id = $1`, [CAT7_OLD]));
+  assert.equal(after.rows[0].n, 0);
+});
+
+test("a Superadmin's edit to a standard form survives the next migration", async () => {
+  const before = await withDb((db) => db.query(`SELECT pk_id, column_options FROM column_config WHERE site_id = 1 AND category_id = $1`, [CAT6]));
+  const { pk_id, column_options } = before.rows[0];
+  const edited = { ...column_options, extra: [{ id: "Ferry", label: "Ferry" }] };
+  await withDb((db) => db.query(`UPDATE column_config SET column_options = $1 WHERE pk_id = $2`, [JSON.stringify(edited), pk_id]));
+  const run = runScript("migrateScope3Travel", ["1"]);
+  assert.equal(run.status, 0, run.stderr + run.stdout);
+  assert.match(run.stdout, new RegExp(`customised forms left as they are \\(site/category\\): 1/${CAT6}`));
+  const kept = await withDb((db) => db.query(`SELECT column_options FROM column_config WHERE pk_id = $1`, [pk_id]));
+  assert.deepEqual(kept.rows[0].column_options.extra, [{ id: "Ferry", label: "Ferry" }]);
+  // Putting the standard content back makes it standard again.
+  await withDb((db) => db.query(`UPDATE column_config SET column_options = $1 WHERE pk_id = $2`, [JSON.stringify(column_options), pk_id]));
+  const again = runScript("migrateScope3Travel", ["1"]);
+  assert.doesNotMatch(again.stdout, /customised forms/);
+});
+
+test("import context lists the row's method for a Category 7 form; public plan routes drop a client-sent survey", async () => {
+  const ctx = await call("GET", "/imports/context", "manager");
+  assert.equal(ctx.status, 200, JSON.stringify(ctx.json));
+  const forms = JSON.stringify(ctx.json);
+  const cat7 = ctx.json.sites.flatMap((s) => s.categories).find((c) => c.category_id === CAT7);
+  const method = cat7.form.fields[0];
+  assert.equal(method.key, "@method", forms);
+  assert.equal(method.required, true);
+  assert.deepEqual([...method.options].sort(), ["average_data", "distance_based", "fuel_based"]);
+  const row = {
+    row_ref: "fake-survey",
+    site_id: 1,
+    category_id: CAT7,
+    period: { kind: "yearly", year_type: "CY", year: 2024 },
+    activity_name: "Rail [passenger.km]",
+    activity_unit: "passenger.km",
+    fields: { "@method": "distance_based", "Total distance (km)": 100, "Total employees": 10, "Employees surveyed": 10 },
+    survey: { basis: "sample", respondents: 1, total_employees: 10, coverage_pct: 10 },
+  };
+  // The admin login: earlier suites leave the CI manager at its 10-draft limit.
+  await withDb((db) => db.query(`DELETE FROM import_plan WHERE source_name LIKE 'Commuting survey%' AND status = 'draft'`));
+  const r = await call("POST", "/imports/plans", "admin", { source_name: "CI S3-9 travel", channel: "api", rows: [row] });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.equal(r.json.rows[0].input.survey, undefined);
+  await withDb((db) => db.query(`DELETE FROM import_plan WHERE plan_id = $1`, [r.json.plan_id]));
+});
+
 test("Category 6 rows: vehicle.km by occupancy, divide by 0 → FIELD_REQUIRED, legacy rows keep their product", async () => {
   const run = runScript("migrateScope3Travel", ["1"]);
   assert.equal(run.status, 0, run.stderr + run.stdout);
@@ -233,7 +301,9 @@ test("Category 6 rows: vehicle.km by occupancy, divide by 0 → FIELD_REQUIRED, 
     // Legacy shape: the product in the distance column, no travellers field.
     { ...base, row_ref: "legacy", activity_name: RAIL, activity_unit: "passenger.km", fields: { "Distance (km)": 12345, "Trip ref": "T3" } },
   ];
-  const r = await call("POST", "/imports/plans", "manager", { source_name: "CI S3-9 travel", channel: "api", rows });
+  // The admin login: earlier suites leave the CI manager at its 10-draft limit.
+  await withDb((db) => db.query(`DELETE FROM import_plan WHERE source_name LIKE 'Commuting survey%' AND status = 'draft'`));
+  const r = await call("POST", "/imports/plans", "admin", { source_name: "CI S3-9 travel", channel: "api", rows });
   assert.equal(r.status, 201, JSON.stringify(r.json));
   const by = Object.fromEntries(r.json.rows.map((x) => [x.row_ref, x]));
   assert.equal(by.car.state, "ready", JSON.stringify(by.car.issues));

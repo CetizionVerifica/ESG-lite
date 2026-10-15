@@ -21,22 +21,21 @@ import { EmissionFactor } from "../../entities/EmissionFactor";
 import { Unit } from "../../entities/Unit";
 import type { Site } from "../../entities/Site";
 import type { Category } from "../../entities/Category";
-import { TravelCategory, formFields, isStandardConfig, travelForm } from "./configs";
+import { TravelCategory, canon, formFields, isStandardConfig, standardHash, travelForm } from "./configs";
 import { TRAVEL_FACTORS } from "./factors";
 
 export interface FormResult {
-  config: "created" | "updated" | "unchanged" | "customised";
+  /** has_entries: no form yet, but the site × category already has emission rows (left alone, see below). */
+  config: "created" | "updated" | "unchanged" | "customised" | "has_entries";
   units_added: number;
   factors_added: number;
 }
 
-/** JSON with object keys sorted: jsonb reads back with its own key order. */
-const canon = (v: unknown): unknown =>
-  Array.isArray(v)
-    ? v.map(canon)
-    : v && typeof v === "object"
-      ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canon((v as Record<string, unknown>)[k])]))
-      : v;
+const stripHash = (c: unknown) => {
+  if (!c || typeof c !== "object") return c;
+  const { standard_hash: _h, ...rest } = c as Record<string, unknown>;
+  return rest;
+};
 const same = (a: unknown, b: unknown) => JSON.stringify(canon(a ?? null)) === JSON.stringify(canon(b ?? null));
 
 async function columnFor(m: EntityManager, name: string, type: string): Promise<ColumnEntity> {
@@ -91,6 +90,10 @@ export async function ensureTravelForm(m: EntityManager, site_id: number, catego
   const selectIds = Object.fromEntries(columns.filter((c) => c.column_type === "select").map((c) => [c.column_name, c.pk_id]));
   const fields = formFields(form, selectIds);
 
+  // One writer per site × category: two survey calls (or a survey and the migration) on a
+  // site with no form would otherwise both create one.
+  await m.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [`s3-9-form:${site_id}:${category_id}`]);
+
   // The config the app uses is the first by name.
   const existing = await configRepo.find({
     where: { site: { site_id }, category: { category_id } },
@@ -104,6 +107,11 @@ export async function ensureTravelForm(m: EntityManager, site_id: number, catego
     return { config: "customised", units_added: 0, factors_added: 0 };
   }
   if (!config) {
+    // Rows saved without a form compute from `activity_value` (emissionWrite); a form would
+    // change how they are edited and re-imported, so such a site keeps working as it is
+    // until someone decides to move it to the standard form.
+    const rows: unknown[] = await m.query(`SELECT 1 FROM emission WHERE site_id = $1 AND category_id = $2 LIMIT 1`, [site_id, category_id]);
+    if (rows.length) return { config: "has_entries", units_added: 0, factors_added: 0 };
     config = configRepo.create({ config_name: form.config_name, site: { site_id } as Site, category: { category_id } as Category });
     state = "created";
   }
@@ -114,14 +122,15 @@ export async function ensureTravelForm(m: EntityManager, site_id: number, catego
     !same(config.column_dependencies, fields.column_dependencies) ||
     !same(config.dependent_options, fields.dependent_options) ||
     !same(config.emission_category_mapping, fields.emission_category_mapping) ||
-    !same(config.calculation, fields.calculation);
+    !same(stripHash(config.calculation), fields.calculation);
   if (changed) {
     config.columns = columns;
     config.column_options = fields.column_options;
     config.column_dependencies = fields.column_dependencies;
     config.dependent_options = fields.dependent_options;
     config.emission_category_mapping = fields.emission_category_mapping;
-    config.calculation = fields.calculation;
+    // The hash of what is written: any later edit makes the form "customised" (isStandardConfig).
+    config.calculation = { ...fields.calculation, standard_hash: standardHash({ ...fields, columns, extra_fields: config.extra_fields, calculation: fields.calculation }) } as ColumnConfig["calculation"];
     await configRepo.save(config);
     if (state === "unchanged") state = "updated";
   }

@@ -131,8 +131,16 @@ test("Category 7 form: per_method by the row's method; options map to factors in
 });
 
 test("standard-config marker, method options and factor list", () => {
-  assert.equal(C.isStandardConfig({ config_name: "Scope 3 travel - Standard - Business travel" }), true);
-  assert.equal(C.isStandardConfig({ config_name: "Client's own", calculation: { standard: "scope3-travel@1" } }), true);
+  // Standard = the marker plus a hash of what was written; any edit since makes it customised.
+  const f = C.formFields(C.travelForm(6), { [C.COL_TRIP_MODE]: 11, [C.COL_TRIP_CLASS]: 12, [C.COL_RF]: 13 });
+  const written = { ...f, columns: [{ pk_id: 12 }, { pk_id: 11 }], extra_fields: [] };
+  const stored = { ...written, calculation: { ...f.calculation, standard_hash: C.standardHash(written) } };
+  assert.equal(C.isStandardConfig(stored), true);
+  assert.equal(C.isStandardConfig({ ...stored, columns: [{ pk_id: 11 }, { pk_id: 12 }] }), true, "column order doesn't matter");
+  assert.equal(C.isStandardConfig({ ...stored, column_options: { ...stored.column_options, 11: [{ id: "Air", label: "Air" }] } }), false);
+  assert.equal(C.isStandardConfig({ ...stored, calculation: { ...stored.calculation, identity_columns: [] } }), false);
+  assert.equal(C.isStandardConfig({ ...stored, extra_fields: [{ key: "po", label: "PO", type: "text" }] }), false);
+  assert.equal(C.isStandardConfig({ config_name: "Scope 3 travel - Standard - Business travel" }), false, "the name alone is not enough");
   assert.equal(C.isStandardConfig({ config_name: "Business travel", calculation: null }), false);
   for (const n of [6, 7]) {
     const offered = GHG_CATEGORIES.find((c) => c.n === n).methods.map((m) => m.key);

@@ -213,6 +213,7 @@ export async function planSurvey(companyId: number, user: TokenUser, raw: unknow
   // The standard commuting form must be the site's form: the plan rows use its fields.
   const form = await AppDataSource.transaction((m) => ensureTravelForm(m, body.site_id, category_id, 7));
   if (form.config === "customised") throw new BoundaryError("SCOPE3_VALIDATION", { field: "site_id", reason: "COMMUTING_FORM_CUSTOMISED" });
+  if (form.config === "has_entries") throw new BoundaryError("SCOPE3_VALIDATION", { field: "site_id", reason: "COMMUTING_HAS_ENTRIES" });
 
   const rows = surveyRows(summary, body.site_id, category_id, period, `${body.year_type}${body.year}`);
   if (!rows.length) return { plan: null, summary };
