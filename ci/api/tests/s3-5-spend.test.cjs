@@ -81,6 +81,33 @@ test("local golden case: INR 1,000,000 on 3 Sep 2026, deflated 2026 → 2022, st
   assert.equal(row.snap.factor_type, "eeio_spend");
 });
 
+test("S3-3 on spend rows: method spend_based, the engine's data quality and data type; the same total from `method` or `@method`", async () => {
+  const quality = (id) => withDb(async (db) => (await db.query(`SELECT method, dq, data_type, total_emission::float8 AS total FROM emission WHERE pk_id = $1`, [id])).rows[0]);
+  // The S3-5 stand-in: "@method" in activity_data.
+  const viaAt = await typed("2026-01-31", { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "2000", currency: "INR" }, { invoice_date: "2026-09-03" });
+  assert.equal(viaAt.status, 201, JSON.stringify(viaAt.json));
+  // The S3-3 field: `method` on the row.
+  const viaMethod = await call("POST", "/user/emissions", "otherUser", {
+    site_id: SITE, category_id: CAT1, date_of_reporting: "2026-02-28", method: "spend_based",
+    activity_data: { emission_category: "Steel mills S3-5", spent_value: "2000", currency: "INR" }, extra_data: { invoice_date: "2026-09-03" },
+  });
+  assert.equal(viaMethod.status, 201, JSON.stringify(viaMethod.json));
+  const ids = [viaAt.json.emission.pk_id, viaMethod.json.emission.pk_id];
+  for (const id of ids) {
+    const q = await quality(id);
+    assert.equal(q.method, "spend_based");
+    assert.equal(q.data_type, "secondary");
+    assert.equal(q.dq.source, "auto");
+    assert.equal(q.dq.technology, 3, "a spend factor describes the purchase least");
+    assert.equal(q.dq.reliability, 3, "spend is the least reliable method");
+    assert.equal(q.total, Math.round((kgFor(2000, 0.42) / 1000) * 100) / 100, "S3-3 never moves the S3-5 total");
+  }
+  // A quantity in a currency unit with no method (bulk and Claude rows) is a spend row too, and recorded as one.
+  const bulk = await typed("2026-12-31", { emission_category: "Steel mills S3-5", activity_value: "3000" }, { invoice_date: "2026-09-03" }, "INR");
+  assert.equal(bulk.status, 201, JSON.stringify(bulk.json));
+  assert.equal((await quality(bulk.json.emission.pk_id)).method, "spend_based");
+});
+
 test("a weekend purchase uses the nearest earlier stored day, with no warning", async () => {
   const res = await typed("2026-09-15", { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "500", currency: "INR" }, { invoice_date: "2026-09-06" });
   assert.equal(res.status, 201, JSON.stringify(res.json));

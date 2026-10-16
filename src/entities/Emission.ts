@@ -13,6 +13,8 @@ import {
 import { Category } from "./Category";
 import { Site } from "./Site";
 import { User } from "./User";
+import type { Method } from "../scope3/contracts/ghgCategory";
+import type { Dq, DataType } from "../scope3/contracts/dq";
 import type { RowChecks } from "../scope3/contracts/checks";
 import type { Gas } from "../scope3/contracts/factor";
 
@@ -142,4 +144,22 @@ export class Emission {
 
   @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
   biogenic_kg!: string | null;
+
+  // S3-3 · how the row was calculated and how good its data is
+  // (docs/scope3/01-contracts.md §3, migrate:scope3-row-quality). The types
+  // come from the S3-0 contracts, never redefined here (00-plan §2.2).
+  // Scope 1 and Scope 2 rows carry no method; legacy Scope 3 rows the backfill
+  // could not place carry 'average_data'.
+  @Column({ type: "varchar", length: 40, nullable: true })
+  method!: Method | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  dq!: Dq | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  data_type!: DataType | null;
+
+  // For example a distance the route helper worked out rather than one entered.
+  @Column({ type: "boolean", default: false })
+  is_estimate!: boolean;
 }

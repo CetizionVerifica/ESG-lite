@@ -3,8 +3,9 @@
  * date. Pure; no database.
  *
  * A row is calculated from the amount spent when its method says so (the
- * row's `method`, or `activity_data["@method"]` until S3-3 gives rows that
- * column, as S3-9 does), when its factor is a spend (EEIO) factor, or when
+ * row's `method` (S3-3), else `activity_data["@method"]` as S3-9 forms keep
+ * it, else the form's first offered method; emissionWrite/index.ts passes the
+ * one that applies as `rowMethod`), when its factor is a spend (EEIO) factor, or when
  * its quantity is in a currency other than its factor's currency. The
  * amount is `spent_value` with `currency` (the form fields, wherever the
  * form keeps them: calculation fields or the older extra fields) on a row

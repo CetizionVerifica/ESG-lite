@@ -9,6 +9,8 @@
  */
 import { z } from "zod";
 import { IMPORT_LIMITS } from "./limits";
+import { MethodSchema } from "../scope3/contracts/ghgCategory";
+import { ManualDqSchema } from "../scope3/dq/input";
 import { ROW_ISSUE_CODE_LIST, IMPORT_ERROR_CODES } from "./errors";
 
 // ---------------------------------------------------------------------------
@@ -145,6 +147,15 @@ export const ImportRowShape = z
     meta: ImportRowMetaSchema.optional(),
     /** S3-9 survey scaling (ImportRowSurveySchema); stored in extra_data.survey. */
     survey: ImportRowSurveySchema.optional(),
+    /**
+     * S3-3: how the row was calculated, whether its figure is an estimate, and
+     * a data quality the importer judged by hand. The method must be one the
+     * form offers (METHOD_NOT_ALLOWED); a sent `dq` is used as it is, with its
+     * overall score derived and its source recorded as manual.
+     */
+    method: MethodSchema.optional(),
+    is_estimate: z.boolean().optional(),
+    dq: ManualDqSchema.optional(),
   })
   .strip();
 
