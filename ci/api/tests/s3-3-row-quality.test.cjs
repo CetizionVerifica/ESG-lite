@@ -13,7 +13,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
-const { withDb } = require("../helpers.cjs");
+const { call, withDb } = require("../helpers.cjs");
 
 const ROOT = path.resolve(__dirname, "../../..");
 const COMPILED = path.join(ROOT, "dist/scripts/addEmissionRowQualityColumns.js");
@@ -133,5 +133,91 @@ test("the method backfill reads the form and the unit, and runs twice unchanged"
     for (const row of ROWS) {
       assert.equal(afterSecond.get(row.pk_id).method, row.expected, `row ${row.pk_id} after the second run`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The engine fill: a new row records how it was calculated and how good its
+// data is, without changing what it calculates.
+
+const S3_FACTOR = 9610;
+const S1_FACTOR = 9611;
+const S3_ACTIVITY = "S3-3 Flight";
+const S1_ACTIVITY = "S3-3 Diesel";
+
+test("a new Scope 3 row carries its method, data quality and data type", async (t) => {
+  const created = [];
+  await withDb(async (db) => {
+    // Site 1 in the UAE, and a 2025 UAE factor: the reporting year is 2026, so
+    // the factor is one year old — good on time, good on geography.
+    await db.query(`INSERT INTO country (country_id, name, code) VALUES (961, 'S3-3 Testland', 'AE')
+                    ON CONFLICT (code) DO NOTHING`);
+    const { rows: country } = await db.query(`SELECT country_id FROM country WHERE code = 'AE'`);
+    await db.query(`UPDATE site SET country_id = $1 WHERE site_id = 1`, [country[0].country_id]);
+    await db.query(
+      `INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value,
+                                     denominator_unit, source, emission_category_name, global_category_name,
+                                     geography, factor_type, gwp_set)
+       VALUES ($1, 1, 3, 2025, 1.00000000, 'km', 'CI', $2, $2, 'AE', 'life_cycle', 'AR6'),
+              ($3, 1, 1, 2025, 2.00000000, 'litre', 'CI', $4, $4, 'AE', 'combustion', 'AR6')`,
+      [S3_FACTOR, S3_ACTIVITY, S1_FACTOR, S1_ACTIVITY],
+    );
+  });
+  t.after(() =>
+    withDb(async (db) => {
+      if (created.length) await db.query(`DELETE FROM emission WHERE pk_id = ANY($1)`, [created]);
+      await db.query(`DELETE FROM emission_factors WHERE emission_factor_id = ANY($1)`, [[S3_FACTOR, S1_FACTOR]]);
+    }),
+  );
+
+  const scope3 = await call("POST", "/user/emissions", "user", {
+    site_id: 1,
+    category_id: 3,
+    date_of_reporting: "2026-06-30",
+    activity_data_unit: "km",
+    activity_data: { emission_category: S3_ACTIVITY, activity_value: "100" },
+  });
+  assert.equal(scope3.status, 201, JSON.stringify(scope3.json));
+  created.push(scope3.json.emission.pk_id);
+
+  await withDb(async (db) => {
+    const { rows } = await db.query(
+      `SELECT method, dq, data_type, is_estimate, total_emission FROM emission WHERE pk_id = $1`,
+      [scope3.json.emission.pk_id],
+    );
+    const row = rows[0];
+    // No method named and no form methods offered, so the average-data method.
+    assert.equal(row.method, "average_data");
+    assert.equal(row.data_type, "secondary", "no evidence and not a specific method");
+    assert.equal(row.is_estimate, false);
+    assert.deepEqual(row.dq, {
+      technology: 2, // a life-cycle factor, not the supplier's own
+      geography: 1, // the site's own country
+      time: 1, // a 2025 factor for a 2026 row
+      completeness: 1, // not an estimate
+      reliability: 2, // capped: no evidence document
+      overall: 1, // the rounded mean of 2, 1, 1, 1, 2
+      source: "auto",
+    });
+    // The quality never touches the figure: 100 km × 1 kg = 0.1 t.
+    assert.equal(Number(row.total_emission), 0.1);
+  });
+
+  // A Scope 1 row carries none of it: a method is a Scope 3 idea.
+  const scope1 = await call("POST", "/user/emissions", "user", {
+    site_id: 1,
+    category_id: 1,
+    date_of_reporting: "2026-06-30",
+    activity_data_unit: "litre",
+    activity_data: { emission_category: S1_ACTIVITY, activity_value: "100" },
+  });
+  assert.equal(scope1.status, 201, JSON.stringify(scope1.json));
+  created.push(scope1.json.emission.pk_id);
+
+  await withDb(async (db) => {
+    const { rows } = await db.query(`SELECT method, dq, data_type FROM emission WHERE pk_id = $1`, [
+      scope1.json.emission.pk_id,
+    ]);
+    assert.deepEqual(rows[0], { method: null, dq: null, data_type: null });
   });
 });

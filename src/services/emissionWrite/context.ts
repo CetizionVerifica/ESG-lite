@@ -27,7 +27,7 @@ export class ContextCache {
   site(site_id: number): Promise<Site | null> {
     let p = this.sites.get(site_id);
     if (!p) {
-      p = this.manager.getRepository(Site).findOne({ where: { site_id }, relations: ["categories", "company"] });
+      p = this.manager.getRepository(Site).findOne({ where: { site_id }, relations: ["categories", "company", "country"] });
       this.sites.set(site_id, p);
     }
     return p;
@@ -70,6 +70,10 @@ export class ContextCache {
       factors,
       fera: feraCategory && feraFactors ? { category_id: feraCategory.category_id, factors: feraFactors } : null,
       formUnits: [...new Set(unitRows.map((u) => u.unit_name).filter(Boolean))],
+      // S3-3: the site's country decides the factor's geographic fit, and the
+      // form's methods give the default when a row names none.
+      site_country: site?.country?.code ?? null,
+      method_options: configs[0]?.method_options ?? null,
       mappings,
       company_id,
     };

@@ -26,6 +26,8 @@ import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./m
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
+import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
+import type { Method } from "../../scope3/contracts/ghgCategory";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -63,6 +65,8 @@ export interface PreparedEntry {
   warnings: EngineIssue[];
   /** When FERA applies but no 3a/3b twin was made: why (an edit puts it on the twin it can't recalculate). */
   feraSkipped?: string;
+  /** S3-3: the site's country, so a twin's data quality can be scored where the twin is written. */
+  site_country?: string | null;
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -72,6 +76,37 @@ export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; is
  * writing. Scope, period validation, mode lock and duplicates are the
  * caller's (createEmission keeps its own responses; planRows adds issues).
  */
+/**
+ * The year a row is reported in, for the S3-3 data quality time rule. Not
+ * `targetYearFor`, which is this year minus one because that is the factor
+ * year convention; comparing a factor against that would shift every time
+ * score by a year.
+ */
+export const reportingYearFor = (dateOfReporting: string | Date): number =>
+  typeof dateOfReporting === "string"
+    ? parseInt(dateOfReporting.substring(0, 4), 10)
+    : new Date(dateOfReporting).getUTCFullYear();
+
+/**
+ * S3-3 for a FERA or T&D-loss twin. A twin is always a Scope 3 row (Cat 3),
+ * calculated as the activity figure times a published factor, which is the
+ * average-data method. Its quality is read from its own factor, not the
+ * parent's.
+ */
+const twinQuality = (siteCountry: string | null | undefined, factor: EmissionFactor, dateOfReporting: string | Date) => {
+  const method: Method = "average_data";
+  return {
+    method,
+    dq: autoDq({
+      method,
+      factor: { geography: factor.geography, year: factor.year, factor_type: factor.factor_type },
+      siteCountry,
+      reportingYear: reportingYearFor(dateOfReporting),
+    }),
+    data_type: dataTypeFor({ method }),
+  };
+};
+
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
   // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
@@ -93,7 +128,9 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     if (match.fallback_year) {
       warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
     }
-    const result = computeTotal(ctx, factor, activity_data, unit);
+    const result = computeTotal(ctx, factor, activity_data, unit, {
+      reportingYear: reportingYearFor(input.period.date_of_reporting),
+    });
     if (!result.ok) return result;
     computed = result.computed;
     unit = computed.activity_unit;
@@ -133,7 +170,19 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const wtt = wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
 
-  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, tdLoss, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
+  return {
+    ok: true,
+    entry: {
+      input: { ...input, activity_data_unit: unit },
+      factor,
+      computed,
+      fera,
+      tdLoss,
+      warnings,
+      site_country: ctx.site_country ?? null,
+      ...(feraSkipped ? { feraSkipped } : {}),
+    },
+  };
 };
 
 export interface AuditInfo {
@@ -172,6 +221,10 @@ export const insertEntry = async (
     gas_kg: entry.computed?.gas_kg ?? null,
     biogenic_kg: entry.computed?.biogenic_kg ?? null,
     emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
+    // S3-3: null on Scope 1 and Scope 2 rows, where a method means nothing.
+    method: entry.computed?.method ?? null,
+    dq: entry.computed?.dq ?? null,
+    data_type: entry.computed?.data_type ?? null,
   });
   await repo.save(emission);
 
@@ -188,6 +241,7 @@ export const insertEntry = async (
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
       scope3_sub: entry.fera.scope3_sub,
+      ...twinQuality(entry.site_country, entry.fera.factor, input.period.date_of_reporting),
     });
     await repo.save(fera);
     emission.fera_linked_id = fera.pk_id;
@@ -210,6 +264,7 @@ export const insertEntry = async (
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.tdLoss.factor),
       scope3_sub: entry.tdLoss.scope3_sub,
+      ...twinQuality(entry.site_country, entry.tdLoss.factor, input.period.date_of_reporting),
     });
     await repo.save(tdLoss);
   }

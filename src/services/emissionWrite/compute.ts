@@ -14,6 +14,7 @@ import type { RowIssueCode } from "../../imports/errors";
 import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
+import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import type { Gas } from "../../scope3/contracts/factor";
 import * as activity from "./methods/activity";
 import * as spec from "./methods/spec";
@@ -42,6 +43,10 @@ export interface CategoryContext {
   fera: { category_id: number; factors: FactorIndex } | null;
   /** The form's unit options for site × category (`unit` table). With exactly one, an entry without a unit is in that unit (S3-4). */
   formUnits?: string[];
+  /** The site's country as an ISO-3166 alpha-2 code, for the DQ geography rule (S3-3). */
+  site_country?: string | null;
+  /** The methods this form offers, most specific first (S3-3). The first is the default. */
+  method_options?: Method[] | null;
 }
 
 export interface EngineIssue {
@@ -81,20 +86,38 @@ export interface EngineRow {
   method?: Method | null;
   /** Set on estimated rows (S3-12). */
   proxy?: unknown;
+  /** The year the row is reported in, for the DQ time rule (S3-3). */
+  reportingYear?: number;
+  /** An evidence document is already attached (S3-3). */
+  hasEvidence?: boolean;
+  /** A data quality the caller entered by hand; used as it is, never overwritten (S3-3). */
+  manualDq?: Dq | null;
 }
 
 /** Every method file exports `compute(ctx, row)`. */
 type MethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeResult };
 
+const SCOPE_3 = "Scope 3";
+
 /**
- * The method file for a row. Spec categories always use the spec; otherwise
- * the row's method, falling back to activity × factor.
- * TODO(S3-3): fall back to the form's `method_options[0]` when the row has none.
+ * The method a row is calculated by (§6): the row's own, else the form's first
+ * offered method, else average data. Null outside Scope 3 — a method is a
+ * Scope 3 idea, and Scope 1 and Scope 2 rows carry none (S3-3).
+ *
+ * `average_data` is the fallback rather than `unknown`: an activity figure
+ * times a published factor *is* the average-data method. `unknown` is kept for
+ * legacy rows that never recorded anything.
  */
-const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
+export const methodFor = (ctx: CategoryContext, row: EngineRow): Method | null => {
+  if (ctx.scope !== SCOPE_3) return null;
+  return row.method ?? ctx.method_options?.[0] ?? "average_data";
+};
+
+/** The method file for a row. Spec categories always use the spec. */
+const methodFileFor = (ctx: CategoryContext, row: EngineRow, method: Method | null): MethodFile => {
   if (ctx.spec) return spec;
   if (row.proxy) return proxy;
-  switch (row.method) {
+  switch (method) {
     case "spend_based":
       return spend;
     case "supplier_specific":
@@ -106,8 +129,40 @@ const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
   }
 };
 
-/** One row's total, from the method file the row picks. */
-export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult => methodFileFor(ctx, row).compute(ctx, row);
+/**
+ * One row's total, from the method file the row picks, plus how it was
+ * calculated and how good its data is (S3-3). The quality never changes the
+ * total: it is worked out from the method, the factor's own metadata, the
+ * site's country and the reporting year, and attached to the result.
+ */
+export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
+  const method = methodFor(ctx, row);
+  const result = methodFileFor(ctx, row, method).compute(ctx, row);
+  if (!result.ok || !method) return result;
+
+  const dq =
+    row.manualDq ??
+    autoDq({
+      method,
+      factor: { geography: row.factor?.geography, year: row.factor?.year, factor_type: row.factor?.factor_type },
+      siteCountry: ctx.site_country,
+      // The row is being written now, so this year stands in when the caller
+      // names no period; every write path in index.ts passes the real one.
+      reportingYear: row.reportingYear ?? new Date().getUTCFullYear(),
+      hasEvidence: row.hasEvidence,
+      isProxy: !!row.proxy,
+    });
+
+  return {
+    ok: true,
+    computed: {
+      ...result.computed,
+      method,
+      dq,
+      data_type: dataTypeFor({ method, hasEvidence: row.hasEvidence }),
+    },
+  };
+};
 
 /**
  * One row's total (the pre-S3 signature, used by index.ts).
@@ -119,7 +174,9 @@ export const computeTotal = (
   factor: EmissionFactor,
   activity_data: Record<string, any>,
   activity_unit: string,
-): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit });
+  /** S3-3: what the row says about its own method and quality, when it says anything. */
+  quality: Pick<EngineRow, "method" | "reportingYear" | "hasEvidence" | "manualDq" | "proxy"> = {},
+): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit, ...quality });
 
 export const factorSnapshot = (f: EmissionFactor) => ({
   emission_factor_id: f.emission_factor_id,
