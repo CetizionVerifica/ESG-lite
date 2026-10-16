@@ -134,4 +134,10 @@ export class Emission {
 
   @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
   biogenic_kg!: string | null;
+
+  // S3-12 (contracts §4): how an extrapolated or proxy row was made
+  // ({basis, coverage_pct, from}); null on every measured row. Written only by
+  // src/scope3/screening (extrapolate and the S3-9 survey backfill).
+  @Column({ type: "jsonb", nullable: true })
+  proxy!: Record<string, unknown> | null;
 }

@@ -35,6 +35,7 @@ import { OauthToken } from "../entities/OauthToken";
 import { CompanyScope3Category } from "../entities/CompanyScope3Category";
 import { CategoryGhgMapProposal } from "../entities/CategoryGhgMapProposal";
 import { Investment } from "../entities/Investment";
+import { Scope3ScreeningInput } from "../entities/Scope3ScreeningInput";
 import { ProductSale } from "../entities/ProductSale";
 dotenv.config();
 
@@ -80,6 +81,7 @@ const entities = [
     CompanyScope3Category,
     CategoryGhgMapProposal,
     Investment, // S3-11
+    Scope3ScreeningInput, // S3-12
     ProductSale, // S3-10
 ];
 
