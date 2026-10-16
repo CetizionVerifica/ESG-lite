@@ -31,6 +31,14 @@ export const engineResults = async (
     const row = i + 1;
     const period = rowPeriod(r);
     if (!period) continue;
+    // The quantity is the sheet's activity column, nothing else: a blank, 0 or
+    // non-numeric activity is skipped here, so the engine's quantity pick never
+    // falls through to spend or the sheet's own emissionFactor (S3-4).
+    const quantity = parseFloat(String(r.activity ?? "").trim());
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      results.set(row, { ok: false, reason: "No activity greater than 0." });
+      continue;
+    }
     const prepared = await prepareEntry(ctx, checks, {
       site_id: siteId,
       category_id: categoryId,

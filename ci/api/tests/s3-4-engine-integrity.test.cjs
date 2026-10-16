@@ -195,3 +195,26 @@ test("a historical row gives the same total as the same row typed", async () => 
   assert.deepEqual([Number(hist.total_emission), hist.total_kgco2e], [Number(mine.total_emission), mine.total_kgco2e]);
   assert.equal(Number(hist.total_emission), 3.31); // 1234 x 2.68 kg, not the sheet's 999
 });
+
+test("a historical row with blank or 0 activity is skipped, never priced from spend or the sheet's factor", async () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    book,
+    XLSX.utils.json_to_sheet([
+      { year: 2025, month: "November", fuelType: "Diesel", unit: "litre", emissionFactor: 2.68 },
+      { year: 2025, month: "November", fuelType: "Diesel", unit: "litre", spend: 15000 },
+      { year: 2025, month: "December", fuelType: "Diesel", unit: "litre", activity: 0, spend: 15000 },
+      { year: 2025, month: "December", fuelType: "Diesel", unit: "litre", activity: "", emissionFactor: 2.68 },
+    ]),
+    "Sheet1",
+  );
+  const form = new FormData();
+  form.append("file", new Blob([XLSX.write(book, { type: "buffer", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "history-blank.xlsx");
+  for (const [k, v] of Object.entries({ companyId: 2, siteId: SITE, categoryId: 1, commit: true })) form.append(k, String(v));
+  const r = await call("POST", "/admin/upload/emissions", "superadmin", form);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.summary.emissionsCreated, 0, JSON.stringify(r.json.skippedRows));
+  assert.deepEqual(r.json.skippedRows.map((s) => s.reason), Array(4).fill("No activity greater than 0."));
+  const rows = await q(`SELECT pk_id FROM emission WHERE site_id = ${SITE} AND category_id = 1 AND date_of_reporting >= '2025-11-01' AND extra_data->'import'->>'channel' = 'historical'`);
+  assert.equal(rows.length, 0);
+});

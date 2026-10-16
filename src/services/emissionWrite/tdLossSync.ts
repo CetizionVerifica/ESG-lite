@@ -62,6 +62,7 @@ export const syncTdLossTwin = async (parent: Emission, activity_data: Record<str
     row.activity_data_unit = parent.activity_data_unit;
     if (twin) {
       row.total_emission = twin.total;
+      row.total_kgco2e = twin.total_kgco2e;
       row.emission_factor_snapshot = factorSnapshot(twin.factor) as any;
       row.status = parent.status;
       row.reviewed_by = parent.reviewed_by ?? (null as any);
@@ -69,6 +70,7 @@ export const syncTdLossTwin = async (parent: Emission, activity_data: Record<str
       row.review_comment = parent.review_comment ?? (null as any);
     } else {
       row.total_emission = 0;
+      row.total_kgco2e = "0.0000";
       row.emission_factor_snapshot = null as any;
       row.status = EmissionStatus.PENDING;
       row.reviewed_by = null as any;
