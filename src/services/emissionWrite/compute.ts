@@ -45,7 +45,11 @@ export interface CategoryContext {
   formUnits?: string[];
   /** The site's country as an ISO-3166 alpha-2 code, for the DQ geography rule (S3-3). */
   site_country?: string | null;
-  /** The methods this form offers, most specific first (S3-3). The first is the default. */
+  /**
+   * The method keys this form offers, most specific first (S3-3). The first
+   * is the default. Read from `column_config.method_options` (`{method, units}`
+   * entries) with `offeredMethods`, so the engine only ever sees keys.
+   */
   method_options?: Method[] | null;
 }
 

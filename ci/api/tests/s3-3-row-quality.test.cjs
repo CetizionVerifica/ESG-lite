@@ -269,13 +269,19 @@ async function withFactorAndForm(t, methodOptions) {
   return created;
 }
 
+// column_config.method_options as 01-contracts §6 has it: [{method, units}].
+const DISTANCE_AND_SPEND = [
+  { method: "distance_based", units: ["km"] },
+  { method: "spend_based", units: ["USD"] },
+];
+
 test("a method the form does not offer is refused, on the one engine", async (t) => {
-  const created = await withFactorAndForm(t, ["distance_based", "spend_based"]);
+  const created = await withFactorAndForm(t, DISTANCE_AND_SPEND);
 
   const refused = await postRow({ date_of_reporting: "2026-07-31", method: "supplier_specific" });
   assert.equal(refused.status, 400, JSON.stringify(refused.json));
   assert.equal(refused.json.code, "METHOD_NOT_ALLOWED");
-  assert.match(refused.json.message, /offers/, "it says which methods the form does offer");
+  assert.match(refused.json.message, /This form offers: Distance travelled, From the amount spent\./, "it names the methods the form does offer");
 
   // A method ESGLite does not know at all is refused by name, never ignored.
   const nonsense = await postRow({ date_of_reporting: "2026-07-31", method: "teleportation" });
@@ -363,7 +369,10 @@ test("the list returns the fields and filters on them, within the caller's sites
 });
 
 test("attaching evidence lifts reliability, removing it lowers it again, and the total never moves", async (t) => {
-  const created = await withFactorAndForm(t, ["supplier_specific", "average_data"]);
+  const created = await withFactorAndForm(t, [
+    { method: "supplier_specific", units: ["km"] },
+    { method: "average_data", units: ["km"] },
+  ]);
   const row = await postRow({ date_of_reporting: "2026-11-30", method: "supplier_specific" });
   assert.equal(row.status, 201, JSON.stringify(row.json));
   const pk = row.json.emission.pk_id;
@@ -393,4 +402,70 @@ test("attaching evidence lifts reliability, removing it lowers it again, and the
     const back = await withDb(async (db) => (await db.query(`SELECT dq FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
     assert.equal(back.dq.reliability, 2, "with the file gone the score stops claiming it");
   }
+});
+
+test("a form that still holds bare method keys is read the same way", async (t) => {
+  // The first cut of the column stored ["distance_based", …]; the engine reads
+  // each key as {method, units: []} rather than refusing every row.
+  const created = await withFactorAndForm(t, ["distance_based", "spend_based"]);
+  const refused = await postRow({ date_of_reporting: "2026-07-31", method: "supplier_specific" });
+  assert.equal(refused.json.code, "METHOD_NOT_ALLOWED");
+  assert.match(refused.json.message, /This form offers: Distance travelled, From the amount spent\./);
+  const defaulted = await postRow({ date_of_reporting: "2026-07-31" });
+  assert.equal(defaulted.status, 201, JSON.stringify(defaulted.json));
+  created.push(defaulted.json.emission.pk_id);
+  const stored = await withDb(async (db) => (await db.query(`SELECT method FROM emission WHERE pk_id = $1`, [defaulted.json.emission.pk_id])).rows[0]);
+  assert.equal(stored.method, "distance_based", "no method sent: the form's first");
+});
+
+test("column-config writes take method_options as [{method, units}] and refuse anything else by name", async (t) => {
+  const made = await call("POST", "/admin/column-configs", "superadmin", {
+    config_name: "s3-3 method options",
+    site_id: 1,
+    category_id: FORM_CATEGORY,
+    method_options: DISTANCE_AND_SPEND,
+  });
+  assert.equal(made.status, 201, JSON.stringify(made.json));
+  const id = made.json.columnConfig.pk_id;
+  t.after(() => withDb((db) => db.query(`DELETE FROM column_config WHERE pk_id = $1`, [id])));
+  assert.deepEqual(made.json.columnConfig.method_options, DISTANCE_AND_SPEND);
+
+  const bad = await call("POST", "/admin/column-configs", "superadmin", {
+    config_name: "s3-3 bad options",
+    site_id: 1,
+    category_id: FORM_CATEGORY,
+    method_options: [{ method: "teleportation", units: ["km"] }],
+  });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.json.code, "FIELD_INVALID");
+  assert.equal(bad.json.field, "method_options[0].method");
+  assert.equal(await withDb(async (db) => (await db.query(`SELECT count(*)::int AS n FROM column_config WHERE config_name = 's3-3 bad options'`)).rows[0].n), 0, "nothing stored");
+
+  const refusals = [
+    [["distance_based"], "method_options[0]"], // bare keys are read, never written
+    [[{ method: "spend_based", units: [] }], "method_options[0].units"],
+    [[{ method: "unknown", units: ["km"] }], "method_options[0].method"],
+    [[{ method: "spend_based", units: ["USD"] }, { method: "spend_based", units: ["EUR"] }], "method_options"],
+    ["spend_based", "method_options"],
+  ];
+  for (const [value, field] of refusals) {
+    const res = await call("PUT", `/admin/column-configs/${id}`, "superadmin", { method_options: value });
+    assert.equal(res.status, 400, `${JSON.stringify(value)} → ${JSON.stringify(res.json)}`);
+    assert.equal(res.json.code, "FIELD_INVALID");
+    assert.equal(res.json.field, field, JSON.stringify(value));
+  }
+
+  // A PUT without method_options keeps them; a new list replaces them; null clears.
+  assert.equal((await call("PUT", `/admin/column-configs/${id}`, "superadmin", { config_name: "s3-3 method options" })).status, 200);
+  const read = async () => (await withDb((db) => db.query(`SELECT method_options FROM column_config WHERE pk_id = $1`, [id]))).rows[0].method_options;
+  assert.deepEqual(await read(), DISTANCE_AND_SPEND);
+  const next = [{ method: "supplier_specific", units: ["kg"] }];
+  const put = await call("PUT", `/admin/column-configs/${id}`, "superadmin", { method_options: next });
+  assert.equal(put.status, 200, JSON.stringify(put.json));
+  assert.deepEqual(await read(), next);
+  assert.equal((await call("PUT", `/admin/column-configs/${id}`, "superadmin", { method_options: null })).status, 200);
+  assert.equal(await read(), null);
+
+  // Column configs are Superadmin-only.
+  assert.equal((await call("PUT", `/admin/column-configs/${id}`, "manager", { method_options: next })).status, 403);
 });

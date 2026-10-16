@@ -11,6 +11,7 @@ import { getCalculationSpec } from "../calculationSpec";
 import { getSelectColumns } from "../activityValue";
 import { FactorIndex, MappingIndex } from "./resolve";
 import type { CategoryContext } from "./compute";
+import { offeredMethods } from "../../scope3/dq/methodOptions";
 
 export interface LoadedContext extends CategoryContext {
   mappings: MappingIndex;
@@ -73,7 +74,8 @@ export class ContextCache {
       // S3-3: the site's country decides the factor's geographic fit, and the
       // form's methods give the default when a row names none.
       site_country: site?.country?.code ?? null,
-      method_options: configs[0]?.method_options ?? null,
+      // `{method, units}` entries (or legacy bare keys) → the offered keys.
+      method_options: configs[0]?.method_options ? offeredMethods(configs[0].method_options) : null,
       mappings,
       company_id,
     };

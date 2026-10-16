@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinColu
 import { ColumnEntity as DynamicColumn } from "./Column";
 import { Category } from "./Category";
 import { Site } from "./Site";
-import type { Method } from "../scope3/contracts/ghgCategory";
+import type { MethodOptions } from "../scope3/contracts/schemas";
 
 // Interface for dropdown option values
 export interface DropdownOptionValue {
@@ -129,10 +129,12 @@ export class ColumnConfig {
   // two or more make the add-data method picker appear. A row naming a method
   // outside this list is refused with METHOD_NOT_ALLOWED.
   //
-  // The entries are `Method` keys from the S3-0 contracts, never redefined
-  // here (00-plan §2.2).
+  // The entries are `{method, units}` (01-contracts.md §6, `MethodOptions`
+  // from the S3-0 contracts), validated with `MethodOptionsSchema` on every
+  // write. Read it through `readMethodOptions` (src/scope3/dq/methodOptions.ts),
+  // which also takes the bare method keys an early cut of this column stored.
   @Column({ type: "jsonb", nullable: true })
-  method_options?: Method[] | null;
+  method_options?: MethodOptions | null;
 
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({
