@@ -2,9 +2,10 @@
  * S3-6 · /suppliers (01-contracts.md §5), mounted in src/index.ts behind
  * `authenticate`.
  *
- * Reads: any role with access to the company's sites (layer rule 3), so the
- * add-data Supplier field works for contributors too. Changes: Manager,
- * Admin and Superadmin, on their own company (spec §Build.2). A Superadmin
+ * Reads, and adding a supplier by name: any role with access to the
+ * company's sites (layer rule 3), so the add-data Supplier field works for
+ * contributors too. Every other change: Manager, Admin and Superadmin, on
+ * their own company (spec §Build.2). A Superadmin
  * names the company with `company_id`; anyone else gets their own, and
  * another company's ids read as 404.
  */
@@ -73,10 +74,14 @@ export const getSuppliers = handle("list", async (req, res) => {
   res.json({ ...list, can_edit: canEdit(req) });
 });
 
-/** POST /suppliers {name, country?, email?} */
+/**
+ * POST /suppliers {name, country?, email?}. Anyone with access to the company:
+ * a contributor adding a supplier by name from Add data does no more than the
+ * free-text supplier name they could already type; its figures, facility data
+ * and every change after that stay Manager and above.
+ */
 export const postSupplier = handle("create", async (req, res) => {
   const companyId = await companyForRequest(req);
-  assertEditor(req);
   res.status(201).json(await createSupplier(companyId, userId(req), bodyOf(req)));
 });
 

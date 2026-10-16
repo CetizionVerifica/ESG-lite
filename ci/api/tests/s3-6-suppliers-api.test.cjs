@@ -86,7 +86,11 @@ test("suppliers: managers write, everyone in the company reads, company 2 sees n
   assert.equal(asUser.status, 200);
   assert.ok(asUser.json.suppliers.some((s) => s.supplier_id === gulf.supplier_id));
   assert.equal(asUser.json.can_edit, false);
-  assert.equal((await call("POST", "/suppliers", "user", { name: `${TAG} nope` })).status, 403);
+  // …but may add one by name from Add data; its details and figures stay with managers.
+  const byUser = await call("POST", "/suppliers", "user", { name: `${TAG} Added by a contributor` });
+  assert.equal(byUser.status, 201, JSON.stringify(byUser.json));
+  assert.equal((await call("POST", `/suppliers/${byUser.json.supplier_id}/factors`, "user", { item: "x", unit: "kg", kgco2e_per_unit: 1, reference_year: 2025 })).status, 403);
+  assert.equal((await call("POST", `/suppliers/${byUser.json.supplier_id}/facility-data`, "user", { year: 2025, scope12_tco2e: 1, output_qty: 1, output_unit: "kg" })).status, 403);
   assert.equal((await call("PUT", `/suppliers/${gulf.supplier_id}`, "user", { country: "IN" })).status, 403);
 
   // Company 2 can't see or touch company 1's supplier, its figures or facility data.
