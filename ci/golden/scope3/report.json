@@ -1,0 +1,30 @@
+{
+  "about": "Report-level golden cases (S3-13). Each case posts the stored kgCO2e of the named engine cases from cases.json as approved rows, reads GET /reports/ghg/scope3 and checks every category total equals the sum of its cases in kgCO2e / 1000, rounded once (D5). Checked by ci/api/tests/s3-13-reporting.test.cjs.",
+  "cases": [
+    {
+      "id": "report-cat4-cat9",
+      "guidance_ref": {
+        "example": "constructed",
+        "lines": null
+      },
+      "source": "01-contracts.md §9, S3-13 spec",
+      "formula": "post ex-4.2 and ex-9.1, approve, read GET /reports/ghg/scope3 → Cat 4 = 5.00 t, Cat 9 = 1.60 t, Scope 3 = 6.60 t",
+      "categories": {
+        "4": [
+          "ex-4.2"
+        ],
+        "9": [
+          "ex-9.1"
+        ]
+      },
+      "expected_tco2e": {
+        "4": 5.0,
+        "9": 1.6,
+        "scope3": 6.6
+      },
+      "status": "run",
+      "owner": "S3-13",
+      "note": "Moved from cases.json. The engine figures of ex-4.2 and ex-9.1 are checked by their own cases (S3-8); this case checks the report's sum and rounding."
+    }
+  ]
+}
