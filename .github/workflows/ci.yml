@@ -130,15 +130,16 @@ jobs:
 
       # An empty database hides migrations that load an entity before the column
       # it declares exists (S3-3's method_options): with no rows they never query
-      # it. This runs the deploy's migrate-all on the base schema with the API
-      # fixture's companies, sites, forms and entries in it, twice, like npm start.
+      # it. This runs the deploy's migrate-all on the base schema with the base
+      # branch's API fixture (companies, sites, forms, entries) in it, twice, like
+      # npm start.
       - name: migrate-all on the base schema with data in it (twice)
         env:
           DB_NAME: ci_seeded
           PGPASSWORD: postgres
         run: |
           node ci/schema-sync.cjs "${{ github.event_name == 'pull_request' && '.ci-base/dist' || 'dist' }}"
-          PGOPTIONS="-c client_min_messages=warning" psql -v ON_ERROR_STOP=1 -q -h localhost -U postgres -d ci_seeded -f ci/api/fixture.sql
+          PGOPTIONS="-c client_min_messages=warning" psql -v ON_ERROR_STOP=1 -q -h localhost -U postgres -d ci_seeded -f "${{ github.event_name == 'pull_request' && '.ci-base/ci/api/fixture.sql' || 'ci/api/fixture.sql' }}"
           node scripts/migrate-all.cjs
           node scripts/migrate-all.cjs
 
