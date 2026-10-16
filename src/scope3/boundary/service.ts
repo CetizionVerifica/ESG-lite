@@ -18,8 +18,8 @@ export type BoundaryStatus = (typeof BOUNDARY_STATUSES)[number];
 export const CONSOLIDATION_APPROACHES = ["operational_control", "financial_control", "equity_share"] as const;
 export type ConsolidationApproach = (typeof CONSOLIDATION_APPROACHES)[number];
 
-/** Scope 3 Standard Table 6.1 relevance criteria (ticks in `relevance`). */
-export const RELEVANCE_KEYS = ["size", "influence", "risk", "stakeholders", "outsourcing", "sector_guidance", "other"] as const;
+/** Scope 3 Standard Table 6.1 / guidance Table II relevance criteria (ticks in `relevance`). */
+export const RELEVANCE_KEYS = ["size", "influence", "risk", "stakeholders", "outsourcing", "sector_guidance", "spend_analysis", "other"] as const; // spend_analysis: Table II "spending or revenue analysis" (S3-12)
 
 const MAX_TEXT = 2000;
 
