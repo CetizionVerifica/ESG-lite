@@ -12,18 +12,25 @@ import { getSelectColumns } from "../activityValue";
 import { FactorIndex, MappingIndex } from "./resolve";
 import type { CategoryContext } from "./compute";
 import { offeredMethods } from "../../scope3/dq/methodOptions";
+import { SpendRateSource } from "../../scope3/spend/rates";
 
 export interface LoadedContext extends CategoryContext {
   mappings: MappingIndex;
   /** The site's company, for mapping lookups and scope. */
   company_id: number | null;
+  /** S3-5: stored FX rates and deflators, shared by every row of the plan. */
+  rates?: SpendRateSource;
 }
 
 export class ContextCache {
   private readonly sites = new Map<number, Promise<Site | null>>();
   private readonly contexts = new Map<string, Promise<LoadedContext>>();
 
-  constructor(private readonly manager: EntityManager) {}
+  private readonly spendRates: SpendRateSource;
+
+  constructor(private readonly manager: EntityManager) {
+    this.spendRates = new SpendRateSource(manager);
+  }
 
   site(site_id: number): Promise<Site | null> {
     let p = this.sites.get(site_id);
@@ -78,6 +85,7 @@ export class ContextCache {
       method_options: configs[0]?.method_options ? offeredMethods(configs[0].method_options) : null,
       mappings,
       company_id,
+      rates: this.spendRates,
     };
   }
 }

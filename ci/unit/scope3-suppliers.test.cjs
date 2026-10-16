@@ -220,3 +220,11 @@ test("parseHybridLines and parseSupplierRef name the first bad field", () => {
   assert.equal(parseSupplierRef({ supplier_id: "abc" }).field, "supplier_id");
   assert.equal(parseSupplierRef({ supplier_factor_id: -1 }).field, "supplier_factor_id");
 });
+
+test("an @method naming a supplier method routes there when the supplier's figures are on the row", () => {
+  const supplier = { supplier_id: 3, country: null, factor: figure() };
+  const r = computeRow(ctx, row({ rowMethod: "supplier_specific", supplier }));
+  assert.ok(r.ok);
+  assert.equal(r.computed.method, "supplier_specific");
+  assert.equal(r.computed.total_kgco2e, "8600.0000");
+});

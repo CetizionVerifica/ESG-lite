@@ -17,6 +17,7 @@ import type { Dq, DataType } from "../../scope3/contracts/dq";
 import { autoDq, dataTypeFor, type DqFactorInput } from "../../scope3/dq/defaults";
 import type { SupplierEngineInput } from "../../scope3/suppliers/engineInput";
 import type { Gas } from "../../scope3/contracts/factor";
+import type { DeflatorUsed, EmissionFx, SpendQuote } from "../../scope3/spend/types";
 import * as activity from "./methods/activity";
 import * as spec from "./methods/spec";
 import * as spend from "./methods/spend";
@@ -77,6 +78,11 @@ export interface Computed {
   method?: Method;
   dq?: Dq;
   data_type?: DataType;
+  /** S3-5: the rate a spend row used (stored as `emission.fx`) and the deflator (stored in the snapshot). */
+  fx?: EmissionFx;
+  deflator?: DeflatorUsed;
+  /** Warnings the method raised (never block): FX_RATE_FALLBACK, NO_DEFLATOR. */
+  warnings?: EngineIssue[];
   /**
    * S3-6: the stored factor snapshot when the method's figure is not the row's
    * emission factor (a supplier's figure, or a hybrid row's components).
@@ -109,12 +115,20 @@ export interface EngineRow {
   method?: Method | null;
   /** Set on estimated rows (S3-12). */
   proxy?: unknown;
+  /**
+   * S3-3: the method the row names in `activity_data["@method"]` (S3-9 forms and
+   * rows sent before rows had a `method`). Recorded as the row's method when
+   * `method` is unset; it never picks the method file, so totals stay put.
+   */
+  rowMethod?: Method | null;
   /** The year the row is reported in, for the DQ time rule (S3-3). */
   reportingYear?: number;
   /** An evidence document is already attached (S3-3). */
   hasEvidence?: boolean;
   /** A data quality the caller entered by hand; used as it is, never overwritten (S3-3). */
   manualDq?: Dq | null;
+  /** S3-5: amount, rate and deflator of a spend row, loaded before the engine runs (src/scope3/spend/rates.ts). */
+  spend?: SpendQuote;
   /** S3-6: the supplier's figures, loaded by `src/scope3/suppliers` for supplier-specific and hybrid rows. */
   supplier?: SupplierEngineInput | null;
 }
@@ -129,41 +143,51 @@ type SupplierMethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => C
 const SCOPE_3 = "Scope 3";
 
 /**
- * The method a row is calculated by (§6): the row's own, else the form's first
- * offered method, else average data. Null outside Scope 3 — a method is a
- * Scope 3 idea, and Scope 1 and Scope 2 rows carry none (S3-3).
+ * The method a row records (§6, S3-3): the row's own (`method`, else its
+ * `@method`), else the form's first offered method, else average data. Null
+ * outside Scope 3: a method is a Scope 3 idea, and Scope 1 and Scope 2 rows
+ * carry none.
  *
  * `average_data` is the fallback rather than `unknown`: an activity figure
  * times a published factor *is* the average-data method. `unknown` is kept for
  * legacy rows that never recorded anything.
  */
-export const methodFor = (ctx: CategoryContext, row: Pick<EngineRow, "method">): Method | null => {
+export const methodFor = (ctx: CategoryContext, row: Pick<EngineRow, "method" | "rowMethod">): Method | null => {
   if (ctx.scope !== SCOPE_3) return null;
-  return row.method ?? ctx.method_options?.[0] ?? "average_data";
+  return row.method ?? row.rowMethod ?? ctx.method_options?.[0] ?? "average_data";
 };
 
 /**
- * The method file for a row. Supplier-specific and hybrid rows go to their
- * own files on any category, spec or not (01-contracts.md §6, rule 2): their
- * figure is the supplier's, so a form's spec has nothing to add. Otherwise
- * spec categories always use the spec. No row carried either method before
- * S3-6 (the backfill writes neither), so moving them ahead of the spec moves
- * no stored number.
+ * The method file for a row, in the order of 01-contracts §6: a proxy row;
+ * then the row's method spend_based / supplier_specific / hybrid on any
+ * category, spec or not; then a row carrying a spend quote; then the
+ * category's spec; else activity × factor.
+ *
+ * Only the method the caller sends (`row.method`) picks a file here. The form's
+ * default (`method_options[0]`) reaches the engine another way: index.ts asks
+ * for a spend quote when it is spend_based, and that quote picks the spend
+ * file. S3-6: supplier-specific and hybrid are real methods now. index.ts
+ * passes them as `row.method` whenever the row asks for one (its `method`,
+ * its `@method`, or the form's default when the row names a supplier); an
+ * `@method` naming one, with the supplier's figures on the row, routes the
+ * same way here for callers that don't.
  */
-const methodFileFor = (ctx: CategoryContext, row: EngineRow, method: Method | null): MethodFile | SupplierMethodFile => {
-  if (method === "supplier_specific") return supplier;
-  if (method === "hybrid") return hybrid;
-  if (ctx.spec) return spec;
+const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile | SupplierMethodFile => {
   if (row.proxy) return proxy;
-  switch (method) {
+  const named = row.method ?? (row.supplier && (row.rowMethod === "supplier_specific" || row.rowMethod === "hybrid") ? row.rowMethod : null);
+  switch (named) {
     case "spend_based":
       return spend;
-    default:
-      return activity;
+    case "supplier_specific":
+      return supplier;
+    case "hybrid":
+      return hybrid;
   }
+  // S3-5: a spend row is the amount spent whatever fields the form multiplies (a Category 6 trip paid in INR).
+  if (row.spend) return spend;
+  if (ctx.spec) return spec;
+  return activity;
 };
-
-const isSupplierMethod = (file: MethodFile | SupplierMethodFile): file is SupplierMethodFile => file === supplier || file === hybrid;
 
 /**
  * One row's total, from the method file the row picks, plus how it was
@@ -171,16 +195,23 @@ const isSupplierMethod = (file: MethodFile | SupplierMethodFile): file is Suppli
  * total: it is worked out from the method, the factor's own metadata, the
  * site's country and the reporting year, and attached to the result.
  */
+const isSupplierMethod = (file: MethodFile | SupplierMethodFile): file is SupplierMethodFile => file === supplier || file === hybrid;
+
 export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
-  const method = methodFor(ctx, row);
-  const file = methodFileFor(ctx, row, method);
+  const file = methodFileFor(ctx, row);
   let result: ComputeResult;
   if (isSupplierMethod(file)) result = file.compute(ctx, row);
   else if (row.factor) result = file.compute(ctx, row as FactorRow);
   else return { ok: false, issue: { code: "NO_FACTOR_FOR_YEAR", message: "No emission factor was found for this activity." } };
   if (!result.ok) return result;
-
+  if (ctx.scope !== SCOPE_3) {
+    // Scope 1 and Scope 2 rows carry no method, even when a file names one (a Scope 2 bill in INR takes the spend file).
+    const { method: _method, dq: _dq, data_type: _dataType, quality: _quality, ...rest } = result.computed;
+    return { ok: true, computed: rest };
+  }
   const { quality, ...computed } = result.computed;
+  // The method file's own word wins (a spend quote makes a spend row, S3-5), then the row's, then the form's.
+  const method = computed.method ?? methodFor(ctx, row);
   if (!method) return { ok: true, computed };
 
   // S3-6: a supplier's figure (or the evidence on it) speaks for the row.
@@ -219,11 +250,12 @@ export const computeTotal = (
   factor: EmissionFactor | null,
   activity_data: Record<string, any>,
   activity_unit: string,
-  /** S3-3: what the row says about its own method and quality, when it says anything. */
-  quality: Pick<EngineRow, "method" | "reportingYear" | "hasEvidence" | "manualDq" | "proxy" | "supplier"> = {},
-): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit, ...quality });
+  /** S3-3, S3-5 and S3-6: what the row says about its own method and quality, a spend row's quote, a supplier row's figures. */
+  extra: Pick<EngineRow, "method" | "rowMethod" | "reportingYear" | "hasEvidence" | "manualDq" | "proxy" | "spend" | "supplier"> = {},
+): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit, ...extra });
 
-export const factorSnapshot = (f: EmissionFactor) => ({
+/** The stored factor snapshot; a spend row adds the deflator it used (S3-5). */
+export const factorSnapshot = (f: EmissionFactor, deflator?: DeflatorUsed) => ({
   emission_factor_id: f.emission_factor_id,
   emission_category_name: f.emission_category_name,
   global_category_name: f.global_category_name || undefined,
@@ -234,4 +266,5 @@ export const factorSnapshot = (f: EmissionFactor) => ({
   year: f.year,
   // S3-2: factor_type, gwp_set, geography, dataset, dataset_version, gases.
   ...metaSnapshot(f),
+  ...(deflator ? { deflator } : {}),
 });

@@ -21,7 +21,7 @@ import type { ActivityMatch, ImportRow, PlannedRow, RowIssue, StrippedTotal } fr
 import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../../imports/writer";
 import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
-import { computeTotal, factorSnapshot, feraGap, feraTwinFor, methodFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
+import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
@@ -29,7 +29,10 @@ import { refreshChecksSafely } from "../../scope3/review/service";
 import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
 import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
-import { methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import { MethodSchema, methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import { ROW_METHOD_COLUMN } from "../calculationSpec";
+import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
+import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
 import {
   loadSupplier,
   parseHybridLines,
@@ -68,6 +71,8 @@ export interface EntryInput {
   method?: Method | null;
   is_estimate?: boolean;
   dq?: ManualDqInput | null;
+  /** S3-5: the row's saved `fx`, so a recalculation with the same currency and date reuses its rate. */
+  storedFx?: EmissionFx | null;
   /**
    * S3-6: the supplier the goods came from (one of the site's company), and
    * for the supplier-specific method the figure to use when the supplier has
@@ -217,6 +222,12 @@ const prepareSupplier = async (ctx: LoadedContext, checks: CheckCache, input: En
   };
 };
 
+/** A valid method key in `activity_data["@method"]`, or null (S3-3). */
+const rowMethodOf = (activity_data: Record<string, any>): Method | null => {
+  const parsed = MethodSchema.safeParse(String(activity_data?.[ROW_METHOD_COLUMN] ?? "").trim());
+  return parsed.success && parsed.data !== "unknown" ? parsed.data : null;
+};
+
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
   // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
@@ -226,9 +237,14 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
+  // S3-3: the method the row names: its `method`, else `activity_data["@method"]`
+  // (S3-9 forms and rows sent before rows had a method). A key ESGLite doesn't
+  // know in "@method" is left to the spec, as before.
+  const named = input.method ?? rowMethodOf(activity_data);
+
   // S3-3: the form decides which methods its category offers. Checked here so
   // typed entries, bulk upload, smart import and MCP all refuse the same ones.
-  if (!methodAllowedForForm(input.method, ctx.method_options)) {
+  if (!methodAllowedForForm(named, ctx.method_options)) {
     const offered = (ctx.method_options ?? []).map((m) => methodLabel(m)).join(", ");
     return {
       ok: false,
@@ -239,13 +255,32 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       },
     };
   }
-
-  // S3-6: the supplier, and for the supplier-specific and hybrid methods its figures.
-  const method = methodFor(ctx, { method: input.method });
-  const supplierMethod = method === "supplier_specific" || method === "hybrid";
-  const prep = await prepareSupplier(ctx, checks, input, method, targetYear);
+  // S3-6: supplier-specific and hybrid are real methods. A row gets one when it
+  // names it (`method` or `@method`), or when the form offers one first and
+  // the row names a supplier. A form defaulting to one, on a row naming no
+  // supplier, is calculated (and recorded) as average data, as it was before
+  // S3-6, so no saved total moves.
+  const isSupplierMethodKey = (m: Method | null | undefined): m is "supplier_specific" | "hybrid" => m === "supplier_specific" || m === "hybrid";
+  const formDefault = ctx.method_options?.[0] ?? null;
+  const supplierMethodWanted: Method | null = isSupplierMethodKey(named)
+    ? named
+    : !named && isSupplierMethodKey(formDefault) && input.supplier_id != null
+      ? formDefault
+      : null;
+  const recordAs: Method | null = !named && isSupplierMethodKey(formDefault) && !supplierMethodWanted ? "average_data" : null;
+  const supplierMethod = supplierMethodWanted !== null;
+  const prep = await prepareSupplier(ctx, checks, input, supplierMethodWanted, targetYear);
   if (!prep.ok) return prep;
   warnings.push(...prep.warnings);
+
+  // S3-5 asks for an amount and a currency when the row's method is spend_based: the
+  // one it names, else the form's default (01-contracts §6: row → method_options[0]).
+  const spendMethod = named ?? ctx.method_options?.[0] ?? null;
+
+  // S3-5: a row entered as an amount and a currency is in that currency.
+  if (!unit && rowAsksForSpend(activity_data, spendMethod)) {
+    unit = spendInputOf(activity_data, input.extra_data, null, input.period.date_of_reporting, undefined, spendMethod)?.currency;
+  }
 
   if (activity_data.emission_category && unit) {
     const match = ctx.factors.find(activity_data.emission_category, targetYear);
@@ -261,16 +296,33 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     if (match?.fallback_year && !supplierMethod) {
       warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${match.factor.emission_category_name}"; the ${match.factor.year} factor was used.` });
     }
+    // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs. That includes
+    // an amount in another currency than its factor's (INR on a factor per USD), so its rate is stored too.
+    let spend: SpendQuote | undefined;
+    if (!supplierMethod && factor && isSpendRow(activity_data, factor, spendMethod, unit)) {
+      const spendInput = spendInputOf(activity_data, input.extra_data, unit, input.period.date_of_reporting, ctx.selectColumns, spendMethod);
+      if (spendInput && ctx.rates) {
+        const quoted = await ctx.rates.quote(spendInput, factor, input.storedFx);
+        if (!quoted.ok) return { ok: false, issue: { code: quoted.code, message: quoted.message, field: quoted.field } };
+        spend = quoted.quote;
+      } else if (!spendInput && rowAsksForSpend(activity_data, spendMethod)) {
+        return { ok: false, issue: { code: "FIELD_REQUIRED", message: "Give the amount spent and its currency.", field: "spent_value" } };
+      }
+    }
+    // S3-3: the method and quality the engine records; S3-5: the spend quote that picks the spend file.
     const result = computeTotal(ctx, factor, activity_data, unit, {
-      method: input.method,
+      method: supplierMethodWanted ?? recordAs ?? input.method,
+      rowMethod: input.method ? null : rowMethodOf(activity_data),
       reportingYear: reportingYearFor(input.period.date_of_reporting),
       manualDq: input.dq ? manualDqFrom(input.dq) : null,
+      spend,
       supplier: prep.engine,
     });
     if (!result.ok) return result;
     computed = result.computed;
     unit = computed.activity_unit;
   }
+  const methodWarnings = computed?.warnings ?? [];
 
   let fera: FeraTwin | null = null;
   let feraSkipped: string | undefined;
@@ -305,6 +357,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   }
   const wtt = supplierMethod ? null : wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
+  warnings.push(...methodWarnings);
 
   return {
     ok: true,
@@ -324,10 +377,11 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
 
 /**
  * The snapshot a row stores: the method's own (a supplier's figure, a hybrid
- * row's components; S3-6) or the row's emission factor, as before.
+ * row's components; S3-6) or the row's emission factor with a spend row's
+ * deflator (S3-5), as before.
  */
 export const entryFactorSnapshot = (entry: Pick<PreparedEntry, "factor" | "computed">): Record<string, unknown> | null =>
-  entry.computed?.snapshot ?? (entry.factor ? factorSnapshot(entry.factor) : null);
+  entry.computed?.snapshot ?? (entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null);
 
 export interface AuditInfo {
   changed_by: number;
@@ -367,6 +421,7 @@ export const insertEntry = async (
     emission_factor_snapshot: entryFactorSnapshot(entry),
     // S3-6: the supplier the goods came from, when the entry names one.
     supplier: entry.supplier_id ? ({ supplier_id: entry.supplier_id } as any) : null,
+    fx: entry.computed?.fx ?? null,
     // S3-3: null on Scope 1 and Scope 2 rows, where a method means nothing.
     method: entry.computed?.method ?? null,
     dq: entry.computed?.dq ?? null,

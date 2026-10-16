@@ -289,18 +289,24 @@ test("a method the form does not offer is refused, on the one engine", async (t)
   assert.equal(nonsense.json.code, "FIELD_INVALID");
   assert.equal(nonsense.json.field, "method");
 
+  // A spend row needs the amount spent and its currency (S3-5), even on a form that offers spend.
+  const noAmount = await postRow({ date_of_reporting: "2026-07-31", method: "spend_based" });
+  assert.equal(noAmount.status, 400, JSON.stringify(noAmount.json));
+  assert.equal(noAmount.json.code, "FIELD_REQUIRED");
+
   // One the form does offer is stored as sent.
-  const allowed = await postRow({ date_of_reporting: "2026-07-31", method: "spend_based", is_estimate: true });
+  const allowed = await postRow({ date_of_reporting: "2026-07-31", method: "distance_based", is_estimate: true });
   assert.equal(allowed.status, 201, JSON.stringify(allowed.json));
   created.push(allowed.json.emission.pk_id);
   await withDb(async (db) => {
-    const { rows } = await db.query(`SELECT method, is_estimate, dq FROM emission WHERE pk_id = $1`, [
+    const { rows } = await db.query(`SELECT method, is_estimate, dq, total_emission FROM emission WHERE pk_id = $1`, [
       allowed.json.emission.pk_id,
     ]);
-    assert.equal(rows[0].method, "spend_based");
+    assert.equal(rows[0].method, "distance_based");
     assert.equal(rows[0].is_estimate, true, "the estimate flag is saved (it never was before)");
-    assert.equal(rows[0].dq.reliability, 3, "spend data is poor on reliability");
+    assert.equal(rows[0].dq.reliability, 2, "distance data with no evidence is fair on reliability");
     assert.equal(rows[0].dq.source, "auto");
+    assert.equal(Number(rows[0].total_emission), 0.1, "100 km × 1 kg");
   });
 });
 

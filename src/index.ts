@@ -15,6 +15,8 @@ import wellKnownRoutes from "./oauth/wellKnown";
 import importsRouter from "./imports/router";
 import internalImportsRouter from "./routes/internalImports.routes";
 import scope3Router from "./scope3/router";
+import { fxRouter } from "./scope3/spend/router";
+import { startFxJob } from "./scope3/spend/fxJob";
 import supplierPublicRoutes from "./routes/supplierPublic.routes";
 import { companyRouter as scope3CompanyRouter } from "./scope3/boundary/router";
 import suppliersRouter from "./scope3/suppliers/router";
@@ -27,6 +29,7 @@ import { connectRabbitMQ } from "./config/rabbitmq";
 import { startEmailConsumer } from "./workers/emailConsumer";
 import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
+import { startBaseYearScheduler } from "./scope3/baseYear/job"; // S3-14
 import { logMailStatus } from "./config/mailer";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
@@ -87,6 +90,7 @@ app.use("/oauth", oauthRoutes);
 app.use("/.well-known", wellKnownRoutes);
 app.use("/imports", authenticate, importsRouter);
 app.use("/scope3", authenticate, scope3Router); // S3-0; each Scope 3 module adds its routes in src/scope3/router.ts
+app.use("/fx-rates", authenticate, fxRouter); // S3-5: stored FX rates for spend rows (01-contracts.md §5)
 app.use("/internal/imports", internalImportsRouter); // IM4, service key
 app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, no account
 app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
@@ -134,11 +138,13 @@ connectWithRetry()
         startHeartbeat();
         registerUploadNotifyListener(); // IM4
         registerMappingMemoryListener(onBatchCommitted); // XI3
+        startFxJob(AppDataSource.manager); // S3-5: daily FX rates (FX_JOB_DISABLED=true turns it off)
         logMailStatus();
         const port = Number(process.env.PORT) || 3000;
         server = app.listen(port, () => {
             console.log(`🚀 Server running on http://localhost:${port}`);
         });
+        startBaseYearScheduler(); // S3-14: nightly Scope 3 base-year check
 
         // Connect RabbitMQ in background (non-blocking)
         connectRabbitMQ()

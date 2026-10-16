@@ -436,3 +436,39 @@ test("C06 accept writes the PCF factor and a supplier_factor, linking the suppli
   const created = await withDb((db) => db.query(`SELECT name, email, company_id FROM "supplier" WHERE supplier_id = $1`, [ok2.json.supplier_id]));
   assert.deepEqual(created.rows[0], { name: `${TAG} Brand New Supplier`, email: "pcf@new.example", company_id: 1 });
 });
+
+test("routing: @method and a form that offers the supplier's own figure first", async (t) => {
+  const s = await createSupplier(`${TAG} Routing Co`);
+  await call("POST", `/suppliers/${s.supplier_id}/factors`, "manager", { item: "Aluminium ingot", unit: "kg", kgco2e_per_unit: 5, reference_year: 2025 });
+
+  // A row naming the method in "@method" (rows sent before they had `method`) routes to it.
+  const viaRowMethod = await enter("manager", {
+    date_of_reporting: "2025-08-31",
+    activity_data: { emission_category: "Aluminium ingot", activity_value: "100", "@method": "supplier_specific" },
+    supplier_id: s.supplier_id,
+  });
+  assert.equal(viaRowMethod.status, 201, JSON.stringify(viaRowMethod.json));
+  assert.equal(viaRowMethod.json.emission.method, "supplier_specific");
+  assert.equal(viaRowMethod.json.emission.total_kgco2e, "500.0000");
+
+  // A form offering the supplier's own figure first.
+  await withDb((db) =>
+    db.query(`INSERT INTO column_config (config_name, site_id, category_id, method_options) VALUES ('S3-6 routing', 1, $1, $2)`, [
+      CAT1,
+      JSON.stringify([{ method: "supplier_specific", units: ["kg"] }, { method: "average_data", units: ["kg"] }]),
+    ]),
+  );
+  t.after(() => withDb((db) => db.query(`DELETE FROM column_config WHERE category_id = $1`, [CAT1])));
+
+  // …with a supplier named: calculated from its figure.
+  const withSupplier = await enter("manager", { date_of_reporting: "2025-09-30", activity_data: { emission_category: "Aluminium ingot", activity_value: "100" }, supplier_id: s.supplier_id });
+  assert.equal(withSupplier.status, 201, JSON.stringify(withSupplier.json));
+  assert.equal(withSupplier.json.emission.method, "supplier_specific");
+  assert.equal(withSupplier.json.emission.total_kgco2e, "500.0000");
+
+  // …with none: calculated and recorded as average data, as before S3-6, never refused.
+  const noSupplier = await enter("manager", { date_of_reporting: "2025-10-31", activity_data: { emission_category: "Aluminium ingot", activity_value: "100" } });
+  assert.equal(noSupplier.status, 201, JSON.stringify(noSupplier.json));
+  assert.equal(noSupplier.json.emission.method, "average_data");
+  assert.equal(noSupplier.json.emission.total_kgco2e, "1000.0000");
+});
