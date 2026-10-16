@@ -14,6 +14,7 @@ import type { RowIssueCode } from "../../imports/errors";
 import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
+import type { DeflatorUsed, EmissionFx, SpendQuote } from "../../scope3/spend/types";
 import * as activity from "./methods/activity";
 import * as spec from "./methods/spec";
 import * as spend from "./methods/spend";
@@ -61,6 +62,11 @@ export interface Computed {
   method?: Method;
   dq?: Dq;
   data_type?: DataType;
+  /** S3-5: the rate a spend row used (stored as `emission.fx`) and the deflator (stored in the snapshot). */
+  fx?: EmissionFx;
+  deflator?: DeflatorUsed;
+  /** Warnings the method raised (never block): FX_RATE_FALLBACK, NO_DEFLATOR. */
+  warnings?: EngineIssue[];
 }
 
 export type ComputeResult = { ok: true; computed: Computed } | { ok: false; issue: EngineIssue };
@@ -75,6 +81,8 @@ export interface EngineRow {
   method?: Method | null;
   /** Set on estimated rows (S3-12). */
   proxy?: unknown;
+  /** S3-5: amount, rate and deflator of a spend row, loaded before the engine runs (src/scope3/spend/rates.ts). */
+  spend?: SpendQuote;
 }
 
 /** Every method file exports `compute(ctx, row)`. */
@@ -86,6 +94,8 @@ type MethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeRe
  * TODO(S3-3): fall back to the form's `method_options[0]` when the row has none.
  */
 const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
+  // S3-5: a spend row is the amount spent whatever fields the form multiplies (a Category 6 trip paid in INR).
+  if (row.spend) return spend;
   if (ctx.spec) return spec;
   if (row.proxy) return proxy;
   switch (row.method) {
@@ -113,9 +123,11 @@ export const computeTotal = (
   factor: EmissionFactor,
   activity_data: Record<string, any>,
   activity_unit: string,
-): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit });
+  extra: Pick<EngineRow, "method" | "spend"> = {},
+): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit, ...extra });
 
-export const factorSnapshot = (f: EmissionFactor) => ({
+/** The stored factor snapshot; a spend row adds the deflator it used (S3-5). */
+export const factorSnapshot = (f: EmissionFactor, deflator?: DeflatorUsed) => ({
   emission_factor_id: f.emission_factor_id,
   emission_category_name: f.emission_category_name,
   global_category_name: f.global_category_name || undefined,
@@ -126,4 +138,5 @@ export const factorSnapshot = (f: EmissionFactor) => ({
   year: f.year,
   // S3-2: factor_type, gwp_set, geography, dataset, dataset_version, gases.
   ...metaSnapshot(f),
+  ...(deflator ? { deflator } : {}),
 });

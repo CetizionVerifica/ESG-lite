@@ -553,7 +553,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       extra_data: extra_data || {},
     });
     if (!prepared.ok) {
-      return res.status(400).json({ message: prepared.issue.message, ...(prepared.issue.extra ?? {}) });
+      return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
     }
     const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
 

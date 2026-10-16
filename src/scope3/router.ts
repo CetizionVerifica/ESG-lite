@@ -10,10 +10,12 @@ import { Router } from "express";
 import boundaryRouter from "./boundary/router";
 import assetsRouter from "./assets/router";
 import commutingRouter from "./commuting/router";
+import { scope3SpendRouter } from "./spend/router";
 
 const router = Router();
 
 router.use(boundaryRouter); // S3-1: /scope3/categories, /scope3/category-map
+router.use(scope3SpendRouter); // S3-5: /scope3/deflators, /scope3/spend/library
 router.use(commutingRouter); // S3-9: /scope3/commuting/surveys
 router.use(assetsRouter); // S3-11: /scope3/investments, /scope3/assets/sites
 

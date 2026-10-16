@@ -74,18 +74,111 @@
     {
       "id": "ex-1.5",
       "guidance_ref": {
-        "example": "1.5",
-        "lines": "L2074 (formula 1.5)"
+        "example": "1.4",
+        "lines": "L2068-2125 (formula 1.5, raw materials of example 1.4)"
       },
       "source": "S3-5 spec",
       "category": 1,
       "method": "spend_based",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
-      "status": "skip",
+      "formula": "5,000 × 0.3 + 3,000 × 0.3 + 4,000 × 0.3 + 6,000 × 0.5 + 1,500 × 0.2 + 5,000 × 0.2 + 5,000 × 0.3 + 1,000 × 0.3 + 5,000 × 0.4 USD",
+      "factors": {
+        "plastic_ps": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "plastic_abs": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "pet_film": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "aluminium": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "USD"
+        },
+        "steel": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "USD"
+        },
+        "cyclohexane": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "USD"
+        },
+        "epoxy": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "copper": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "glass": {
+          "kgco2e_per_unit": 0.4,
+          "unit": "USD"
+        }
+      },
+      "rows": [
+        {
+          "label": "Plastic (PS)",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "plastic_ps"
+        },
+        {
+          "label": "Plastic (ABS)",
+          "quantity": 3000,
+          "unit": "USD",
+          "factor": "plastic_abs"
+        },
+        {
+          "label": "PET (film)",
+          "quantity": 4000,
+          "unit": "USD",
+          "factor": "pet_film"
+        },
+        {
+          "label": "Aluminium",
+          "quantity": 6000,
+          "unit": "USD",
+          "factor": "aluminium"
+        },
+        {
+          "label": "Steel",
+          "quantity": 1500,
+          "unit": "USD",
+          "factor": "steel"
+        },
+        {
+          "label": "Cyclohexane",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "cyclohexane"
+        },
+        {
+          "label": "Epoxy resin",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "epoxy"
+        },
+        {
+          "label": "Copper",
+          "quantity": 1000,
+          "unit": "USD",
+          "factor": "copper"
+        },
+        {
+          "label": "Glass",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "glass"
+        }
+      ],
+      "expected_kgco2e": 11700,
+      "status": "run",
       "owner": "S3-5",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). The guidance has no separate Example 1.5; formula 1.5 is worked inside Example 1.4. This case is that example's spend part (raw materials by value); the mass part is ex-1.4. No FX or deflator: the example's spend and factors are both in USD of the same year. S3-5 runs it (figures from S3-0's follow-up #144/#152, carried here until that merges)."
     },
     {
       "id": "ex-3.x-upstream-fuels",
@@ -415,9 +508,9 @@
         }
       ],
       "expected_kgco2e": 7300,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-5",
-      "note": "Listed by S3-8 (runs once S3-5 spend.ts is merged) and by S3-5; S3-5 turns it on."
+      "note": "Listed by S3-8 and S3-5; S3-5 runs it (spend.ts, amounts already in the factors' USD: rate 1, no deflation)."
     },
     {
       "id": "ex-4.5",
