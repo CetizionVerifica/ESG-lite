@@ -293,6 +293,14 @@ test("extrapolate intensity: kg per output at sites with data × output at the s
   assert.equal(again.json.details.reason, "output_site_has_data");
 });
 
+test("two extrapolations at once: one Pending row, the other DUPLICATE_EXISTING", async () => {
+  // The site 1 coverage row was approved above, so nothing is pending for this key.
+  const [a, b] = await Promise.all([call("POST", "/scope3/extrapolate", "manager", coverage()), call("POST", "/scope3/extrapolate", "admin", coverage())]);
+  assert.deepEqual([a.status, b.status].sort(), [201, 409], JSON.stringify([a.json, b.json]));
+  const pending = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id = 1 AND status = 'pending' AND proxy ->> 'basis' = 'coverage'`));
+  assert.equal(pending.rows[0].n, 1);
+});
+
 // ── migrate:scope3-screening ─────────────────────────────────────────────────
 
 const runScript = (name) =>

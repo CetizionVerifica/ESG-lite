@@ -272,7 +272,9 @@ export async function extrapolate(companyId: number, caller: Caller, raw: unknow
     warnings: [],
   };
   const saved = await AppDataSource.transaction(async (tx) => {
-    // Re-check the duplicate inside the transaction (two clicks at once).
+    // Re-check the duplicate inside the transaction (two clicks at once). FOR UPDATE
+    // locks nothing when no row exists yet, so serialise on the key first.
+    await tx.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`s3-12-proxy:${body.site_id}:${n}:${body.basis}:${start}`]);
     const [again]: any[] = await tx.query(
       `SELECT e.pk_id FROM emission e JOIN category c ON c.category_id = e.category_id
         WHERE e.site_id = $1 AND c.ghg_category = $2 AND e.status = 'pending' AND e.proxy ->> 'basis' = $3
