@@ -212,7 +212,7 @@ export function buildScope3Rows(
 // ---------------------------------------------------------------------------
 
 const OPTIONAL_COLUMNS = ["method", "dq", "data_type", "total_kgco2e", "proxy", "biogenic_kg", "gas_kg"] as const;
-type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number];
+export type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number];
 
 let columnCache: { at: number; cols: Set<string> } | null = null;
 const COLUMN_TTL_MS = 5 * 60 * 1000;
@@ -230,12 +230,14 @@ export async function emissionColumns(q: Queryable = AppDataSource): Promise<Set
   return columnCache.cols as Set<OptionalColumn>;
 }
 
+/** One emission row's kgCO₂e (alias `e`): the stored kg once S3-4 adds it, else tonnes × 1000. Shared with S3-14. */
+export const kgSql = (cols: Set<OptionalColumn>) =>
+  cols.has("total_kgco2e") ? `COALESCE(e.total_kgco2e, e.total_emission::numeric * 1000)` : `e.total_emission::numeric * 1000`;
+
 /** Approved Scope 3 rows in the filters' period, aggregated for buildScope3Rows. */
 async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Queryable): Promise<Scope3Group[]> {
   const range = getPeriodRange(filters.yearType, filters.year, filters.frequency ?? "yearly", filters.month, filters.quarter);
-  const kg = cols.has("total_kgco2e")
-    ? `COALESCE(e.total_kgco2e, e.total_emission::numeric * 1000)`
-    : `e.total_emission::numeric * 1000`;
+  const kg = kgSql(cols);
   const params: any[] = [filters.siteIds, range.startDate, range.endDate];
   let catFilter = "";
   if (filters.categoryIds?.length) {

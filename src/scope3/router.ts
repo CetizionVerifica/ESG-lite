@@ -10,11 +10,13 @@ import { Router } from "express";
 import boundaryRouter from "./boundary/router";
 import assetsRouter from "./assets/router";
 import commutingRouter from "./commuting/router";
+import baseYearRouter from "./baseYear/router";
 
 const router = Router();
 
 router.use(boundaryRouter); // S3-1: /scope3/categories, /scope3/category-map
 router.use(commutingRouter); // S3-9: /scope3/commuting/surveys
 router.use(assetsRouter); // S3-11: /scope3/investments, /scope3/assets/sites
+router.use(baseYearRouter); // S3-14: /scope3/base-year, /scope3/recalculations
 
 export default router;
