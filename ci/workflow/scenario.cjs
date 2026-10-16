@@ -108,6 +108,24 @@ const travelKg = () => TRAVEL.travellers * TRAVEL.distance_km * FLIGHT.kg_per_pk
 /** kg of the spend row once the copied factor value, base year and deflators are known. */
 const spendKg = ({ factor_value, base_index, spend_index }) => (SPEND.amount_inr / SPEND.inr_per_usd) * (base_index / spend_index) * factor_value;
 
+/**
+ * Scope 3 screening (S3-12, Phase 3): the Admin gives the headcount for
+ * Category 7. The screening estimate assumes every employee drives an average
+ * car (DEFRA 2025 "Car - Average car - Unknown fuel", 0.16725 kgCO₂e per
+ * vehicle.km) 15 km each way, 2 trips a day, 230 working days. It is shown,
+ * never saved as a row.
+ */
+const SCREENING = {
+  headcount: 120,
+  one_way_km: 15,
+  trips_per_day: 2,
+  working_days: 230,
+  car_kg_per_vkm: 0.16725,
+  tick: { n: 6, key: "stakeholders" }, // Table II "Stakeholders" on business travel
+};
+/** 120 × 15 × 2 × 230 = 828,000 vehicle.km × 0.16725 = 138,483 kg. */
+const screeningKg = () => SCREENING.headcount * SCREENING.one_way_km * SCREENING.trips_per_day * SCREENING.working_days * SCREENING.car_kg_per_vkm;
+
 /** Boundary choices the client's Admin makes (Phase 3). */
 const BOUNDARY = {
   consolidation_approach: "operational_control",
@@ -117,4 +135,4 @@ const BOUNDARY = {
   ],
 };
 
-module.exports = { YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, BOUNDARY };
+module.exports = { YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };
