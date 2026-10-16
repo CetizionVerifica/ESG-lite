@@ -4,9 +4,12 @@
 //
 //   1. Global columns, reused by exact name and type.
 //   2. The column config per site × category: created when there is none,
-//      updated in place only while it is still the standard one (name
-//      "Transport - Standard …" or the S3-8 marker in `calculation`). A config
-//      a client customised is left alone and its id logged.
+//      updated in place only while it is still the standard one: written by
+//      this module and unedited since (`calculation.standard` marker and a
+//      matching `standard_hash`), or the pre-S3-8 standard set by name. A form
+//      a client or a Superadmin changed is left alone and its id logged.
+//      `method_options` (S3-3) is set when the form is written and was empty,
+//      so a Superadmin's choice of methods stays.
 //   3. Unit rows the form offers (never removes one).
 //   4. Fuel and refrigerant factors from transport/factors.ts, per year, only where
 //      the site × category has no factor of that name and year.
@@ -20,7 +23,6 @@
 // Cat 4 / Cat 9 are found by `category.ghg_category IN (4, 9)` (S3-1). Until
 // that column exists, the existing transport categories (13 upstream, 18
 // downstream) are used.
-// TODO(S3-3): write `method_options` (METHOD_OPTIONS, UNITS_BY_METHOD) once the column exists.
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 import { ColumnEntity } from "../entities/Column";
@@ -37,8 +39,11 @@ import {
   CONFIG_NAME_PREFIX,
   UNITS,
   isStandardConfig,
+  methodOptionsFor,
+  sameJson as same,
   transportForm,
   withPaidBy,
+  withStandardHash,
 } from "../scope3/transport/configs";
 import { TRANSPORT_FACTORS } from "../scope3/transport/factors";
 
@@ -58,11 +63,6 @@ async function transportCategories(): Promise<Map<number, 4 | 9>> {
   console.log("  category.ghg_category not there yet (S3-1): using the transport categories 13 and 18");
   return new Map(Object.entries(LEGACY_CATEGORY_IDS).map(([id, n]) => [Number(id), n]));
 }
-
-/** JSON with object keys sorted: jsonb reads back with its own key order. */
-const canon = (v: unknown): unknown =>
-  Array.isArray(v) ? v.map(canon) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canon((v as Record<string, unknown>)[k])])) : v;
-const same = (a: unknown, b: unknown) => JSON.stringify(canon(a ?? null)) === JSON.stringify(canon(b ?? null));
 
 async function main() {
   const siteArgs = process.argv.slice(2).map(Number).filter((n) => !isNaN(n));
@@ -133,24 +133,34 @@ async function main() {
           category: { category_id } as Category,
         });
       }
-      const extra = withPaidBy(config.extra_fields);
+      const want = withStandardHash({
+        columns,
+        column_options: form.column_options,
+        column_dependencies: form.column_dependencies,
+        dependent_options: form.dependent_options,
+        emission_category_mapping: form.emission_category_mapping,
+        extra_fields: withPaidBy(config.extra_fields),
+        calculation: form.calculation,
+      });
       const changed =
         !config.pk_id ||
-        !same(config.columns?.map((c) => c.pk_id).sort(), columns.map((c) => c.pk_id).sort()) ||
-        !same(config.column_options, form.column_options) ||
-        !same(config.column_dependencies, form.column_dependencies) ||
-        !same(config.dependent_options, form.dependent_options) ||
-        !same(config.emission_category_mapping, form.emission_category_mapping) ||
-        !same(config.calculation, form.calculation) ||
-        !same(config.extra_fields, extra);
+        !same(config.columns?.map((c) => c.pk_id).sort((a, b) => a - b), columns.map((c) => c.pk_id).sort((a, b) => a - b)) ||
+        !same(config.column_options, want.column_options) ||
+        !same(config.column_dependencies, want.column_dependencies) ||
+        !same(config.dependent_options, want.dependent_options) ||
+        !same(config.emission_category_mapping, want.emission_category_mapping) ||
+        !same(config.calculation, want.calculation) ||
+        !same(config.extra_fields, want.extra_fields);
       if (changed) {
         config.columns = columns;
-        config.column_options = form.column_options;
-        config.column_dependencies = form.column_dependencies;
-        config.dependent_options = form.dependent_options;
-        config.emission_category_mapping = form.emission_category_mapping;
-        config.calculation = form.calculation;
-        config.extra_fields = extra;
+        config.column_options = want.column_options;
+        config.column_dependencies = want.column_dependencies;
+        config.dependent_options = want.dependent_options;
+        config.emission_category_mapping = want.emission_category_mapping;
+        config.calculation = want.calculation as typeof config.calculation;
+        config.extra_fields = want.extra_fields;
+        // S3-3: the methods the form offers, set with the form. Never over a list a Superadmin chose.
+        if (!config.method_options) config.method_options = methodOptionsFor(ghg);
         await configRepo.save(config);
         configsWritten++;
         console.log(`  site ${site_id} · category ${category_id}: config pk ${config.pk_id} written`);

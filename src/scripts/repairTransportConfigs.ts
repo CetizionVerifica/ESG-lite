@@ -44,8 +44,10 @@ import {
   CONFIG_NAME_PREFIX,
   STRAY_UNITS,
   UNITS,
+  methodOptionsFor,
   transportForm,
   withPaidBy,
+  withStandardHash,
 } from "../scope3/transport/configs";
 
 // The standard form itself (columns, options, mapping, spec, units) lives in
@@ -128,7 +130,9 @@ async function main() {
     config.dependent_options = form.dependent_options;
     config.emission_category_mapping = mapping;
     config.extra_fields = withPaidBy(config.extra_fields);
-    config.calculation = form.calculation;
+    // The hash marks the form as the unedited standard one, so migrate:scope3-transport keeps it up to date.
+    config.calculation = withStandardHash({ ...config, calculation: form.calculation }).calculation as typeof config.calculation;
+    if (!config.method_options) config.method_options = methodOptionsFor(category_id === 13 ? 4 : 9);
     await configRepo.save(config);
     if (existing.length > 1) {
       console.log(`  NOTE: ${existing.length - 1} extra config(s) exist for this site+category (only the first is used by the app): ${existing.slice(1).map((c) => c.pk_id).join(", ")}`);
