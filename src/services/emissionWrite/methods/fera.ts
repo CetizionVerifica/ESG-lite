@@ -20,8 +20,11 @@
 import type { EmissionFactor } from "../../../entities/EmissionFactor";
 import { pickActivityValue } from "../../activityValue";
 import { getConversionFactor, unitsMatchExact } from "../units";
+import type { FactorIndex } from "../resolve";
 import { ghgNumberFromName, scopeNumber } from "../../../scope3/factors/backfill";
 import type { CategoryContext, EngineIssue } from "../compute";
+import { factorHasUnit, gasesFor, kgFor } from "./activity";
+import type { Gas } from "../../../scope3/contracts/factor";
 import type { Scope3Sub } from "../../../scope3/contracts/ghgCategory";
 
 export type { Scope3Sub };
@@ -31,6 +34,11 @@ export interface FeraTwin {
   factor: EmissionFactor;
   activityValue: number;
   total: number;
+  /** kgCO₂e at 4 dp (S3-4). */
+  total_kgco2e: string;
+  /** kg of each gas and biogenic CO₂ from the factor's gas parts (S3-4); unset when it has none. */
+  gas_kg?: Partial<Record<Gas, number>>;
+  biogenic_kg?: string;
   /** Category 3 sub-activity (S3-7): 3a, 3b or 3c. */
   scope3_sub: Scope3Sub;
 }
@@ -66,6 +74,8 @@ export const tdLossFactor = (ctx: CategoryContext, name: string, year: number): 
 /** activity × factor, converted to the factor's unit, as the FERA twin always has. Null when it can't be. */
 const twinWith = (ctx: CategoryContext, factor: EmissionFactor, activity_data: Record<string, any>, activity_unit: string | null | undefined, scope3_sub: Scope3Sub): FeraTwin | null => {
   if (!ctx.fera) return null;
+  // No unit on either side: nothing to check the quantity against, so no twin (S3-4).
+  if (!activity_unit || !factorHasUnit(factor)) return null;
   const activityValue = pickActivityValue(activity_data, ctx.selectColumns);
   if (activityValue <= 0) return null;
   const conv = unitsMatchExact(factor.denominator_unit, activity_unit) ? 1 : getConversionFactor(activity_unit as any, factor.denominator_unit);
@@ -75,6 +85,8 @@ const twinWith = (ctx: CategoryContext, factor: EmissionFactor, activity_data: R
     factor,
     activityValue,
     total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100,
+    total_kgco2e: kgFor(activityValue * conv, factor),
+    ...gasesFor(activityValue * conv, factor),
     scope3_sub,
   };
 };
@@ -89,6 +101,39 @@ export const feraTwinFor = (ctx: CategoryContext, emissionCategory: string, acti
   if (!ctx.fera || ctx.spec || !emissionCategory) return null;
   const factor = upstreamFeraFactor(ctx, emissionCategory, targetYear);
   return factor ? twinWith(ctx, factor, activity_data, activity_unit, feraSubFor(ctx.scope)) : null;
+};
+
+/**
+ * Why a row that could have a 3a/3b FERA twin has none, for an edit that must
+ * say so (S3-4, FERA_FACTOR_MISSING): the site has a FERA category, the
+ * activity is named and the category has no spec. Null when a twin is possible
+ * or FERA does not apply. Uses the same lookup as `feraTwinFor`, so a td_loss
+ * factor (the 3c twin's) never hides a missing upstream factor or is named as
+ * the near match.
+ */
+export const feraGap = (ctx: CategoryContext, emissionCategory: string, activity_unit: string | null | undefined, targetYear: number): string | null => {
+  if (!ctx.fera || ctx.spec || !emissionCategory) return null;
+  const factor = upstreamFeraFactor(ctx, emissionCategory, targetYear);
+  if (!factor) {
+    // FERA applies when the site has any FERA factor for this activity, a
+    // td_loss one included (a site with only the T&D factor still misses 3a/3b).
+    if (!ctx.fera.factors.knows(emissionCategory)) return null;
+    // FERA names must match exactly; say so when only the spelling differs. The
+    // hint never names a td_loss factor (built from the instance's class, so this
+    // file stays free of resolve.ts's database imports, like compute.ts).
+    const Index = ctx.fera.factors.constructor as new (factors: EmissionFactor[]) => FactorIndex;
+    const near = new Index(ctx.fera.factors.factors.filter((f) => !isTdLossFactor(f))).find(emissionCategory, targetYear);
+    if (near && !near.fallback_year) {
+      return `the ${targetYear} FERA factor is named "${near.factor.emission_category_name}", not "${emissionCategory}" (FERA names must match exactly)`;
+    }
+    return `there is no ${targetYear} FERA factor for "${emissionCategory}"`;
+  }
+  if (!factorHasUnit(factor)) return `the FERA factor for "${emissionCategory}" has no unit`;
+  if (!activity_unit) return `the entry has no unit to convert to the FERA factor unit "${factor.denominator_unit}"`;
+  if (!unitsMatchExact(factor.denominator_unit, activity_unit) && !getConversionFactor(activity_unit, factor.denominator_unit)) {
+    return `"${activity_unit}" can't be converted to the FERA factor unit "${factor.denominator_unit}"`;
+  }
+  return null;
 };
 
 /**

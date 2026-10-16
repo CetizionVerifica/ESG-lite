@@ -1,7 +1,9 @@
 // P27 historical import: POST /admin/upload/emissions with a client, site and
 // category picked by id. Nothing is created from free text, a dry run saves
 // nothing, and new people get an invite (CI has no Mailgun, so it comes back
-// as a warning) instead of a password.
+// as a warning) instead of a password. Totals come from the engine and the
+// site's factors (S3-4), never from the sheet's emissionFactor or
+// calculatedEmission.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const XLSX = require("xlsx");
@@ -14,14 +16,23 @@ const sheet = (rows) => {
 };
 
 const ROWS = [
-  // Recomputed: 1000 kWh x 0.5 kgCO2e/kWh = 0.5 t.
+  // The site's 2018 "Grid" factor (0.5 kg/kWh): 1000 kWh = 0.5 t; the sheet's 99 is ignored.
   { year: 2019, month: "January", fuelType: "Grid", unit: "kWh", activity: 1000, emissionFactor: 0.5, emissionFactorUnit: "kgCO2e/kWh", calculatedEmission: 99, email: "hist-new@ci.example", name: "Hist New" },
   { year: 2019, month: "January", fuelType: "Grid", unit: "kWh", activity: 5, emissionFactor: 0.5, emissionFactorUnit: "kgCO2e/kWh" },
   { year: 2019, month: "Smarch", fuelType: "Grid", unit: "kWh", activity: 5, emissionFactor: 0.5, emissionFactorUnit: "kgCO2e/kWh" },
-  // Units don't match the factor, so the file's total is used.
+  // MWh converts to the factor's kWh: 2 MWh = 1 t, not the sheet's 1.25.
   { year: 2019, month: "Feb", fuelType: "Grid", unit: "MWh", activity: 2, emissionFactor: 0.5, emissionFactorUnit: "kgCO2e/kWh", calculatedEmission: 1.25, email: "ci-user@example.invalid" },
   { year: 2019, month: 3, fuelType: "Grid", unit: "MWh", activity: 2, emissionFactor: 0.5, emissionFactorUnit: "kgCO2e/kWh", email: "not-an-email" },
+  // Refused by the engine: a unit that doesn't convert, and a fuel the site has no factor for.
+  { year: 2019, month: "April", fuelType: "Grid", unit: "litre", activity: 9, calculatedEmission: 4 },
+  { year: 2019, month: "May", fuelType: "Moon dust", unit: "kWh", activity: 9, calculatedEmission: 4 },
 ];
+
+// The site's own factor, as the engine resolves it for 2019 rows (reporting year − 1).
+test.before(() =>
+  withDb((db) => db.query(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (9927, 'Grid', 0.5, 'kWh', 2018, 2, 2)`)),
+);
+test.after(() => withDb((db) => db.query(`DELETE FROM emission_factors WHERE emission_factor_id = 9927`)));
 
 const form = (fields, rows = ROWS) => {
   const f = new FormData();
@@ -57,14 +68,17 @@ test("a dry run returns the plan and saves nothing; the import saves it and invi
   assert.equal(preview.json.dryRun, true);
   assert.deepEqual(
     { totalRows: preview.json.summary.totalRows, toImport: preview.json.summary.toImport, toSkip: preview.json.summary.toSkip },
-    { totalRows: 5, toImport: 2, toSkip: 3 },
+    { totalRows: 7, toImport: 3, toSkip: 4 },
   );
-  const [jan, dup, bad, feb, noTotal] = preview.json.rows;
+  const [jan, dup, bad, feb, mar, litre, unknown] = preview.json.rows;
   assert.deepEqual([jan.status, jan.period, jan.total, jan.totalFrom], ["import", "2019-01", 0.5, "calculated"]);
   assert.match(dup.reason, /Same month as row 1/);
   assert.match(bad.reason, /Year or month/);
-  assert.deepEqual([feb.status, feb.total, feb.totalFrom], ["import", 1.25, "file"]);
-  assert.match(noTotal.reason, /No total/);
+  assert.deepEqual([feb.status, feb.total, feb.totalFrom], ["import", 1, "calculated"]);
+  assert.deepEqual([mar.status, mar.total], ["import", 1]); // no sheet total needed any more
+  assert.deepEqual([litre.status, litre.total], ["skip", null]);
+  assert.match(litre.reason, /Unit mismatch/);
+  assert.match(unknown.reason, /No emission factor found/);
   assert.deepEqual(preview.json.people, [
     { email: "hist-new@ci.example", name: "Hist New", exists: false },
     { email: "ci-user@example.invalid", name: "ci-user", exists: true },
@@ -82,18 +96,23 @@ test("a dry run returns the plan and saves nothing; the import saves it and invi
   assert.equal(twice.status, 200, JSON.stringify(twice.json));
   assert.equal(twice.json.summary.emissionsCreated, 0);
   assert.equal(twice.json.summary.usersCreated, 0);
-  assert.equal(done.json.summary.emissionsCreated, 2);
+  assert.equal(done.json.summary.emissionsCreated, 3);
   assert.equal(done.json.summary.usersCreated, 1);
   assert.equal(done.json.summary.invitesSent, 0);
   assert.match(done.json.summary.inviteWarning, /Email isn't configured/);
-  assert.equal(done.json.skippedRows.length, 3);
+  assert.equal(done.json.skippedRows.length, 4);
   assert.doesNotMatch(JSON.stringify(done.json), /password/i);
-  assert.equal(await entries(), before + 2);
+  assert.equal(await entries(), before + 3);
   await withDb(async (db) => {
     const saved = (await db.query(
-      `SELECT status, total_emission FROM emission WHERE site_id = 2 AND category_id = 2 AND date_of_reporting < '2020-01-01' ORDER BY date_of_reporting`,
+      `SELECT status, total_emission, total_kgco2e, emission_factor_snapshot->>'emission_factor_id' AS factor_id, extra_data->'import'->>'channel' AS channel
+         FROM emission WHERE site_id = 2 AND category_id = 2 AND date_of_reporting < '2020-01-01' ORDER BY date_of_reporting`,
     )).rows;
-    assert.deepEqual(saved.map((r) => [r.status, Number(r.total_emission)]), [["pending", 0.5], ["pending", 1.25]]);
+    // Engine rows: the site's factor snapshot, the kg total and the historical channel.
+    assert.deepEqual(
+      saved.map((r) => [r.status, Number(r.total_emission), r.total_kgco2e, r.factor_id, r.channel]),
+      [["pending", 0.5, "500.0000", "9927", "historical"], ["pending", 1, "1000.0000", "9927", "historical"], ["pending", 1, "1000.0000", "9927", "historical"]],
+    );
     const user = (await db.query(`SELECT role, site_id FROM "user" WHERE email = 'hist-new@ci.example'`)).rows[0];
     assert.deepEqual([user.role, Number(user.site_id)], ["User", 2]);
   });
