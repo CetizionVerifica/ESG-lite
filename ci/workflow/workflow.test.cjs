@@ -143,7 +143,10 @@ step("9 the Admin screens the 15 categories: a headcount estimate for Category 7
   assert.deepEqual([c2.recorded_tco2e, c2.estimate_tco2e, c2.suggestion.status, c2.suggestion.reason], [0, null, "not_relevant", `No activity in this category in ${SC.REPORT_YEAR}`]);
 
   // The Admin gives the headcount; the estimate is the hand-worked commute, shown but never saved.
-  ok(await call("PUT", "/scope3/screening/inputs", S.admin, { year: SC.REPORT_YEAR, inputs: [{ ghg_category: 7, basis: "headcount", amount: SC.SCREENING.headcount }] }));
+  // Inputs are kept per year type: this client screens its financial year (FY), not calendar 2026.
+  ok(await call("PUT", "/scope3/screening/inputs", S.admin, { year: SC.REPORT_YEAR, year_type: SC.YEAR_TYPE, inputs: [{ ghg_category: 7, basis: "headcount", amount: SC.SCREENING.headcount }] }));
+  const calendar = (await call("GET", `/scope3/screening?year=${SC.REPORT_YEAR}&year_type=CY`, S.admin)).json.categories.find((c) => c.n === 7);
+  assert.equal(calendar.estimate_tco2e, null, "CY 2026 doesn't see the FY 2026 headcount");
   // Table II "Stakeholders" on Category 6 goes through the boundary (S3-1), status and reason unchanged.
   const six = first.json.categories.find((c) => c.n === SC.SCREENING.tick.n);
   ok(await call("PUT", `/scope3/categories/${six.n}`, S.admin, { status: six.status, reason: six.reason, relevance: { [SC.SCREENING.tick.key]: true } }));

@@ -8,31 +8,17 @@
  * Only the line (description, supplier, amount, currency) and the sector
  * list are sent; logs carry counts and status codes only.
  */
-import { z } from "zod";
 import { AppDataSource } from "../../config/data-source";
-import { EeioSectorResponseSchema } from "../contracts/schemas";
+import { EeioSectorResponseSchema, SECTOR_CONFIRM_BELOW, SectorSuggestionsBodySchema, type SectorSuggestionsResponse } from "../contracts/schemas";
 import { BoundaryError } from "../boundary/errors";
 import { aiServiceHeaders, aiServiceTimeoutMs } from "../../utils/aiServiceHeaders";
 import { sectorCode } from "./estimate";
 
-/** Below this confidence the UI asks the Admin to confirm the sector. */
-export const SECTOR_CONFIRM_BELOW = 80;
+export { SECTOR_CONFIRM_BELOW };
 
 const AI_URL = () => process.env.OCR_SERVICE_URL || "http://localhost:8000";
 
-const LineSchema = z.object({
-  description: z.string().trim().min(1).max(500),
-  supplier: z.string().trim().max(200).nullable().optional(),
-  amount: z.number().min(0),
-  currency: z.string().regex(/^[A-Z]{3}$/),
-});
-
-export interface SectorSuggestion {
-  code: string;
-  name: string;
-  confidence: number;
-  needs_confirmation: boolean;
-}
+export type SectorSuggestion = SectorSuggestionsResponse["suggestions"][number];
 
 /** The library sectors as `{code, name}` (one per code, newest price year). */
 export async function librarySectors(): Promise<{ code: string; name: string }[]> {
@@ -49,8 +35,8 @@ export async function librarySectors(): Promise<{ code: string; name: string }[]
   return [...out].map(([code, name]) => ({ code, name }));
 }
 
-export async function suggestSectors(raw: unknown, fetcher: typeof fetch = fetch): Promise<{ available: boolean; suggestions: SectorSuggestion[]; confirm_below: number }> {
-  const parsed = LineSchema.safeParse(raw ?? {});
+export async function suggestSectors(raw: unknown, fetcher: typeof fetch = fetch): Promise<SectorSuggestionsResponse> {
+  const parsed = SectorSuggestionsBodySchema.safeParse(raw ?? {});
   if (!parsed.success) throw new BoundaryError("SCOPE3_VALIDATION", { issues: parsed.error.issues.slice(0, 10).map((i) => ({ path: i.path.join("."), message: i.message })) });
   const sectors = await librarySectors();
   if (!sectors.length) return { available: false, suggestions: [], confirm_below: SECTOR_CONFIRM_BELOW };

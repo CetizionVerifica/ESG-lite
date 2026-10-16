@@ -42,7 +42,7 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | 0.1–0.3a | Superadmin | categories keep their GHG numbers (a Scope 1 category can't take one); country; USEEIO library loaded by the deploy; the deploy seeded the price index for the spend year |
 | 1–5 | Superadmin | onboarding creates the company, main site and Admin, who can sign in; Smart import and Claude imports start off |
 | 6–7 | Superadmin | second site; categories assigned to both sites |
-| 9 | Admin | screening for FY 2026: 15 rows; a Category 7 headcount gives the hand-worked commute estimate (not saved as a row); a Table II tick on Category 6 suggests Included; the suggestion is applied only by the Admin's own boundary change |
+| 9 | Admin | screening for FY 2026: 15 rows; a Category 7 headcount saved for FY (CY 2026 stays empty) gives the hand-worked commute estimate (not saved as a row); a Table II tick on Category 6 suggests Included; the suggestion is applied only by the Admin's own boundary change |
 | 10 | Admin | 15 boundary rows, 13–15 start Not relevant, an exclusion needs a reason, every category in use has its number and is Included, consolidation approach saved |
 | 11–12 | Superadmin | site factors for both factor years (with Category 3 WTT and T&D factors); USEEIO sector copied to a site |
 | 15a | deploy | the next deploy adds the standard Category 6 form and its DEFRA 2025 factors |
