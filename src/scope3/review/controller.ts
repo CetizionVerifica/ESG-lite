@@ -27,6 +27,7 @@ import {
 } from "../contracts/schemas";
 import { AccessError, lockPeriod, periodStatus, resolveLockScope, unlockPeriod, type Caller } from "./lock";
 import { dryRunChecks, rowHistory, setNothingThisMonth, submitDrafts } from "./workflow";
+import { liveChecks } from "./liveChecks";
 import { UserRole } from "../../types/type";
 
 type Handler = (req: AuthRequest, res: Response) => Promise<unknown>;
@@ -83,10 +84,15 @@ export const postSubmit = handle("submit drafts", async (req, res) => {
   res.json(await submitDrafts(caller(req), body.ids));
 });
 
-/** POST /user/emissions/check: `{results: [{id, status, checks: {ready, held}}]}`. */
+/**
+ * POST /user/emissions/check, saves nothing:
+ *   {ids}  → `{results: [{id, status, checks: {ready, held}}]}` (saved rows)
+ *   {rows} → `{results: [{ref, checks: {ready, held}, issue?}]}` (unsaved rows, liveChecks.ts)
+ */
 export const postCheck = handle("dry-run checks", async (req, res) => {
   const body = parse(CheckEmissionsBodySchema, req.body ?? {});
-  res.json(await dryRunChecks(caller(req), body.ids));
+  if ("ids" in body) return res.json(await dryRunChecks(caller(req), body.ids));
+  res.json(await liveChecks(AppDataSource.manager, caller(req), body.rows));
 });
 
 /** GET /user/emissions/:id/history?months=6. */

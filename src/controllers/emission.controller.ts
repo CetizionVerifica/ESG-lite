@@ -518,19 +518,21 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
             },
             relations: ["site", "category", "created_by"],
           });
+    // S3-15 part 2: someone else's Draft doesn't exist for the caller (never matched, never replaced).
+    const visibleExisting = existingEmissions.filter((e) => e.status !== EmissionStatus.DRAFT || Number(e.created_by?.user_id) === Number(userId));
 
     // If emission_category is provided, match on it too; otherwise match any entry
     // for that date. For spec categories the emission_category is the country/fuel/
     // gas — two different products in the same country are NOT duplicates, so the
     // spec's identity columns (e.g. Product Name) must match as well.
     const duplicate = activity_data.emission_category
-      ? existingEmissions.find(
+      ? visibleExisting.find(
           (e) =>
             e.activity_data?.emission_category === activity_data.emission_category &&
             (!calcSpec || specIdentityMatches(calcSpec, activity_data, e.activity_data))
         )
-      : existingEmissions.length > 0
-        ? existingEmissions[0]
+      : visibleExisting.length > 0
+        ? visibleExisting[0]
         : null;
 
     if (duplicate) {
@@ -1430,11 +1432,13 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    // Get all emission IDs in this batch
-    const batchEmissions = await repo.find({
-      where: { upload_batch_id: batchId },
-      select: ["pk_id"],
-    });
+    // Get all emission IDs in this batch. S3-15 part 2: someone else's Draft
+    // (an imported row its contributor is fixing) isn't the caller's to delete.
+    const callerId = Number((req as AuthRequest).user?.userId) || 0;
+    const batchEmissions: Array<{ pk_id: number }> = await AppDataSource.query(
+      `SELECT pk_id FROM emission WHERE upload_batch_id = $1 AND (status::text <> 'draft' OR created_by = $2)`,
+      [batchId, callerId],
+    );
 
     if (batchEmissions.length === 0) {
       return res.status(404).json({ message: "No emissions found for this batch" });
@@ -1457,7 +1461,7 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
     }
 
     const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
-    const result = await repo.delete({ upload_batch_id: batchId });
+    const result = await repo.delete({ pk_id: In(idsToDelete) });
     await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
     await refreshChecksSafely(AppDataSource.manager, [], priorKeys);

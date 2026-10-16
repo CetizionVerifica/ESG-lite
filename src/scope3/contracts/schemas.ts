@@ -471,8 +471,43 @@ export type PeriodLeftReason = (typeof PERIOD_LEFT_REASONS)[number];
 export const PERIOD_CATEGORY_STATES = ["missing", "draft", "pending", "rejected", "approved", "nothing", "covered"] as const;
 export type PeriodCategoryState = (typeof PERIOD_CATEGORY_STATES)[number];
 
-/** `POST /user/emissions/check` `{ids}`: the checks each row would get if it were submitted now; saves nothing. */
-export const CheckEmissionsBodySchema = z.object({ ids: z.array(id).min(1).max(200) });
+/** `POST /user/emissions/check` `{ids}`: the checks each saved row would get if it were submitted now; saves nothing. */
+export const CheckEmissionIdsBodySchema = z.object({ ids: z.array(id).min(1).max(200) });
+
+/**
+ * One unsaved row for the live checks panel (`POST /user/emissions/check {rows}`).
+ * With `id` the row is an edit of that saved row: it isn't compared with
+ * itself, and its saved evidence counts when `has_evidence` is left out.
+ */
+export const LiveCheckRowSchema = z.object({
+  ref: z.string().min(1).max(100),
+  id: id.optional(),
+  site_id: id,
+  category_id: id,
+  activity_data: z.record(z.string(), z.unknown()),
+  activity_data_unit: z.string().max(50).nullable().optional(),
+  date_of_reporting: isoDate,
+  reporting_period: z.enum(["monthly", "yearly"]).optional(),
+  year_type: z.enum(["CY", "FY"]).nullable().optional(),
+  method: z.string().max(40).nullable().optional(),
+  has_evidence: z.boolean().optional(),
+});
+export type LiveCheckRow = z.infer<typeof LiveCheckRowSchema>;
+
+/** Most unsaved rows one live-check call takes. */
+export const LIVE_CHECK_MAX_ROWS = 50;
+export const CheckEmissionRowsBodySchema = z.object({ rows: z.array(LiveCheckRowSchema).min(1).max(LIVE_CHECK_MAX_ROWS) });
+
+/** `POST /user/emissions/check`: either saved rows `{ids}` (1–200) or unsaved rows `{rows}` (1–50). */
+export const CheckEmissionsBodySchema = z.union([CheckEmissionIdsBodySchema, CheckEmissionRowsBodySchema]);
+
+/** One result for an unsaved row: its checks, and the engine's refusal when it wouldn't save. */
+export const LiveCheckResultSchema = z.object({
+  ref: z.string(),
+  checks: RowChecksSchema,
+  issue: z.object({ code: z.string(), message: z.string(), field: z.string().optional() }).optional(),
+});
+export type LiveCheckResult = z.infer<typeof LiveCheckResultSchema>;
 
 /** `GET /user/emissions?ready=1|0`. */
 export const ReadyFilterSchema = z.object({ ready: z.enum(["0", "1"]).optional() });

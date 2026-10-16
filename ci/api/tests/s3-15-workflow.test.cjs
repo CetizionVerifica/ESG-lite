@@ -91,6 +91,8 @@ test.after(async () => {
     const ids = (await db.query(`SELECT pk_id FROM emission WHERE site_id IN (${A}, ${B})`)).rows.map((r) => r.pk_id);
     await db.query(`DELETE FROM audit_log WHERE (entity_type = 'emission' AND entity_id = ANY($1)) OR entity_type = 'scope3_period_lock' AND entity_id IN (SELECT id FROM period_lock WHERE company_id = ${CO})`, [ids]);
     await db.query(`DELETE FROM emission_document WHERE emission_id = ANY($1)`, [ids]);
+    await db.query(`DELETE FROM audit_log WHERE changed_by BETWEEN 3151 AND 3155`);
+    await db.query(`DELETE FROM emission_document WHERE uploaded_by BETWEEN 3151 AND 3155`);
     await db.query(`DELETE FROM emission WHERE site_id IN (${A}, ${B})`);
     await db.query(`DELETE FROM import_plan_match WHERE plan_id IN (SELECT plan_id FROM import_plan WHERE company_id = ${CO})`);
     await db.query(`DELETE FROM import_plan_row WHERE plan_id IN (SELECT plan_id FROM import_plan WHERE company_id = ${CO})`);
@@ -203,17 +205,65 @@ test("dry-run checks: what a Draft would be held for, nothing stored", async () 
   assert.equal((await call("POST", "/user/emissions/check", "user", { ids: [] })).json.code, "SCOPE3_VALIDATION");
 });
 
-test("submit: own drafts only; NOT_DRAFT for a Pending row or another person's draft; one notification per site manager", async () => {
+test("live checks on unsaved rows: same engine and checks as a save, nothing written", async () => {
+  const april = (await q(`SELECT pk_id FROM emission WHERE site_id = ${A} AND date_of_reporting = '2025-04-30' AND category_id = 1 AND fera_linked_id IS NOT NULL`))[0].pk_id;
+  const before = (await q(`SELECT count(*)::int AS n FROM emission`))[0].n;
+  const row = (ref, over = {}) => ({ ref, site_id: A, category_id: 1, activity_data: { emission_category: DIESEL, activity_value: "10" }, activity_data_unit: "litre", date_of_reporting: "2025-04-30", ...over });
+  const r = await call("POST", "/user/emissions/check", "user", {
+    rows: [
+      row("dup"),
+      row("edit", { id: april }),
+      row("fallback", { date_of_reporting: "2026-02-28", has_evidence: true }),
+      row("nofactor", { activity_data: { emission_category: "CI S315b Unknown", activity_value: "1" }, date_of_reporting: "2025-08-31" }),
+      row("evidence", { date_of_reporting: "2025-09-30", has_evidence: true }),
+      row("method", { method: "not_a_method", date_of_reporting: "2025-09-30" }),
+    ],
+  });
+  ok(r);
+  const by = Object.fromEntries(r.json.results.map((x) => [x.ref, x]));
+  assert.deepEqual(r.json.results.map((x) => x.ref), ["dup", "edit", "fallback", "nofactor", "evidence", "method"]);
+  assert.ok(by.dup.checks.held.includes("NO_DUPLICATE"), JSON.stringify(by.dup));
+  assert.equal(by.dup.issue, undefined);
+  assert.ok(!by.edit.checks.held.includes("NO_DUPLICATE"), "an edit isn't held against itself");
+  assert.ok(!by.edit.checks.held.includes("WITHIN_THRESHOLD"));
+  assert.deepEqual(by.fallback.checks, { ready: false, held: ["FACTOR_FOUND"] }, "a fallback-year factor is held; evidence given");
+  assert.equal(by.nofactor.issue.code, "NO_FACTOR_FOR_YEAR");
+  assert.ok(by.nofactor.checks.held.includes("FACTOR_FOUND"), "checks still come back for a refused row");
+  assert.deepEqual(by.evidence.checks, { ready: true, held: [] });
+  assert.equal(by.method.issue.code, "METHOD_NOT_ALLOWED");
+  // A saved row's evidence counts for an edit when has_evidence is left out.
+  const withDoc = await call("POST", "/user/emissions/check", "user", { rows: [row("e1", { id: april, date_of_reporting: "2025-09-30" })] });
+  assert.ok(withDoc.json.results[0].checks.held.includes("EVIDENCE_ATTACHED"), "April has no document");
+  assert.equal((await q(`SELECT count(*)::int AS n FROM emission`))[0].n, before, "nothing saved");
+  assert.equal((await q(`SELECT checks FROM emission WHERE pk_id = $1`, [april]))[0].checks?.held?.includes("NO_DUPLICATE") ?? false, false, "stored checks untouched");
+
+  // Access: another company's site or someone else's Draft is not found; a site of the company that isn't yours is 403;
+  // a User's own categories only. Size and shape limits.
+  assert.equal((await call("POST", "/user/emissions/check", "otherManager", { rows: [row("x")] })).status, 404);
+  assert.equal((await call("POST", "/user/emissions/check", "otherUser", { rows: [row("x")] })).status, 404);
+  assert.equal((await call("POST", "/user/emissions/check", "user", { rows: [row("x", { site_id: B })] })).status, 403);
+  assert.equal((await call("POST", "/user/emissions/check", "user2", { rows: [row("x", { id: draft })] })).status, 404, "someone else's Draft as id");
+  await q(`INSERT INTO user_categories (user_id, category_id) VALUES (3151, 5)`);
+  assert.equal((await call("POST", "/user/emissions/check", "user", { rows: [row("x")] })).status, 403, "not the User's category");
+  await q(`DELETE FROM user_categories WHERE user_id = 3151`);
+  assert.equal((await call("POST", "/user/emissions/check", "user", { rows: Array.from({ length: 51 }, (_, i) => row(`r${i}`)) })).status, 400);
+  assert.equal((await call("POST", "/user/emissions/check", "user", { rows: [{ ...row("x"), date_of_reporting: "2025-02-30" }] })).status, 400);
+  assert.equal((await call("POST", "/user/emissions/check", "user", {})).status, 400);
+});
+
+let theirs; // user2's July Draft
+let theirsTwin;
+test("submit: own drafts only; NOT_DRAFT for a Pending row, another person's draft doesn't exist (404); one notification per site manager", async () => {
   const pendingApril = (await q(`SELECT pk_id FROM emission WHERE site_id = ${A} AND date_of_reporting = '2025-04-30' AND fera_linked_id IS NOT NULL AND category_id = 1`))[0].pk_id;
-  const theirs = await call("POST", "/user/emissions", "user2", entry(A, "2025-07-31", 5));
-  ok(theirs, 201);
-  const r = await call("POST", "/user/emissions/submit", "user", { ids: [draft, pendingApril, theirs.json.emission.pk_id] });
+  const t = await call("POST", "/user/emissions", "user2", entry(A, "2025-07-31", 5));
+  ok(t, 201);
+  theirs = t.json.emission.pk_id;
+  theirsTwin = (await twinOf(theirs)).pk_id;
+  assert.equal((await call("POST", "/user/emissions/submit", "user", { ids: [draft, theirs] })).status, 404, "someone else's Draft doesn't exist for the caller");
+  const r = await call("POST", "/user/emissions/submit", "user", { ids: [draft, pendingApril] });
   ok(r);
   assert.deepEqual(r.json.submitted, [draft]);
-  assert.deepEqual(r.json.refused, [
-    { id: pendingApril, code: "NOT_DRAFT" },
-    { id: theirs.json.emission.pk_id, code: "NOT_DRAFT" },
-  ].sort((a, b) => a.id - b.id));
+  assert.deepEqual(r.json.refused, [{ id: pendingApril, code: "NOT_DRAFT" }]);
   assert.equal(await statusOf(draft), "pending");
   assert.equal((await twinOf(draft)).status, "pending", "the twin moves with it");
   const checks = (await q(`SELECT checks FROM emission WHERE pk_id = $1`, [draft]))[0].checks;
@@ -228,6 +278,62 @@ test("submit: own drafts only; NOT_DRAFT for a Pending row or another person's d
   assert.equal((await call("POST", "/user/emissions/submit", "user", { ids: [] })).status, 400);
 });
 
+test("a Draft belongs to its author: for anyone else it doesn't exist on any write path (Manager, Admin, Superadmin)", async () => {
+  const notFound = async (r, what) => assert.equal(r.status, 404, `${what}: ${JSON.stringify(r.json)}`);
+  const body = { activity_data: { emission_category: DIESEL, activity_value: "6" }, activity_data_unit: "litre" };
+  for (const who of ["manager", "admin", "superadmin", "user"]) {
+    await notFound(await call("PUT", `/user/emissions/${theirs}`, who, body), `${who} edit`);
+    await notFound(await call("DELETE", `/user/emissions/${theirs}`, who), `${who} delete`);
+    await notFound(await call("DELETE", `/user/emissions/${theirsTwin}`, who), `${who} delete twin`);
+  }
+  for (const who of ["manager", "superadmin"]) {
+    await notFound(await call("PUT", `/user/emissions/manager-edit/${theirs}`, who, body), `${who} manager edit`);
+    await notFound(await call("PUT", `/user/emissions/${theirs}/approve`, who), `${who} approve`);
+    await notFound(await call("PUT", `/user/emissions/${theirsTwin}/approve`, who), `${who} approve twin`);
+    await notFound(await call("PUT", `/user/emissions/${theirs}/reject`, who, { comment: "no" }), `${who} reject`);
+    await notFound(await call("PUT", "/user/emissions/bulk-approve", who, { ids: [theirs] }), `${who} bulk approve`);
+    await notFound(await call("PUT", "/user/emissions/bulk-approve", who, { ids: [theirs], only_ready: true }), `${who} bulk approve only_ready`);
+    await notFound(await call("PUT", "/user/emissions/bulk-reject", who, { ids: [theirs, theirsTwin], comment: "no" }), `${who} bulk reject`);
+    await notFound(await call("DELETE", "/user/emissions/bulk-delete", who, { ids: [theirs] }), `${who} bulk delete`);
+  }
+  // In a list next to other ids it is dropped like an unknown id.
+  const mixed = await call("DELETE", "/user/emissions/bulk-delete", "manager", { ids: [theirs, 99999999] });
+  ok(mixed);
+  assert.equal(mixed.json.deleted, 0);
+  // Reads and other writes: check, history, audit trail, evidence.
+  await notFound(await call("POST", "/user/emissions/check", "manager", { ids: [theirs] }), "check");
+  await notFound(await call("GET", `/user/emissions/${theirs}/history`, "manager"), "history");
+  await notFound(await call("GET", `/user/audit-logs?entity_type=emission&entity_id=${theirs}`, "manager"), "audit trail");
+  const form = new FormData();
+  form.append("file", new Blob(["evidence"], { type: "application/pdf" }), "s315b-draft.pdf");
+  form.append("emission_id", String(theirs));
+  await notFound(await call("POST", "/user/documents", "manager", form), "evidence on someone else's Draft");
+
+  // Batches: an imported row its contributor is fixing (a Draft) is skipped by batch approve, reject and delete.
+  const batch = "ci-s315b-batch-drafts";
+  await q(`UPDATE emission SET upload_batch_id = $1 WHERE pk_id = ANY($2::int[])`, [batch, [theirs, theirsTwin]]);
+  const other = await rawRow(A, "2025-07-15", "pending", { batch, created_by: 3155 });
+  ok(await call("PUT", `/user/emissions/batch/${batch}/approve`, "manager"));
+  assert.equal(await statusOf(other), "approved");
+  ok(await call("PUT", `/user/emissions/batch/${batch}/reject`, "manager", { comment: "redo" }));
+  assert.equal(await statusOf(other), "rejected");
+  ok(await call("DELETE", `/user/emissions/batch/${batch}`, "manager"));
+  assert.equal(await statusOf(other), undefined, "the batch's own rows are deleted");
+  await notFound(await call("PUT", `/user/emissions/batch/${batch}/approve`, "manager"), "a batch of only someone else's Drafts");
+  await notFound(await call("DELETE", `/user/emissions/batch/${batch}`, "superadmin"), "superadmin batch delete");
+
+  // A typed entry with replace=true never matches (or deletes) someone else's Draft.
+  const mine = await call("POST", "/user/emissions?replace=true", "manager", entry(A, "2025-07-31", 5));
+  ok(mine, 201);
+  ok(await call("DELETE", `/user/emissions/${mine.json.emission.pk_id}`, "manager"));
+
+  // Untouched, and still the author's to change.
+  assert.equal(await statusOf(theirs), "draft");
+  assert.equal(await statusOf(theirsTwin), "draft");
+  ok(await call("PUT", `/user/emissions/${theirs}`, "user2", body));
+  assert.equal(await statusOf(theirs), "draft");
+});
+
 test("a contributor's edit of a Sent back row makes it a Draft again, twin included", async () => {
   ok(await call("PUT", `/user/emissions/${draft}/reject`, "manager", { comment: "Check the litres" }));
   assert.equal(await statusOf(draft), "rejected");
@@ -240,13 +346,15 @@ test("a contributor's edit of a Sent back row makes it a Draft again, twin inclu
 });
 
 test("history: the activity's last months from pending and approved rows", async () => {
-  const r = await call("GET", `/user/emissions/${draft}/history?months=3`, "manager");
+  // The row is a Draft again, so only its author reads it (for the Manager it doesn't exist).
+  assert.equal((await call("GET", `/user/emissions/${draft}/history?months=3`, "manager")).status, 404);
+  const r = await call("GET", `/user/emissions/${draft}/history?months=3`, "user");
   ok(r);
   assert.deepEqual(r.json.months.map((m) => m.month), ["2025-03", "2025-04", "2025-05"]);
   assert.equal(r.json.months[1].total_tco2e, 0.03, "April: 10 l × 2.68 kg = 26.8 kg");
   assert.equal(r.json.months[2].total_tco2e, 0, "May's row is a Draft again");
   assert.equal(r.json.unit, "tCO2e");
-  assert.equal((await call("GET", `/user/emissions/${draft}/history?months=99`, "manager")).status, 400);
+  assert.equal((await call("GET", `/user/emissions/${draft}/history?months=99`, "user")).status, 400);
 });
 
 test("tenant isolation: another company's token gets 404 on submit, check, history, lock status, lock and unlock", async () => {
@@ -412,6 +520,30 @@ test("PERIOD_LOCKED on every write path into a closed site-month", async () => {
   assert.match(hist.results.get(1).reason, /PERIOD_LOCKED/);
   assert.equal(hist.entries.size, 0);
   assert.equal((await q(`SELECT count(*)::int AS n FROM emission WHERE site_id = ${B}`))[0].n, 0, "nothing reached site B");
+});
+
+test("evidence on a closed month is allowed and logged on the lock (ids only)", async () => {
+  const upload = async (emissionId) => {
+    const form = new FormData();
+    form.append("file", new Blob([`evidence ${emissionId}`], { type: "application/pdf" }), `s315b-${emissionId}.pdf`);
+    form.append("emission_id", String(emissionId));
+    const res = await call("POST", "/user/documents", "user", form);
+    assert.equal(res.status, 201, JSON.stringify(res.json));
+    return res.json.document.document_id;
+  };
+  const lockId = (await q(`SELECT id FROM period_lock WHERE company_id = ${CO} AND site_id = ${A}`))[0].id;
+  const doc = await upload(draft); // the approved May row, site A closed
+  const added = await q(`SELECT entity_id, action, changed_fields, reason FROM audit_log WHERE entity_type = 'scope3_period_lock' AND action = 'evidence_added'`);
+  assert.deepEqual(added, [{ entity_id: lockId, action: "evidence_added", changed_fields: { document_id: { old: null, new: doc }, emission_id: { old: draft, new: draft } }, reason: null }]);
+  assert.ok(!JSON.stringify(added).includes(".pdf"), "no file names");
+  ok(await call("DELETE", `/user/documents/${doc}`, "user"));
+  const removed = await q(`SELECT entity_id, changed_fields FROM audit_log WHERE entity_type = 'scope3_period_lock' AND action = 'evidence_removed'`);
+  assert.deepEqual(removed, [{ entity_id: lockId, changed_fields: { document_id: { old: doc, new: null }, emission_id: { old: draft, new: draft } } }]);
+  // An open month logs nothing.
+  const june = (await q(`SELECT pk_id FROM emission WHERE site_id = ${A} AND date_of_reporting = '2025-06-30' AND category_id = 1`))[0].pk_id;
+  const juneDoc = await call("POST", "/user/documents", "manager", (() => { const f = new FormData(); f.append("file", new Blob(["x"], { type: "application/pdf" }), "j.pdf"); f.append("emission_id", String(june)); return f; })());
+  assert.equal(juneDoc.status, 201);
+  assert.equal((await q(`SELECT count(*)::int AS n FROM audit_log WHERE entity_type = 'scope3_period_lock' AND action LIKE 'evidence_%'`))[0].n, 2);
 });
 
 test("unlock needs a reason of 5+ characters, is audited, and opens the month again", async () => {

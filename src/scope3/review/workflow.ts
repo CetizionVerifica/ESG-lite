@@ -73,9 +73,12 @@ export const draftTwinsOf = async (manager: EntityManager, parentId: number): Pr
 };
 
 /** Rows on the caller's sites among `ids`, or AccessError 404 when any isn't (another company's ids look missing). */
-const visibleRows = async <T extends { pk_id: number; site_id: number }>(caller: Caller, rows: T[], wanted: number[]): Promise<T[]> => {
+const visibleRows = async <T extends { pk_id: number; site_id: number; status?: string; created_by?: number | null }>(caller: Caller, rows: T[], wanted: number[]): Promise<T[]> => {
   const allowed = await accessibleSiteIds(caller.userId, caller.role);
-  const visible = rows.filter((r) => !allowed || allowed.has(Number(r.site_id)));
+  // Someone else's Draft doesn't exist for the caller, whatever their role.
+  const visible = rows.filter(
+    (r) => (!allowed || allowed.has(Number(r.site_id))) && !(r.status === EmissionStatus.DRAFT && r.created_by !== undefined && Number(r.created_by) !== Number(caller.userId)),
+  );
   if (visible.length < wanted.length) throw new AccessError(404, "Not found.");
   return visible;
 };
@@ -246,8 +249,8 @@ const ANY_STATUS = [EmissionStatus.DRAFT, EmissionStatus.PENDING, EmissionStatus
  */
 export async function dryRunChecks(caller: Caller, ids: number[]): Promise<{ results: Array<{ id: number; status: string; checks: RowChecks }> }> {
   const wanted = ints(ids);
-  const rows: Array<{ pk_id: number; site_id: number; status: string }> = await AppDataSource.query(
-    `SELECT pk_id, site_id, status::text AS status FROM emission WHERE pk_id = ANY($1::int[])`,
+  const rows: Array<{ pk_id: number; site_id: number; status: string; created_by: number | null }> = await AppDataSource.query(
+    `SELECT pk_id, site_id, status::text AS status, created_by FROM emission WHERE pk_id = ANY($1::int[])`,
     [wanted],
   );
   const visible = await visibleRows(caller, rows, wanted);
