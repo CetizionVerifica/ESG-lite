@@ -41,7 +41,11 @@ test("intensity: 1,000 t for 500 t output, missing site 250 t → 500,000 kg", (
 test("sample keeps the category's own method; a bad basis or share is refused", () => {
   const f = factor(0.5, "km");
   const plain = activity.compute(ctx, { factor: f, activity_data: { activity_value: "10" }, activity_unit: "km" });
-  assert.deepEqual(compute(10, "km", f, { basis: "sample", coverage_pct: 40, from: [] }), plain);
+  const sample = compute(10, "km", f, { basis: "sample", coverage_pct: 40, from: [] });
+  // Same total as the form's own method; the engine adds method and DQ (S3-3), with completeness 3 for a proxy.
+  const { method: _m, dq, data_type: _d, ...total } = sample.computed;
+  assert.deepEqual({ ok: sample.ok, computed: total }, plain);
+  assert.equal(dq.completeness, 3);
   for (const bad of [{ basis: "coverage", from: [] }, { basis: "coverage", coverage_pct: 100, from: [] }, { basis: "floor_area", from: [] }, { basis: "intensity", from: "x" }]) {
     const r = compute(10, "km", f, bad);
     assert.equal(r.ok, false, JSON.stringify(bad));
@@ -49,6 +53,17 @@ test("sample keeps the category's own method; a bad basis or share is refused", 
   }
   const unit = compute(10, "litre", factor(1, "kgCO2e"), { basis: "coverage", coverage_pct: 50, from: [] });
   assert.equal(unit.issue.code, "UNIT_NOT_CONVERTIBLE");
+});
+
+test("a proxy row stays secondary and scores completeness 3 whatever its sources' method (S3-3 columns)", () => {
+  const r = compute(850000, "kgCO2e", factor(1, "kgCO2e"), { basis: "coverage", coverage_pct: 85, from: [1] }, "supplier_specific");
+  assert.equal(r.computed.method, "supplier_specific");
+  assert.equal(r.computed.data_type, "secondary", "a primary method's sources still make a secondary proxy row");
+  assert.equal(r.computed.dq.completeness, 3);
+  // A measured row with the same method stays primary.
+  const measured = engine.computeRow(ctx, { factor: factor(1, "kgCO2e"), activity_data: { activity_value: "1" }, activity_unit: "kgCO2e", method: "supplier_specific" });
+  assert.equal(measured.computed.data_type, "primary");
+  assert.equal(measured.computed.dq.completeness, 1);
 });
 
 test("a survey row's proxy: basis sample, the respondents share, no source rows", () => {

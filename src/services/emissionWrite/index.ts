@@ -201,6 +201,8 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       reportingYear: reportingYearFor(input.period.date_of_reporting),
       manualDq: input.dq ? manualDqFrom(input.dq) : null,
       spend,
+      // S3-12: a proxy row (a survey sample) scores completeness 3; its total is its form's own.
+      proxy: input.proxy ?? undefined,
     });
     if (!result.ok) return result;
     computed = result.computed;
@@ -516,6 +518,8 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
       method: row.method ?? null,
       is_estimate: row.is_estimate,
       dq: row.dq ?? null,
+      // S3-12: a survey-scaled row is a proxy (basis sample), so plan and commit score it alike.
+      proxy: row.survey ? surveyProxy(row.survey) : null,
     });
     if (!result.ok) {
       errors.push(issue(result.issue.code, result.issue.message, result.issue.field));

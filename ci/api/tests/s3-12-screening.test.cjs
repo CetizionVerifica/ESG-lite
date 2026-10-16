@@ -32,11 +32,12 @@ const reset = () =>
     if (saved) await db.query(`UPDATE company_scope3_category SET relevance = $1 WHERE company_id = 1 AND ghg_category = 6`, [saved.relevance === null ? null : JSON.stringify(saved.relevance)]);
   });
 
-const insert = (db, id, kg, { status = "approved", site = 1, method = null, extra = {}, proxy = null, year = YEAR } = {}) =>
+// `method` goes in activity_data["@method"] (S3-9 forms); `methodColumn` in emission.method (S3-3).
+const insert = (db, id, kg, { status = "approved", site = 1, method = null, methodColumn = null, extra = {}, proxy = null, year = YEAR } = {}) =>
   db.query(
-    `INSERT INTO emission (pk_id, activity_data, total_emission, total_kgco2e, unit, date_of_reporting, status, category_id, site_id, extra_data, proxy)
-     VALUES ($1, $2, $3, $4, 'tCO2e', $5, $6, 3, $7, $8, $9)`,
-    [id, JSON.stringify({ activity_value: 1, ...(method ? { "@method": method } : {}) }), Math.round(kg / 10) / 100, kg.toFixed(4), `${year}-05-31`, status, site, JSON.stringify(extra), proxy && JSON.stringify(proxy)],
+    `INSERT INTO emission (pk_id, activity_data, total_emission, total_kgco2e, unit, date_of_reporting, status, category_id, site_id, extra_data, proxy, method)
+     VALUES ($1, $2, $3, $4, 'tCO2e', $5, $6, 3, $7, $8, $9, $10)`,
+    [id, JSON.stringify({ activity_value: 1, ...(method ? { "@method": method } : {}) }), Math.round(kg / 10) / 100, kg.toFixed(4), `${year}-05-31`, status, site, JSON.stringify(extra), proxy && JSON.stringify(proxy), methodColumn],
   );
 
 test.before(async () => {
@@ -47,7 +48,7 @@ test.before(async () => {
   await reset();
   await withDb(async (db) => {
     await db.query(`UPDATE category SET ghg_category = 6 WHERE category_id = 3`);
-    await insert(db, 81500, 600, { method: "distance_based" });
+    await insert(db, 81500, 600, { methodColumn: "distance_based" });
     await insert(db, 81501, 250, { method: "distance_based" });
     await insert(db, 81502, 50, { status: "pending", method: "spend_based" });
     await insert(db, 81503, 999, { status: "rejected" });
@@ -226,8 +227,11 @@ test("extrapolate coverage: dry run saves nothing; the row is Pending, secondary
   assert.equal(row.total_kgco2e, "150.0000");
   assert.equal(Number(row.total_emission), 0.15);
   assert.deepEqual(row.proxy, { basis: "coverage", coverage_pct: 85, from: [81500, 81501] });
-  assert.equal(row.extra_data.data_type, "secondary");
-  assert.equal(row.extra_data.is_estimate, true);
+  // The S3-3 columns: secondary, estimated, the sources' method (one in emission.method, one in @method), completeness 3.
+  assert.equal(row.data_type, "secondary");
+  assert.equal(row.is_estimate, true);
+  assert.equal(row.method, "distance_based");
+  assert.equal(row.dq.completeness, 3);
   assert.equal(row.activity_data["@method"], "distance_based");
   assert.equal(row.emission_factor_snapshot.factor_type, "other");
   const audit = await withDb((db) => db.query(`SELECT entity_type, action FROM audit_log WHERE entity_id = $1 AND entity_type IN ('emission', 'scope3_proxy') ORDER BY entity_type`, [r.json.id]));
