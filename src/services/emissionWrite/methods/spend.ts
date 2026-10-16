@@ -18,6 +18,7 @@ import { factorCurrency } from "../../../scope3/spend/rates";
 import type { SpendQuote } from "../../../scope3/spend/types";
 import type { CategoryContext, ComputeResult, EngineIssue, EngineRow } from "../compute";
 import * as activity from "./activity";
+import * as specMethod from "./spec";
 
 /** kg → stored tCO₂e (2 dp) and kgCO₂e (4 dp). */
 const totals = (kg: number) => ({ total: Math.round((kg / 1000) * 100) / 100, total_kgco2e: (Math.round(kg * 10000) / 10000).toFixed(4) });
@@ -37,7 +38,8 @@ const sameCurrencyQuote = (row: EngineRow, ctx: CategoryContext): SpendQuote | n
     fx: { currency, to, rate: 1, as_of: "", source: "same currency" },
     fallback: false,
     deflator: null,
-    noDeflator: row.factor.price_base_year != null,
+    // No purchase date here (golden cases and rows without loaded rates): the amount is taken in the factor's prices.
+    noDeflator: false,
   };
 };
 
@@ -45,7 +47,7 @@ export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => 
   const quote = row.spend ?? sameCurrencyQuote(row, ctx);
   if (!quote) {
     // No amount in a currency on the row: the factor decides as before (the activity step converts or refuses the unit).
-    if (!supportedCurrency(row.activity_unit) || !factorCurrency(row.factor)) return activity.compute(ctx, row);
+    if (!supportedCurrency(row.activity_unit) || !factorCurrency(row.factor)) return (ctx.spec ? specMethod : activity).compute(ctx, row);
     return {
       ok: false,
       issue: { code: "CURRENCY_NOT_SUPPORTED", message: `No exchange rate from ${row.activity_unit} to ${factorCurrency(row.factor)} was loaded for this row.`, field: "currency" },

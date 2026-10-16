@@ -75,7 +75,7 @@ export class SpendRateSource {
     // Nothing stored yet (a new deploy before the first job run): today's live rate, flagged.
     try {
       const live = await getUsdRate(currency);
-      return { per_usd: live.rate, date: day(live.asOf && !Number.isNaN(Date.parse(live.asOf)) ? new Date(live.asOf) : new Date()), source: "live", fallback: true };
+      return { per_usd: live.rate, date: day(live.asOf && !Number.isNaN(Date.parse(live.asOf)) ? new Date(live.asOf) : new Date()), source: live.source === "live" ? "live" : `live service ${live.source}`, fallback: true };
     } catch {
       return null;
     }

@@ -89,14 +89,14 @@ export interface EngineRow {
 type MethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeResult };
 
 /**
- * The method file for a row. Spec categories always use the spec; otherwise
- * the row's method, falling back to activity × factor.
+ * The method file for a row, in the order of 01-contracts §6: a proxy row;
+ * then the row's method spend_based / supplier_specific / hybrid on any
+ * category, spec or not; then a row carrying a spend quote (asked for with
+ * `@method` until S3-3, or on a spend factor); then the category's spec; else
+ * activity × factor.
  * TODO(S3-3): fall back to the form's `method_options[0]` when the row has none.
  */
 const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
-  // S3-5: a spend row is the amount spent whatever fields the form multiplies (a Category 6 trip paid in INR).
-  if (row.spend) return spend;
-  if (ctx.spec) return spec;
   if (row.proxy) return proxy;
   switch (row.method) {
     case "spend_based":
@@ -105,9 +105,11 @@ const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
       return supplier;
     case "hybrid":
       return hybrid;
-    default:
-      return activity;
   }
+  // S3-5: a spend row is the amount spent whatever fields the form multiplies (a Category 6 trip paid in INR).
+  if (row.spend) return spend;
+  if (ctx.spec) return spec;
+  return activity;
 };
 
 /** One row's total, from the method file the row picks. */

@@ -87,6 +87,13 @@ export function readUseeio(text: string, fileName: string): UseeioFactor[] {
 
 /** Adds the sectors not in the library yet (same name, year and version). Returns how many were added. */
 export async function seedUseeio(manager: EntityManager, factors: UseeioFactor[], source: string): Promise<number> {
+  // Already loaded (every start after the first): one count instead of a query per sector.
+  const versions = [...new Set(factors.map((f) => f.version))];
+  const [{ n }] = await manager.query(
+    `SELECT count(*)::int AS n FROM emission_factors WHERE site_id IS NULL AND factor_type = 'eeio_spend' AND dataset_version = ANY($1::varchar[])`,
+    [versions],
+  );
+  if (n >= factors.length) return 0;
   let added = 0;
   for (const f of factors) {
     const rows: unknown[] = await manager.query(

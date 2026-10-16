@@ -38,14 +38,21 @@ test("a row is a spend row by its method or its factor type", () => {
   assert.equal(isSpendRow({ "@method": "average_data" }, eeio({ factor_type: "cradle_to_gate" })), false);
 });
 
-test("amount and currency: spent_value + currency (fields or extras) first, else a quantity in a currency unit", () => {
-  assert.deepEqual(spendInputOf({ spent_value: "1240000", currency: "inr" }, {}, null, "2026-09-30"), { amount: 1240000, currency: "INR", spend_date: "2026-09-30", amount_from: "spent_value" });
-  assert.deepEqual(spendInputOf({}, { spent_value: 50, currency: "EUR", invoice_date: "2026-09-03" }, "kg", "2026-09-30"), { amount: 50, currency: "EUR", spend_date: "2026-09-03", amount_from: "spent_value" });
+test("amount and currency: spent_value + currency (fields or extras) on a row asking for spend, else a quantity in a currency unit", () => {
+  const spend = { "@method": "spend_based" };
+  assert.deepEqual(spendInputOf({ ...spend, spent_value: "1240000", currency: "inr" }, {}, null, "2026-09-30"), { amount: 1240000, currency: "INR", spend_date: "2026-09-30", amount_from: "spent_value" });
+  assert.deepEqual(spendInputOf(spend, { spent_value: 50, currency: "EUR", invoice_date: "2026-09-03" }, "kg", "2026-09-30"), { amount: 50, currency: "EUR", spend_date: "2026-09-03", amount_from: "spent_value" });
+  assert.deepEqual(spendInputOf({}, { spent_value: 50, currency: "EUR" }, "kg", "2026-09-30", undefined, "spend_based").currency, "EUR", "the row's method column counts too");
+  // Without the spend method the old Category 1/2 extras are informational: the quantity in its currency unit decides.
+  assert.deepEqual(spendInputOf({ quantity: "1000" }, { spent_value: "1000", currency: "INR" }, "USD", "2026-09-30"), { amount: 1000, currency: "USD", spend_date: "2026-09-30", amount_from: "quantity" });
+  assert.equal(spendInputOf({ quantity: "1000" }, { spent_value: "1000", currency: "INR" }, "kg", "2026-09-30"), null);
   assert.deepEqual(spendInputOf({ activity_value: "900" }, null, "USD", "2026-09-30T00:00:00.000Z"), { amount: 900, currency: "USD", spend_date: "2026-09-30", amount_from: "quantity" });
   assert.equal(spendInputOf({ activity_value: "900" }, null, "kwh", "2026-09-30"), null, "kWh is a unit, not a currency");
   assert.equal(spendInputOf({ activity_value: "900" }, null, "ton", "2026-09-30"), null);
   // A bad invoice date falls back to the reporting date.
-  assert.equal(spendInputOf({ spent_value: "1", currency: "USD", invoice_date: "2026-02-30" }, null, null, "2026-09-30").spend_date, "2026-09-30");
+  assert.equal(spendInputOf({ ...spend, spent_value: "1", currency: "USD", invoice_date: "2026-02-30" }, null, null, "2026-09-30").spend_date, "2026-09-30");
+  // The purchase date is never read as the quantity ("2026-09-03" parses as 2026).
+  assert.equal(spendInputOf({ invoice_date: "2026-09-03", amount: "25" }, null, "USD", "2026-09-30").amount, 25);
   assert.equal(isoDay("2026-09-03T10:00:00Z"), "2026-09-03");
 });
 

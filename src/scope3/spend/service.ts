@@ -153,7 +153,8 @@ export async function copyLibrary(companyId: number, user: TokenUser, raw: unkno
   const parsed = CopySchema.safeParse(raw ?? {});
   if (!parsed.success) throw new BoundaryError("SCOPE3_VALIDATION", { issues: issuesOf(parsed.error.issues) });
   const { site_id, category_id, factor_ids } = parsed.data;
-  const year = parsed.data.year ?? new Date().getUTCFullYear();
+  // The factor year this year's rows look up first (reporting year − 1, targetYearFor).
+  const year = parsed.data.year ?? new Date().getUTCFullYear() - 1;
 
   const site: any[] = await AppDataSource.query(`SELECT 1 FROM site WHERE site_id = $1 AND company_id = $2`, [site_id, companyId]);
   if (!site.length) throw new BoundaryError("SCOPE3_NOT_FOUND");

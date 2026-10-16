@@ -6,9 +6,10 @@
  * row's `method`, or `activity_data["@method"]` until S3-3 gives rows that
  * column, as S3-9 does) or when its factor is a spend (EEIO) factor. The
  * amount is `spent_value` with `currency` (the form fields, wherever the
- * form keeps them: calculation fields or the older extra fields), or else the
- * row's quantity when its unit is a currency (bulk and Claude rows: 1,240,000
- * in "INR").
+ * form keeps them: calculation fields or the older extra fields) on a row
+ * that asks for the spend method, or else the row's quantity when its unit is
+ * a currency (bulk and Claude rows, and older rows on a spend factor:
+ * 1,240,000 in "INR").
  */
 import type { EmissionFactor } from "../../entities/EmissionFactor";
 import { pickActivityValue } from "../../services/activityValue";
@@ -67,10 +68,14 @@ export const spendInputOf = (
   unit: string | null | undefined,
   reportingDate: string,
   selectColumns?: Set<string>,
+  rowMethod?: string | null,
 ): SpendInput | null => {
   const day = isoDay(field("invoice_date", activity_data, extra_data)) ?? isoDay(reportingDate) ?? String(reportingDate).slice(0, 10);
-  const spent = field("spent_value", activity_data, extra_data);
-  const currency = field("currency", activity_data, extra_data);
+  // The amount and currency fields count only on a row that asks for the spend method: on today's
+  // Category 1/2 forms "Spent value" and "Currency" are informational extra fields next to the quantity.
+  const asks = rowAsksForSpend(activity_data, rowMethod);
+  const spent = asks ? field("spent_value", activity_data, extra_data) : undefined;
+  const currency = asks ? field("currency", activity_data, extra_data) : undefined;
   if (present(spent) && present(currency)) {
     return { amount: parseFloat(String(spent)), currency: String(currency).trim().toUpperCase(), spend_date: day, amount_from: "spent_value" };
   }

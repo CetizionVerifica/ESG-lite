@@ -12,6 +12,7 @@ import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
 import { getConversionFactor, unitsMatchExact } from "../services/emissionWrite/units";
 import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage } from "../services/emissionWrite";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { recalculateSpendEdit } from "../services/emissionWrite/spendEdit";
 import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
@@ -667,7 +668,21 @@ const targetYear = reportingDate.getFullYear() - 1;
           year: targetYear,
         });
 
-        if (emissionFactor) {
+        // S3-5: a spend row is recalculated by the engine with its stored rate and deflator.
+        const spendEdit = emissionFactor
+          ? await recalculateSpendEdit(AppDataSource.manager, emission, activity_data, emissionFactor, extra_data !== undefined ? extra_data : emission.extra_data)
+          : null;
+        if (spendEdit) {
+          if (!spendEdit.ok) {
+            return res.status(400).json({ message: spendEdit.issue.message, code: spendEdit.issue.code, ...(spendEdit.issue.field ? { field: spendEdit.issue.field } : {}) });
+          }
+          emission.total_emission = spendEdit.total;
+          emission.emission_factor_snapshot = spendEdit.snapshot as any;
+          emission.fx = spendEdit.fx;
+          if (spendEdit.unit) emission.activity_data_unit = spendEdit.unit;
+        } else if (emissionFactor) {
+          // Not a spend row (any more): no exchange rate applies.
+          emission.fx = null;
           // Update emission factor snapshot
           emission.emission_factor_snapshot = {
             emission_factor_id: emissionFactor.emission_factor_id,
@@ -3273,7 +3288,21 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
           year: targetYear,
         });
 
-        if (emissionFactor) {
+        // S3-5: a spend row is recalculated by the engine with its stored rate and deflator.
+        const spendEdit = emissionFactor
+          ? await recalculateSpendEdit(AppDataSource.manager, emission, activity_data, emissionFactor, emission.extra_data)
+          : null;
+        if (spendEdit) {
+          if (!spendEdit.ok) {
+            return res.status(400).json({ message: spendEdit.issue.message, code: spendEdit.issue.code, ...(spendEdit.issue.field ? { field: spendEdit.issue.field } : {}) });
+          }
+          emission.total_emission = spendEdit.total;
+          emission.emission_factor_snapshot = spendEdit.snapshot as any;
+          emission.fx = spendEdit.fx;
+          if (spendEdit.unit) emission.activity_data_unit = spendEdit.unit;
+        } else if (emissionFactor) {
+          // Not a spend row (any more): no exchange rate applies.
+          emission.fx = null;
           let activityValue = 0;
 
           // Spec category (e.g. Use of Sold Products): multiply the method's

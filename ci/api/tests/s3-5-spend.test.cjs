@@ -144,6 +144,44 @@ test("recalculating with the stored fx gives the same total, whatever the table 
   assert.equal(same.entry.computed.total_kgco2e, first.entry.computed.total_kgco2e);
 });
 
+const round2 = (kg) => Math.round((kg / 1000) * 100) / 100;
+
+test("editing a spend row (user and manager) recalculates through the engine and reuses its stored rate", async () => {
+  const data = { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "1000000", currency: "INR" };
+  const res = await typed("2026-09-20", data, { invoice_date: "2026-09-03" });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  const id = res.json.emission.pk_id;
+  // Rewrite the stored day's rate: an edit with the same currency and date must keep the row's own rate.
+  await withDb((db) => db.query(`UPDATE fx_rate SET rate_to_usd = 50 WHERE currency = 'INR' AND date = '2026-09-03'`));
+  try {
+    const edit = await call("PUT", `/user/emissions/${id}`, "otherUser", { activity_data: { ...data, spent_value: "2000000" }, extra_data: { invoice_date: "2026-09-03" } });
+    assert.equal(edit.status, 200, JSON.stringify(edit.json));
+    const row = await rowOf(id);
+    assert.equal(row.total, round2(kgFor(2000000, 0.42)));
+    assert.equal(row.fx.rate, 1 / RATE);
+    assert.equal(row.snap.deflator.base_index, IDX_2022);
+  } finally {
+    await withDb((db) => db.query(`UPDATE fx_rate SET rate_to_usd = ${RATE} WHERE currency = 'INR' AND date = '2026-09-03'`));
+  }
+  // A manager edit that moves the purchase date takes that day's stored rate.
+  const moved = await call("PUT", `/user/emissions/manager-edit/${id}`, "otherManager", {
+    activity_data: { ...data, spent_value: "2000000", invoice_date: "2026-08-07" },
+    reason: "Invoice date corrected",
+  });
+  assert.equal(moved.status, 200, JSON.stringify(moved.json));
+  const after = await rowOf(id);
+  assert.equal(after.fx.as_of, "2026-08-07");
+  assert.equal(after.total, round2((2000000 / RATE_AUG) * (IDX_2022 / IDX_2026) * 0.42));
+});
+
+test("spent value and currency extras count only when the row asks for spend; otherwise the quantity in its currency unit", async () => {
+  const res = await typed("2026-04-30", { emission_category: "Steel mills S3-5", quantity: "1000" }, { spent_value: "1000", currency: "INR" }, "USD");
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  // 1,000 USD (the row's unit), deflated 2026 → 2022; not 1,000 INR from the informational extras.
+  assert.equal(Number(res.json.emission.total_emission), round2(1000 * (IDX_2022 / IDX_2026) * 0.42));
+  assert.equal((await rowOf(res.json.emission.pk_id)).fx.currency, "USD");
+});
+
 test("bulk and Claude rows: an amount in a currency unit is a spend row, stored with its fx", async () => {
   const rows = [{ row_ref: "r1", site_id: SITE, category_id: CAT1, period: { kind: "monthly", date: "2026-08-10" }, activity_name: "Steel mills S3-5", activity_value: 2000000, activity_unit: "INR" }];
   const planned = await planRows(CTX, rows, { planMatches: [] });
@@ -209,8 +247,10 @@ test("USEEIO library: listed for anyone; copied to own sites by Manager and abov
   assert.equal(notScope3.status, 400);
 });
 
-test("migrate:scope3-spend runs twice; the second run changes nothing", async () => {
+test("migrate:scope3-spend runs twice and loads the EPA USEEIO file once; the second run changes nothing", async () => {
   const script = path.resolve("dist/scripts/migrateScope3Spend.js");
+  // Fixtures insert factor ids by hand: start the sequence past them so the library rows never collide.
+  await withDb((db) => db.query(`SELECT setval(pg_get_serial_sequence('emission_factors', 'emission_factor_id'), (SELECT max(emission_factor_id) FROM emission_factors))`));
   const outputs = [];
   for (let pass = 1; pass <= 2; pass++) {
     const run = spawnSync(process.execPath, [script], { env: process.env, encoding: "utf8" });
@@ -218,6 +258,11 @@ test("migrate:scope3-spend runs twice; the second run changes nothing", async ()
     outputs.push(run.stdout);
   }
   assert.match(outputs[1], /US CPI-U: 0 year\(s\) added/);
+  assert.match(outputs[0], /SupplyChainGHGEmissionFactors_v1\.3\.0_NAICS_CO2e_USD2022\.csv: 1016 sector\(s\), 1016 added/);
+  assert.match(outputs[1], /1016 sector\(s\), 0 added/);
+  const steel = await withDb(async (db) => (await db.query(`SELECT factor_value::float8 AS v, price_base_year, dataset_version FROM emission_factors WHERE site_id IS NULL AND emission_category_name = 'Iron and Steel Mills and Ferroalloy Manufacturing (NAICS 331110)'`)).rows);
+  assert.deepEqual(steel, [{ v: 0.787, price_base_year: 2022, dataset_version: "SEF v1.3.0" }]);
+  await withDb((db) => db.query(`DELETE FROM emission_factors WHERE site_id IS NULL AND dataset_version = 'SEF v1.3.0'`));
   const cpi = await withDb(async (db) => (await db.query(`SELECT "index"::float8 AS i FROM price_deflator WHERE country = 'US' AND year = 2022`)).rows[0].i);
   assert.equal(cpi, IDX_2022, "a stored index is never changed");
   await withDb((db) => db.query(`DELETE FROM price_deflator WHERE source = 'BLS CPI-U annual average (1982-84=100)'`));

@@ -147,7 +147,15 @@ export const FactorSnapshotScope3FieldsSchema = z.object({
 // ---------------------------------------------------------------------------
 
 /** `emission.fx` (S3-5). */
-export const FxSchema = z.object({ currency, rate: z.number().positive(), as_of: isoDate, source: text(100) });
+/** `emission.fx` (S3-5): 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date the rate was looked up for. */
+export const FxSchema = z.object({
+  currency,
+  to: currency,
+  rate: z.number().positive(),
+  as_of: isoDate,
+  source: text(100),
+  spend_date: isoDate.optional(),
+});
 
 /** `emission.proxy` (S3-12). */
 export const ProxySchema = z.object({
