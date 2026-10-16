@@ -51,6 +51,32 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | 24 | Admin | base year preview per category, only the Admin freezes it |
 | skipped | — | 5a SE-2, 5b S3-15 parts 3–4, 9 S3-12, 14 S3-6, 16–17 and 25e S3-3, 18 SE-4, 27 S3-16 |
 
+## Every category (`categories.test.cjs`)
+
+Runs after the workflow on the same stack, for a second client that reports every Scope 1 and Scope 2
+source and all 15 Scope 3 categories. For each category the Superadmin sets up the client's own
+activities (or the deploy seeds the standard form), the User sees that activity in their list
+(`GET /user/emission-factors/site/:site/category/:category`), picks it and enters a month, and the
+stored tCO₂e, its Category 3 rows, the approval and both reports match the kg in `categories.scenario.cjs`.
+Each category is its own test, so one broken category doesn't hide the others.
+
+| Category | Entry | Hand-worked figure |
+|---|---|---|
+| Scope 1 stationary, mobile | litres (mobile in kl, converted), + 3a twin | litres × combustion factor |
+| Scope 1 refrigerants, process | kg leaked × GWP; kg of limestone against a per-tonne factor | |
+| Scope 2 electricity, steam | kWh, + 3b and 3c twins; steam in MWh against a per-kWh factor, + 3b | |
+| 1, 2 | average-data, tonnes against a per-kg factor | |
+| 3 | the twins of the Scope 1 and 2 rows | sum of the twins |
+| 4, 9 | tonne.km (9 in kg.km, converted) | |
+| 5 | kg of waste against a per-tonne factor | |
+| 6, 7 | standard forms: hotel nights; commuting average-data | seeded DEFRA 2025 values |
+| 8 | lease form, sub-metered electricity × area share | |
+| 10, 11, 12 | sold-products forms: site-specific processing; refrigerant released (AR6); end of life | seeded AR6 / DEFRA values |
+| 13, 14, 15 | asset forms: tenant, franchise sample and investee reported emissions | identity factors |
+
+Spend, supplier-specific and hybrid rows are covered in the workflow (Category 1 spend) or wait on
+S3-6; the transport and waste standard forms wait on S3-8. Those lanes add their rows to `ROWS`.
+
 Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-lite_FE, not here.
 
 ## Facts the test pins down (true on `production` today)
@@ -76,5 +102,6 @@ Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-
 - `run.cjs` boots the stack on the empty database and runs the test.
 - `workflow.test.cjs` the steps, numbered as in the onboarding workflow document.
 - `scenario.cjs` the client, its inputs and the hand-worked figures.
+- `categories.test.cjs` and `categories.scenario.cjs` every category, one row each.
 - `lib.cjs` sign-in, HTTP, database and redeploy helpers.
 - `local.sh` one command for a laptop.
