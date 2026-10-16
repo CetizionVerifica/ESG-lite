@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinColu
 import { ColumnEntity as DynamicColumn } from "./Column";
 import { Category } from "./Category";
 import { Site } from "./Site";
+import type { MethodOptions } from "../scope3/contracts/schemas";
 
 // Interface for dropdown option values
 export interface DropdownOptionValue {
@@ -121,6 +122,19 @@ export class ColumnConfig {
   // Column added by direct SQL, not TypeORM sync — see docs/use-of-sold-products.md.
   @Column({ type: "jsonb", nullable: true })
   calculation?: CalculationSpec | null;
+
+  // S3-3 · the methods this form offers, most specific first
+  // (docs/scope3/01-contracts.md §1, migrate:scope3-row-quality). Null or one
+  // entry means the method is fixed and the form shows it as a read-only line;
+  // two or more make the add-data method picker appear. A row naming a method
+  // outside this list is refused with METHOD_NOT_ALLOWED.
+  //
+  // The entries are `{method, units}` (01-contracts.md §6, `MethodOptions`
+  // from the S3-0 contracts), validated with `MethodOptionsSchema` on every
+  // write. Read it through `readMethodOptions` (src/scope3/dq/methodOptions.ts),
+  // which also takes the bare method keys an early cut of this column stored.
+  @Column({ type: "jsonb", nullable: true })
+  method_options?: MethodOptions | null;
 
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({

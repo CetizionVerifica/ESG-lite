@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { parseMethodOptionsInput } from "../scope3/dq/methodOptions";
 import { AppDataSource } from "../config/data-source";
 import {
   ColumnConfig,
@@ -135,12 +136,20 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       emission_category_mapping,
       extra_fields,
       calculation,
+      method_options,
     } = req.body;
 
     if (!config_name || !site_id || !category_id) {
       return res.status(400).json({
         message: "config_name, site_id and category_id are required",
       });
+    }
+
+    // S3-3: the methods the form offers, `[{method, units}]` (MethodOptionsSchema),
+    // refused by name when they don't fit the contract.
+    const methodOptions = parseMethodOptionsInput(method_options);
+    if (!methodOptions.ok) {
+      return res.status(400).json({ message: methodOptions.message, code: "FIELD_INVALID", field: methodOptions.field });
     }
 
     // Validate site exists
@@ -214,6 +223,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       emission_category_mapping: validatedEmissionCategoryMapping,
       extra_fields: validatedExtraFields,
       calculation: calculation && typeof calculation === "object" ? calculation : null,
+      method_options: methodOptions.value ?? null,
     });
 
     await repo.save(columnConfig);
@@ -250,6 +260,7 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       emission_category_mapping,
       extra_fields,
       calculation,
+      method_options,
       rename_map,
     } = req.body;
 
@@ -263,7 +274,8 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       dependent_options === undefined &&
       emission_category_mapping === undefined &&
       extra_fields === undefined &&
-      calculation === undefined
+      calculation === undefined &&
+      method_options === undefined
     ) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -367,6 +379,14 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
     if (extra_fields !== undefined) {
       columnConfig.extra_fields = extra_fields === null ? [] : extra_fields;
     }
+
+    // S3-3: absent keeps the stored list, null or [] clears it, anything else must
+    // be `[{method, units}]` (MethodOptionsSchema) and is refused by name otherwise.
+    const methodOptions = parseMethodOptionsInput(method_options);
+    if (!methodOptions.ok) {
+      return res.status(400).json({ message: methodOptions.message, code: "FIELD_INVALID", field: methodOptions.field });
+    }
+    if (methodOptions.value !== undefined) columnConfig.method_options = methodOptions.value;
 
     // Absent = keep the stored spec (config modals PUT without it); explicit null
     // clears. Anything that isn't an object is rejected rather than stored — the
