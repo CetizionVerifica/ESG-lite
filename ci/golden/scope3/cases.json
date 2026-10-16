@@ -1560,8 +1560,8 @@
         }
       ],
       "expected_kgco2e": 1725,
-      "status": "skip",
-      "owner": "S3-10"
+      "status": "run",
+      "owner": "S3-10", "note": "Runs once S3-4 (ESG-lite #137) gives the engine its kg figure: until then each row is 2 dp tCO2e, so the 25 kg waste row counts as 30 kg (1,730). The form gives 1,725 exactly (ci/unit/scope3-sold-products.test.cjs)."
     },
     {
       "id": "ex-10.2",
@@ -1588,7 +1588,7 @@
         }
       ],
       "expected_kgco2e": 1500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1628,7 +1628,7 @@
         }
       ],
       "expected_kgco2e": 13042500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1657,7 +1657,7 @@
         }
       ],
       "expected_kgco2e": 36000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1697,7 +1697,7 @@
         }
       ],
       "expected_kgco2e": 3700,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10",
       "note": "The 0 % recycling row is not created (S3-10 spec)."
     },
