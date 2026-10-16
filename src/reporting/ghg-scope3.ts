@@ -19,42 +19,23 @@ import { GHG_CATEGORIES, ghgCategory, type GhgCategoryNumber, type Method, METHO
 import { GWP_SETS, isFactorType, type FactorType, type GwpSet } from "../scope3/contracts/factor";
 import { ensureBoundaryRows, isScope3Sql, type Queryable } from "../scope3/taxonomy/service";
 import { getPeriodRange, type GhgFilters } from "./ghg-data";
+import type { Scope3ReportRow as ContractScope3ReportRow } from "../scope3/contracts/schemas";
 import type { Block } from "./types";
 
 // ---------------------------------------------------------------------------
-// Row shape (01-contracts.md §5). Stand-in for `Scope3ReportRowSchema`, which
-// S3-0's follow-up PR (ESG-lite #144) adds to contracts/schemas.ts; switch to
-// that type once it is on production. The fields are the same.
+// Row shape (01-contracts.md §5) comes from S3-0's `Scope3ReportRowSchema`.
+// `rf` and `proxy_basis` are S3-13 additions the contract doesn't carry yet
+// (S3-0 follow-up: add them to the schema, then drop the intersection here).
 // ---------------------------------------------------------------------------
 
-export type BoundaryStatus = "included" | "excluded" | "not_relevant" | "screening";
+export type BoundaryStatus = NonNullable<ContractScope3ReportRow["status"]>;
 
-export interface Scope3ReportRow {
-  /** 1–15, or null for "Unmapped" (Scope 3 categories with no confirmed number). */
-  n: GhgCategoryNumber | null;
-  name: string;
-  direction: "upstream" | "downstream" | null;
-  status: BoundaryStatus | null;
-  reason: string | null;
-  method_note: string | null;
-  tco2e: number;
-  share_pct: number;
-  /** Method key → share of the category's kgCO₂e, %. Rows without a method count as `unknown`. */
-  methods: Partial<Record<Method, number>>;
-  primary_pct: number;
-  value_chain_pct: number;
-  proxy_pct: number;
-  dq: { overall: number | null; good_pct: number; fair_pct: number; poor_pct: number };
-  datasets: { dataset: string; version: string | null; factor_type: FactorType }[];
-  gwp_sets: GwpSet[];
-  /** null = "Not tracked" until `emission.biogenic_kg` is written. */
-  biogenic_tco2e: number | null;
-  mapped_categories: { category_id: number; name: string }[];
+export type Scope3ReportRow = ContractScope3ReportRow & {
   /** Air travel radiative forcing (Standard L4218): null = no flight entries. */
   rf: "with" | "without" | "mixed" | null;
   /** How extrapolated or proxy data was made (survey scaling, S3-12 proxy basis). */
   proxy_basis: string[];
-}
+};
 
 /** Which optional inputs this database records yet. false → the report says "Not recorded" / "Not tracked". */
 export interface Scope3Tracked {
