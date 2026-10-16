@@ -19,7 +19,7 @@ import { AppDataSource } from "../../config/data-source";
 import { getPeriodRange, type YearType } from "../../reporting/ghg-data";
 import { emissionColumns, kgSql, type Scope3BaseYearSummary } from "../../reporting/ghg-scope3";
 import { Scope3Error } from "../contracts/errors";
-import { PutBaseYearBodySchema, RECALCULATION_STATUSES } from "../contracts/schemas";
+import { PostRecalculationBodySchema, PutBaseYearBodySchema, RECALCULATION_STATUSES } from "../contracts/schemas";
 import { BoundaryError } from "../boundary/errors";
 import { ensureBoundaryRows, isScope3Sql, type Queryable } from "../taxonomy/service";
 import {
@@ -167,6 +167,16 @@ async function baseYearRow(companyId: number, q: Queryable, lock = false) {
   return row ?? null;
 }
 
+/** The row with the snapshot's totals only (no per-row fingerprints), for the report block. */
+async function baseYearTotals(companyId: number, q: Queryable) {
+  const [row]: any[] = await q.query(
+    `SELECT base_year, year_type, rationale, policy_note, significance_pct, snapshot - 'rows' - 'sites' - 'boundary' AS snapshot
+       FROM company_base_year WHERE company_id = $1 AND scope = $2`,
+    [companyId, SCOPE],
+  );
+  return row ?? null;
+}
+
 async function openProposal(companyId: number, q: Queryable) {
   const [row]: any[] = await q.query(
     `SELECT * FROM recalculation_event WHERE company_id = $1 AND scope = $2 AND status = 'proposed' ORDER BY id DESC LIMIT 1`,
@@ -204,12 +214,16 @@ export async function getBaseYear(companyId: number) {
   };
 }
 
-/** GET /scope3/recalculations?status=: re-checks the company first so the open proposal is current. */
-export async function listRecalculations(companyId: number, status?: unknown) {
+/**
+ * GET /scope3/recalculations?status=. For an Admin or Superadmin (`recheck`) it runs the check first,
+ * so the open proposal is current; that can create, update or auto-dismiss the proposal. Other roles
+ * only read what the nightly job left.
+ */
+export async function listRecalculations(companyId: number, status?: unknown, recheck = false) {
   if (status !== undefined && status !== "" && !EVENT_STATUSES.includes(status as any)) {
     throw new BoundaryError("SCOPE3_VALIDATION", { status: `Use one of ${EVENT_STATUSES.join(", ")}.` });
   }
-  await checkCompany(companyId);
+  if (recheck) await checkCompany(companyId);
   const params: any[] = [companyId, SCOPE];
   let filter = "";
   if (status) {
@@ -229,7 +243,7 @@ export async function listRecalculations(companyId: number, status?: unknown) {
 
 /** The report's base-year block (S3-13 `scope3Blocks`); null when none is set. */
 export async function baseYearSummary(companyId: number, q: Queryable = AppDataSource): Promise<Scope3BaseYearSummary | null> {
-  const row = await baseYearRow(companyId, q);
+  const row = await baseYearTotals(companyId, q);
   if (!row?.snapshot) return null;
   const events: any[] = await q.query(
     `SELECT reason, delta_tco2e, note, COALESCE(decided_at, created_at) AS at
@@ -260,8 +274,8 @@ export async function baseYearSummary(companyId: number, q: Queryable = AppDataS
 export async function previewBaseYear(companyId: number, query: any) {
   const year = Number(query?.base_year);
   const yearType: YearType = query?.year_type === "FY" ? "FY" : "CY";
-  if (!Number.isInteger(year) || year < 1990 || year > new Date().getFullYear()) {
-    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "Give a year from 1990 to this year." }]);
+  if (!Number.isInteger(year) || year < 1990 || year > new Date().getFullYear() - 1) {
+    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "Give a year from 1990 to last year." }]);
   }
   const state = await currentState(companyId, year, yearType, AppDataSource);
   if (!Object.keys(state.rows).length) throw new Scope3Error("BASE_YEAR_NO_DATA", { base_year: year, year_type: yearType });
@@ -289,8 +303,8 @@ export async function putBaseYear(companyId: number, body: any, userId: number) 
   }
   const input = parsed.data;
   if (input.scope !== SCOPE) throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "scope", message: "Only a Scope 3 base year can be set here." }]);
-  if (input.base_year > new Date().getFullYear()) {
-    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "The base year can't be in the future." }]);
+  if (input.base_year > new Date().getFullYear() - 1) {
+    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "The base year must be a completed year (last year or earlier)." }]);
   }
   const yearType: YearType = input.year_type === "FY" ? "FY" : "CY";
   const policy = {
@@ -399,10 +413,14 @@ export async function checkCompany(companyId: number): Promise<CheckOutcome> {
 
     if (!cmp.significant) {
       if (!open) return "none";
+      // Marked so it never counts as an Admin's dismissal: the same changes can be proposed again.
+      const note = "Changes are no longer above the threshold.";
       await m.query(
-        `UPDATE recalculation_event SET status = 'dismissed', note = $2, decided_at = now(), updated_at = now() WHERE id = $1`,
-        [open.id, "Changes are no longer above the threshold."],
+        `UPDATE recalculation_event SET status = 'dismissed', note = $2, details = COALESCE(details, '{}'::jsonb) || '{"auto_dismissed": true}'::jsonb,
+                decided_at = now(), updated_at = now() WHERE id = $1`,
+        [open.id, note],
       );
+      await audit(m, "scope3_recalculation", Number(open.id), "dismiss", { status: { old: "proposed", new: "dismissed" }, auto_dismissed: { old: null, new: true } }, 0, note);
       return "auto_dismissed";
     }
     if (open?.details?.signature === cmp.signature) return "unchanged";
@@ -410,6 +428,7 @@ export async function checkCompany(companyId: number): Promise<CheckOutcome> {
       const [dismissed]: any[] = await m.query(
         `SELECT details ->> 'signature' AS signature FROM recalculation_event
           WHERE company_id = $1 AND scope = $2 AND status = 'dismissed' AND (details ->> 'version')::int = $3
+            AND COALESCE((details ->> 'auto_dismissed')::boolean, false) = false
           ORDER BY id DESC LIMIT 1`,
         [companyId, SCOPE, snapshot.version],
       );
@@ -472,7 +491,16 @@ export async function checkAllCompanies(): Promise<Record<CheckOutcome | "failed
 export async function approveRecalculation(companyId: number, body: any, userId: number) {
   const reason = body?.reason as RecalcReason;
   if (!RECALC_REASONS.includes(reason)) throw new Scope3Error("RECALCULATION_REASON_REQUIRED");
-  const note = cleanText(body?.note);
+  // affected_years defaults to the base year (filled in below), so only a sent list is checked here.
+  const parsed = PostRecalculationBodySchema.safeParse({
+    reason,
+    affected_years: body?.affected_years ?? [new Date().getFullYear() - 1],
+    note: body?.note ?? null,
+  });
+  if (!parsed.success) {
+    throw new BoundaryError("SCOPE3_VALIDATION", parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
+  }
+  const note = cleanText(parsed.data.note);
 
   return AppDataSource.transaction(async (m) => {
     const row = await baseYearRow(companyId, m, true);
@@ -483,7 +511,9 @@ export async function approveRecalculation(companyId: number, body: any, userId:
     const open = await openProposal(companyId, m);
     // Below the threshold an Admin may still recalculate (several small changes can add up, §9.3),
     // but only when something changed.
-    if (!open && !cmp.changes.length) throw new BoundaryError("SCOPE3_NOT_FOUND", { message: "Nothing changed since the base year was frozen." });
+    if (!open && !cmp.changes.length) {
+      throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "reason", message: "Nothing changed since the base year was frozen." }]);
+    }
 
     const next = buildSnapshot(state, Number(row.base_year), row.year_type, (prev.version ?? 1) + 1);
     await m.query(`UPDATE company_base_year SET snapshot = $2, updated_by = $3, updated_at = now() WHERE id = $1`, [
@@ -491,9 +521,7 @@ export async function approveRecalculation(companyId: number, body: any, userId:
       JSON.stringify(next),
       userId || null,
     ]);
-    const affected = Array.isArray(body?.affected_years) && body.affected_years.every((y: unknown) => Number.isInteger(y))
-      ? body.affected_years
-      : [Number(row.base_year)];
+    const affected = Array.isArray(body?.affected_years) ? parsed.data.affected_years : [Number(row.base_year)];
     const values = [reason, JSON.stringify(affected), cmp.delta_tco2e, note, JSON.stringify(cmp.before), JSON.stringify(cmp.after), JSON.stringify(details(cmp, prev.version ?? 1)), userId || null];
     let event: any;
     if (open) {

@@ -39,10 +39,11 @@ export const putBaseYearHandler = handle("set base year", async (req, res) => {
   res.json(await putBaseYear(companyId, req.body ?? {}, userId(req)));
 });
 
-/** GET /scope3/recalculations?status=: any role with access to the company. */
+/** GET /scope3/recalculations?status=: any role with access to the company; only Admin and Superadmin re-check first. */
 export const listRecalculationsHandler = handle("list recalculations", async (req, res) => {
   const companyId = await companyForRequest(req);
-  res.json({ ...(await listRecalculations(companyId, req.query?.status)), can_edit: canEditBoundary(req) });
+  const canEdit = canEditBoundary(req);
+  res.json({ ...(await listRecalculations(companyId, req.query?.status, canEdit)), can_edit: canEdit });
 });
 
 /** POST /scope3/recalculations `{reason, note?}`: Admin and Superadmin. */

@@ -83,6 +83,7 @@ test("PUT: Admin and Superadmin only; a year without approved Scope 3 rows is BA
   assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: BASE, significance_pct: 101 })).status, 400);
   assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: BASE, scope: "Scope 1" })).status, 400);
   assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: new Date().getFullYear() + 1 })).status, 400);
+  assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: new Date().getFullYear() })).status, 400); // only completed years
 });
 
 test("preview shows what a freeze would store, without saving", async () => {
@@ -139,6 +140,9 @@ test("tenant isolation: company 2 callers get 404 on company 1's base year and r
 test("a significant correction makes one proposal; approve needs a reason and never edits emission rows", async () => {
   assert.deepEqual((await call("GET", "/scope3/recalculations", "admin")).json.events, []);
   await withDb((db) => db.query(`UPDATE emission SET total_emission = 6.8 WHERE pk_id = 81400`)); // +0.8 t = 8 %
+  // A Manager's GET only reads: no check runs, so nothing is proposed yet.
+  assert.deepEqual((await call("GET", "/scope3/recalculations?status=proposed", "manager")).json.events, []);
+  assert.equal((await call("GET", "/scope3/recalculations?status=proposed", "admin")).json.events.length, 1);
   const first = await call("GET", "/scope3/recalculations?status=proposed", "manager");
   assert.equal(first.status, 200, JSON.stringify(first.json));
   assert.equal(first.json.events.length, 1);
@@ -169,8 +173,11 @@ test("a significant correction makes one proposal; approve needs a reason and ne
   assert.deepEqual((await call("GET", "/scope3/recalculations?status=proposed", "admin")).json.events, []);
   const audits = await withDb((db) => db.query(`SELECT entity_type, action FROM audit_log WHERE entity_type IN ('scope3_base_year', 'scope3_recalculation') ORDER BY id`));
   assert.deepEqual(audits.rows.slice(-2).map((a) => [a.entity_type, a.action]), [["scope3_recalculation", "approve"], ["scope3_base_year", "refreeze"]]);
-  // Nothing left to approve.
-  assert.equal((await call("POST", "/scope3/recalculations", "admin", { reason: "error" })).status, 404);
+  // Nothing left to approve: a validation error, not a 404.
+  const nothing = await call("POST", "/scope3/recalculations", "admin", { reason: "error" });
+  assert.equal(nothing.status, 400);
+  assert.equal(nothing.json.code, "SCOPE3_VALIDATION");
+  assert.equal((await call("POST", "/scope3/recalculations", "admin", { reason: "error", affected_years: [] })).status, 400);
 });
 
 test("dismiss keeps the snapshot and the same changes are not proposed again", async () => {
@@ -189,6 +196,29 @@ test("dismiss keeps the snapshot and the same changes are not proposed again", a
   assert.equal(by.json.drift.significant, true);
   assert.equal((await call("POST", `/scope3/recalculations/${open[0].id}/dismiss`, "admin", {})).status, 404);
   await withDb((db) => insert(db, 81401, 4)); // put it back for the next test
+});
+
+test("an automatic dismissal is audited and doesn't stop the same changes being proposed again", async () => {
+  const proposed = async () => (await call("GET", "/scope3/recalculations?status=proposed", "admin")).json.events;
+  await withDb((db) => db.query(`UPDATE emission SET total_emission = 7.8 WHERE pk_id = 81400`)); // +1 t ≈ 9 %
+  const [first] = await proposed();
+  assert.ok(first);
+  await withDb((db) => db.query(`UPDATE emission SET total_emission = 6.8 WHERE pk_id = 81400`)); // back below the threshold
+  assert.deepEqual(await proposed(), []);
+  const auto = await withDb((db) =>
+    db.query(`SELECT status, details ->> 'auto_dismissed' AS auto, approved_by FROM recalculation_event WHERE id = $1`, [first.id]),
+  );
+  assert.deepEqual(auto.rows[0], { status: "dismissed", auto: "true", approved_by: null });
+  const audits = await withDb((db) =>
+    db.query(`SELECT action, changed_by FROM audit_log WHERE entity_type = 'scope3_recalculation' AND entity_id = $1`, [first.id]),
+  );
+  assert.deepEqual(audits.rows, [{ action: "dismiss", changed_by: null }]);
+  await withDb((db) => db.query(`UPDATE emission SET total_emission = 7.8 WHERE pk_id = 81400`)); // same change again
+  const [again] = await proposed();
+  assert.ok(again, "the same changes are proposed again after an automatic dismissal");
+  assert.notEqual(again.id, first.id);
+  await withDb((db) => db.query(`UPDATE emission SET total_emission = 6.8 WHERE pk_id = 81400`));
+  assert.deepEqual(await proposed(), []);
 });
 
 test("changing the base year needs a note and records an approved methodology event", async () => {
