@@ -119,8 +119,9 @@ export const FactorMetadataSchema = GasPartsSchema.extend({
   factor_type: FactorTypeSchema,
   gwp_set: GwpSetSchema,
   geography,
-  dataset: text(100),
-  dataset_version: z.string().max(100).nullable().optional(),
+  // Same limits as the columns (varchar 60/40, EmissionFactor.ts) and S3-2's validator (src/scope3/factors/meta.ts).
+  dataset: text(60),
+  dataset_version: z.string().max(40).nullable().optional(),
   biogenic_co2_kg: nonNegative.nullable().optional(),
   includes_wtt: z.boolean().optional(), // column default false; no parse default, so an edit that omits it keeps the stored value
   price_base_year: year.nullable().optional(),
@@ -490,6 +491,9 @@ export const ExtrapolateBodySchema = z.object({
   coverage_pct: z.number().min(1).max(99).optional(),
   source_filter: z.record(z.string(), z.unknown()).optional(),
   output_site_ids: z.array(id).optional(),
+}).refine((b) => b.basis !== "coverage" || b.coverage_pct !== undefined, {
+  message: "coverage_pct is required when basis is coverage",
+  path: ["coverage_pct"],
 });
 
 /** python_AI_service `POST /v1/scope3/eeio-sector` (S3-12). */

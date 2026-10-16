@@ -71,7 +71,11 @@ test("factor types, GWP sets and gases match §2; allowed types per category war
   assert.equal(factor.factorTypeAllowed(3, "combustion"), false);
   assert.equal(factor.factorTypeAllowed(4, "other"), true); // §10
   assert.equal(factor.factorTypeAllowed(6, "other"), false);
-  assert.equal(factor.factorTypeAllowed(8, "other"), true); // no list yet (§10 follow-up)
+  assert.equal(factor.factorTypeAllowed(8, "other"), true); // reported partner emissions (D13)
+  assert.equal(factor.factorTypeAllowed(15, "eeio_spend"), true);
+  assert.equal(factor.factorTypeAllowed(15, "wtt"), false);
+  assert.equal(factor.factorTypeAllowed(10, "process"), true);
+  for (const n of [8, 13, 14, 15]) assert.equal(factor.factorTypeAllowed(n, "other"), true);
   for (const types of Object.values(factor.ALLOWED_FACTOR_TYPES)) {
     for (const t of types) assert.ok(factor.FactorTypeSchema.safeParse(t).success, t);
   }
@@ -133,6 +137,9 @@ test("schemas: boundary reasons, GHG numbers only for Scope 3, spend factors, su
   assert.equal(ok(schemas.FactorMetadataSchema, factorRow), false);
   assert.equal(ok(schemas.FactorMetadataSchema, { ...factorRow, price_base_year: 2022, price_currency: "USD" }), true);
   assert.equal(ok(schemas.FactorMetadataSchema, { ...factorRow, factor_type: "combustion" }), true);
+  // Same limits as the emission_factors columns (varchar 60/40).
+  assert.equal(ok(schemas.FactorMetadataSchema, { ...factorRow, factor_type: "combustion", dataset: "d".repeat(61) }), false);
+  assert.equal(ok(schemas.FactorMetadataSchema, { ...factorRow, factor_type: "combustion", dataset_version: "v".repeat(41) }), false);
 
   const sf = { item: "Aluminium ingot", unit: "kg", kgco2e_per_unit: 8.3, boundary: "cradle_to_gate", reference_year: 2025, gwp_set: "AR6" };
   assert.equal(ok(schemas.SupplierFactorBodySchema, sf), true);
@@ -158,6 +165,9 @@ test("schemas for the §5 bodies and shapes folded in from §10 and the module s
   assert.equal(ok(schemas.ExtrapolateBodySchema, ex), true);
   assert.equal(ok(schemas.ExtrapolateBodySchema, { ...ex, coverage_pct: 100 }), false);
   assert.equal(ok(schemas.ExtrapolateBodySchema, { ...ex, basis: "guess" }), false);
+  const { coverage_pct, ...noPct } = ex;
+  assert.equal(ok(schemas.ExtrapolateBodySchema, noPct), false);
+  assert.equal(ok(schemas.ExtrapolateBodySchema, { ...noPct, basis: "intensity" }), true);
 
   const survey = { site_id: 1, year: 2026, year_type: "CY", total_employees: 3, responses: [{ ref: "A1", mode: "Rail", one_way_km: 10, days_per_week: 5, weeks_per_year: 48 }] };
   assert.equal(ok(schemas.CommutingSurveyBodySchema, survey), true);

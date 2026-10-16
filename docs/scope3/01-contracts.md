@@ -41,9 +41,13 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 - Cat 6/7: `life_cycle`, `combustion`, `eeio_spend`.
 - Cat 5/12: `process`, `life_cycle`.
 - Cat 11: `combustion`, `other`.
-- Cat 8, 10, 13, 14, 15: no list yet (open question for the plan owner). Until one is set, every type is accepted; it must include `other` for Cat 8, 13, 14, 15 (reported partner emissions, below).
+- Cat 8/13: `life_cycle`, `combustion`, `other` (refrigerant GWP, reported partner emissions).
+- Cat 10: `process`, `combustion`, `life_cycle`.
+- Cat 14: `life_cycle`, `combustion`, `other`.
+- Cat 15: `eeio_spend`, `other`.
+(Cats 8, 10, 13, 14 and 15 were added by S3-0 in ESG-lite #144 from what the S3-10 and S3-11 forms use; `other` covers reported partner emissions, below.)
 
-**Reported partner emissions** (Cat 8 lessor, 13, 14, 15; examples 8.3, 13.1, 14.1, 15.1): the partner's Scope 1+2 figure is entered as activity data with evidence and calculated by the engine with an identity factor "Reported emissions" = 1 kgCO₂e per `kgco2e` (1,000 per `tco2e`), `factor_type other`, `dataset reported`, and the row is `data_type primary`. This is a figure the partner reported, not a total ESGLite is asked to trust from a client app, so the one-engine rule holds (D13, to confirm).
+**Reported partner emissions** (Cat 8 lessor, 13, 14, 15; examples 8.3, 13.1, 14.1, 15.1): the partner's Scope 1+2 figure is entered as activity data with evidence and calculated by the engine with an identity factor "Reported emissions" = 1 kgCO₂e per `kgco2e` (1,000 per `tco2e`), `factor_type other`, `dataset reported`, and the row is `data_type primary`. This is a figure the partner reported, not a total ESGLite is asked to trust from a client app, so the one-engine rule holds (D13, confirmed by Shyam 2026-10-16).
 
 ## 3. Data quality (`dq.ts`)
 
@@ -81,8 +85,8 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `supplier_factor` | id, company_id, supplier_id, item, unit, kgco2e_per_unit, boundary (`cradle_to_gate`), reference_year, gwp_set, evidence_document_id, source (`supplier_request`, `manual`), material_factor_id null | S3-6 |
 | `supplier_facility_data` (hybrid) | id, company_id, supplier_id, year, scope12_tco2e, output_qty, output_unit, allocation_key | S3-6 |
 | `emission.scope3_sub` | varchar null (`Scope3Sub`) | S3-7 |
-| `emission.gas_kg` | jsonb null, kg per `Gas`, from the factor's gas parts | engine (owner to confirm); S3-13 reads |
-| `emission.biogenic_kg` | numeric null, from the factor's `biogenic_co2_kg` | engine (owner to confirm); S3-13 reads |
+| `emission.gas_kg` | jsonb null, kg per `Gas`, from the factor's gas parts | S3-4 writes (engine); S3-13 reads |
+| `emission.biogenic_kg` | numeric null, from the factor's `biogenic_co2_kg` | S3-4 writes (engine); S3-13 reads |
 | `site.lease_role` | varchar null (`lessee`, `lessor`, `franchisee`, `franchisor`) + `floor_area_m2` | S3-11 |
 | `site.lease_type` | varchar null (`finance`, `operating`), for the lease boundary rule | S3-11 |
 | `company.home_site_id` | int null FK site: company-level rows (Cat 15, franchises) go on the head-office site | S3-11 |
@@ -147,12 +151,18 @@ src/services/emissionWrite/
 `ComputedRow = { total_tco2e: number (2 dp, as today), total_kgco2e: string, factor_snapshot: FactorSnapshot, method: Method, dq: Dq, data_type, warnings: Warning[] }`.
 `FactorSnapshot` gains `factor_type, gwp_set, geography, dataset, dataset_version, gases?`.
 The method is chosen by the row's `method` field. When it's missing, by the form's `method_options[0]`. Otherwise `activity`.
-A category with a calculation spec always goes through `methods/spec.ts`, whatever its method, so `fuel_based`, `distance_based`, `site_specific` and `average_data` forms (S3-8 to S3-11) need no method file of their own. `spend_based`, `supplier_specific` and `hybrid` pick their files; a row with `proxy` picks `methods/proxy.ts`.
+Dispatch order (`methodFileFor` in `compute.ts`), first match wins:
+1. a row with `proxy` → `methods/proxy.ts`;
+2. method `spend_based` → `methods/spend.ts`, `supplier_specific` → `methods/supplier.ts`, `hybrid` → `methods/hybrid.ts`, on any category, spec or not (so Cat 4/9 spend rows under S3-8 and Cat 6 spend rows under S3-9 get S3-5's FX and deflator maths);
+3. any other method on a category with a calculation spec → `methods/spec.ts`, so `fuel_based`, `distance_based`, `site_specific` and `average_data` forms (S3-8 to S3-11) need no method file of their own;
+4. everything else → `methods/activity.ts`.
 
-**Shared spec additions** (code by S3-9, used by S3-8, S3-10 and S3-11; not owned by S3-9):
+As built today `methodFileFor` checks `ctx.spec` first. S3-5 changes it to this order when `spend.ts` lands; no row carries a method yet, so the change moves no numbers (golden re-run confirms it).
+
+**Shared spec additions** (built by S3-9; contract owned by S3-0 here in §6; used by S3-8, S3-10 and S3-11):
 - `MethodCalculation.divide?: string[]`: fields to divide by, each > 0 (0 or empty → `FIELD_REQUIRED`); a field also listed in `percent` divides by value / 100.
 - `method_column: "@method"`: the row's `method` (S3-3) picks the field set instead of a select column.
-- `ColumnConfig.method_options` (S3-3 column) carries the units each method offers: `[{method, units: string[]}]`, most specific first. The method a user picks decides which units the form shows.
+- `ColumnConfig.method_options` (S3-3 column) carries the units each method offers: `[{method, units: string[]}]`, most specific first, typed by `MethodOptionsSchema` in `src/scope3/contracts/schemas.ts`. The method a user picks decides which units the form shows.
 
 **As built by S3-0:** `computeRow(ctx, row)` with `row = {factor, activity_data, activity_unit, method?, proxy?}` returns `{ok, computed}` or `{ok: false, issue}`; `computeTotal` keeps its old signature. `Computed` has the optional `total_kgco2e`, `method`, `dq`, `data_type` (unset until S3-3/S3-4 fill them).
 
@@ -169,13 +179,17 @@ Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACT
 
 Each case: `{id, guidance_ref, category, method, inputs, factors, expected_kgco2e}`. These are the worked examples of the guidance that ESGLite will support, at least: Example 1.1 (supplier-specific), 1.2/1.3 (hybrid), 1.4 (average-data), 1.5 (spend), 3.x (upstream fuels, T&D losses), 4.2 (distance), 4.4 (spend transport), 4.6 (average distribution), 5.1/5.2 (waste), 6.1 (travel distance), 7.x (commuting), 11.x (use phase), 12.x (end of life), 15.x (equity investment), plus 4.1, 4.5, 8.1, 9.1, 10.1, 10.2, 13.1, 14.1, 14.2, one constructed proxy case and one report-level case. Two printed results are off: Example 8.1 prints 1,325 kg but the exact maths gives 1,320 kg (the guidance rounded the refrigerant), so store 1,320 with a note; Example 15.2 says "tonnes" but its factors are kg/$, so the result is kg. S3-0 transcribes them from the guidance PDF text, with page refs. Each method module turns its own cases from `skip` to `run`.
 
-**As built by S3-0:** the cases come from this section and the module specs' "Golden cases" sections (their line refs). 22 have figures; 1.1–1.5, three Cat 3 cases and 5.1/5.2 are named without figures, and their owner adds them before turning them on. 15.2 carries an open question (its formula sums to 2,332,500, the spec states 2,242,500). Two constructed proxy cases (S3-12) and a report-level case (S3-13, which moves it to `ci/golden/scope3/report.json`). `ci/golden/scope3/run.cjs` fails on more than 0.5 kg or 0.1 % and refuses a `run` case without figures, rows or with an open question.
+**As built by S3-0:** the cases come from this section and the module specs' "Golden cases" sections (their line refs). Every case has figures: S3-0 (ESG-lite #144) transcribed 1.1–1.5, 5.1 and 5.2 from `reference/scope3-calculation-guidance.txt` (S3-7 had already filled the three Cat 3 cases). Notes on the transcription:
+- The guidance has no Example 1.5; formula 1.5 is worked inside Example 1.4, which mixes methods (54,100 kg). `ex-1.4` is its average-data part (42,400 kg), `ex-1.5` its spend part (11,700 kg).
+- Example 1.2 prints 20,500 kg for transport and 72,800 kg in total, but its own transport line sums to 205,000, so `ex-1.2` stores the exact 257,300 kg with a note (same rule as 8.1 and 15.2).
+- Example 1.3's working line says 50,000 t-shirts; its table and its result use 12,000, so `ex-1.3` uses 12,000 and matches the printed 70,250 kg.
+- Example 15.2 stores the exact 2,332,500 kg (the guidance prints 2,242,500 because it writes the investee 4 term as 900,000; Shyam confirmed 2,332,500 on 2026-10-16). Two constructed proxy cases (S3-12) and a report-level case (S3-13, which moves it to `ci/golden/scope3/report.json`). `ci/golden/scope3/run.cjs` fails on more than 0.5 kg or 0.1 % and refuses a `run` case without figures, rows or with an open question.
 
 ## 10. Contract additions S3-0 lands before wave 2 (found while writing S3-8 to S3-16)
 
 S3-0 adds these to the sections above in its first PR, so no method module invents them.
 
-**Status (S3-0, ESG-lite #134):** folded into §2, §4, §5, §6 and §9 above, together with the "S3-0 follow-up" notes in the module specs. Still open, for the plan owner: the factor-type lists for Cats 8, 10, 13, 14, 15 (§2); confirming D13 (reported partner emissions); who writes `emission.gas_kg` and `biogenic_kg` (§4); and the check of S3-13's checklist and S3-11's lease rule against the Scope 3 Standard. The bullets below are kept as the record.
+**Status (S3-0, ESG-lite #134 and #144):** folded into §2, §4, §5, §6 and §9 above, together with the "S3-0 follow-up" notes in the module specs. Decided by Shyam on 2026-10-16: factor-type lists for Cats 8, 10, 13, 14 and 15 are set in §2 (S3-0's draft from the forms that use them); D13 is confirmed (partner-reported Scope 1+2 is activity × identity factor, calculated by the engine); S3-4 writes `emission.gas_kg` and `biogenic_kg` (§4); ex-15.2 is 2,332,500 kg. Shyam shared the Scope 3 Standard on 2026-10-16 (project files, `scope3/reference/scope3-standard.txt`); S3-13's checklist and S3-11's lease rule are checked against it in review. The bullets below are kept as the record.
 
 - **Engine:** `MethodCalculation` gets `divide` and `method_column: "@method"` (shared by S3-8 to S3-11, not owned by S3-9). `ColumnConfig.method_options` carries a unit list per method.
 - **Gases:** `emission.gas_kg` (json, per gas) and `emission.biogenic_kg` (numeric null), filled from the factor's gas parts. Without them the report shows biogenic CO₂ and per-gas totals as "Not tracked".
