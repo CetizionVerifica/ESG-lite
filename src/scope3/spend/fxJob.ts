@@ -6,7 +6,8 @@
  *
  *   today     open.er-api.com, then frankfurter.app (ECB): EUR, INR, GBP per USD.
  *   history   frankfurter (ECB reference rates, working days) from 2019-01-01,
- *             a year per request, only for years not stored yet.
+ *             a year per request, only for years not stored yet; the current
+ *             year only for its last 7 days once it is stored.
  *   pegs      AED, SAR and BHD at their USD peg, source `peg`, on every stored day.
  *
  * A stored day is never changed (INSERT … ON CONFLICT DO NOTHING): a rate a
@@ -110,18 +111,31 @@ export async function runDailyFx(manager: EntityManager, fetchJson: FetchJson = 
   return { stored, date: rows[0].date };
 }
 
-/** Loads ECB history for every year from 2019 that isn't stored yet. */
+/** Days the daily run fetches again from the ECB history once the current year is stored. */
+export const RECENT_DAYS = 7;
+
+/**
+ * Loads ECB history for every year from 2019 that isn't stored yet. The
+ * current year is fetched whole only while its stored count is short (fewer
+ * than YEAR_DONE ÷ 365 days per day elapsed, about 55 % of calendar days where
+ * the ECB publishes about 70 %); after that only its last RECENT_DAYS days are,
+ * so the daily run doesn't fetch the whole year again every day.
+ */
 export async function backfillFx(manager: EntityManager, fetchJson: FetchJson = defaultFetchJson, today: Date = new Date()): Promise<number> {
   const counts: Array<{ y: string; n: string }> = await manager.query(
     `SELECT to_char(date, 'YYYY') AS y, count(*) AS n FROM fx_rate WHERE currency = 'INR' AND source = 'ecb' GROUP BY 1`,
   );
   const done = new Map(counts.map((c) => [Number(c.y), Number(c.n)]));
   const lastYear = today.getUTCFullYear();
+  const yearStart = Date.UTC(lastYear, 0, 1);
+  const daysElapsed = Math.floor((Date.UTC(lastYear, today.getUTCMonth(), today.getUTCDate()) - yearStart) / 86400000) + 1;
+  const currentShort = (done.get(lastYear) ?? 0) < Math.floor((daysElapsed * YEAR_DONE) / 365);
+  const recentFrom = isoDay(new Date(Math.max(yearStart, today.getTime() - (RECENT_DAYS - 1) * 86400000)));
   let stored = 0;
   for (let y = Number(BACKFILL_FROM.slice(0, 4)); y <= lastYear; y++) {
     const current = y === lastYear;
     if (!current && (done.get(y) ?? 0) >= YEAR_DONE) continue;
-    const from = `${y}-01-01`;
+    const from = current && !currentShort ? recentFrom : `${y}-01-01`;
     const to = current ? isoDay(today) : `${y}-12-31`;
     try {
       stored += await saveRates(manager, withPegs(await fetchHistory(from, to, fetchJson)));
@@ -147,6 +161,7 @@ export function startFxJob(manager: EntityManager): void {
     }
   };
   void run(true);
-  // A missed year (provider down at start) is retried by the daily run too.
+  // A missed year (provider down at start) is retried by the daily run too. Stored years are skipped and the
+  // current year is fetched again only for its last RECENT_DAYS days unless its count is short (backfillFx).
   task = cron.schedule("20 0 * * *", () => void run(true), { timezone: "UTC" });
 }

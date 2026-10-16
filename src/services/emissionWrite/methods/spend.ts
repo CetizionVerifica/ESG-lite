@@ -61,6 +61,7 @@ export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => 
     const product = computeSpecActivityValue(ctx.spec, row.activity_data, row.activity_unit, row.method);
     if (product.ok) {
       amount = product.value;
+      // Writes the product into activity_value on purpose, as spec.ts does (see its compute()): the stored row shows the quantity used.
       row.activity_data.activity_value = String(amount);
     }
   }

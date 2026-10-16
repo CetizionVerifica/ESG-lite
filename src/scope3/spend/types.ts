@@ -15,6 +15,12 @@ export interface EmissionFx {
   source: string;
   /** The purchase date the rate was looked up for; a recalculation with the same currency and date reuses this rate. */
   spend_date?: string;
+  /**
+   * Set (true) when the rate was a stand-in: no stored rate within 7 days before the purchase date, so the
+   * latest stored or a live rate was used (FX_RATE_FALLBACK). A recalculation doesn't reuse such a rate
+   * once the stored rates cover the purchase date (rates.ts storedFxIsFallback).
+   */
+  fallback?: boolean;
 }
 
 /** The deflator a spend row used, kept in its factor snapshot. index[base_year] ÷ index[spend_year]. */
