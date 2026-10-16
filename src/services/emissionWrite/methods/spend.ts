@@ -61,6 +61,7 @@ export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => 
     const product = computeSpecActivityValue(ctx.spec, row.activity_data, row.activity_unit, row.method);
     if (product.ok) {
       amount = product.value;
+      // Writes the product into activity_value on purpose, as spec.ts does (see its compute()): the stored row shows the quantity used.
       row.activity_data.activity_value = String(amount);
     }
   }
@@ -75,6 +76,12 @@ export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => 
     warnings.push({
       code: "FX_RATE_FALLBACK",
       message: `No ${fx.currency}→${fx.to} rate was stored within 7 days before ${quote.spend_date}; the rate of ${fx.as_of} was used.`,
+    });
+  }
+  if (quote.deflatorFallback && deflator?.index_year) {
+    warnings.push({
+      code: "DEFLATOR_FALLBACK_YEAR",
+      message: `No ${deflator.spend_year} price index is stored; ${deflator.index_year}'s, the latest before it, was used to bring the amount to the factor's ${deflator.base_year} prices.`,
     });
   }
   if (quote.noDeflator) {

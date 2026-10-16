@@ -100,9 +100,10 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     if (match.fallback_year) {
       warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
     }
-    // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs.
+    // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs. That includes
+    // an amount in another currency than its factor's (INR on a factor per USD), so its rate is stored too.
     let spend: SpendQuote | undefined;
-    if (isSpendRow(activity_data, factor)) {
+    if (isSpendRow(activity_data, factor, null, unit)) {
       const spendInput = spendInputOf(activity_data, input.extra_data, unit, input.period.date_of_reporting, ctx.selectColumns);
       if (spendInput && ctx.rates) {
         const quoted = await ctx.rates.quote(spendInput, factor, input.storedFx);

@@ -46,6 +46,14 @@ export const supportedCurrency = (value: unknown): SupportedCurrency | null => {
 };
 
 /**
+ * The factor's currency: its unit when that is a currency ("USD", the unit the
+ * factor is per), else its price currency; null for a factor per kg, kWh… or
+ * in a currency ESGLite doesn't convert.
+ */
+export const factorCurrency = (factor: { price_currency?: string | null; denominator_unit?: string | null }): SupportedCurrency | null =>
+  supportedCurrency(factor.denominator_unit) ?? supportedCurrency(factor.price_currency);
+
+/**
  * ISO 4217 codes a unit field may hold, supported or not. A list, not a
  * three-letter pattern: "kwh", "ton" and "kgs" are units, not currencies.
  */

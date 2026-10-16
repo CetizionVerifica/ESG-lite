@@ -107,7 +107,7 @@ test("every §7 error has a status and a message; warnings never carry a status"
   const err = new errors.Scope3Error("PERIOD_LOCKED", { site_id: 1 });
   assert.deepEqual(err.toBody(), { code: "PERIOD_LOCKED", message: errors.SCOPE3_ERRORS.PERIOD_LOCKED.message, details: { site_id: 1 } });
   assert.equal(err.status, 409);
-  assert.equal(errors.SCOPE3_WARNING_CODES.length, 8);
+  assert.equal(errors.SCOPE3_WARNING_CODES.length, 9);
   assert.deepEqual(errors.scope3Warning("NO_DEFLATOR"), { code: "NO_DEFLATOR", message: errors.SCOPE3_WARNINGS.NO_DEFLATOR });
   for (const code of errors.SCOPE3_WARNING_CODES) assert.ok(!errors.SCOPE3_ERROR_CODES.includes(code), code);
 });

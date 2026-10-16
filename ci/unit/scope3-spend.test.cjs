@@ -9,8 +9,8 @@ const assert = require("node:assert/strict");
 const path = require("path");
 
 const { computeRow } = require(path.resolve("dist/services/emissionWrite/compute.js"));
-const { isSpendRow, spendInputOf, isoDay } = require(path.resolve("dist/scope3/spend/inputs.js"));
-const { SpendRateSource, factorCurrency } = require(path.resolve("dist/scope3/spend/rates.js"));
+const { isSpendRow, needsCurrencyConversion, spendInputOf, isoDay } = require(path.resolve("dist/scope3/spend/inputs.js"));
+const { SpendRateSource, factorCurrency, storedFxIsFallback } = require(path.resolve("dist/scope3/spend/rates.js"));
 const { supportedCurrency, looksLikeCurrency, SUPPORTED_CURRENCIES, USD_PEGS } = require(path.resolve("dist/scope3/spend/currencies.js"));
 const fxJob = require(path.resolve("dist/scope3/spend/fxJob.js"));
 const { readUseeio, parseCsv } = require(path.resolve("dist/scope3/spend/useeio.js"));
@@ -36,6 +36,24 @@ test("a row is a spend row by its method or its factor type", () => {
   assert.equal(isSpendRow({}, eeio()), true);
   assert.equal(isSpendRow({}, eeio({ factor_type: "cradle_to_gate" }), "spend_based"), true);
   assert.equal(isSpendRow({ "@method": "average_data" }, eeio({ factor_type: "cradle_to_gate" })), false);
+});
+
+test("an amount in another currency than its factor's is a spend row; one in the factor's currency is not", () => {
+  // A per-USD factor with no factor type (an older library row): INR needs a rate, USD doesn't.
+  const perUsd = eeio({ factor_type: null, price_currency: null, price_base_year: null });
+  assert.equal(isSpendRow({ activity_value: "1240000" }, perUsd, null, "INR"), true);
+  assert.equal(isSpendRow({ activity_value: "1240000" }, perUsd, null, " eur "), true);
+  assert.equal(isSpendRow({ activity_value: "1000" }, perUsd, null, "USD"), false, "same currency: left to the factor, as before");
+  assert.equal(isSpendRow({ activity_value: "1000" }, perUsd, null, "usd"), false);
+  assert.equal(isSpendRow({ activity_value: "1000" }, perUsd), false, "no unit given");
+  // The price currency counts too (a factor per "unit" priced in EUR).
+  assert.equal(isSpendRow({}, eeio({ factor_type: "cradle_to_gate", price_currency: "EUR", denominator_unit: "unit" }), null, "INR"), true);
+  assert.equal(isSpendRow({}, eeio({ factor_type: "cradle_to_gate", price_currency: "EUR", denominator_unit: "unit" }), null, "EUR"), false);
+  // Not a currency, or a factor not in a currency: unchanged.
+  assert.equal(isSpendRow({}, perUsd, null, "kg"), false);
+  assert.equal(isSpendRow({}, eeio({ factor_type: null, price_currency: null, denominator_unit: "kg" }), null, "INR"), false);
+  assert.equal(needsCurrencyConversion("JPY", perUsd), true, "an unsupported currency goes the spend way and gets CURRENCY_NOT_SUPPORTED");
+  assert.equal(needsCurrencyConversion("INR", null), false);
 });
 
 test("amount and currency: spent_value + currency (fields or extras) on a row asking for spend, else a quantity in a currency unit", () => {
@@ -65,6 +83,9 @@ test("currencies: seven supported, three pegged, the factor's currency from pric
   assert.equal(looksLikeCurrency("kwh"), false);
   assert.equal(factorCurrency(eeio({ price_currency: null, denominator_unit: "usd" })), "USD");
   assert.equal(factorCurrency(eeio({ price_currency: null, denominator_unit: "kg" })), null);
+  // The unit the factor is per wins over its price currency.
+  assert.equal(factorCurrency(eeio({ price_currency: "EUR", denominator_unit: "USD" })), "USD");
+  assert.equal(factorCurrency(eeio({ price_currency: "EUR", denominator_unit: "kg" })), "EUR");
 });
 
 test("the three spend codes are row issues: one error, two warnings", () => {
@@ -126,6 +147,15 @@ test("warnings: FX_RATE_FALLBACK and NO_DEFLATOR never block", () => {
   assert.equal(r.computed.total_kgco2e, ((1000000 / 88.9) * 0.42).toFixed(4), "no deflation applied");
 });
 
+test("warnings: DEFLATOR_FALLBACK_YEAR deflates with the latest published index and never blocks", () => {
+  const deflator = { country: "US", base_year: 2022, spend_year: 2026, base_index: 292.655, spend_index: 321.943, source: "CI", index_year: 2025 };
+  const r = computeRow(ctx, { factor: eeio(), activity_data: {}, activity_unit: "INR", spend: quote({ deflator, deflatorFallback: true }) });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.computed.warnings.map((w) => w.code), ["DEFLATOR_FALLBACK_YEAR"]);
+  assert.equal(r.computed.deflator.index_year, 2025);
+  assert.equal(r.computed.total_kgco2e, ((1000000 / 88.9) * (292.655 / 321.943) * 0.42).toFixed(4));
+});
+
 test("without loaded rates: same currency computes (golden cases), another currency is CURRENCY_NOT_SUPPORTED", () => {
   const same = computeRow(ctx, { factor: eeio({ price_base_year: null }), activity_data: { activity_value: "20000" }, activity_unit: "USD", method: "spend_based" });
   assert.equal(same.ok, true);
@@ -152,6 +182,10 @@ const fakeManager = (rates, deflators = []) => ({
   queries: [],
   async query(sql, params) {
     this.queries.push(sql);
+    if (/FROM price_deflator/.test(sql) && /year < \$2/.test(sql)) {
+      const earlier = deflators.filter((d) => d.country === params[0] && d.year < params[1]).sort((a, b) => b.year - a.year);
+      return earlier.slice(0, 1).map((d) => ({ year: d.year, index: String(d.index), source: d.source ?? "CI" }));
+    }
     if (/FROM price_deflator/.test(sql)) return deflators.filter((d) => d.country === params[0] && d.year === params[1]).map((d) => ({ index: String(d.index), source: d.source ?? "CI" }));
     const [currency, date, days] = params;
     const mine = rates.filter((r) => r.currency === currency).sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -207,7 +241,7 @@ test("rate: unsupported currency, and a per-kg factor chosen for an amount spent
   assert.equal(perKg.field, "emission_category");
 });
 
-test("deflator: index[base] and index[spend year] of the factor currency's country; missing → NO_DEFLATOR", async () => {
+test("deflator: index[base] and index[spend year] of the factor currency's country; base missing → NO_DEFLATOR", async () => {
   const defl = [
     { country: "US", year: 2022, index: 292.655 },
     { country: "US", year: 2024, index: 313.689 },
@@ -215,9 +249,26 @@ test("deflator: index[base] and index[spend year] of the factor currency's count
   const src = new SpendRateSource(fakeManager([], defl));
   const ok = await src.quote({ amount: 100, currency: "USD", spend_date: "2024-05-01" }, eeio());
   assert.deepEqual(ok.quote.deflator, { country: "US", base_year: 2022, spend_year: 2024, base_index: 292.655, spend_index: 313.689, source: "CI" });
-  const missing = await src.quote({ amount: 100, currency: "USD", spend_date: "2026-05-01" }, eeio());
+  // A spend year not published yet uses the latest published one, and says so.
+  const later = await src.quote({ amount: 100, currency: "USD", spend_date: "2026-05-01" }, eeio());
+  assert.deepEqual(later.quote.deflator, { country: "US", base_year: 2022, spend_year: 2026, base_index: 292.655, spend_index: 313.689, source: "CI", index_year: 2024 });
+  assert.equal(later.quote.deflatorFallback, true);
+  assert.equal(later.quote.noDeflator, false);
+  // The factor's base year has no index: nothing to deflate from.
+  const missing = await src.quote({ amount: 100, currency: "USD", spend_date: "2024-05-01" }, eeio({ price_base_year: 2010 }));
   assert.equal(missing.quote.deflator, null);
   assert.equal(missing.quote.noDeflator, true);
+  // A year missing inside the series uses the latest one before it, with the same warning.
+  const gap = await src.quote({ amount: 100, currency: "USD", spend_date: "2024-05-01" }, eeio({ price_base_year: 2021 }));
+  assert.equal(gap.quote.deflator, null, "2021 has no index: nothing to deflate from");
+  const src2 = new SpendRateSource(fakeManager([], defl.concat([{ country: "US", year: 2020, index: 258.811 }])));
+  const mid = await src2.quote({ amount: 100, currency: "USD", spend_date: "2023-05-01" }, eeio({ price_base_year: 2020 }));
+  assert.equal(mid.quote.deflator.index_year, 2022);
+  assert.equal(mid.quote.deflatorFallback, true);
+  // Only the base year before the spend year: falling back would deflate by 1, so it stays NO_DEFLATOR.
+  const onlyBase = await src.quote({ amount: 100, currency: "USD", spend_date: "2023-05-01" }, eeio());
+  assert.equal(onlyBase.quote.deflator, null);
+  assert.equal(onlyBase.quote.noDeflator, true);
   const sameYear = await src.quote({ amount: 100, currency: "USD", spend_date: "2022-05-01" }, eeio());
   assert.equal(sameYear.quote.deflator, null);
   assert.equal(sameYear.quote.noDeflator, false);
@@ -231,6 +282,43 @@ test("recalculation: a stored fx with the same currency and day is reused, not t
   assert.equal(m.queries.length, 0, "no rate looked up");
   const moved = await new SpendRateSource(m).quote({ amount: 100, currency: "INR", spend_date: "2026-09-04" }, eeio({ price_base_year: null }), stored);
   close(moved.quote.fx.rate, 1 / 90, 1e-9);
+});
+
+test("recalculation: a stored stand-in rate (fallback, live, or outside the 7 days) is quoted again once the day is stored", async () => {
+  assert.equal(storedFxIsFallback({ source: "ecb", as_of: "2026-09-03", spend_date: "2026-09-03" }), false);
+  assert.equal(storedFxIsFallback({ source: "ecb", as_of: "2026-08-28", spend_date: "2026-09-04" }), false, "7 days back is still the day's rate");
+  assert.equal(storedFxIsFallback({ source: "ecb", as_of: "2026-08-27", spend_date: "2026-09-04" }), true, "older than 7 days: the latest stored day");
+  assert.equal(storedFxIsFallback({ source: "ecb", as_of: "2026-10-01", spend_date: "2026-09-04" }), true, "later than the purchase: the latest stored day");
+  assert.equal(storedFxIsFallback({ source: "live", as_of: "2026-09-04", spend_date: "2026-09-04" }), true);
+  assert.equal(storedFxIsFallback({ source: "live service cache", as_of: "2026-09-04", spend_date: "2026-09-04" }), true);
+  assert.equal(storedFxIsFallback({ source: "ecb / peg", as_of: "2026-09-03", spend_date: "2026-09-03", fallback: true }), true);
+  assert.equal(storedFxIsFallback({ source: "peg", as_of: "2026-09-03", spend_date: "2026-09-03" }), false);
+
+  const input = { amount: 100, currency: "INR", spend_date: "2026-09-03" };
+  const live = { currency: "INR", to: "USD", rate: 1 / 95, as_of: "2026-09-03", source: "live", spend_date: "2026-09-03", fallback: true };
+  // The day is stored now: the live rate is replaced by the stored one, with no warning.
+  const m = fakeManager([{ currency: "INR", date: "2026-09-03", rate: 88.9 }]);
+  const requoted = await new SpendRateSource(m).quote(input, eeio({ price_base_year: null }), live);
+  close(requoted.quote.fx.rate, 1 / 88.9);
+  assert.equal(requoted.quote.fx.source, "ecb");
+  assert.equal(requoted.quote.fallback, false);
+  assert.equal(requoted.quote.fx.fallback, undefined, "a good rate carries no fallback key");
+  // A stored latest-day rate (no flag, saved before it existed) is quoted again too.
+  const latest = { currency: "INR", to: "USD", rate: 1 / 87, as_of: "2026-10-01", source: "ecb", spend_date: "2026-09-03" };
+  close((await new SpendRateSource(m).quote(input, eeio({ price_base_year: null }), latest)).quote.fx.rate, 1 / 88.9);
+  // Still nothing for the purchase day: the row keeps its own stand-in (no drift with today's latest rate), still flagged.
+  const later = fakeManager([{ currency: "INR", date: "2026-10-10", rate: 70 }]);
+  const kept = await new SpendRateSource(later).quote(input, eeio({ price_base_year: null }), latest);
+  close(kept.quote.fx.rate, 1 / 87);
+  assert.equal(kept.quote.fx.as_of, "2026-10-01");
+  assert.equal(kept.quote.fallback, true);
+  assert.equal(kept.quote.fx.fallback, true);
+});
+
+test("a fallback quote stores fallback: true on its fx", async () => {
+  const src = new SpendRateSource(fakeManager([{ currency: "INR", date: "2026-09-03", rate: 88.9 }]));
+  const r = await src.quote({ amount: 100, currency: "INR", spend_date: "2026-06-01" }, eeio({ price_base_year: null }));
+  assert.equal(r.quote.fx.fallback, true);
 });
 
 // ── daily job ───────────────────────────────────────────────────────────────
@@ -294,6 +382,61 @@ test("backfill: ECB history a year per request, skipping years already stored", 
   const n = await fxJob.backfillFx(manager, fetchJson, new Date("2021-03-01T00:00:00Z"));
   assert.deepEqual(urls.map((u) => u.split("/").pop().split("?")[0]), ["2020-01-01..2020-12-31", "2021-01-01..2021-03-01"]);
   assert.equal(n, 12, "3 market + 3 peg rows per request");
+});
+
+test("backfill: once the current year is stored, the daily run fetches only its last 7 days", async () => {
+  const urls = [];
+  const manager = {
+    async query(sql, values) {
+      if (/GROUP BY 1/.test(sql)) return [2019, 2020, 2021, 2022, 2023, 2024, 2025].map((y) => ({ y: String(y), n: "255" })).concat([{ y: "2026", n: "200" }]);
+      return Array.from({ length: values.length / 4 }, (_, i) => ({ id: i }));
+    },
+  };
+  const fetchJson = async (url) => {
+    urls.push(url);
+    return { rates: {} };
+  };
+  await fxJob.backfillFx(manager, fetchJson, new Date("2026-10-16T00:20:00Z"));
+  assert.deepEqual(urls.map((u) => u.split("/").pop().split("?")[0]), ["2026-10-10..2026-10-16"]);
+  assert.equal(fxJob.RECENT_DAYS, 7);
+  // Short (a gap in the year): the whole year again.
+  urls.length = 0;
+  const short = { ...manager, async query(sql, values) { return /GROUP BY 1/.test(sql) ? [{ y: "2025", n: "255" }, { y: "2026", n: "40" }] : manager.query(sql, values); } };
+  await fxJob.backfillFx(short, fetchJson, new Date("2026-10-16T00:20:00Z"));
+  assert.ok(urls.map((u) => u.split("/").pop().split("?")[0]).includes("2026-01-01..2026-10-16"));
+  // The first days of January never reach back into the year before.
+  urls.length = 0;
+  const jan = { ...manager, async query(sql, values) { return /GROUP BY 1/.test(sql) ? [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((y) => ({ y: String(y), n: "255" })).concat([{ y: "2027", n: "1" }]) : manager.query(sql, values); } };
+  await fxJob.backfillFx(jan, fetchJson, new Date("2027-01-03T00:20:00Z"));
+  assert.deepEqual(urls.map((u) => u.split("/").pop().split("?")[0]), ["2027-01-01..2027-01-03"]);
+});
+
+test("backfill: a gap longer than 7 days is filled from the day after the last stored ECB day", async () => {
+  const urls = [];
+  const years = [2019, 2020, 2021, 2022, 2023, 2024, 2025].map((y) => ({ y: String(y), n: "255", last: `${y}-12-31` }));
+  const manager = {
+    async query(sql, values) {
+      if (/GROUP BY 1/.test(sql)) return years.concat([{ y: "2026", n: "200", last: "2026-10-05" }]);
+      return Array.from({ length: values.length / 4 }, (_, i) => ({ id: i }));
+    },
+  };
+  const fetchJson = async (url) => {
+    urls.push(url);
+    return { rates: {} };
+  };
+  // Down from 6 to 15 October (a 10-day hole): the window starts on the 6th, not the 10th.
+  await fxJob.backfillFx(manager, fetchJson, new Date("2026-10-16T00:20:00Z"));
+  assert.deepEqual(urls.map((u) => u.split("/").pop().split("?")[0]), ["2026-10-06..2026-10-16"]);
+  // Up to date: still the last 7 days, so a late ECB correction is picked up.
+  urls.length = 0;
+  const fresh = { ...manager, async query(sql, values) { return /GROUP BY 1/.test(sql) ? years.concat([{ y: "2026", n: "200", last: "2026-10-15" }]) : manager.query(sql, values); } };
+  await fxJob.backfillFx(fresh, fetchJson, new Date("2026-10-16T00:20:00Z"));
+  assert.deepEqual(urls.map((u) => u.split("/").pop().split("?")[0]), ["2026-10-10..2026-10-16"]);
+  // Down over New Year: the stored year's missing tail is fetched too.
+  urls.length = 0;
+  const newYear = { ...manager, async query(sql, values) { return /GROUP BY 1/.test(sql) ? years.slice(0, 6).concat([{ y: "2025", n: "250", last: "2025-12-22" }]) : manager.query(sql, values); } };
+  await fxJob.backfillFx(newYear, fetchJson, new Date("2026-01-05T00:20:00Z"));
+  assert.deepEqual(urls.map((u) => u.split("/").pop().split("?")[0]), ["2025-12-23..2025-12-31", "2026-01-01..2026-01-05"]);
 });
 
 // ── USEEIO file ─────────────────────────────────────────────────────────────

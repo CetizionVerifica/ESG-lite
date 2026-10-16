@@ -23,7 +23,8 @@ const { planRows, insertRows, prepareEntry, ContextCache, CheckCache } = require
 const SITE = 3;
 const CAT1 = 150; // a Scope 3 Category 1 category, added below
 const LIB = 951; // a USEEIO library factor (no site)
-const FACTORS = [950, 952, 953, LIB];
+const PER_USD = 954; // a factor per USD with no factor_type and no price year (an older library row)
+const FACTORS = [950, 952, 953, PER_USD, LIB];
 const RATE = 88.9; // INR per USD on 2026-09-03 (seeded)
 const RATE_AUG = 87.6; // on 2026-08-07
 const IDX_2022 = 292.655;
@@ -46,6 +47,7 @@ test.before(async () => {
       (950, ${SITE}, ${CAT1}, 2025, 0.42, 'USD', 'CI', 'Steel mills S3-5', 'Steel mills S3-5', 'eeio_spend', 'USEEIO', 2022, 'USD'),
       (952, ${SITE}, ${CAT1}, 2025, 0.30, 'USD', 'CI', 'Old prices S3-5', 'Old prices S3-5', 'eeio_spend', 'USEEIO', 2017, 'USD'),
       (953, ${SITE}, ${CAT1}, 2025, 2.10, 'kg', 'CI', 'Steel per kg S3-5', 'Steel per kg S3-5', 'cradle_to_gate', 'CI', NULL, NULL),
+      (${PER_USD}, ${SITE}, ${CAT1}, 2025, 0.50, 'USD', 'CI', 'Per USD untyped S3-5', 'Per USD untyped S3-5', NULL, NULL, NULL, NULL),
       (${LIB}, NULL, NULL, 2022, 0.55, 'USD', 'CI', 'Library sector S3-5 (NAICS 999999)', 'Library sector S3-5 (NAICS 999999)', 'eeio_spend', 'USEEIO', 2022, 'USD')`);
     await db.query(`INSERT INTO fx_rate (currency, date, rate_to_usd, source) VALUES ('INR', '2026-09-03', ${RATE}, 'ecb'), ('INR', '2026-08-07', ${RATE_AUG}, 'ecb') ON CONFLICT DO NOTHING`);
     await db.query(`INSERT INTO price_deflator (country, year, "index", source) VALUES ('US', 2022, ${IDX_2022}, 'CI'), ('US', 2026, ${IDX_2026}, 'CI') ON CONFLICT (country, year) DO UPDATE SET "index" = EXCLUDED."index"`);
@@ -265,6 +267,8 @@ test("migrate:scope3-spend runs twice and loads the EPA USEEIO file once; the se
   await withDb((db) => db.query(`DELETE FROM emission_factors WHERE site_id IS NULL AND dataset_version = 'SEF v1.3.0'`));
   const cpi = await withDb(async (db) => (await db.query(`SELECT "index"::float8 AS i FROM price_deflator WHERE country = 'US' AND year = 2022`)).rows[0].i);
   assert.equal(cpi, IDX_2022, "a stored index is never changed");
+  const cpi2025 = await withDb(async (db) => (await db.query(`SELECT "index"::float8 AS i FROM price_deflator WHERE country = 'US' AND year = 2025`)).rows[0]?.i);
+  assert.equal(cpi2025, 321.943, "CPI-U 2025 is seeded");
   await withDb((db) => db.query(`DELETE FROM price_deflator WHERE source = 'BLS CPI-U annual average (1982-84=100)'`));
 });
 
@@ -275,4 +279,78 @@ test("the Emission factors page lists the USEEIO library only when asked", async
   assert.equal(plain.json.data.filter((f) => f.emission_factor_id === LIB).length, 0);
   const lib = await call("GET", `${q}&library=1`, "superadmin");
   assert.equal(lib.json.data.filter((f) => f.emission_factor_id === LIB).length, 1);
+});
+
+test("a currency row on a factor per USD with no factor type takes the spend path: rate stored, no deflation", async () => {
+  // Bulk / Claude: INR on a per-USD factor converts at the stored rate (10 Aug → 7 Aug), not the live unit table.
+  const rows = [{ row_ref: "u1", site_id: SITE, category_id: CAT1, period: { kind: "monthly", date: "2026-08-10" }, activity_name: "Per USD untyped S3-5", activity_value: 1000000, activity_unit: "INR" }];
+  const planned = await planRows(CTX, rows, { planMatches: [] });
+  assert.equal(planned[0].state, "ready", JSON.stringify(planned[0].issues));
+  assert.equal(planned[0].result.total_tco2e, round2((1000000 / RATE_AUG) * 0.5));
+  assert.deepEqual(planned[0].issues.map((i) => i.code), [], "no price year: no deflation and no NO_DEFLATOR");
+  const out = await AppDataSource.transaction((tx) => insertRows(tx, CTX, planned, { upload_batch_id: "s3-5-ci-untyped", channel: "mcp", source_name: "CI", company_id: 2 }));
+  const row = await rowOf(out.ids[0]);
+  assert.deepEqual(row.fx, { currency: "INR", to: "USD", rate: 1 / RATE_AUG, as_of: "2026-08-07", source: "ecb", spend_date: "2026-08-10" });
+  assert.equal(row.snap.deflator, undefined);
+  // Typed: the same.
+  const typedRes = await typed("2026-09-03", { emission_category: "Per USD untyped S3-5", quantity: "500000" }, {}, "INR");
+  assert.equal(typedRes.status, 201, JSON.stringify(typedRes.json));
+  assert.equal(Number(typedRes.json.emission.total_emission), round2((500000 / RATE) * 0.5));
+  assert.equal((await rowOf(typedRes.json.emission.pk_id)).fx.rate, 1 / RATE);
+  // Already in the factor's currency: left to the factor, unchanged (no fx).
+  const usd = await typed("2026-03-31", { emission_category: "Per USD untyped S3-5", quantity: "1000" }, {}, "USD");
+  assert.equal(usd.status, 201, JSON.stringify(usd.json));
+  assert.equal(Number(usd.json.emission.total_emission), 0.5);
+  assert.equal((await rowOf(usd.json.emission.pk_id)).fx, null);
+});
+
+test("recalculation: a stored live or fallback rate is replaced by the stored rate of the purchase day", async () => {
+  const ctx = await new ContextCache(AppDataSource.manager).context(SITE, CAT1);
+  const input = {
+    site_id: SITE,
+    category_id: CAT1,
+    activity_data: { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "1000000", currency: "INR" },
+    activity_data_unit: "INR",
+    period: { date_of_reporting: "2026-09-30", reporting_period: "monthly", year_type: null },
+    extra_data: { invoice_date: "2026-09-03" },
+  };
+  const live = { currency: "INR", to: "USD", rate: 1 / 95, as_of: "2026-09-03", source: "live", spend_date: "2026-09-03", fallback: true };
+  const again = await prepareEntry(ctx, new CheckCache(AppDataSource.manager), { ...input, storedFx: live });
+  assert.equal(again.ok, true);
+  assert.deepEqual(again.entry.computed.fx, { currency: "INR", to: "USD", rate: 1 / RATE, as_of: "2026-09-03", source: "ecb", spend_date: "2026-09-03" });
+  assert.deepEqual(again.entry.warnings.map((w) => w.code), []);
+  // A row saved with the latest stored day (no flag) is quoted again too.
+  const latest = { ...live, source: "ecb", as_of: "2026-10-01", rate: 1 / 70 };
+  delete latest.fallback;
+  const fromLatest = await prepareEntry(ctx, new CheckCache(AppDataSource.manager), { ...input, storedFx: latest });
+  assert.equal(fromLatest.entry.computed.fx.rate, 1 / RATE);
+});
+
+test("DEFLATOR_FALLBACK_YEAR: a spend year with no index yet uses the latest earlier one (typed and bulk), with a warning", async () => {
+  const IDX_2025 = 321.5; // a test figure
+  await withDb(async (db) => {
+    await db.query(`DELETE FROM price_deflator WHERE country = 'US' AND year = 2026`);
+    await db.query(`INSERT INTO price_deflator (country, year, "index", source) VALUES ('US', 2025, ${IDX_2025}, 'CI') ON CONFLICT (country, year) DO UPDATE SET "index" = EXCLUDED."index", source = EXCLUDED.source`);
+  });
+  try {
+    const res = await typed("2026-06-30", { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "1000000", currency: "INR" }, { invoice_date: "2026-09-03" });
+    assert.equal(res.status, 201, JSON.stringify(res.json));
+    assert.deepEqual(res.json.warnings.map((w) => w.code), ["DEFLATOR_FALLBACK_YEAR"]);
+    const kg = (1000000 / RATE) * (IDX_2022 / IDX_2025) * 0.42;
+    assert.equal(Number(res.json.emission.total_emission), Math.round((kg / 1000) * 100) / 100);
+    const row = await rowOf(res.json.emission.pk_id);
+    assert.deepEqual(row.snap.deflator, { country: "US", base_year: 2022, spend_year: 2026, base_index: IDX_2022, spend_index: IDX_2025, source: "CI", index_year: 2025 });
+
+    // October: a month with no row yet; no stored rate within 7 days, so the latest (3 Sep) is used too.
+    const rows = [{ row_ref: "f1", site_id: SITE, category_id: CAT1, period: { kind: "monthly", date: "2026-10-10" }, activity_name: "Steel mills S3-5", activity_value: 2000000, activity_unit: "INR" }];
+    const planned = await planRows(CTX, rows, { planMatches: [] });
+    assert.equal(planned[0].state, "ready", JSON.stringify(planned[0].issues));
+    assert.ok(planned[0].issues.some((i) => i.code === "DEFLATOR_FALLBACK_YEAR" && i.severity === "warning"), JSON.stringify(planned[0].issues));
+    assert.equal(planned[0].result.total_tco2e, Math.round((((2000000 / RATE) * (IDX_2022 / IDX_2025) * 0.42) / 1000) * 100) / 100);
+  } finally {
+    await withDb(async (db) => {
+      await db.query(`DELETE FROM price_deflator WHERE country = 'US' AND year = 2025 AND source = 'CI'`);
+      await db.query(`INSERT INTO price_deflator (country, year, "index", source) VALUES ('US', 2026, ${IDX_2026}, 'CI') ON CONFLICT DO NOTHING`);
+    });
+  }
 });

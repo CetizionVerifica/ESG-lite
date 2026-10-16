@@ -5,7 +5,9 @@
 //   any EPA file in data/scope3/useeio/; and, once S3-3's
 //   column_config.method_options exists, Category 1 and 2 forms that already
 //   have both "spent_value" and "currency" offer "From the amount spent"
-//   (["average_data", "spend_based"]) when they offer nothing yet.
+//   (["average_data", "spend_based"]) when they offer nothing yet. See the
+//   ordering note on flipSpendForms: with S3-3 this step only takes effect on
+//   a later run, or not at all if S3-3 fills method_options first.
 //
 //   npm run migrate:scope3-spend
 //
@@ -30,7 +32,8 @@ export const SPEND_SCHEMA = [
  * US CPI-U, U.S. city average, all items, annual average (BLS series
  * CUUR0000SA0, 1982–84 = 100). Only ratios between years are used. Later
  * years are added by a Superadmin with POST /scope3/deflators once BLS
- * publishes them.
+ * publishes them; until then a later spend year uses the latest year here
+ * (DEFLATOR_FALLBACK_YEAR).
  */
 export const US_CPI_U: Array<[number, number]> = [
   [2015, 237.017],
@@ -43,6 +46,7 @@ export const US_CPI_U: Array<[number, number]> = [
   [2022, 292.655],
   [2023, 304.702],
   [2024, 313.689],
+  [2025, 321.943],
 ];
 export const US_CPI_U_SOURCE = "BLS CPI-U annual average (1982-84=100)";
 
@@ -73,7 +77,26 @@ async function seedLibrary(): Promise<string> {
   return parts.join("; ");
 }
 
-async function flipSpendForms(): Promise<string> {
+/**
+ * Category 1/2 forms with "spent_value" and "currency" offer the spend method.
+ *
+ * ORDERING NOTE for S3-3 (draft #135, `migrate:scope3-row-quality`): this step
+ * needs S3-3's `column_config.method_options`, and migrate-all runs scripts in
+ * package.json order, where `migrate:scope3-spend` comes before S3-3's
+ * migration. So:
+ *   - on the first start after S3-3 deploys the column doesn't exist yet when
+ *     this runs, and the flip happens only on the next start (the next
+ *     migrate-all run);
+ *   - if S3-3's own migration fills `method_options` for these forms first,
+ *     the `method_options IS NULL` guard makes this a no-op, and those forms
+ *     never offer "From the amount spent".
+ * S3-3 should therefore apply the same flip (Category 1/2 forms whose
+ * extra_fields hold both "spent_value" and "currency" get
+ * ["average_data", "spend_based"], or have "spend_based" added) inside its own
+ * migration, after it adds the column, or call this function from there.
+ * Exported for that reason; idempotent.
+ */
+export async function flipSpendForms(): Promise<string> {
   const has: unknown[] = await AppDataSource.query(
     `SELECT 1 FROM information_schema.columns WHERE table_name = 'column_config' AND column_name = 'method_options'`,
   );
