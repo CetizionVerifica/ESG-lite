@@ -32,7 +32,8 @@ export const SPEND_SCHEMA = [
  * US CPI-U, U.S. city average, all items, annual average (BLS series
  * CUUR0000SA0, 1982–84 = 100). Only ratios between years are used. Later
  * years are added by a Superadmin with POST /scope3/deflators once BLS
- * publishes them.
+ * publishes them; until then a later spend year uses the latest year here
+ * (DEFLATOR_FALLBACK_YEAR).
  */
 export const US_CPI_U: Array<[number, number]> = [
   [2015, 237.017],
@@ -45,6 +46,7 @@ export const US_CPI_U: Array<[number, number]> = [
   [2022, 292.655],
   [2023, 304.702],
   [2024, 313.689],
+  [2025, 321.943],
 ];
 export const US_CPI_U_SOURCE = "BLS CPI-U annual average (1982-84=100)";
 

@@ -8,8 +8,9 @@
  *            peg when nothing is stored for AED, SAR or BHD; the live service
  *            (FX_RATE_FALLBACK) when nothing is stored at all yet.
  *   deflator price_deflator for the country of the factor's currency, at the
- *            factor's price base year and the spend year (NO_DEFLATOR when
- *            either is missing).
+ *            factor's price base year and the spend year. A spend year after
+ *            the latest published index uses that latest index
+ *            (DEFLATOR_FALLBACK_YEAR); NO_DEFLATOR when nothing fits.
  */
 import type { EntityManager } from "typeorm";
 import type { EmissionFactor } from "../../entities/EmissionFactor";
@@ -57,6 +58,7 @@ const day = (v: unknown): string => (v instanceof Date ? v.toISOString().slice(0
 export class SpendRateSource {
   private readonly rates = new Map<string, Promise<UsdRate | null>>();
   private readonly indexes = new Map<string, Promise<{ index: number; source: string } | null>>();
+  private readonly earlier = new Map<string, Promise<{ year: number; index: number; source: string } | null>>();
 
   constructor(private readonly manager: EntityManager) {}
 
@@ -105,6 +107,20 @@ export class SpendRateSource {
         r ? { index: Number(r.index), source: r.source } : null,
       );
       this.indexes.set(key, p);
+    }
+    return p;
+  }
+
+  /** The latest index of `country` before `year`, or null. */
+  latestIndexBefore(country: string, year: number): Promise<{ year: number; index: number; source: string } | null> {
+    const key = `${country}:<${year}`;
+    let p = this.earlier.get(key);
+    if (!p) {
+      p = this.query<{ year: number; index: string; source: string }>(
+        `SELECT year, "index", source FROM price_deflator WHERE country = $1 AND year < $2 ORDER BY year DESC LIMIT 1`,
+        [country, year],
+      ).then((r) => (r ? { year: Number(r.year), index: Number(r.index), source: r.source } : null));
+      this.earlier.set(key, p);
     }
     return p;
   }
@@ -183,13 +199,19 @@ export class SpendRateSource {
 
     let deflator: DeflatorUsed | null = null;
     let noDeflator = false;
+    let deflatorFallback = false;
     const base = factor.price_base_year;
     const spendYear = Number(input.spend_date.slice(0, 4));
     if (base != null && base !== spendYear) {
       const country = DEFLATOR_COUNTRY[to];
       const [bi, si] = await Promise.all([this.deflatorIndex(country, base), this.deflatorIndex(country, spendYear)]);
+      // A spend year whose index isn't published yet uses the latest one (2026 rows use 2025 until BLS publishes 2026).
+      const latest = bi && !si && spendYear > base ? await this.latestIndexBefore(country, spendYear) : null;
       if (bi && si && si.index > 0) {
         deflator = { country, base_year: base, spend_year: spendYear, base_index: bi.index, spend_index: si.index, source: si.source };
+      } else if (bi && latest && latest.year >= base && latest.index > 0) {
+        deflator = { country, base_year: base, spend_year: spendYear, base_index: bi.index, spend_index: latest.index, source: latest.source, index_year: latest.year };
+        deflatorFallback = true;
       } else {
         noDeflator = true;
       }
@@ -204,6 +226,7 @@ export class SpendRateSource {
         fallback,
         deflator,
         noDeflator,
+        ...(deflatorFallback ? { deflatorFallback } : {}),
       },
     };
   }
