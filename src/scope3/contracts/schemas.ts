@@ -146,8 +146,10 @@ export const FactorSnapshotScope3FieldsSchema = z.object({
 // §4 / §10 Emission columns (S3-3, S3-4, S3-5, S3-6, S3-7, S3-12, S3-15)
 // ---------------------------------------------------------------------------
 
-/** `emission.fx` (S3-5). */
-/** `emission.fx` (S3-5): 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date the rate was looked up for. */
+/**
+ * `emission.fx` (S3-5): 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date the rate was
+ * looked up for; `fallback` (only when true) marks a stand-in rate (FX_RATE_FALLBACK) that a recalculation quotes again.
+ */
 export const FxSchema = z.object({
   currency,
   to: currency,
@@ -155,6 +157,7 @@ export const FxSchema = z.object({
   as_of: isoDate,
   source: text(100),
   spend_date: isoDate.optional(),
+  fallback: z.literal(true).optional(),
 });
 
 /** `emission.proxy` (S3-12). */

@@ -77,7 +77,7 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `emission.data_type` | varchar null | S3-3 |
 | `emission.is_estimate` | boolean default false | S3-3 |
 | `emission.total_kgco2e` | numeric(18,4) null (written beside `total_emission`) | S3-4 |
-| `emission.fx` | jsonb null `{currency, to, rate, as_of, source, spend_date?}`: 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date it was looked up for | S3-5 |
+| `emission.fx` | jsonb null `{currency, to, rate, as_of, source, spend_date?, fallback?}`: 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date it was looked up for; `fallback: true` marks a stand-in rate (FX_RATE_FALLBACK: latest stored or live), which a recalculation quotes again once the purchase day is stored | S3-5 |
 | `fx_rate` | currency, date, rate_to_usd, source; unique (currency, date) | S3-5 |
 | `price_deflator` | country, year, index (any base, e.g. CPI-U 1982-84 = 100; only ratios index[base year] ÷ index[spend year] are used), source | S3-5 |
 | `supplier` | supplier_id, company_id, name, country, email null, created_by; unique (company_id, lower(name)) | S3-6 |

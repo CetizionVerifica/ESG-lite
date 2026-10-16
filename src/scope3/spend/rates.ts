@@ -14,12 +14,28 @@
 import type { EntityManager } from "typeorm";
 import type { EmissionFactor } from "../../entities/EmissionFactor";
 import { getUsdRate } from "../../services/fxRate";
-import { DEFLATOR_COUNTRY, USD_PEGS, supportedCurrency, type SupportedCurrency } from "./currencies";
+import { DEFLATOR_COUNTRY, USD_PEGS, factorCurrency, supportedCurrency, type SupportedCurrency } from "./currencies";
 import type { DeflatorUsed, EmissionFx, SpendQuote } from "./types";
 import type { SpendInput } from "./inputs";
 
 /** Look back this many days for a stored rate before falling back to the latest one. */
 export const FX_LOOKBACK_DAYS = 7;
+
+/**
+ * A saved `fx` that was only a stand-in for the purchase day's rate: flagged
+ * `fallback`, taken from the live service (nothing stored yet), or dated
+ * outside the 7 days up to the purchase date (the latest stored day; rows
+ * saved before the flag existed). A recalculation quotes such a row again
+ * instead of reusing it.
+ */
+export const storedFxIsFallback = (fx: Pick<EmissionFx, "fallback" | "source" | "as_of" | "spend_date">): boolean => {
+  if (fx.fallback) return true;
+  if (/^live\b/i.test(String(fx.source ?? ""))) return true;
+  const spend = Date.parse(`${fx.spend_date ?? ""}T00:00:00Z`);
+  const asOf = Date.parse(`${String(fx.as_of ?? "").slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(spend) || Number.isNaN(asOf)) return false;
+  return asOf > spend || asOf < spend - FX_LOOKBACK_DAYS * 86400000;
+};
 
 export interface UsdRate {
   /** Units of the currency per 1 USD. */
@@ -33,9 +49,8 @@ export type QuoteResult =
   | { ok: true; quote: SpendQuote }
   | { ok: false; code: "CURRENCY_NOT_SUPPORTED" | "FIELD_INVALID"; message: string; field: "currency" | "emission_category" };
 
-/** The factor's currency: its price currency, or its unit when that is a currency ("USD"). */
-export const factorCurrency = (factor: Pick<EmissionFactor, "price_currency" | "denominator_unit">): SupportedCurrency | null =>
-  supportedCurrency(factor.price_currency) ?? supportedCurrency(factor.denominator_unit);
+/** The factor's currency (moved to currencies.ts so inputs.ts can use it; re-exported for existing callers). */
+export { factorCurrency };
 
 const day = (v: unknown): string => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
 
@@ -108,7 +123,8 @@ export class SpendRateSource {
   /**
    * Everything the spend method needs for one row, or why it can't be
    * calculated. `stored` is the row's saved `fx`: a recalculation with the same
-   * currencies and purchase date reuses that rate, never today's.
+   * currencies and purchase date reuses that rate, never today's, unless it was
+   * a stand-in (storedFxIsFallback) and the stored rates now cover the purchase date.
    */
   async quote(input: SpendInput, factor: EmissionFactor, stored?: EmissionFx | null): Promise<QuoteResult> {
     const from = supportedCurrency(input.currency);
@@ -136,18 +152,33 @@ export class SpendRateSource {
     let as_of = input.spend_date;
     let source = "same currency";
     let fallback = false;
-    if (stored && stored.currency === from && stored.to === to && stored.spend_date === input.spend_date && Number(stored.rate) > 0) {
-      rate = Number(stored.rate);
-      as_of = stored.as_of;
-      source = stored.source;
+    // The row's saved rate for the same currencies and purchase date.
+    const sameLookup = !!stored && stored.currency === from && stored.to === to && stored.spend_date === input.spend_date && Number(stored.rate) > 0;
+    const reuse = (s: EmissionFx, wasFallback: boolean) => {
+      rate = Number(s.rate);
+      as_of = s.as_of;
+      source = s.source;
+      fallback = wasFallback;
+    };
+    if (sameLookup && !storedFxIsFallback(stored!)) {
+      reuse(stored!, false);
     } else if (from !== to) {
+      // No saved rate, or one that was only a stand-in (a live rate before the first FX job run, or the latest
+      // stored day): quote again from the stored rates, which may now hold the purchase day.
       const [a, b] = await Promise.all([this.usdRate(from, input.spend_date), this.usdRate(to, input.spend_date)]);
-      if (!a || !b) return { ok: false, code: "CURRENCY_NOT_SUPPORTED", field: "currency", message: `No exchange rate is stored for ${!a ? from : to} yet.` };
-      rate = b.per_usd / a.per_usd; // 1 `from` = 1/a USD = b/a `to`
-      // The older of the two days is the one the conversion can be reproduced from.
-      as_of = from === "USD" ? b.date : to === "USD" ? a.date : a.date < b.date ? a.date : b.date;
-      source = from === "USD" ? b.source : to === "USD" ? a.source : a.source === b.source ? a.source : `${a.source} / ${b.source}`;
-      fallback = a.fallback || b.fallback;
+      const freshIsFallback = !a || !b || a.fallback || b.fallback;
+      if (sameLookup && freshIsFallback) {
+        // Still nothing for the purchase day: keep the row's own stand-in rather than today's latest or live one,
+        // so the total doesn't move with every recalculation. Still flagged FX_RATE_FALLBACK.
+        reuse(stored!, true);
+      } else {
+        if (!a || !b) return { ok: false, code: "CURRENCY_NOT_SUPPORTED", field: "currency", message: `No exchange rate is stored for ${!a ? from : to} yet.` };
+        rate = b.per_usd / a.per_usd; // 1 `from` = 1/a USD = b/a `to`
+        // The older of the two days is the one the conversion can be reproduced from.
+        as_of = from === "USD" ? b.date : to === "USD" ? a.date : a.date < b.date ? a.date : b.date;
+        source = from === "USD" ? b.source : to === "USD" ? a.source : a.source === b.source ? a.source : `${a.source} / ${b.source}`;
+        fallback = a.fallback || b.fallback;
+      }
     }
 
     let deflator: DeflatorUsed | null = null;
@@ -165,7 +196,15 @@ export class SpendRateSource {
     }
     return {
       ok: true,
-      quote: { amount: input.amount, amount_from: input.amount_from, spend_date: input.spend_date, fx: { currency: from, to, rate, as_of, source, spend_date: input.spend_date }, fallback, deflator, noDeflator },
+      quote: {
+        amount: input.amount,
+        amount_from: input.amount_from,
+        spend_date: input.spend_date,
+        fx: { currency: from, to, rate, as_of, source, spend_date: input.spend_date, ...(fallback ? { fallback: true } : {}) },
+        fallback,
+        deflator,
+        noDeflator,
+      },
     };
   }
 }

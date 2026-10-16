@@ -1,5 +1,8 @@
 import { Repository } from "typeorm";
 import { ColumnConfig } from "../entities/ColumnConfig";
+import { ROW_METHOD_COLUMN } from "./calculationSpec";
+// inputs.ts imports pickActivityValue from here; the cycle is safe because both sides read the other only inside functions.
+import { SPEND_METHOD } from "../scope3/spend/inputs";
 
 // Dropdown columns hold option ids, not quantities. These names are skipped
 // even without a config (older categories).
@@ -55,7 +58,7 @@ export function pickActivityValue(activity_data: Record<string, unknown>, select
 
   // S3-5: the amount spent is not the quantity of a row that asks for spend (it has its own path); on
   // any other form a "Spent value" column may be the form's quantity, as before.
-  const spendRow = String(activity_data["@method"] ?? "").trim() === "spend_based";
+  const spendRow = String(activity_data[ROW_METHOD_COLUMN] ?? "").trim() === SPEND_METHOD;
   const skip = (key: string) =>
     key === "emission_category" || NOT_QUANTITIES.includes(columnKey(key)) || (spendRow && columnKey(key) === "spent_value") || KNOWN_SELECTS.includes(key.toLowerCase()) || selectColumns.has(columnKey(key));
   const firstNumber = (min: number) => {
