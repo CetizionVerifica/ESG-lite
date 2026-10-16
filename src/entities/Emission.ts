@@ -13,6 +13,7 @@ import { Category } from "./Category";
 import { Site } from "./Site";
 import { User } from "./User";
 import type { RowChecks } from "../scope3/contracts/checks";
+import type { Gas } from "../scope3/contracts/factor";
 
 export enum EmissionStatus {
   PENDING = "pending",
@@ -124,4 +125,13 @@ export class Emission {
   // insert and edit; older rows backfilled as total_emission × 1000.
   @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
   total_kgco2e!: string | null;
+
+  // S3-4 (contracts §4): kg of CO2, CH4 and N2O from the factor's gas parts,
+  // and kg of biogenic CO₂, at 4 dp. Null when the factor has none (the
+  // report shows "Not tracked"); older rows are never backfilled.
+  @Column({ type: "jsonb", nullable: true })
+  gas_kg!: Partial<Record<Gas, number>> | null;
+
+  @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
+  biogenic_kg!: string | null;
 }

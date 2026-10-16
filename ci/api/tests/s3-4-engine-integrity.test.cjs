@@ -38,6 +38,8 @@ test.before(async () => {
     (9941, ${SITE}, 1, 2024, 2.68, 'litre', 'CI', 'Diesel', 'Diesel'),
     (9942, ${SITE}, 1, 2024, 1000, '', 'CI', 'Mystery fuel', 'Mystery fuel'),
     (9943, ${SITE}, ${FERA}, 2024, 0.61, 'litre', 'CI', 'Diesel', 'Diesel')`);
+  await q(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name, co2_kg, ch4_kg, n2o_kg, biogenic_co2_kg) VALUES
+    (9944, ${SITE}, 1, 2024, 2.5, 'litre', 'CI', 'Bio blend', 'Bio blend', 2.4, 0.001, 0.0002, 0.3)`);
 });
 
 test.after(async () => {
@@ -53,7 +55,7 @@ test.after(async () => {
     await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [hist]);
   }
   await q(`DELETE FROM unit WHERE site_id = ${SITE} AND category_id = 1`);
-  await q(`DELETE FROM emission_factors WHERE emission_factor_id IN (9941, 9942, 9943)`);
+  await q(`DELETE FROM emission_factors WHERE emission_factor_id IN (9941, 9942, 9943, 9944)`);
   await q(`DELETE FROM site_categories WHERE site_id = ${SITE} AND category_id = ${FERA}`);
 });
 
@@ -80,6 +82,26 @@ test("totals carry total_kgco2e at 4 dp beside the 2 dp tCO2e; the FERA twin too
   const [twin] = await q(`SELECT total_emission, total_kgco2e FROM emission WHERE pk_id = $1`, [r.json.fera_emission.pk_id]);
   assert.deepEqual([Number(twin.total_emission), twin.total_kgco2e], [0, "0.6100"]);
   assert.deepEqual(r.json.warnings, []);
+});
+
+test("gas_kg and biogenic_kg come from the factor's gas parts on create and edit; null without them", async () => {
+  const r = await createEntry({ date_of_reporting: "2024-03-15", activity_data: { emission_category: "Bio blend", activity_value: "10" } });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  const id = r.json.emission.pk_id;
+  let [row] = await q(`SELECT gas_kg, biogenic_kg FROM emission WHERE pk_id = $1`, [id]);
+  assert.deepEqual(row.gas_kg, { CO2: 24, CH4: 0.01, N2O: 0.002 });
+  assert.equal(row.biogenic_kg, "3.0000");
+
+  const edit = await call("PUT", `/user/emissions/${id}`, "otherUser", { activity_data: { emission_category: "Bio blend", activity_value: "20" } });
+  assert.equal(edit.status, 200, JSON.stringify(edit.json));
+  [row] = await q(`SELECT gas_kg, biogenic_kg FROM emission WHERE pk_id = $1`, [id]);
+  assert.deepEqual(row.gas_kg, { CO2: 48, CH4: 0.02, N2O: 0.004 });
+  assert.equal(row.biogenic_kg, "6.0000");
+
+  const edit2 = await call("PUT", `/user/emissions/${id}`, "otherUser", { activity_data: { emission_category: "Diesel", activity_value: "20" } });
+  assert.equal(edit2.status, 200, JSON.stringify(edit2.json));
+  [row] = await q(`SELECT gas_kg, biogenic_kg FROM emission WHERE pk_id = $1`, [id]);
+  assert.deepEqual([row.gas_kg, row.biogenic_kg], [null, null], "a factor without gas parts leaves both null");
 });
 
 test("an entry without a unit is in the form's unit only when the form has a single one", async () => {

@@ -14,6 +14,7 @@ import type { RowIssueCode } from "../../imports/errors";
 import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
+import type { Gas } from "../../scope3/contracts/factor";
 import * as activity from "./methods/activity";
 import * as spec from "./methods/spec";
 import * as spend from "./methods/spend";
@@ -60,6 +61,9 @@ export interface Computed {
   total: number;
   /** Scope 3 fields (01-contracts.md §6). Unset until their modules fill them; S3-4 fills total_kgco2e (kgCO₂e at 4 dp). */
   total_kgco2e?: string;
+  /** kg of each gas and of biogenic CO₂ from the factor's gas parts (S3-4, §4); unset when the factor has none. */
+  gas_kg?: Partial<Record<Gas, number>>;
+  biogenic_kg?: string;
   method?: Method;
   dq?: Dq;
   data_type?: DataType;

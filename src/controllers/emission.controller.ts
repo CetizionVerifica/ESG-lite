@@ -760,11 +760,15 @@ function applyComputed(emission: Emission, entry: PreparedEntry): void {
   if (!entry.factor || !entry.computed) {
     emission.total_emission = 0;
     emission.total_kgco2e = "0.0000";
+    emission.gas_kg = null;
+    emission.biogenic_kg = null;
     emission.emission_factor_snapshot = null as any;
     return;
   }
   emission.total_emission = entry.computed.total;
   emission.total_kgco2e = entry.computed.total_kgco2e ?? null;
+  emission.gas_kg = entry.computed.gas_kg ?? null;
+  emission.biogenic_kg = entry.computed.biogenic_kg ?? null;
   emission.emission_factor_snapshot = factorSnapshot(entry.factor) as any;
   emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
 }
@@ -803,6 +807,8 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any, twi
       linkedFera.activity_data = activity_data;
       linkedFera.total_emission = twin ? twin.total : 0;
       linkedFera.total_kgco2e = twin ? twin.total_kgco2e : "0.0000";
+      linkedFera.gas_kg = twin?.gas_kg ?? null;
+      linkedFera.biogenic_kg = twin?.biogenic_kg ?? null;
       linkedFera.emission_factor_snapshot = (twin ? factorSnapshot(twin.factor) : null) as any;
       linkedFera.date_of_reporting = emission.date_of_reporting;
       linkedFera.activity_data_unit = emission.activity_data_unit;

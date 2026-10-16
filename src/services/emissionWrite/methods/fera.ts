@@ -23,7 +23,8 @@ import { getConversionFactor, unitsMatchExact } from "../units";
 import type { FactorIndex } from "../resolve";
 import { ghgNumberFromName, scopeNumber } from "../../../scope3/factors/backfill";
 import type { CategoryContext, EngineIssue } from "../compute";
-import { factorHasUnit, kgFor } from "./activity";
+import { factorHasUnit, gasesFor, kgFor } from "./activity";
+import type { Gas } from "../../../scope3/contracts/factor";
 import type { Scope3Sub } from "../../../scope3/contracts/ghgCategory";
 
 export type { Scope3Sub };
@@ -35,6 +36,9 @@ export interface FeraTwin {
   total: number;
   /** kgCO₂e at 4 dp (S3-4). */
   total_kgco2e: string;
+  /** kg of each gas and biogenic CO₂ from the factor's gas parts (S3-4); unset when it has none. */
+  gas_kg?: Partial<Record<Gas, number>>;
+  biogenic_kg?: string;
   /** Category 3 sub-activity (S3-7): 3a, 3b or 3c. */
   scope3_sub: Scope3Sub;
 }
@@ -82,6 +86,7 @@ const twinWith = (ctx: CategoryContext, factor: EmissionFactor, activity_data: R
     activityValue,
     total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100,
     total_kgco2e: kgFor(activityValue * conv, factor),
+    ...gasesFor(activityValue * conv, factor),
     scope3_sub,
   };
 };

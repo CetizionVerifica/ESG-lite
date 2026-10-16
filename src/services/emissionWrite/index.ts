@@ -169,6 +169,8 @@ export const insertEntry = async (
     extra_data: input.extra_data || {},
     total_emission: entry.computed?.total ?? 0,
     total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
+    gas_kg: entry.computed?.gas_kg ?? null,
+    biogenic_kg: entry.computed?.biogenic_kg ?? null,
     emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
   });
   await repo.save(emission);
@@ -181,6 +183,8 @@ export const insertEntry = async (
       activity_data: input.activity_data,
       total_emission: entry.fera.total,
       total_kgco2e: entry.fera.total_kgco2e,
+      gas_kg: entry.fera.gas_kg ?? null,
+      biogenic_kg: entry.fera.biogenic_kg ?? null,
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
       scope3_sub: entry.fera.scope3_sub,
@@ -201,6 +205,8 @@ export const insertEntry = async (
       activity_data: input.activity_data,
       total_emission: entry.tdLoss.total,
       total_kgco2e: entry.tdLoss.total_kgco2e,
+      gas_kg: entry.tdLoss.gas_kg ?? null,
+      biogenic_kg: entry.tdLoss.biogenic_kg ?? null,
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.tdLoss.factor),
       scope3_sub: entry.tdLoss.scope3_sub,
