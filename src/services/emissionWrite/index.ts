@@ -21,7 +21,7 @@ import type { ActivityMatch, ImportRow, PlannedRow, RowIssue, StrippedTotal } fr
 import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../../imports/writer";
 import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
-import { computeTotal, factorSnapshot, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
+import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
@@ -60,8 +60,13 @@ export interface PreparedEntry {
   fera: FeraTwin | null;
   /** S3-7: the Category 3 T&D-loss twin of a Scope 2 row (3c), linked to the parent one way. */
   tdLoss: FeraTwin | null;
-  /** Warnings that never block (01-contracts §7): FACTOR_TYPE_MISMATCH, WTT_ALREADY_IN_FACTOR. */
+  /**
+   * Never block (01-contracts §7): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING (S3-4),
+   * FACTOR_TYPE_MISMATCH, WTT_ALREADY_IN_FACTOR (S3-7). Typed entries return them too.
+   */
   warnings: EngineIssue[];
+  /** When FERA applies but no 3a/3b twin was made: why (an edit puts it on the twin it can't recalculate). */
+  feraSkipped?: string;
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -73,9 +78,11 @@ export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; is
  */
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
-  let unit = input.activity_data_unit;
+  // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
+  let unit = input.activity_data_unit || (ctx.formUnits?.length === 1 ? ctx.formUnits[0] : input.activity_data_unit);
   let factor: EmissionFactor | null = null;
   let computed: Computed | null = null;
+  const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
   // S3-5: a row entered as an amount and a currency is in that currency.
@@ -90,6 +97,9 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       };
     }
     factor = match.factor;
+    if (match.fallback_year) {
+      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
+    }
     // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs.
     let spend: SpendQuote | undefined;
     if (isSpendRow(activity_data, factor)) {
@@ -110,15 +120,33 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const methodWarnings = computed?.warnings ?? [];
 
   let fera: FeraTwin | null = null;
+  let feraSkipped: string | undefined;
   let tdLoss: FeraTwin | null = null;
-  const warnings: EngineIssue[] = [];
   if (activity_data.emission_category) {
     fera = feraTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
     tdLoss = tdLossTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
     const twinCategory = fera?.category_id ?? tdLoss?.category_id;
     if (twinCategory) {
       const conflict = await checks.modeLock(input.site_id, twinCategory, input.period);
-      if (conflict) fera = tdLoss = null; // the twins respect the lock on their own category; skipped, never fatal
+      if (conflict) {
+        // The twins respect the lock on their own category; skipped, never fatal.
+        if (fera) feraSkipped = `the FERA category is filed ${conflict.conflicting_period} for this period`;
+        fera = tdLoss = null;
+      }
+    }
+    if (!fera && !feraSkipped) feraSkipped = feraGap(ctx, activity_data.emission_category, unit, targetYear) ?? undefined;
+    // FERA applies (the site has it and the activity has upstream FERA factors) but no 3a/3b twin was
+    // made: say why, never silently (S3-4): no factor for the year, a unit that doesn't convert (LSHS
+    // per litre vs a FERA factor per kWh), or the FERA category filed the other way. A missing td_loss
+    // factor (3c) is normal and raises nothing (S3-7).
+    if (feraSkipped) {
+      const name = activity_data.emission_category;
+      warnings.push({
+        code: "FERA_FACTOR_MISSING",
+        message: feraSkipped.startsWith("there is no ")
+          ? `No ${targetYear} FERA factor for "${name}", so no fuel- and energy-related (Category 3) row was added.`
+          : `No fuel- and energy-related (Category 3) row was added: ${feraSkipped}.`,
+      });
     }
     for (const w of [feraFactorTypeWarning(fera), feraFactorTypeWarning(tdLoss)]) if (w) warnings.push(w);
   }
@@ -126,7 +154,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   if (wtt) warnings.push(wtt);
   warnings.push(...methodWarnings);
 
-  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, tdLoss, warnings } };
+  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, tdLoss, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
 };
 
 export interface AuditInfo {
@@ -161,6 +189,9 @@ export const insertEntry = async (
     activity_data: input.activity_data,
     extra_data: input.extra_data || {},
     total_emission: entry.computed?.total ?? 0,
+    total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
+    gas_kg: entry.computed?.gas_kg ?? null,
+    biogenic_kg: entry.computed?.biogenic_kg ?? null,
     emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null,
     fx: entry.computed?.fx ?? null,
   });
@@ -173,6 +204,9 @@ export const insertEntry = async (
       category: { category_id: entry.fera.category_id },
       activity_data: input.activity_data,
       total_emission: entry.fera.total,
+      total_kgco2e: entry.fera.total_kgco2e,
+      gas_kg: entry.fera.gas_kg ?? null,
+      biogenic_kg: entry.fera.biogenic_kg ?? null,
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
       scope3_sub: entry.fera.scope3_sub,
@@ -192,6 +226,9 @@ export const insertEntry = async (
       category: { category_id: entry.tdLoss.category_id },
       activity_data: input.activity_data,
       total_emission: entry.tdLoss.total,
+      total_kgco2e: entry.tdLoss.total_kgco2e,
+      gas_kg: entry.tdLoss.gas_kg ?? null,
+      biogenic_kg: entry.tdLoss.biogenic_kg ?? null,
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.tdLoss.factor),
       scope3_sub: entry.tdLoss.scope3_sub,
@@ -365,7 +402,8 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     } else if (!result.entry.computed || result.entry.computed.activityValue <= 0) {
       errors.push(issue("MISSING_VALUE", "No quantity greater than 0 was found for this row.", "activity_value"));
     } else {
-      for (const w of result.entry.warnings) issues.push(issue(w.code, w.message, w.field));
+      // FACTOR_FALLBACK_YEAR is already on the row from the resolution above.
+      for (const w of result.entry.warnings) if (w.code !== "FACTOR_FALLBACK_YEAR") issues.push(issue(w.code, w.message, w.field));
     }
 
     // Duplicates: saved rows (monthly only, as a yearly batch has many rows per activity) and this plan.

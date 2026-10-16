@@ -82,6 +82,8 @@ export const getEmissionFactors = async (req: Request, res: Response) => {
     if (categoryId) qb.andWhere("ef.category_id = :categoryId", { categoryId });
     if (companyId) qb.andWhere("site.company_id = :companyId", { companyId });
     if (year) qb.andWhere("ef.year = :year", { year });
+    // S3-5: the USEEIO library (site-less spend factors, listed by GET /scope3/spend/library) only with ?library=1.
+    if (req.query.library !== "1" && req.query.library !== "true") qb.andWhere("NOT (ef.site_id IS NULL AND ef.category_id IS NULL AND ef.factor_type = 'eeio_spend')");
     if (factorType === "none") qb.andWhere("ef.factor_type IS NULL");
     else if (factorType) qb.andWhere("ef.factor_type = :factorType", { factorType });
     if (search) {

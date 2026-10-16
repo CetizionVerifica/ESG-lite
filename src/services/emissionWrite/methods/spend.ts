@@ -91,6 +91,8 @@ export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => 
       // The factor-currency amount per unit entered, so "conversion" reads as it does for units (× rate × deflator).
       ...(fx.rate !== 1 || ratio !== 1 ? { conversion: fx.rate * ratio } : {}),
       ...totals(kg),
+      // Per-gas kg (S3-4) for the factor-currency amount, the quantity the factor is per.
+      ...activity.gasesFor(amount * fx.rate * ratio, row.factor),
       method: "spend_based",
       fx,
       ...(deflator ? { deflator } : {}),

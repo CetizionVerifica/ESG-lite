@@ -311,3 +311,11 @@ test("USEEIO: reads the EPA file's code, title and with-margins value at its pri
   assert.throws(() => readUseeio("a,b\n1,2", "x.csv"), /not an EPA/);
   assert.deepEqual(parseCsv('a,"b,c"\n1,2'), [["a", "b,c"], ["1", "2"]]);
 });
+
+test("the purchase date is never the quantity; the amount spent only on a row asking for spend", () => {
+  const { pickActivityValue } = require(path.resolve("dist/services/activityValue.js"));
+  assert.equal(pickActivityValue({ invoice_date: "2026-09-03", amount: "40" }, new Set()), 40);
+  // An older form whose "Spent value" column is its quantity keeps it.
+  assert.equal(pickActivityValue({ spent_value: "500" }, new Set()), 500);
+  assert.equal(pickActivityValue({ "@method": "spend_based", spent_value: "500", weight: "3" }, new Set()), 3);
+});

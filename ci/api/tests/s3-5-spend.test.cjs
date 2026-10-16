@@ -43,9 +43,9 @@ test.before(async () => {
     await db.query(`INSERT INTO category (category_id, category_name, scope, ghg_category) VALUES (${CAT1}, 'Purchased goods and services S3-5', 'Scope 3', 1) ON CONFLICT DO NOTHING`);
     await db.query(`INSERT INTO site_categories (site_id, category_id) VALUES (${SITE}, ${CAT1}) ON CONFLICT DO NOTHING`);
     await db.query(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name, factor_type, dataset, price_base_year, price_currency) VALUES
-      (950, ${SITE}, ${CAT1}, 2026, 0.42, 'USD', 'CI', 'Steel mills S3-5', 'Steel mills S3-5', 'eeio_spend', 'USEEIO', 2022, 'USD'),
-      (952, ${SITE}, ${CAT1}, 2026, 0.30, 'USD', 'CI', 'Old prices S3-5', 'Old prices S3-5', 'eeio_spend', 'USEEIO', 2017, 'USD'),
-      (953, ${SITE}, ${CAT1}, 2026, 2.10, 'kg', 'CI', 'Steel per kg S3-5', 'Steel per kg S3-5', 'cradle_to_gate', 'CI', NULL, NULL),
+      (950, ${SITE}, ${CAT1}, 2025, 0.42, 'USD', 'CI', 'Steel mills S3-5', 'Steel mills S3-5', 'eeio_spend', 'USEEIO', 2022, 'USD'),
+      (952, ${SITE}, ${CAT1}, 2025, 0.30, 'USD', 'CI', 'Old prices S3-5', 'Old prices S3-5', 'eeio_spend', 'USEEIO', 2017, 'USD'),
+      (953, ${SITE}, ${CAT1}, 2025, 2.10, 'kg', 'CI', 'Steel per kg S3-5', 'Steel per kg S3-5', 'cradle_to_gate', 'CI', NULL, NULL),
       (${LIB}, NULL, NULL, 2022, 0.55, 'USD', 'CI', 'Library sector S3-5 (NAICS 999999)', 'Library sector S3-5 (NAICS 999999)', 'eeio_spend', 'USEEIO', 2022, 'USD')`);
     await db.query(`INSERT INTO fx_rate (currency, date, rate_to_usd, source) VALUES ('INR', '2026-09-03', ${RATE}, 'ecb'), ('INR', '2026-08-07', ${RATE_AUG}, 'ecb') ON CONFLICT DO NOTHING`);
     await db.query(`INSERT INTO price_deflator (country, year, "index", source) VALUES ('US', 2022, ${IDX_2022}, 'CI'), ('US', 2026, ${IDX_2026}, 'CI') ON CONFLICT (country, year) DO UPDATE SET "index" = EXCLUDED."index"`);
@@ -71,7 +71,7 @@ test("local golden case: INR 1,000,000 on 3 Sep 2026, deflated 2026 → 2022, st
   assert.equal(res.status, 201, JSON.stringify(res.json));
   const kg = kgFor(1000000, 0.42);
   assert.equal(Number(res.json.emission.total_emission), Math.round((kg / 1000) * 100) / 100);
-  assert.equal(res.json.warnings, undefined);
+  assert.deepEqual(res.json.warnings ?? [], []);
   const row = await rowOf(res.json.emission.pk_id);
   assert.equal(row.activity_data_unit, "INR");
   assert.deepEqual(row.fx, { currency: "INR", to: "USD", rate: 1 / RATE, as_of: "2026-09-03", source: "ecb", spend_date: "2026-09-03" });
@@ -82,7 +82,7 @@ test("local golden case: INR 1,000,000 on 3 Sep 2026, deflated 2026 → 2022, st
 test("a weekend purchase uses the nearest earlier stored day, with no warning", async () => {
   const res = await typed("2026-09-15", { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "500", currency: "INR" }, { invoice_date: "2026-09-06" });
   assert.equal(res.status, 201, JSON.stringify(res.json));
-  assert.equal(res.json.warnings, undefined);
+  assert.deepEqual(res.json.warnings ?? [], []);
   assert.equal((await rowOf(res.json.emission.pk_id)).fx.as_of, "2026-09-03");
 });
 
@@ -266,4 +266,13 @@ test("migrate:scope3-spend runs twice and loads the EPA USEEIO file once; the se
   const cpi = await withDb(async (db) => (await db.query(`SELECT "index"::float8 AS i FROM price_deflator WHERE country = 'US' AND year = 2022`)).rows[0].i);
   assert.equal(cpi, IDX_2022, "a stored index is never changed");
   await withDb((db) => db.query(`DELETE FROM price_deflator WHERE source = 'BLS CPI-U annual average (1982-84=100)'`));
+});
+
+test("the Emission factors page lists the USEEIO library only when asked", async () => {
+  const q = "/admin/emission-factors?search=Library%20sector%20S3-5";
+  const plain = await call("GET", q, "superadmin");
+  assert.equal(plain.status, 200, JSON.stringify(plain.json));
+  assert.equal(plain.json.data.filter((f) => f.emission_factor_id === LIB).length, 0);
+  const lib = await call("GET", `${q}&library=1`, "superadmin");
+  assert.equal(lib.json.data.filter((f) => f.emission_factor_id === LIB).length, 1);
 });

@@ -55,12 +55,13 @@ export class ContextCache {
     const category = site?.categories?.find((c) => c.category_id === category_id) ?? null;
     const feraCategory = site?.categories?.find((c) => c.category_name.toLowerCase() === "fera") ?? null;
     const configRepo = this.manager.getRepository(ColumnConfig);
-    const [configs, spec, selectColumns, factors, feraFactors] = await Promise.all([
+    const [configs, spec, selectColumns, factors, feraFactors, unitRows] = await Promise.all([
       configRepo.find({ where: { site: { site_id }, category: { category_id } }, order: { config_name: "ASC" } }),
       getCalculationSpec(configRepo, site_id, category_id),
       getSelectColumns(configRepo, site_id, category_id),
       FactorIndex.load(this.manager, site_id, category_id),
       feraCategory ? FactorIndex.load(this.manager, site_id, feraCategory.category_id) : Promise.resolve(null),
+      this.manager.query(`SELECT unit_name FROM unit WHERE site_id = $1 AND category_id = $2`, [site_id, category_id]) as Promise<Array<{ unit_name: string }>>,
     ]);
     const company_id = site?.company?.company_id ?? null;
     const mappings = company_id ? await MappingIndex.load(this.manager, company_id, site_id, category_id, configs[0] ?? null) : new MappingIndex();
@@ -75,6 +76,7 @@ export class ContextCache {
       selectColumns,
       factors,
       fera: feraCategory && feraFactors ? { category_id: feraCategory.category_id, factors: feraFactors } : null,
+      formUnits: [...new Set(unitRows.map((u) => u.unit_name).filter(Boolean))],
       mappings,
       company_id,
       rates: this.spendRates,

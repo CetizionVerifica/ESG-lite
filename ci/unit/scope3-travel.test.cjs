@@ -154,6 +154,24 @@ test("standard-config marker, method options and factor list", () => {
   }
 });
 
+test("DEFRA 2025 values: every factor has one, read from a named cell; RF and hotel spot checks", () => {
+  const by = Object.fromEntries(TRAVEL_FACTORS.map((f) => [f.name, f]));
+  for (const f of TRAVEL_FACTORS) {
+    const v = f.values["2025"];
+    assert.ok(v && v.value > 0, f.name);
+    assert.match(v.from, /^(Business travel- air|Business travel- land|Hotel stay|Fuels)![A-Z]+\d+$/, f.name);
+    assert.equal(f.gwp_set, "AR5");
+  }
+  assert.equal(by["Rail - National rail [passenger.km]"].values["2025"].value, 0.03546);
+  assert.equal(by["Hotel stay - India [night]"].values["2025"].value, 58.9);
+  // With RF is DEFRA's +70% CO2 uplift: always higher, by about 1.7×.
+  for (const f of TRAVEL_FACTORS.filter((x) => x.name.includes("With RF"))) {
+    const without = by[f.name.replace("With RF", "Without RF")].values["2025"].value;
+    const ratio = f.values["2025"].value / without;
+    assert.ok(ratio > 1.6 && ratio < 1.75, `${f.name} ${ratio}`);
+  }
+});
+
 // ── Survey ──────────────────────────────────────────────────────────────────
 const EX_71 = [
   { ref: "A", mode: "Rail", one_way_km: 10, days_per_week: 5, weeks_per_year: 48 },
