@@ -1560,8 +1560,8 @@
         }
       ],
       "expected_kgco2e": 1725,
-      "status": "skip",
-      "owner": "S3-10"
+      "status": "run",
+      "owner": "S3-10", "note": "Runs once S3-4 (ESG-lite #137) gives the engine its kg figure: until then each row is 2 dp tCO2e, so the 25 kg waste row counts as 30 kg (1,730). The form gives 1,725 exactly (ci/unit/scope3-sold-products.test.cjs)."
     },
     {
       "id": "ex-10.2",
@@ -1588,7 +1588,7 @@
         }
       ],
       "expected_kgco2e": 1500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1628,7 +1628,7 @@
         }
       ],
       "expected_kgco2e": 13042500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1657,7 +1657,7 @@
         }
       ],
       "expected_kgco2e": 36000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1697,7 +1697,7 @@
         }
       ],
       "expected_kgco2e": 3700,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10",
       "note": "The 0 % recycling row is not created (S3-10 spec)."
     },
@@ -1768,23 +1768,6 @@
       "expected_kgco2e": 500000,
       "status": "skip",
       "owner": "S3-12"
-    },
-    {
-      "id": "report-cat4-cat9",
-      "guidance_ref": {
-        "example": "constructed",
-        "lines": null
-      },
-      "source": "01-contracts.md §9, S3-13 spec",
-      "category": null,
-      "method": "unknown",
-      "formula": "post ex-4.2 and ex-9.1, approve, read GET /reports/ghg/scope3 → Cat 4 = 5.00 t, Cat 9 = 1.60 t, Scope 3 = 6.60 t",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": 6600,
-      "status": "skip",
-      "owner": "S3-13",
-      "note": "Report-level case; S3-13 moves it to ci/golden/scope3/report.json and checks it through the API."
     }
   ]
 }
