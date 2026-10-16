@@ -14,7 +14,16 @@
 // its own data and links the rows that name them exactly. It never merges two
 // spellings: a name that only looks similar is left unlinked for someone to
 // judge on the Suppliers page.
+//
+// It runs once: in the same transaction that first creates the "supplier"
+// table, so a failed backfill leaves nothing behind and is retried on the next
+// start. Once the table exists, people own the list: a supplier merged away on
+// the Suppliers page, or a new free-text name waiting in the name-match list,
+// must not come back as a supplier at the next deploy (migrate-all runs on
+// every start). `--force-backfill` runs it again by hand (and in its API test);
+// it still never re-creates a name a supplier already has.
 import "reflect-metadata";
+import type { QueryRunner } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 
 const TABLES = [
@@ -56,23 +65,21 @@ async function main() {
   await qr.connect();
   await qr.startTransaction();
   try {
+    const [{ existed }] = await qr.query(`SELECT to_regclass('public.supplier') IS NOT NULL AS existed`);
     for (const q of [...TABLES, ...INDEXES]) await qr.query(q);
     for (const [name, q] of FOREIGN_KEYS) {
       const found = await qr.query(`SELECT 1 FROM pg_constraint WHERE conname = $1`, [name]);
       if (found.length === 0) await qr.query(q);
     }
-    await qr.commitTransaction();
     console.log("supplier, supplier_factor, supplier_facility_data and emission.supplier_id present.");
+    if (!existed || process.argv.includes("--force-backfill")) await backfillSuppliers(qr);
+    else console.log("Supplier backfill skipped: it ran when the supplier table was created.");
+    await qr.commitTransaction();
   } catch (err) {
     await qr.rollbackTransaction();
     throw err;
   } finally {
     await qr.release();
-  }
-
-  try {
-    await backfillSuppliers();
-  } finally {
     await AppDataSource.destroy();
   }
 }
@@ -84,8 +91,8 @@ async function main() {
  * compared case-folded against what is already there, so a re-run adds
  * nothing.
  */
-async function backfillSuppliers() {
-  const fromRequests = await AppDataSource.query(
+async function backfillSuppliers(qr: QueryRunner) {
+  const fromRequests = await qr.query(
     `INSERT INTO "supplier" ("company_id", "name", "email")
      SELECT DISTINCT ON (sr.company_id, lower(btrim(sr.supplier_name)))
             sr.company_id, btrim(sr.supplier_name), sr.supplier_email
@@ -97,7 +104,7 @@ async function backfillSuppliers() {
      RETURNING "supplier_id"`,
   );
 
-  const fromRows = await AppDataSource.query(
+  const fromRows = await qr.query(
     `INSERT INTO "supplier" ("company_id", "name")
      SELECT DISTINCT ON (s.company_id, lower(btrim(e.extra_data->>'supplier_name')))
             s.company_id, btrim(e.extra_data->>'supplier_name')
@@ -113,7 +120,7 @@ async function backfillSuppliers() {
   // Only an exact case-folded match is linked. Anything that merely looks
   // similar stays null and shows up on the Suppliers page for someone to
   // judge, which is why this never merges two spellings (spec §Build.1).
-  const linked = await AppDataSource.query(
+  const linked = await qr.query(
     `UPDATE emission e
         SET supplier_id = match.supplier_id
        FROM (

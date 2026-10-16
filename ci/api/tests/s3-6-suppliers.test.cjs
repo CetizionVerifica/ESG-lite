@@ -11,7 +11,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
-const { withDb } = require("../helpers.cjs");
+const { call, withDb } = require("../helpers.cjs");
 
 const ROOT = path.resolve(__dirname, "../../..");
 const COMPILED = path.join(ROOT, "dist/scripts/createScope3SupplierTables.js");
@@ -60,10 +60,12 @@ async function cleanUp(db) {
   ]);
 }
 
-function runMigration() {
+// The backfill runs once, when the supplier table is created (migrate-all on the
+// CI database already did that), so the backfill test asks for it by hand.
+function runMigration(...args) {
   const run = fs.existsSync(COMPILED)
-    ? spawnSync(process.execPath, [COMPILED], { cwd: ROOT, env: process.env, encoding: "utf8" })
-    : spawnSync("npm", ["run", "--silent", "migrate:scope3-suppliers"], {
+    ? spawnSync(process.execPath, [COMPILED, ...args], { cwd: ROOT, env: process.env, encoding: "utf8" })
+    : spawnSync("npm", ["run", "--silent", "migrate:scope3-suppliers", "--", ...args], {
         cwd: ROOT,
         env: process.env,
         encoding: "utf8",
@@ -89,7 +91,7 @@ test("the supplier backfill folds case, keeps companies apart and merges nothing
     await seed(db);
     t.after(() => withDb(cleanUp));
 
-    runMigration();
+    runMigration("--force-backfill");
 
     // Company 1: one supplier for the three spellings that fold together, and
     // a separate one for the name that only looks similar.
@@ -119,7 +121,7 @@ test("the supplier backfill folds case, keeps companies apart and merges nothing
     assert.equal(byId.get(FIRST_EMISSION + 5), null, "a row naming no supplier stays unlinked");
 
     // Run twice: nothing new, nothing moved.
-    const second = runMigration();
+    const second = runMigration("--force-backfill");
     assert.match(second, /Created 0 supplier\(s\); linked 0 emission row\(s\)/, second);
 
     const afterSecond = await suppliersOf(db, 1);
@@ -128,5 +130,40 @@ test("the supplier backfill folds case, keeps companies apart and merges nothing
       company1.map((row) => row.supplier_id),
       "a second run creates no duplicate supplier",
     );
+  });
+});
+
+test("a supplier merged away on the Suppliers page stays merged after the next deploy", async (t) => {
+  await withDb(async (db) => {
+    await cleanUp(db);
+    await seed(db);
+    t.after(() => withDb(cleanUp));
+    runMigration("--force-backfill");
+
+    const before = await suppliersOf(db, 1);
+    const keep = before.find((row) => row.name.toLowerCase() === EXACT.toLowerCase());
+    const other = before.find((row) => row.name === DIFFERENT);
+    const merged = await call("POST", "/suppliers/name-matches", "manager", {
+      type: "similar_suppliers",
+      keep_id: keep.supplier_id,
+      other_id: other.supplier_id,
+      decision: "link",
+    });
+    assert.equal(merged.status, 200, JSON.stringify(merged.json));
+
+    // A new free-text name typed after the table exists waits in the name-match list.
+    await db.query(
+      `INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, category_id, site_id, extra_data)
+       VALUES ($1, '{"activity_value": 1}', 1, 'kg', '2026-02-28', 3, 1, '{"supplier_name": "Gulf Smelter Trading"}')`,
+      [FIRST_EMISSION + 6],
+    );
+
+    // migrate-all runs on every start: the backfill must not run again.
+    const output = runMigration();
+    assert.match(output, /Supplier backfill skipped/, output);
+    const after = await suppliersOf(db, 1);
+    assert.deepEqual(after.map((row) => row.supplier_id), [keep.supplier_id], "the merged spelling does not come back");
+    const { rows } = await db.query(`SELECT supplier_id FROM emission WHERE pk_id = $1`, [FIRST_EMISSION + 6]);
+    assert.equal(rows[0].supplier_id, null, "a new name is not turned into a supplier by a deploy");
   });
 });

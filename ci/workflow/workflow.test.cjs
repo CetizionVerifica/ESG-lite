@@ -184,8 +184,24 @@ step("12 Superadmin copies the USEEIO sector to the main site for factor year 20
   assert.equal(r.json.copied, 1);
 });
 
-pendingStep("14 the Manager records a supplier and its own product figure", "S3-6", async () => (await call("GET", "/scope3/suppliers", S.admin)).status !== 404, async () => {
-  ok(await call("GET", "/scope3/suppliers", S.admin));
+pendingStep("14 the Manager records a supplier and its own product figure", "S3-6", async () => (await call("GET", "/suppliers", S.admin)).status !== 404, async () => {
+  // The client Admin stands in for the Manager, who is invited in step 20 (suppliers are Manager and above).
+  const created = await call("POST", "/suppliers", S.admin, { name: SC.SUPPLIER.name, country: SC.SUPPLIER.country });
+  ok(created, 201);
+  const id = created.json.supplier_id ?? created.json.supplier?.supplier_id;
+  assert.ok(id, JSON.stringify(created.json));
+  // A figure that isn't cradle-to-gate needs an explicit confirmation (SUPPLIER_FACTOR_BOUNDARY).
+  const gate = await call("POST", `/suppliers/${id}/factors`, S.admin, { ...SC.SUPPLIER.factor, boundary: "gate_to_gate" });
+  assert.equal(gate.status, 422, JSON.stringify(gate.json));
+  ok(await call("POST", `/suppliers/${id}/factors`, S.admin, SC.SUPPLIER.factor), 201);
+  const factors = await call("GET", `/suppliers/${id}/factors`, S.admin);
+  ok(factors);
+  const list = Array.isArray(factors.json) ? factors.json : (factors.json.factors ?? factors.json.data ?? []);
+  assert.deepEqual(
+    list.map((f) => [f.item, f.unit, Number(f.kgco2e_per_unit), f.reference_year, f.boundary]),
+    [[SC.SUPPLIER.factor.item, SC.SUPPLIER.factor.unit, SC.SUPPLIER.factor.kgco2e_per_unit, SC.SUPPLIER.factor.reference_year, "cradle_to_gate"]],
+  );
+  S.supplierId = id;
 });
 
 // ── Phase 5 · Data-entry forms (Superadmin) ────────────────────────────────

@@ -117,4 +117,11 @@ const BOUNDARY = {
   ],
 };
 
-module.exports = { YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, BOUNDARY };
+/** S3-6: one supplier and its own cradle-to-gate product figure (not used in a row yet). */
+const SUPPLIER = {
+  name: "Gulf Smelter Co.",
+  country: "BH",
+  factor: { item: "P1020 aluminium ingot", unit: "kg", kgco2e_per_unit: 8.6, reference_year: YEAR, boundary: "cradle_to_gate" },
+};
+
+module.exports = { SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, BOUNDARY };
