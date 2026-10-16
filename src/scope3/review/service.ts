@@ -45,6 +45,14 @@ interface LoadedRow extends CheckRow {
   fera_linked_id: number | null;
   has_evidence: boolean;
   needs_attention: boolean;
+  status: string;
+  total_emission: string | number | null;
+}
+
+/** Which rows a computation reads: the review queue's pending rows, or (dry run) any status. */
+export interface ComputeOptions {
+  /** Statuses whose rows are computed; default pending only. */
+  statuses?: readonly string[];
 }
 
 const keyString = (k: Pick<CheckKey, "site_id" | "category_id" | "emission_category" | "month">) => `${k.site_id}:${k.category_id}:${k.month}:${k.emission_category}`;
@@ -83,17 +91,17 @@ const affectedRows = async (manager: EntityManager, keys: CheckKey[]): Promise<n
   return rows.map((r) => Number(r.pk_id));
 };
 
-const loadRows = async (manager: EntityManager, rowIds: number[]): Promise<LoadedRow[]> => {
+const loadRows = async (manager: EntityManager, rowIds: number[], statuses: readonly string[] = ["pending"]): Promise<LoadedRow[]> => {
   const rows: any[] = await manager.query(
-    `SELECT e.pk_id, e.site_id, e.category_id, s.company_id, to_char(e.date_of_reporting, 'YYYY-MM-DD') AS date,
+    `SELECT e.pk_id, e.site_id, e.category_id, s.company_id, to_char(e.date_of_reporting, 'YYYY-MM-DD') AS date, e.status::text AS status, e.total_emission,
             e.reporting_period, e.activity_data, e.activity_data_unit, e.emission_factor_snapshot, e.fera_linked_id,
             EXISTS (SELECT 1 FROM emission_document d
                      WHERE d.emission_id = e.pk_id OR d.emission_id = e.fera_linked_id
                         OR d.emission_id IN (SELECT p.pk_id FROM emission p WHERE p.fera_linked_id = e.pk_id)) AS has_evidence,
             ${attentionSql("e").replace(/:attentionBelow/g, "$2")} AS needs_attention
        FROM emission e JOIN site s ON s.site_id = e.site_id
-      WHERE e.pk_id = ANY($1) AND e.status = 'pending'`,
-    [rowIds, ATTENTION_BELOW],
+      WHERE e.pk_id = ANY($1) AND e.status::text = ANY($3)`,
+    [rowIds, ATTENTION_BELOW, statuses],
   );
   return rows.map((r) => ({
     ...r,
@@ -181,14 +189,14 @@ const duplicates = async (manager: EntityManager, rows: LoadedRow[]): Promise<Ma
  * row id -> partner ids. Approving one row of a pair approves its pending
  * partner, so the pair is one decision and is ready only when both rows are.
  */
-const pendingPartners = async (manager: EntityManager, rowIds: number[]): Promise<Map<number, number[]>> => {
+const pendingPartners = async (manager: EntityManager, rowIds: number[], statuses: readonly string[] = ["pending"]): Promise<Map<number, number[]>> => {
   const out = new Map<number, number[]>();
   if (!rowIds.length) return out;
   const rows: Array<{ id: number; partner: number }> = await manager.query(
     `SELECT e.pk_id AS id, p.pk_id AS partner
        FROM emission e JOIN emission p ON (p.pk_id = e.fera_linked_id OR p.fera_linked_id = e.pk_id) AND p.pk_id <> e.pk_id
-      WHERE e.pk_id = ANY($1) AND e.status = 'pending' AND p.status = 'pending'`,
-    [rowIds],
+      WHERE e.pk_id = ANY($1) AND e.status::text = ANY($2) AND p.status::text = ANY($2)`,
+    [rowIds, statuses],
   );
   for (const r of rows) {
     const list = out.get(Number(r.id)) ?? [];
@@ -203,13 +211,14 @@ const pendingPartners = async (manager: EntityManager, rowIds: number[]): Promis
  * them. Their pending FERA partners are computed too, and each row of a
  * pending pair carries what holds either row: the pair is approved together.
  */
-export const computeChecksFor = async (manager: EntityManager, rowIds: number[]): Promise<Map<number, RowChecks>> => {
+export const computeChecksFor = async (manager: EntityManager, rowIds: number[], opts: ComputeOptions = {}): Promise<Map<number, RowChecks>> => {
+  const statuses = opts.statuses ?? ["pending"];
   const requested = ids(rowIds);
-  const partners = await pendingPartners(manager, requested);
+  const partners = await pendingPartners(manager, requested, statuses);
   const all = ids([...requested, ...[...partners.values()].flat()]);
   // A partner's own partners (a twin linked both ways) join the pair as well.
-  for (const [id, list] of await pendingPartners(manager, all.filter((id) => !partners.has(id)))) partners.set(id, list);
-  const own = await computeOwnChecks(manager, all);
+  for (const [id, list] of await pendingPartners(manager, all.filter((id) => !partners.has(id)), statuses)) partners.set(id, list);
+  const own = await computeOwnChecks(manager, all, statuses);
   const out = new Map<number, RowChecks>();
   for (const [id, checks] of own) {
     const group = [checks, ...(partners.get(id) ?? []).map((p) => own.get(p)).filter((c): c is RowChecks => !!c)];
@@ -220,9 +229,9 @@ export const computeChecksFor = async (manager: EntityManager, rowIds: number[])
 };
 
 /** Each pending row's checks on its own, without its FERA partner. */
-const computeOwnChecks = async (manager: EntityManager, rowIds: number[]): Promise<Map<number, RowChecks>> => {
+const computeOwnChecks = async (manager: EntityManager, rowIds: number[], statuses: readonly string[] = ["pending"]): Promise<Map<number, RowChecks>> => {
   const out = new Map<number, RowChecks>();
-  const rows = await loadRows(manager, ids(rowIds));
+  const rows = await loadRows(manager, ids(rowIds), statuses);
   if (!rows.length) return out;
 
   const keys: CheckKey[] = [];
@@ -240,13 +249,16 @@ const computeOwnChecks = async (manager: EntityManager, rowIds: number[]): Promi
     const ec = r.activity_data?.emission_category;
     const month = `${r.date.slice(0, 7)}-01`;
     const key = typeof ec === "string" ? { site_id: r.site_id, category_id: r.category_id, emission_category: ec } : null;
+    // Dry run (S3-15 part 2): a draft or rejected row isn't in its month's total yet; it is checked as if submitted.
+    const notCounted = COUNTED_STATUSES.includes(r.status) ? 0 : Number(r.total_emission) || 0;
+    const counted = key ? totals.get(keyString({ ...key, month })) ?? null : null;
     out.set(
       r.pk_id,
       computeChecks(r, {
         hasEvidence: Boolean(r.has_evidence),
         duplicateOf: dups.get(r.pk_id) ?? null,
         thresholdPct: (r.company_id !== null ? limits.get(r.company_id) : undefined) ?? DEFAULT_THRESHOLD_PCT,
-        monthTotal: key ? totals.get(keyString({ ...key, month })) ?? null : null,
+        monthTotal: key ? (counted === null && !notCounted ? null : (counted ?? 0) + notCounted) : null,
         previousMonthTotal: key ? totals.get(keyString({ ...key, month: previousMonth(month) })) ?? null : null,
         importNeedsAttention: Boolean(r.needs_attention),
       }),

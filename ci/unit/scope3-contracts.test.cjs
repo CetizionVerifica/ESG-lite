@@ -97,6 +97,7 @@ test("every §7 error has a status and a message; warnings never carry a status"
     "SCOPE_INVALID", "GHG_CATEGORY_INVALID", "GHG_CATEGORY_REQUIRED", "EXCLUSION_REASON_REQUIRED", "UNIT_REQUIRED",
     "METHOD_NOT_ALLOWED", "CURRENCY_NOT_SUPPORTED", "SUPPLIER_FACTOR_BOUNDARY", "PERIOD_LOCKED", "UNLOCK_REASON_REQUIRED",
     "NOT_DRAFT", "EXTRAPOLATION_BASIS_INVALID", "PERIOD_INCOMPLETE", "BASE_YEAR_NO_DATA", "RECALCULATION_REASON_REQUIRED",
+    "REVIEW_WORKFLOW_OFF",
   ];
   assert.deepEqual([...errors.SCOPE3_ERROR_CODES].sort(), [...expected].sort());
   for (const code of expected) {

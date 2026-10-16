@@ -431,14 +431,48 @@ export const PeriodLockSchema = z.object({
   reopened_reason: z.string().max(2000).nullable().optional(),
 });
 
-/** `POST /user/emissions/submit` `{ids}`: draft → pending, runs the checks. */
-export const SubmitEmissionsBodySchema = z.object({ ids: z.array(id).min(1) });
+/** `POST /user/emissions/submit` `{ids}`: draft → pending, runs the checks. At most 1,000 ids per call. */
+export const SubmitEmissionsBodySchema = z.object({ ids: z.array(id).min(1).max(1000) });
 
-/** `POST /periods/lock`. */
-export const LockPeriodBodySchema = z.object({ site_id: id.nullable().optional(), year, month: month.nullable().optional() });
+/** Per-id result of a submit: `{submitted: ids, refused: [{id, code}]}` (`NOT_DRAFT`, `PERIOD_LOCKED`). */
+export const SubmitEmissionsResultSchema = z.object({
+  submitted: z.array(id),
+  refused: z.array(z.object({ id, code: z.enum(["NOT_DRAFT", "PERIOD_LOCKED"]) })),
+});
+export type SubmitEmissionsResult = z.infer<typeof SubmitEmissionsResultSchema>;
 
-/** `POST /periods/unlock` `{reason}` (`UNLOCK_REASON_REQUIRED`). */
-export const UnlockPeriodBodySchema = LockPeriodBodySchema.extend({ reason: text(2000) });
+/**
+ * `POST /periods/lock`. `site_id` null or absent = every site the caller may
+ * lock (Admin and Superadmin only, D11). A Superadmin names the company with
+ * `company_id`. `month` is required: year-level locks are out of scope for
+ * S3-15 (the `period_lock.month` column stays nullable for them).
+ */
+export const LockPeriodBodySchema = z.object({ site_id: id.nullable().optional(), year, month, company_id: id.optional() });
+
+/** Shortest reopen reason accepted (`UNLOCK_REASON_REQUIRED` below it, after trimming). */
+export const UNLOCK_REASON_MIN = 5;
+
+/** `POST /periods/unlock` `{reason}`: required; under UNLOCK_REASON_MIN characters (trimmed) the service answers `UNLOCK_REASON_REQUIRED`. */
+export const UnlockPeriodBodySchema = LockPeriodBodySchema.extend({ reason: z.string().max(2000) });
+
+/** `GET /periods/lock?year&month[&site_id][&company_id]`. */
+export const PeriodLockQuerySchema = z.object({
+  year: z.coerce.number().int().min(1990).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+  site_id: z.coerce.number().int().positive().optional(),
+  company_id: z.coerce.number().int().positive().optional(),
+});
+
+/** Why a site's category keeps the month open (`left[].reason`). */
+export const PERIOD_LEFT_REASONS = ["missing", "draft", "pending", "rejected"] as const;
+export type PeriodLeftReason = (typeof PERIOD_LEFT_REASONS)[number];
+
+/** A category's state in a month on the close-month screen. */
+export const PERIOD_CATEGORY_STATES = ["missing", "draft", "pending", "rejected", "approved", "nothing", "covered"] as const;
+export type PeriodCategoryState = (typeof PERIOD_CATEGORY_STATES)[number];
+
+/** `POST /user/emissions/check` `{ids}`: the checks each row would get if it were submitted now; saves nothing. */
+export const CheckEmissionsBodySchema = z.object({ ids: z.array(id).min(1).max(200) });
 
 /** `GET /user/emissions?ready=1|0`. */
 export const ReadyFilterSchema = z.object({ ready: z.enum(["0", "1"]).optional() });
@@ -449,8 +483,12 @@ export const BulkApproveBodySchema = z.object({ ids: z.array(id).min(1), only_re
 /** `GET /user/emissions/:id/history?months=6`. */
 export const EmissionHistoryQuerySchema = z.object({ months: z.coerce.number().int().min(1).max(24).default(6) });
 
-/** `POST/DELETE /user/my-month/nothing`. */
-export const NothingThisMonthBodySchema = z.object({ site_id: id, category_id: id, month: isoDate });
+/** `POST/DELETE /user/my-month/nothing`. `month` is any day of the month (YYYY-MM-DD) or YYYY-MM; it is stored as the first day. */
+export const NothingThisMonthBodySchema = z.object({
+  site_id: id,
+  category_id: id,
+  month: z.union([isoDate, z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM")]),
+});
 
 /** Notification kind for a submitted draft (S3-15). */
 export const DRAFT_SUBMITTED_NOTIFICATION = "draft_submitted";
