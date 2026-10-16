@@ -27,7 +27,9 @@ import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type Resolv
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
 import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
-import type { Method } from "../../scope3/contracts/ghgCategory";
+import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
+import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
+import { methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -48,6 +50,15 @@ export interface EntryInput {
   activity_data_unit: string | null | undefined;
   period: StoredPeriod;
   extra_data?: Record<string, any>;
+  /**
+   * S3-3: how the row was calculated, whether its figure is an estimate, and a
+   * data quality judged by hand. The same three fields on every channel
+   * (`src/scope3/dq/input.ts`); the engine refuses a method the form does not
+   * offer, so no channel can store one.
+   */
+  method?: Method | null;
+  is_estimate?: boolean;
+  dq?: ManualDqInput | null;
 }
 
 export interface PreparedEntry {
@@ -116,6 +127,20 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
+  // S3-3: the form decides which methods its category offers. Checked here so
+  // typed entries, bulk upload, smart import and MCP all refuse the same ones.
+  if (!methodAllowedForForm(input.method, ctx.method_options)) {
+    const offered = (ctx.method_options ?? []).map((m) => methodLabel(m)).join(", ");
+    return {
+      ok: false,
+      issue: {
+        code: "METHOD_NOT_ALLOWED",
+        message: `${SCOPE3_ERRORS.METHOD_NOT_ALLOWED.message}${offered ? ` This form offers: ${offered}.` : ""}`,
+        field: "method",
+      },
+    };
+  }
+
   if (activity_data.emission_category && unit) {
     const match = ctx.factors.find(activity_data.emission_category, targetYear);
     if (!match) {
@@ -129,7 +154,9 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
     }
     const result = computeTotal(ctx, factor, activity_data, unit, {
+      method: input.method,
       reportingYear: reportingYearFor(input.period.date_of_reporting),
+      manualDq: input.dq ? manualDqFrom(input.dq) : null,
     });
     if (!result.ok) return result;
     computed = result.computed;
@@ -225,6 +252,7 @@ export const insertEntry = async (
     method: entry.computed?.method ?? null,
     dq: entry.computed?.dq ?? null,
     data_type: entry.computed?.data_type ?? null,
+    is_estimate: input.is_estimate ?? false,
   });
   await repo.save(emission);
 

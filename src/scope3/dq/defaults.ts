@@ -141,14 +141,16 @@ export const autoDq = (input: DqInput): Dq => {
 };
 
 /**
- * The same row once an evidence document has been attached: §3 asks for
- * reliability to be recomputed and nothing else, so the total never moves.
+ * The same row once its evidence has changed: §3 asks for reliability to be
+ * recomputed and nothing else, so the total never moves. Pass
+ * `hasEvidence: false` when the last document has been removed, so the score
+ * does not keep claiming a file that is gone.
  *
  * A data quality somebody entered by hand (`source: 'manual'`) is returned
  * untouched — attaching a file is not a reason to overwrite their judgement.
  */
-export const dqWithEvidence = (dq: Dq, method: Method): Dq => {
+export const dqWithEvidence = (dq: Dq, method: Method, hasEvidence = true): Dq => {
   if (dq.source === "manual") return dq;
-  const indicators = { ...dq, reliability: reliabilityScore(method, true) };
+  const indicators = { ...dq, reliability: reliabilityScore(method, hasEvidence) };
   return { ...indicators, overall: overallOf(indicators) };
 };

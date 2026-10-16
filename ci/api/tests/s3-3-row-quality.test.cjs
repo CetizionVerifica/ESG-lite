@@ -221,3 +221,176 @@ test("a new Scope 3 row carries its method, data quality and data type", async (
     assert.deepEqual(rows[0], { method: null, dq: null, data_type: null });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Part 3: what a caller may say, what comes back, and what evidence changes.
+
+const FORM_CATEGORY = 3; // Business Travel, Scope 3
+
+const postRow = (body) =>
+  call("POST", "/user/emissions", "user", {
+    site_id: 1,
+    category_id: FORM_CATEGORY,
+    activity_data_unit: "km",
+    activity_data: { emission_category: S3_ACTIVITY, activity_value: "100" },
+    ...body,
+  });
+
+async function withFactorAndForm(t, methodOptions) {
+  const created = [];
+  await withDb(async (db) => {
+    await db.query(`INSERT INTO country (country_id, name, code) VALUES (961, 'S3-3 Testland', 'AE')
+                    ON CONFLICT (code) DO NOTHING`);
+    const { rows: country } = await db.query(`SELECT country_id FROM country WHERE code = 'AE'`);
+    await db.query(`UPDATE site SET country_id = $1 WHERE site_id = 1`, [country[0].country_id]);
+    await db.query(
+      `INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value,
+                                     denominator_unit, source, emission_category_name, global_category_name,
+                                     geography, factor_type, gwp_set)
+       VALUES ($1, 1, $2, 2025, 1.00000000, 'km', 'CI', $3, $3, 'AE', 'life_cycle', 'AR6')
+       ON CONFLICT DO NOTHING`,
+      [S3_FACTOR, FORM_CATEGORY, S3_ACTIVITY],
+    );
+    if (methodOptions) {
+      await db.query(
+        `INSERT INTO column_config (config_name, site_id, category_id, method_options)
+         VALUES ('s3-3 methods', 1, $1, $2::jsonb)`,
+        [FORM_CATEGORY, JSON.stringify(methodOptions)],
+      );
+    }
+  });
+  t.after(() =>
+    withDb(async (db) => {
+      if (created.length) await db.query(`DELETE FROM emission WHERE pk_id = ANY($1)`, [created]);
+      await db.query(`DELETE FROM column_config WHERE config_name = 's3-3 methods'`);
+      await db.query(`DELETE FROM emission_factors WHERE emission_factor_id = $1`, [S3_FACTOR]);
+    }),
+  );
+  return created;
+}
+
+test("a method the form does not offer is refused, on the one engine", async (t) => {
+  const created = await withFactorAndForm(t, ["distance_based", "spend_based"]);
+
+  const refused = await postRow({ date_of_reporting: "2026-07-31", method: "supplier_specific" });
+  assert.equal(refused.status, 400, JSON.stringify(refused.json));
+  assert.equal(refused.json.code, "METHOD_NOT_ALLOWED");
+  assert.match(refused.json.message, /offers/, "it says which methods the form does offer");
+
+  // A method ESGLite does not know at all is refused by name, never ignored.
+  const nonsense = await postRow({ date_of_reporting: "2026-07-31", method: "teleportation" });
+  assert.equal(nonsense.status, 400);
+  assert.equal(nonsense.json.code, "FIELD_INVALID");
+  assert.equal(nonsense.json.field, "method");
+
+  // One the form does offer is stored as sent.
+  const allowed = await postRow({ date_of_reporting: "2026-07-31", method: "spend_based", is_estimate: true });
+  assert.equal(allowed.status, 201, JSON.stringify(allowed.json));
+  created.push(allowed.json.emission.pk_id);
+  await withDb(async (db) => {
+    const { rows } = await db.query(`SELECT method, is_estimate, dq FROM emission WHERE pk_id = $1`, [
+      allowed.json.emission.pk_id,
+    ]);
+    assert.equal(rows[0].method, "spend_based");
+    assert.equal(rows[0].is_estimate, true, "the estimate flag is saved (it never was before)");
+    assert.equal(rows[0].dq.reliability, 3, "spend data is poor on reliability");
+    assert.equal(rows[0].dq.source, "auto");
+  });
+});
+
+test("a data quality sent by hand is stored as sent, with its overall derived", async (t) => {
+  const created = await withFactorAndForm(t, null);
+  const sent = await postRow({
+    date_of_reporting: "2026-08-31",
+    dq: { technology: 1, geography: 2, time: 2, completeness: 1, reliability: 1 },
+  });
+  assert.equal(sent.status, 201, JSON.stringify(sent.json));
+  created.push(sent.json.emission.pk_id);
+
+  await withDb(async (db) => {
+    const { rows } = await db.query(`SELECT dq FROM emission WHERE pk_id = $1`, [sent.json.emission.pk_id]);
+    assert.deepEqual(rows[0].dq, {
+      technology: 1,
+      geography: 2,
+      time: 2,
+      completeness: 1,
+      reliability: 1,
+      overall: 1, // the rounded mean of 1, 2, 2, 1, 1
+      source: "manual",
+    });
+  });
+
+  const bad = await postRow({ date_of_reporting: "2026-09-30", dq: { technology: 9, geography: 1, time: 1, completeness: 1, reliability: 1 } });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.json.field, "dq.technology");
+});
+
+test("the list returns the fields and filters on them, within the caller's sites", async (t) => {
+  const created = await withFactorAndForm(t, null);
+  const row = await postRow({ date_of_reporting: "2026-10-31" });
+  assert.equal(row.status, 201, JSON.stringify(row.json));
+  created.push(row.json.emission.pk_id);
+
+  const listed = await call("GET", "/user/emissions?categoryIds=3", "user");
+  assert.equal(listed.status, 200);
+  const mine = listed.json.find((e) => e.pk_id === row.json.emission.pk_id);
+  assert.ok(mine, "the row is in the list");
+  for (const field of ["method", "dq", "data_type", "is_estimate"]) {
+    assert.ok(field in mine, `the list returns ${field}`);
+  }
+  assert.equal(mine.method, "average_data");
+  assert.equal(mine.dq.overall, 1);
+
+  const byMethod = await call("GET", "/user/emissions?method=average_data", "user");
+  assert.equal(byMethod.status, 200);
+  assert.ok(byMethod.json.some((e) => e.pk_id === row.json.emission.pk_id), "method= finds it");
+  assert.ok(byMethod.json.every((e) => e.method === "average_data"), "and only rows with that method");
+
+  const other = await call("GET", "/user/emissions?method=spend_based", "user");
+  assert.ok(!other.json.some((e) => e.pk_id === row.json.emission.pk_id), "another method does not");
+
+  const good = await call("GET", "/user/emissions?dq_max=1", "user");
+  assert.ok(good.json.some((e) => e.pk_id === row.json.emission.pk_id), "dq_max=1 finds a good row");
+  assert.ok(good.json.every((e) => e.dq && e.dq.overall <= 1), "and nothing worse, nor a row with no quality");
+
+  assert.equal((await call("GET", "/user/emissions?method=teleportation", "user")).status, 400);
+  assert.equal((await call("GET", "/user/emissions?dq_max=9", "user")).status, 400);
+
+  // Tenant isolation: company 2 filtering never reaches company 1's rows.
+  const crossed = await call("GET", "/user/emissions?method=average_data", "otherManager");
+  assert.ok(!crossed.json.some((e) => e.pk_id === row.json.emission.pk_id), "company 2 cannot see it");
+  assert.equal((await call("GET", "/user/emissions?method=average_data&siteIds=1", "otherManager")).status, 403);
+});
+
+test("attaching evidence lifts reliability, removing it lowers it again, and the total never moves", async (t) => {
+  const created = await withFactorAndForm(t, ["supplier_specific", "average_data"]);
+  const row = await postRow({ date_of_reporting: "2026-11-30", method: "supplier_specific" });
+  assert.equal(row.status, 201, JSON.stringify(row.json));
+  const pk = row.json.emission.pk_id;
+  created.push(pk);
+
+  const before = await withDb(async (db) => (await db.query(`SELECT dq, total_emission FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
+  assert.equal(before.dq.reliability, 2, "no document yet, so capped at fair");
+
+  const form = new FormData();
+  form.append("file", new Blob([`evidence for ${pk}`], { type: "application/pdf" }), "invoice.pdf");
+  form.append("emission_id", String(pk));
+  const upload = await call("POST", "/user/documents", "user", form);
+  assert.equal(upload.status, 201, JSON.stringify(upload.json));
+  const documentId = upload.json.document.document_id;
+
+  const after = await withDb(async (db) => (await db.query(`SELECT dq, total_emission FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
+  assert.equal(after.dq.reliability, 1, "the document lifts a supplier figure to good");
+  assert.equal(after.dq.overall, 1);
+  assert.equal(Number(after.total_emission), Number(before.total_emission), "the total is untouched");
+  for (const indicator of ["technology", "geography", "time", "completeness"]) {
+    assert.equal(after.dq[indicator], before.dq[indicator], `${indicator} is untouched`);
+  }
+
+  if (documentId) {
+    const removed = await call("DELETE", `/user/documents/${documentId}`, "user");
+    assert.ok([200, 204].includes(removed.status), JSON.stringify(removed.json));
+    const back = await withDb(async (db) => (await db.query(`SELECT dq FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
+    assert.equal(back.dq.reliability, 2, "with the file gone the score stops claiming it");
+  }
+});
