@@ -108,6 +108,9 @@ export const ROW_ISSUE_CODES = {
   CURRENCY_NOT_SUPPORTED: "error",
   FX_RATE_FALLBACK: "warning",
   NO_DEFLATOR: "warning",
+  DEFLATOR_FALLBACK_YEAR: "warning",
+  // S3-3: the row named a method the form does not offer.
+  METHOD_NOT_ALLOWED: "error",
 } as const;
 
 export type RowIssueCode = keyof typeof ROW_ISSUE_CODES;

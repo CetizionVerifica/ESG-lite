@@ -26,7 +26,7 @@ A spend row is calculated with the exchange rate on the purchase date, adjusted 
 2. `methods/spend.ts`:
    - Activity = amount in `currency`, on `date_of_reporting`, or on `extra_data.invoice_date` when given.
    - Rate = `fx_rate` on that date, or the nearest earlier date within 7 days. Otherwise use the latest rate and warn `FX_RATE_FALLBACK`.
-   - Deflate to the factor's `price_base_year` with `price_deflator` (country of the factor's currency). When no deflator is found, warn `NO_DEFLATOR` and apply none.
+   - Deflate to the factor's `price_base_year` with `price_deflator` (country of the factor's currency). When the spend year has no index yet, use the latest earlier index after the base year and warn `DEFLATOR_FALLBACK_YEAR` (the snapshot's `deflator.index_year` names it). When the base year has no index or nothing later fits, warn `NO_DEFLATOR` and apply none.
    - total_kg = spend × rate_to_factor_currency × (deflator[base] / deflator[spend year]) × factor_value.
    - Store `fx = {currency, rate, as_of, source}` and the deflator used in the snapshot.
    - An unsupported currency → `CURRENCY_NOT_SUPPORTED`.

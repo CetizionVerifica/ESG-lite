@@ -14,6 +14,7 @@ import type { RowIssueCode } from "../../imports/errors";
 import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
+import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import type { Gas } from "../../scope3/contracts/factor";
 import type { DeflatorUsed, EmissionFx, SpendQuote } from "../../scope3/spend/types";
 import * as activity from "./methods/activity";
@@ -43,6 +44,14 @@ export interface CategoryContext {
   fera: { category_id: number; factors: FactorIndex } | null;
   /** The form's unit options for site × category (`unit` table). With exactly one, an entry without a unit is in that unit (S3-4). */
   formUnits?: string[];
+  /** The site's country as an ISO-3166 alpha-2 code, for the DQ geography rule (S3-3). */
+  site_country?: string | null;
+  /**
+   * The method keys this form offers, most specific first (S3-3). The first
+   * is the default. Read from `column_config.method_options` (`{method, units}`
+   * entries) with `offeredMethods`, so the engine only ever sees keys.
+   */
+  method_options?: Method[] | null;
 }
 
 export interface EngineIssue {
@@ -87,6 +96,18 @@ export interface EngineRow {
   method?: Method | null;
   /** Set on estimated rows (S3-12). */
   proxy?: unknown;
+  /**
+   * S3-3: the method the row names in `activity_data["@method"]` (S3-9 forms and
+   * rows sent before rows had a `method`). Recorded as the row's method when
+   * `method` is unset; it never picks the method file, so totals stay put.
+   */
+  rowMethod?: Method | null;
+  /** The year the row is reported in, for the DQ time rule (S3-3). */
+  reportingYear?: number;
+  /** An evidence document is already attached (S3-3). */
+  hasEvidence?: boolean;
+  /** A data quality the caller entered by hand; used as it is, never overwritten (S3-3). */
+  manualDq?: Dq | null;
   /** S3-5: amount, rate and deflator of a spend row, loaded before the engine runs (src/scope3/spend/rates.ts). */
   spend?: SpendQuote;
 }
@@ -94,13 +115,34 @@ export interface EngineRow {
 /** Every method file exports `compute(ctx, row)`. */
 type MethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeResult };
 
+const SCOPE_3 = "Scope 3";
+
+/**
+ * The method a row records (§6, S3-3): the row's own (`method`, else its
+ * `@method`), else the form's first offered method, else average data. Null
+ * outside Scope 3: a method is a Scope 3 idea, and Scope 1 and Scope 2 rows
+ * carry none.
+ *
+ * `average_data` is the fallback rather than `unknown`: an activity figure
+ * times a published factor *is* the average-data method. `unknown` is kept for
+ * legacy rows that never recorded anything.
+ */
+export const methodFor = (ctx: CategoryContext, row: EngineRow): Method | null => {
+  if (ctx.scope !== SCOPE_3) return null;
+  return row.method ?? row.rowMethod ?? ctx.method_options?.[0] ?? "average_data";
+};
+
 /**
  * The method file for a row, in the order of 01-contracts §6: a proxy row;
  * then the row's method spend_based / supplier_specific / hybrid on any
- * category, spec or not; then a row carrying a spend quote (asked for with
- * `@method` until S3-3, or on a spend factor); then the category's spec; else
- * activity × factor.
- * TODO(S3-3): fall back to the form's `method_options[0]` when the row has none.
+ * category, spec or not; then a row carrying a spend quote; then the
+ * category's spec; else activity × factor.
+ *
+ * Only the method the caller sends (`row.method`) picks a file here. The form's
+ * default (`method_options[0]`) reaches the engine another way: index.ts asks
+ * for a spend quote when it is spend_based, and that quote picks the spend
+ * file. Supplier and hybrid are still stubs (S3-6), so routing a form default
+ * or an `@method` to them would move totals that today come from the spec.
  */
 const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
   if (row.proxy) return proxy;
@@ -118,8 +160,47 @@ const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
   return activity;
 };
 
-/** One row's total, from the method file the row picks. */
-export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult => methodFileFor(ctx, row).compute(ctx, row);
+/**
+ * One row's total, from the method file the row picks, plus how it was
+ * calculated and how good its data is (S3-3). The quality never changes the
+ * total: it is worked out from the method, the factor's own metadata, the
+ * site's country and the reporting year, and attached to the result.
+ */
+export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
+  const result = methodFileFor(ctx, row).compute(ctx, row);
+  if (!result.ok) return result;
+  if (ctx.scope !== SCOPE_3) {
+    // Scope 1 and Scope 2 rows carry no method, even when a file names one (a Scope 2 bill in INR takes the spend file).
+    const { method: _method, dq: _dq, data_type: _dataType, ...rest } = result.computed;
+    return { ok: true, computed: rest };
+  }
+  // The method file's own word wins (a spend quote makes a spend row, S3-5), then the row's, then the form's.
+  const method = result.computed.method ?? methodFor(ctx, row);
+  if (!method) return result;
+
+  const dq =
+    row.manualDq ??
+    autoDq({
+      method,
+      factor: { geography: row.factor?.geography, year: row.factor?.year, factor_type: row.factor?.factor_type },
+      siteCountry: ctx.site_country,
+      // The row is being written now, so this year stands in when the caller
+      // names no period; every write path in index.ts passes the real one.
+      reportingYear: row.reportingYear ?? new Date().getUTCFullYear(),
+      hasEvidence: row.hasEvidence,
+      isProxy: !!row.proxy,
+    });
+
+  return {
+    ok: true,
+    computed: {
+      ...result.computed,
+      method,
+      dq,
+      data_type: dataTypeFor({ method, hasEvidence: row.hasEvidence }),
+    },
+  };
+};
 
 /**
  * One row's total (the pre-S3 signature, used by index.ts).
@@ -131,7 +212,8 @@ export const computeTotal = (
   factor: EmissionFactor,
   activity_data: Record<string, any>,
   activity_unit: string,
-  extra: Pick<EngineRow, "method" | "spend"> = {},
+  /** S3-3 and S3-5: what the row says about its own method and quality, and a spend row's quote. */
+  extra: Pick<EngineRow, "method" | "rowMethod" | "reportingYear" | "hasEvidence" | "manualDq" | "proxy" | "spend"> = {},
 ): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit, ...extra });
 
 /** The stored factor snapshot; a spend row adds the deflator it used (S3-5). */
