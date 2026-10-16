@@ -31,6 +31,8 @@ export interface DeflatorUsed {
   base_index: number;
   spend_index: number;
   source: string;
+  /** Set when the spend year had no published index yet: the year whose index was used instead (DEFLATOR_FALLBACK_YEAR). */
+  index_year?: number;
 }
 
 /**
@@ -50,4 +52,6 @@ export interface SpendQuote {
   deflator: DeflatorUsed | null;
   /** The factor has a price base year but one of the two indexes is missing (NO_DEFLATOR). */
   noDeflator: boolean;
+  /** The spend year had no published index; the latest earlier one was used (DEFLATOR_FALLBACK_YEAR). */
+  deflatorFallback?: boolean;
 }

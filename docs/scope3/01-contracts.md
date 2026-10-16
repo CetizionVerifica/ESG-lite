@@ -169,7 +169,7 @@ S3-5 put `methodFileFor` in this order. A row carrying a spend quote (asked for 
 ## 7. Error and warning codes (add to `src/imports/errors.ts` style)
 
 Errors: `SCOPE_INVALID`, `GHG_CATEGORY_INVALID`, `GHG_CATEGORY_REQUIRED` (Scope 3 category with no number, after the backfill is confirmed), `EXCLUSION_REASON_REQUIRED`, `UNIT_REQUIRED` (a factor with no unit), `METHOD_NOT_ALLOWED`, `CURRENCY_NOT_SUPPORTED`, `SUPPLIER_FACTOR_BOUNDARY`, `PERIOD_LOCKED`, `UNLOCK_REASON_REQUIRED`, `NOT_DRAFT`, `EXTRAPOLATION_BASIS_INVALID`, `PERIOD_INCOMPLETE`, `BASE_YEAR_NO_DATA`, `RECALCULATION_REASON_REQUIRED`.
-Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
+Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `DEFLATOR_FALLBACK_YEAR` (spend year with no index yet: the latest earlier index was used), `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
 
 ## 8. Review check ids (S3-15, `review/checks.ts`)
 
