@@ -20,7 +20,7 @@ import { buildVariety } from "./variety";
 import { writeNarrative } from "./ai-narrative";
 import { computeGhgTables, computeGhgByFuelType, getPeriodRange, type GhgFilters, type Frequency } from "./ghg-data";
 import type { Block, Report } from "./types";
-import { computeScope3, consolidationLabel, gwpText, scope3Blocks, type Scope3BaseYearSummary, type Scope3Report } from "./ghg-scope3";
+import { computeScope3, consolidationLabel, hasScope3, gwpText, scope3Blocks, type Scope3BaseYearSummary, type Scope3Report } from "./ghg-scope3";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const fmt1 = (n: number) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 });
@@ -93,7 +93,9 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   // S3-13: Scope 3 by GHG Protocol category, boundary approach and GWP sets.
   let scope3: Scope3Report | null = null;
   try {
-    scope3 = await computeScope3(filters, companyId);
+    // Scope 1/2-only reports stay as they were: the Scope 3 pages only when the report has Scope 3.
+    const computed = await computeScope3(filters, companyId);
+    scope3 = hasScope3(computed) ? computed : null;
   } catch (e: any) {
     console.error("GHG report: Scope 3 section skipped:", e?.code ?? e?.message ?? e);
   }

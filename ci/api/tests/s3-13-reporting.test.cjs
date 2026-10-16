@@ -114,6 +114,21 @@ test("filters: a category filter narrows the rows; bad month is a 400 like /repo
   assert.equal(april.json.total_tco2e, 0);
 });
 
+test("a company with no Scope 3 gets no boundary rows seeded by the report (Scope 1/2 PDFs unchanged)", async () => {
+  const r = await call("GET", `/reports/ghg/scope3?siteIds=3&year=${YEAR}`, "otherManager");
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.total_tco2e, 0);
+  assert.ok(r.json.rows.every((x) => x.mapped_categories.length === 0));
+  const seeded = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM company_scope3_category WHERE company_id = 2`));
+  assert.equal(seeded.rows[0].n, 0);
+});
+
+test("a category filter also narrows the included activities", async () => {
+  const r = await call("GET", `/reports/ghg/scope3?${q}&categoryIds=5`, "user");
+  assert.deepEqual(r.json.rows.find((x) => x.n === 6).mapped_categories, []);
+  assert.deepEqual(r.json.rows[15].mapped_categories, [{ category_id: 5, name: "FERA" }]);
+});
+
 test("golden report cases (ci/golden/scope3/report.json): category totals = Σ case kg / 1000", async () => {
   const fs = require("fs");
   const path = require("path");
