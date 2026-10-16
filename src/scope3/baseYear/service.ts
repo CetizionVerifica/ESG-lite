@@ -19,7 +19,7 @@ import { AppDataSource } from "../../config/data-source";
 import { getPeriodRange, type YearType } from "../../reporting/ghg-data";
 import { emissionColumns, kgSql, type Scope3BaseYearSummary } from "../../reporting/ghg-scope3";
 import { Scope3Error } from "../contracts/errors";
-import { PutBaseYearBodySchema } from "../contracts/schemas";
+import { PutBaseYearBodySchema, RECALCULATION_STATUSES } from "../contracts/schemas";
 import { BoundaryError } from "../boundary/errors";
 import { ensureBoundaryRows, isScope3Sql, type Queryable } from "../taxonomy/service";
 import {
@@ -35,7 +35,7 @@ import {
 } from "./detect";
 
 export const SCOPE = "Scope 3";
-export const EVENT_STATUSES = ["proposed", "approved", "dismissed"] as const;
+export const EVENT_STATUSES = RECALCULATION_STATUSES;
 const MAX_TEXT = 4000;
 
 async function audit(q: Queryable, entityType: string, entityId: number, action: string, changed: Record<string, { old: any; new: any }>, userId: number, reason: string | null) {

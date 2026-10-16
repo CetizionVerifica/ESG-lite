@@ -19,8 +19,9 @@
  * frozen total (D5: kg summed, then rounded to tCO₂e once).
  */
 import { createHash } from "crypto";
+import { RECALCULATION_REASONS } from "../contracts/schemas";
 
-export const RECALC_REASONS = ["methodology", "data_quality", "structural", "error"] as const;
+export const RECALC_REASONS = RECALCULATION_REASONS;
 export type RecalcReason = (typeof RECALC_REASONS)[number];
 
 /** `[ghg category (null = Unmapped), kg, factor fingerprint, dq overall, site id]`. */

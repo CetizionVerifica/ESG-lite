@@ -16,14 +16,23 @@ const { call, withDb } = require("../helpers.cjs");
 const ROOT = path.resolve(__dirname, "../../..");
 const BASE = 2012;
 
+// Category 3 and sites 1–3 are shared fixtures: put their Scope 3 fields back as found.
+let saved = null;
 const reset = () =>
   withDb(async (db) => {
     await db.query(`DELETE FROM emission WHERE pk_id BETWEEN 81400 AND 81499`);
     await db.query(`DELETE FROM recalculation_event WHERE company_id IN (1, 2)`);
     await db.query(`DELETE FROM company_base_year WHERE company_id IN (1, 2)`);
     await db.query(`DELETE FROM audit_log WHERE entity_type IN ('scope3_base_year', 'scope3_recalculation')`);
-    await db.query(`UPDATE category SET ghg_category = NULL WHERE category_id = 3`);
-    await db.query(`UPDATE site SET lease_role = NULL, lease_type = NULL WHERE site_id IN (1, 2, 3)`);
+    if (saved) {
+      await db.query(`UPDATE category SET ghg_category = $1 WHERE category_id = 3`, [saved.cat]);
+      for (const s of saved.sites) {
+        await db.query(`UPDATE site SET lease_role = $1, lease_type = $2 WHERE site_id = $3`, [s.lease_role, s.lease_type, s.site_id]);
+      }
+    } else {
+      await db.query(`UPDATE category SET ghg_category = NULL WHERE category_id = 3`);
+      await db.query(`UPDATE site SET lease_role = NULL, lease_type = NULL WHERE site_id IN (1, 2, 3)`);
+    }
   });
 
 const insert = (db, id, tonnes, year = BASE, status = "approved") =>
@@ -34,7 +43,15 @@ const insert = (db, id, tonnes, year = BASE, status = "approved") =>
   );
 
 test.before(async () => {
+  saved = await withDb(async (db) => ({
+    cat: (await db.query(`SELECT ghg_category FROM category WHERE category_id = 3`)).rows[0]?.ghg_category ?? null,
+    sites: (await db.query(`SELECT site_id, lease_role, lease_type FROM site WHERE site_id IN (1, 2, 3)`)).rows,
+  }));
   await reset();
+  await withDb(async (db) => {
+    await db.query(`UPDATE category SET ghg_category = NULL WHERE category_id = 3`);
+    await db.query(`UPDATE site SET lease_role = NULL, lease_type = NULL WHERE site_id IN (1, 2, 3)`);
+  });
   await withDb(async (db) => {
     await db.query(`UPDATE category SET ghg_category = 6 WHERE category_id = 3`);
     await insert(db, 81400, 6);
