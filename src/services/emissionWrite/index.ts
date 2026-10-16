@@ -26,6 +26,13 @@ import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./m
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
+import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
+import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
+import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
+import { MethodSchema, methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import { ROW_METHOD_COLUMN } from "../calculationSpec";
+import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
+import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -46,6 +53,17 @@ export interface EntryInput {
   activity_data_unit: string | null | undefined;
   period: StoredPeriod;
   extra_data?: Record<string, any>;
+  /**
+   * S3-3: how the row was calculated, whether its figure is an estimate, and a
+   * data quality judged by hand. The same three fields on every channel
+   * (`src/scope3/dq/input.ts`); the engine refuses a method the form does not
+   * offer, so no channel can store one.
+   */
+  method?: Method | null;
+  is_estimate?: boolean;
+  dq?: ManualDqInput | null;
+  /** S3-5: the row's saved `fx`, so a recalculation with the same currency and date reuses its rate. */
+  storedFx?: EmissionFx | null;
 }
 
 export interface PreparedEntry {
@@ -63,6 +81,8 @@ export interface PreparedEntry {
   warnings: EngineIssue[];
   /** When FERA applies but no 3a/3b twin was made: why (an edit puts it on the twin it can't recalculate). */
   feraSkipped?: string;
+  /** S3-3: the site's country, so a twin's data quality can be scored where the twin is written. */
+  site_country?: string | null;
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -72,6 +92,43 @@ export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; is
  * writing. Scope, period validation, mode lock and duplicates are the
  * caller's (createEmission keeps its own responses; planRows adds issues).
  */
+/**
+ * The year a row is reported in, for the S3-3 data quality time rule. Not
+ * `targetYearFor`, which is this year minus one because that is the factor
+ * year convention; comparing a factor against that would shift every time
+ * score by a year.
+ */
+export const reportingYearFor = (dateOfReporting: string | Date): number =>
+  typeof dateOfReporting === "string"
+    ? parseInt(dateOfReporting.substring(0, 4), 10)
+    : new Date(dateOfReporting).getUTCFullYear();
+
+/**
+ * S3-3 for a FERA or T&D-loss twin. A twin is always a Scope 3 row (Cat 3),
+ * calculated as the activity figure times a published factor, which is the
+ * average-data method. Its quality is read from its own factor, not the
+ * parent's.
+ */
+const twinQuality = (siteCountry: string | null | undefined, factor: EmissionFactor, dateOfReporting: string | Date) => {
+  const method: Method = "average_data";
+  return {
+    method,
+    dq: autoDq({
+      method,
+      factor: { geography: factor.geography, year: factor.year, factor_type: factor.factor_type },
+      siteCountry,
+      reportingYear: reportingYearFor(dateOfReporting),
+    }),
+    data_type: dataTypeFor({ method }),
+  };
+};
+
+/** A valid method key in `activity_data["@method"]`, or null (S3-3). */
+const rowMethodOf = (activity_data: Record<string, any>): Method | null => {
+  const parsed = MethodSchema.safeParse(String(activity_data?.[ROW_METHOD_COLUMN] ?? "").trim());
+  return parsed.success && parsed.data !== "unknown" ? parsed.data : null;
+};
+
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
   // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
@@ -80,6 +137,33 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   let computed: Computed | null = null;
   const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
+
+  // S3-3: the method the row names: its `method`, else `activity_data["@method"]`
+  // (S3-9 forms and rows sent before rows had a method). A key ESGLite doesn't
+  // know in "@method" is left to the spec, as before.
+  const named = input.method ?? rowMethodOf(activity_data);
+
+  // S3-3: the form decides which methods its category offers. Checked here so
+  // typed entries, bulk upload, smart import and MCP all refuse the same ones.
+  if (!methodAllowedForForm(named, ctx.method_options)) {
+    const offered = (ctx.method_options ?? []).map((m) => methodLabel(m)).join(", ");
+    return {
+      ok: false,
+      issue: {
+        code: "METHOD_NOT_ALLOWED",
+        message: `${SCOPE3_ERRORS.METHOD_NOT_ALLOWED.message}${offered ? ` This form offers: ${offered}.` : ""}`,
+        field: "method",
+      },
+    };
+  }
+  // S3-5 asks for an amount and a currency when the row's method is spend_based: the
+  // one it names, else the form's default (01-contracts §6: row → method_options[0]).
+  const spendMethod = named ?? ctx.method_options?.[0] ?? null;
+
+  // S3-5: a row entered as an amount and a currency is in that currency.
+  if (!unit && rowAsksForSpend(activity_data, spendMethod)) {
+    unit = spendInputOf(activity_data, input.extra_data, null, input.period.date_of_reporting, undefined, spendMethod)?.currency;
+  }
 
   if (activity_data.emission_category && unit) {
     const match = ctx.factors.find(activity_data.emission_category, targetYear);
@@ -93,11 +177,32 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     if (match.fallback_year) {
       warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
     }
-    const result = computeTotal(ctx, factor, activity_data, unit);
+    // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs. That includes
+    // an amount in another currency than its factor's (INR on a factor per USD), so its rate is stored too.
+    let spend: SpendQuote | undefined;
+    if (isSpendRow(activity_data, factor, spendMethod, unit)) {
+      const spendInput = spendInputOf(activity_data, input.extra_data, unit, input.period.date_of_reporting, ctx.selectColumns, spendMethod);
+      if (spendInput && ctx.rates) {
+        const quoted = await ctx.rates.quote(spendInput, factor, input.storedFx);
+        if (!quoted.ok) return { ok: false, issue: { code: quoted.code, message: quoted.message, field: quoted.field } };
+        spend = quoted.quote;
+      } else if (!spendInput && rowAsksForSpend(activity_data, spendMethod)) {
+        return { ok: false, issue: { code: "FIELD_REQUIRED", message: "Give the amount spent and its currency.", field: "spent_value" } };
+      }
+    }
+    // S3-3: the method and quality the engine records; S3-5: the spend quote that picks the spend file.
+    const result = computeTotal(ctx, factor, activity_data, unit, {
+      method: input.method,
+      rowMethod: input.method ? null : rowMethodOf(activity_data),
+      reportingYear: reportingYearFor(input.period.date_of_reporting),
+      manualDq: input.dq ? manualDqFrom(input.dq) : null,
+      spend,
+    });
     if (!result.ok) return result;
     computed = result.computed;
     unit = computed.activity_unit;
   }
+  const methodWarnings = computed?.warnings ?? [];
 
   let fera: FeraTwin | null = null;
   let feraSkipped: string | undefined;
@@ -132,8 +237,21 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   }
   const wtt = wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
+  warnings.push(...methodWarnings);
 
-  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, tdLoss, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
+  return {
+    ok: true,
+    entry: {
+      input: { ...input, activity_data_unit: unit },
+      factor,
+      computed,
+      fera,
+      tdLoss,
+      warnings,
+      site_country: ctx.site_country ?? null,
+      ...(feraSkipped ? { feraSkipped } : {}),
+    },
+  };
 };
 
 export interface AuditInfo {
@@ -171,7 +289,13 @@ export const insertEntry = async (
     total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
     gas_kg: entry.computed?.gas_kg ?? null,
     biogenic_kg: entry.computed?.biogenic_kg ?? null,
-    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
+    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null,
+    fx: entry.computed?.fx ?? null,
+    // S3-3: null on Scope 1 and Scope 2 rows, where a method means nothing.
+    method: entry.computed?.method ?? null,
+    dq: entry.computed?.dq ?? null,
+    data_type: entry.computed?.data_type ?? null,
+    is_estimate: input.is_estimate ?? false,
   });
   await repo.save(emission);
 
@@ -188,6 +312,7 @@ export const insertEntry = async (
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
       scope3_sub: entry.fera.scope3_sub,
+      ...twinQuality(entry.site_country, entry.fera.factor, input.period.date_of_reporting),
     });
     await repo.save(fera);
     emission.fera_linked_id = fera.pk_id;
@@ -210,6 +335,7 @@ export const insertEntry = async (
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.tdLoss.factor),
       scope3_sub: entry.tdLoss.scope3_sub,
+      ...twinQuality(entry.site_country, entry.tdLoss.factor, input.period.date_of_reporting),
     });
     await repo.save(tdLoss);
   }
@@ -374,7 +500,18 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     }
 
     // Totals (unit, spec fields).
-    const result = await prepareEntry(ctx, checks, { site_id: row.site_id, category_id: row.category_id, activity_data, activity_data_unit: row.activity_unit, period });
+    // S3-3: the row's own method, estimate flag and hand-judged quality ride along, so
+    // plan and commit store the same method, dq and is_estimate a typed entry would.
+    const result = await prepareEntry(ctx, checks, {
+      site_id: row.site_id,
+      category_id: row.category_id,
+      activity_data,
+      activity_data_unit: row.activity_unit,
+      period,
+      method: row.method ?? null,
+      is_estimate: row.is_estimate,
+      dq: row.dq ?? null,
+    });
     if (!result.ok) {
       errors.push(issue(result.issue.code, result.issue.message, result.issue.field));
     } else if (!result.entry.computed || result.entry.computed.activityValue <= 0) {

@@ -29,7 +29,7 @@ No repo code. The work is in the shared audit folder and runs against the ESG-li
    - S3-04 factors: new factors carry type, GWP, geography, dataset; snapshot copies them; `FACTOR_TYPE_MISMATCH` warns only (S3-2).
    - S3-05 method and DQ on every new Scope 3 row from every channel; backfill done (S3-3).
    - S3-06 integrity: `UNIT_REQUIRED`; historical import through the engine; `total_kgco2e` on every row (S3-4).
-   - S3-07 spend: `fx` stored and reproducible; `FX_RATE_FALLBACK`, `NO_DEFLATOR` (S3-5).
+   - S3-07 spend: `fx` stored and reproducible; `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `DEFLATOR_FALLBACK_YEAR` (S3-5).
    - S3-08 suppliers: supplier factor boundary `SUPPLIER_FACTOR_BOUNDARY`; hybrid allocation (S3-6).
    - S3-09 Cat 3: `scope3_sub` on twins; `WTT_ALREADY_IN_FACTOR`; no total moved without the PR list (S3-7, D6).
    - S3-10 transport, S3-11 travel and commuting, S3-12 sold products, S3-13 leased assets, franchises, investments: each form computes its golden cases through the API (S3-8 to S3-11).

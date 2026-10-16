@@ -20,4 +20,41 @@ function assertThrowawayDb() {
   }
 }
 
-module.exports = { assertThrowawayDb };
+/**
+ * A scratch database beside the throwaway one, for a suite that needs an empty
+ * database of its own (the audit probes run the calculation snapshot in one).
+ * Only `<DB_NAME>_<suffix>` is ever made or removed, after the same checks as
+ * assertThrowawayDb, so neither the throwaway database itself nor any other
+ * database on the server can be named here.
+ */
+function scratchDbName(suffix) {
+  assertThrowawayDb();
+  if (!/^[a-z0-9_]+$/.test(String(suffix || ""))) throw new Error(`scratch database suffix '${suffix}' must be [a-z0-9_]+`);
+  return `${process.env.DB_NAME}_${suffix}`;
+}
+
+async function onServer(Client, config, sql) {
+  const admin = new Client({ ...config, database: "postgres" });
+  await admin.connect();
+  try {
+    await admin.query(sql);
+  } finally {
+    await admin.end().catch(() => {});
+  }
+}
+
+/** Creates `<DB_NAME>_<suffix>` empty (removing a leftover from a crashed run first); returns its name. */
+async function createScratchDb(Client, config, suffix) {
+  const name = scratchDbName(suffix);
+  await onServer(Client, config, `DROP DATABASE IF EXISTS "${name}"`);
+  await onServer(Client, config, `CREATE DATABASE "${name}"`);
+  return name;
+}
+
+/** Removes `<DB_NAME>_<suffix>`; never throws. */
+async function dropScratchDb(Client, config, suffix) {
+  const name = scratchDbName(suffix);
+  await onServer(Client, config, `DROP DATABASE IF EXISTS "${name}"`).catch(() => {});
+}
+
+module.exports = { assertThrowawayDb, scratchDbName, createScratchDb, dropScratchDb };

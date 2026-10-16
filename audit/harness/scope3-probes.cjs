@@ -35,7 +35,15 @@ const SECRET = "audit-only-not-a-real-secret";
 // Dependencies come from the ESG-lite checkout under audit, so the harness
 // needs no node_modules of its own in the audit folder.
 const need = (name) => require(require.resolve(name, { paths: [ESG_DIR, __dirname] }));
-require(path.join(ESG_DIR, "ci/lib/throwaway-db.cjs")).assertThrowawayDb();
+const { assertThrowawayDb, createScratchDb, dropScratchDb } = require(path.join(ESG_DIR, "ci/lib/throwaway-db.cjs"));
+assertThrowawayDb();
+// Every server this harness starts (its own, and the golden snapshot's) runs
+// without the background jobs: the daily FX job fetches rates from the network
+// and fills fx_rate mid-run (which reads as probe residue), and the nightly
+// base-year check could raise a proposal under the S3-16 row. Rates a probe
+// needs are stored by the probe itself.
+process.env.FX_JOB_DISABLED = "true";
+process.env.SCOPE3_BASE_YEAR_JOB = "off";
 const { Client } = need("pg");
 const jwt = need("jsonwebtoken");
 
@@ -226,7 +234,25 @@ const scope3Migrations = () => Object.keys(packageScripts()).filter((name) => na
 // ------------------------------------------------------------- the fixture
 
 /** Ids of what this run created, removed at the end (and by TAG after a crash). */
-const made = { categories: [], factors: [], emissions: [], documents: [] };
+const made = { categories: [], factors: [], emissions: [], documents: [], users: [] };
+
+// The fixture has no Admin in company 2, so an Admin-only endpoint answers
+// company 2's Manager and User 403 on role alone and says nothing about tenant
+// isolation. S3-19 creates one through the API (and removes it at the end).
+const OTHER_ADMIN_EMAIL = "s3-16-probe-other-admin@example.invalid";
+async function otherAdmin(db) {
+  if (USERS.otherAdmin) return true;
+  const found = await db.query(`SELECT user_id FROM "user" WHERE email = $1`, [OTHER_ADMIN_EMAIL]);
+  let id = found.rows[0]?.user_id;
+  if (!id) {
+    const res = await call("POST", "/admin/users", "superadmin", { name: `${TAG} other admin`, email: OTHER_ADMIN_EMAIL, role: "Admin", site_id: 3 });
+    if (res.status !== 201) throw new Error(`POST /admin/users (company 2 Admin) answered ${res.status}: ${res.json?.message || ""}`);
+    id = res.json.user.user_id;
+  }
+  made.users.push(id);
+  USERS.otherAdmin = { userId: id, role: "Admin" };
+  return true;
+}
 
 const GHG_FACTOR_TYPE = { 1: "cradle_to_gate", 2: "cradle_to_gate", 3: "wtt", 4: "life_cycle", 5: "process", 6: "life_cycle", 7: "life_cycle", 8: "life_cycle", 9: "life_cycle", 10: "process", 11: "combustion", 12: "process", 13: "life_cycle", 14: "life_cycle", 15: "other" };
 
@@ -329,6 +355,28 @@ async function cleanup(db, startNotification) {
     await db.query(`DELETE FROM audit_log WHERE entity_type = 'category' AND entity_id = ANY($1::int[])`, [categories]).catch(() => {});
     await db.query(`DELETE FROM category WHERE category_id = ANY($1::int[])`, [categories]);
   }
+  // Rates the S3-07 probe stored (its own source tag, never a real day's rate).
+  if (await tableExists(db, "fx_rate")) await db.query(`DELETE FROM fx_rate WHERE source = $1`, [TAG]);
+  // The base year the S3-16 probe froze (only ever for a company that had
+  // none; its rationale is the tag) and the recalculations raised since.
+  if (await tableExists(db, "company_base_year")) {
+    const ours = await db.query(`SELECT id, company_id, created_at FROM company_base_year WHERE rationale = $1`, [TAG]);
+    for (const by of ours.rows) {
+      const events = await db.query(`SELECT id FROM recalculation_event WHERE company_id = $1 AND created_at >= $2`, [by.company_id, by.created_at]);
+      const ids = events.rows.map((x) => x.id);
+      await db.query(`DELETE FROM audit_log WHERE entity_type = 'scope3_recalculation' AND entity_id = ANY($1::int[])`, [ids]);
+      await db.query(`DELETE FROM audit_log WHERE entity_type = 'scope3_base_year' AND entity_id = $1`, [by.id]);
+      await db.query(`DELETE FROM recalculation_event WHERE id = ANY($1::int[])`, [ids]);
+      await db.query(`DELETE FROM company_base_year WHERE id = $1`, [by.id]);
+    }
+  }
+  const userTag = await db.query(`SELECT user_id FROM "user" WHERE email = $1`, [OTHER_ADMIN_EMAIL]);
+  const users = [...new Set([...made.users, ...userTag.rows.map((x) => x.user_id)])];
+  if (users.length) {
+    for (const table of ["user_categories", "user_sites"]) await db.query(`DELETE FROM "${table}" WHERE user_id = ANY($1::int[])`, [users]);
+    await db.query(`DELETE FROM "user" WHERE user_id = ANY($1::int[])`, [users]);
+  }
+  delete USERS.otherAdmin;
   if (startNotification !== undefined) {
     await db.query(`DELETE FROM notification WHERE id > $1`, [startNotification]).catch(() => {});
   }
@@ -336,15 +384,49 @@ async function cleanup(db, startNotification) {
   made.factors = [];
   made.emissions = [];
   made.documents = [];
+  made.users = [];
 }
 
-/** Row counts of every table: equal before and after a run, or the fixture was not cleaned. */
+const tableExists = async (db, name) =>
+  (await db.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`, [name])).rows.length > 0;
+
+/** Company `company`'s boundary row for category `n`, every column, or null. */
+async function boundaryRow(db, company, n) {
+  if (!(await tableExists(db, "company_scope3_category"))) return null;
+  const { rows } = await db.query(`SELECT * FROM company_scope3_category WHERE company_id = $1 AND ghg_category = $2`, [company, n]);
+  return rows[0] || null;
+}
+
+/**
+ * Puts a boundary row back exactly as `before` (every column) and removes the
+ * audit rows written for it since `auditFrom`. Returns what had changed, or null.
+ */
+async function restoreBoundaryRow(db, before, auditFrom) {
+  if (!before) return null;
+  const now = await boundaryRow(db, before.company_id, before.ghg_category);
+  const cols = Object.keys(before).filter((c) => c !== "id");
+  const changed = cols.filter((c) => JSON.stringify(now?.[c] ?? null) !== JSON.stringify(before[c] ?? null));
+  if (!changed.length) return null;
+  const sets = changed.map((c, i) => `"${c}" = $${i + 2}`).join(", ");
+  const values = changed.map((c) => (before[c] !== null && typeof before[c] === "object" && !(before[c] instanceof Date) ? JSON.stringify(before[c]) : before[c]));
+  await db.query(`UPDATE company_scope3_category SET ${sets} WHERE id = $1`, [before.id, ...values]);
+  await db.query(`DELETE FROM audit_log WHERE entity_type = 'scope3_boundary' AND entity_id = $1 AND id > $2`, [before.id, auditFrom]);
+  return changed.join(", ");
+}
+
+/**
+ * Row counts of every table, plus company 1's Cat 8 boundary row (the one the
+ * S3-03, S3-19 and S3-20 writes aim at): equal before and after a run, or the
+ * fixture was not cleaned.
+ */
 async function fingerprint(db) {
   const { rows } = await db.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`);
   const counts = {};
   for (const { tablename } of rows) {
     counts[tablename] = Number((await db.query(`SELECT count(*) AS n FROM "${tablename}"`)).rows[0].n);
   }
+  const cat8 = await boundaryRow(db, 1, 8);
+  if (cat8) counts["company_scope3_category (company 1, Cat 8)"] = JSON.stringify(cat8);
   return counts;
 }
 const diffCounts = (a, b) =>
@@ -386,19 +468,11 @@ function engineGolden() {
 /**
  * The golden suites seed their own companies, so they get a database of their
  * own: run in the probe's database they collide with the shared fixture. The
- * name keeps the ci_ prefix the throwaway guard insists on, and only a name
- * this function created (…_golden) is ever dropped (again when it is done).
+ * scratch database is `<DB_NAME>_golden`, made and removed by the guarded
+ * helpers in ci/lib/throwaway-db.cjs (they refuse any other name).
  */
 async function inGoldenDb(script) {
-  const name = `${process.env.DB_NAME}_golden`;
-  const admin = new Client(dbConfig("postgres"));
-  await admin.connect();
-  try {
-    await admin.query(`DROP DATABASE IF EXISTS "${name}"`);
-    await admin.query(`CREATE DATABASE "${name}"`);
-  } finally {
-    await admin.end().catch(() => {});
-  }
+  const name = await createScratchDb(Client, dbConfig(), "golden");
   const env = { ...process.env, DB_NAME: name };
   try {
     // The golden suite expects the schema already built, the way the CI job
@@ -407,10 +481,7 @@ async function inGoldenDb(script) {
     if (sync.status !== 0) return sync;
     return spawnSync(process.execPath, [script], { cwd: ESG_DIR, env, encoding: "utf8" });
   } finally {
-    const again = new Client(dbConfig("postgres"));
-    await again.connect();
-    await again.query(`DROP DATABASE IF EXISTS "${name}"`).catch(() => {});
-    await again.end().catch(() => {});
+    await dropScratchDb(Client, dbConfig(), "golden");
   }
 }
 
@@ -423,20 +494,37 @@ async function postCase(db, head, k, categoryId, monthOffset) {
     names[key] = `${TAG} ${k.id} ${key}`;
     await probeFactor(head, { categoryId, n: k.category, name: names[key], value: f.kgco2e_per_unit, unit: f.unit, year: factorYear });
   }
-  for (const [i, row] of k.rows.entries()) {
+  for (const [i, line] of postedLines(k).entries()) {
     // One month per row keeps two rows on one factor apart (no duplicate entry).
     const month = String(((monthOffset + i) % 12) + 1).padStart(2, "0");
     const res = await postEntry({
       categoryId,
       date: `${GOLDEN_YEAR}-${month}-${String(1 + Math.floor((monthOffset + i) / 12)).padStart(2, "0")}`,
-      name: names[row.factor],
-      value: row.quantity * (row.share ?? 1),
-      unit: row.unit,
+      name: names[line.factor],
+      value: line.value,
+      unit: line.unit,
     });
-    if (res.status !== 201) return { error: `row ${i} (${row.label}): POST /user/emissions answered ${res.status} ${res.json?.code || res.json?.message || ""}`.trim() };
+    if (res.status !== 201) return { error: `row ${i} (${line.label}): POST /user/emissions answered ${res.status} ${res.json?.code || res.json?.message || ""}`.trim() };
     ids.push(res.json.emission.pk_id);
   }
   return { ids };
+}
+
+/**
+ * The typed rows a case posts, one per factor. A plain row is quantity × its
+ * factor. An S3-6 row with `supplier` is the supplier's own figure × quantity
+ * (`supplier.factor`) plus each hybrid input line × its factor
+ * (`supplier.lines`): the same sum ci/unit/scope3-golden-cases.test.cjs
+ * checks. Like every case here it goes through the typed path, not the
+ * supplier method (finding 6 in scope3-probes.CLAUDE.md).
+ */
+function postedLines(k) {
+  return k.rows.flatMap((row) => {
+    if (!row.supplier) return [{ label: row.label, factor: row.factor, value: row.quantity * (row.share ?? 1), unit: row.unit }];
+    const own = row.supplier.factor ? [{ label: row.label, factor: row.supplier.factor, value: row.quantity * (row.share ?? 1), unit: row.unit }] : [];
+    const lines = (row.supplier.lines ?? []).map((l) => ({ label: `${row.label}: ${l.name}`, factor: l.factor, value: l.quantity, unit: l.unit }));
+    return [...own, ...lines];
+  });
 }
 
 async function storedKg(db, head, ids) {
@@ -478,6 +566,15 @@ async function liveGolden(db, head) {
       out.cases.push(entry);
       continue;
     }
+    if (k.proxy) {
+      // A proxy case (S3-12) is calculated by POST /scope3/extrapolate from
+      // source rows, not by a typed entry; this harness doesn't drive that
+      // endpoint yet, so the case is the in-memory engine figure only.
+      entry.result = "skip";
+      entry.why = `proxy case: calculated by POST /scope3/extrapolate, not posted live yet (engine: ${entry.engine || "not run"})`;
+      out.cases.push(entry);
+      continue;
+    }
     if (!k.category || !k.rows?.length || k.expected_kgco2e === null) {
       entry.result = "fail";
       entry.why = "run case without a category, rows or figures";
@@ -495,7 +592,7 @@ async function liveGolden(db, head) {
       out.cases.push(entry);
       continue;
     }
-    monthOffset += k.rows.length;
+    monthOffset += postedLines(k).length;
     if (posted.error) {
       entry.result = "fail";
       entry.why = posted.error;
@@ -644,14 +741,17 @@ async function runRows(db, head, golden, logs) {
     const failed = golden.cases.filter((c) => c.result === "fail");
     for (const c of failed) problems.push(`${c.id} (${c.owner}): ${c.why}`);
     for (const c of golden.report_cases.filter((x) => x.result === "fail")) problems.push(`${c.id} (${c.owner}): ${c.why}`);
-    const run = golden.cases.filter((c) => c.status === "run");
-    const skipped = golden.cases.filter((c) => c.result === "skip");
+    const engineOnly = golden.cases.filter((c) => c.status === "run" && c.result === "skip");
+    const run = golden.cases.filter((c) => c.status === "run" && c.result !== "skip");
+    const skipped = golden.cases.filter((c) => c.status !== "run" && c.result === "skip");
     const owed = [...new Set(skipped.map((c) => c.why.replace(/^waits for /, "")).flatMap((w) => w.split(", ")))].sort(byModule);
     if (problems.length) return r.fail(problems.join("; "));
     const reports = golden.report_cases.filter((c) => c.result === "pass").length;
     return r.pass(
       `snapshot identical; ${golden.engine.summary.replace(/\.$/, "")}; live API: ${run.length} run case(s) pass` +
-        `${reports ? `, ${reports} report case(s) pass` : ""}; ${skipped.length} skip, owed by ${owed.join(", ") || "nobody"}`,
+        `${reports ? `, ${reports} report case(s) pass` : ""}` +
+        `${engineOnly.length ? `; ${engineOnly.length} proxy case(s) engine-only (${engineOnly.map((c) => c.id).join(", ")})` : ""}` +
+        `; ${skipped.length} skip, owed by ${owed.join(", ") || "nobody"}`,
     );
   });
 
@@ -689,11 +789,26 @@ async function runRows(db, head, golden, logs) {
     const reasonless = rows.filter((row) => Number(row.reasonless) > 0);
     if (short.length) return r.fail(`company ${short[0].company_id} has ${short[0].rows} boundary row(s), not 15`);
     if (reasonless.length) return r.fail(`company ${reasonless[0].company_id} excludes a category with no reason`);
-    const noReason = await call("PUT", "/scope3/categories/8", "admin", { status: "excluded", reason: "  " });
-    if (noReason.status !== 400 || noReason.json?.code !== "EXCLUSION_REASON_REQUIRED") return r.fail(`an exclusion with no reason answered ${noReason.status} ${noReason.json?.code || ""}, expected 400 EXCLUSION_REASON_REQUIRED`);
-    const guarded = await call("PUT", "/scope3/categories/8", "manager", { status: "excluded", reason: TAG });
-    if (guarded.status !== 403) return r.fail(`Manager PUT answered ${guarded.status}, expected 403 (D12)`);
-    return r.pass(`${rows.length} company boundary(ies) of 15 rows, every exclusion with a reason; EXCLUSION_REASON_REQUIRED; Manager PUT 403`);
+    // Both PUTs below must be refused; if either is not, it wrote company 1's
+    // Cat 8 row, which is put back exactly as found (also on a throw) and the
+    // write is reported. The residue check compares this row too.
+    const before = await boundaryRow(db, 1, 8);
+    const auditFrom = Number((await db.query(`SELECT coalesce(max(id), 0) AS n FROM audit_log`)).rows[0].n);
+    let wrote = null;
+    let refused = null;
+    try {
+      const noReason = await call("PUT", "/scope3/categories/8", "admin", { status: "excluded", reason: "  " });
+      if (noReason.status !== 400 || noReason.json?.code !== "EXCLUSION_REASON_REQUIRED") refused = `an exclusion with no reason answered ${noReason.status} ${noReason.json?.code || ""}, expected 400 EXCLUSION_REASON_REQUIRED`;
+      else {
+        const guarded = await call("PUT", "/scope3/categories/8", "manager", { status: "excluded", reason: TAG });
+        if (guarded.status !== 403) refused = `Manager PUT answered ${guarded.status}, expected 403 (D12)`;
+      }
+    } finally {
+      wrote = await restoreBoundaryRow(db, before, auditFrom);
+    }
+    const restored = wrote ? `company 1's Cat 8 boundary row was changed (${wrote}) and has been restored` : null;
+    if (refused || restored) return r.fail([refused, restored].filter(Boolean).join("; "));
+    return r.pass(`${rows.length} company boundary(ies) of 15 rows, every exclusion with a reason; EXCLUSION_REASON_REQUIRED; Manager PUT 403; Cat 8 row unchanged`);
   });
 
   await needs("S3-04", "Factors carry their metadata and the snapshot copies it", "factor_type, gwp_set, geography, dataset on new factors; the row snapshot copies them; FACTOR_TYPE_MISMATCH warns only", ["emission_factors.factor_type", "category.ghg_category"], async (r) => {
@@ -756,15 +871,77 @@ async function runRows(db, head, golden, logs) {
       : r.fail(`${rows[0].missing} of ${rows[0].n} row(s) carry no total_kgco2e`);
   });
 
-  await needs("S3-07", "Spend-based rows are reproducible", "fx stored with rate and date; FX_RATE_FALLBACK and NO_DEFLATOR warn", ["emission.fx", "fx_rate"], async (r) => {
-    const { rows } = await db.query(
-      `SELECT count(*) AS spend, count(*) FILTER (WHERE fx IS NULL OR fx->>'rate' IS NULL OR fx->>'as_of' IS NULL) AS unreproducible
-         FROM emission WHERE method = 'spend_based'`,
+  await needs("S3-07", "Spend-based rows are reproducible", "fx stored with rate and date; FX_RATE_FALLBACK, NO_DEFLATOR and DEFLATOR_FALLBACK_YEAR warn", ["emission.fx", "fx_rate", "emission.method"], async (r) => {
+    // Typed spend rows on a probe EEIO factor (USD, price year = the first US
+    // index stored), each read back and recomputed from what the row stored.
+    const idx = await db.query(`SELECT year, "index"::float8 AS i FROM price_deflator WHERE country = 'US' ORDER BY year`);
+    if (idx.rows.length < 2) return r.fail(`price_deflator holds ${idx.rows.length} US index year(s); migrate:scope3-spend seeds the CPI-U series`);
+    const index = Object.fromEntries(idx.rows.map((x) => [x.year, x.i]));
+    const base = idx.rows[0].year;
+    const exactYear = base + 1;
+    const lateYear = idx.rows[idx.rows.length - 1].year + 1; // after the latest published index
+    const INR_PER_USD = 80;
+    const rateDay = `${exactYear}-03-10`;
+    const near = await db.query(
+      `SELECT 1 FROM fx_rate WHERE currency = 'INR' AND date BETWEEN $1::date - 7 AND $1::date AND source <> $2`,
+      [`${exactYear}-06-10`, TAG],
     );
-    if (Number(rows[0].spend) === 0) return r.manual("S3-5 is built but this database holds no spend-based row; ex-1.5 and ex-4.4 run through S3-01");
-    return Number(rows[0].unreproducible) === 0
-      ? r.pass(`${rows[0].spend} spend row(s), each with its fx rate and date`)
-      : r.fail(`${rows[0].unreproducible} spend row(s) with no usable fx`);
+    await db.query(`INSERT INTO fx_rate (currency, date, rate_to_usd, source) VALUES ('INR', $1, $2, $3) ON CONFLICT (currency, date) DO NOTHING`, [rateDay, INR_PER_USD, TAG]);
+    const stored = await db.query(`SELECT rate_to_usd::float8 AS r FROM fx_rate WHERE currency = 'INR' AND date = $1`, [rateDay]);
+    const inrPerUsd = stored.rows[0].r;
+
+    const cat1 = await probeCategory(db, head, 1);
+    const name = `${TAG} spend sector`;
+    const FACTOR = 0.5; // kgCO₂e per USD at the price year
+    const years = [...new Set([exactYear, base - 1, lateYear <= new Date().getUTCFullYear() ? lateYear : null].filter(Boolean))];
+    for (const y of years) {
+      await probeFactor(head, { categoryId: cat1, n: 1, name, value: FACTOR, unit: "USD", year: y - 1, type: "eeio_spend", extra: { price_currency: "USD", price_base_year: base } });
+    }
+    const spend = async (date, amount, currency, invoice) => {
+      const res = await call("POST", "/user/emissions", "user", {
+        site_id: SITE,
+        category_id: cat1,
+        date_of_reporting: date,
+        activity_data: { emission_category: name, "@method": "spend_based", spent_value: String(amount), currency },
+        extra_data: { invoice_date: invoice },
+      });
+      if (res.status === 201) made.emissions.push(res.json.emission.pk_id);
+      return res;
+    };
+    const problems = [];
+    const seen = [];
+    const check = async (label, res, { warn, expectKg }) => {
+      if (res.status !== 201) return problems.push(`${label}: POST /user/emissions answered ${res.status} ${res.json?.code || res.json?.message || ""}`.trim());
+      const codes = (res.json.warnings || []).map((w) => w.code);
+      const row = (await db.query(`SELECT method, fx, total_kgco2e::float8 AS kg FROM emission WHERE pk_id = $1`, [res.json.emission.pk_id])).rows[0];
+      const fx = row.fx || {};
+      if (row.method !== "spend_based") problems.push(`${label}: stored method ${row.method}, expected spend_based`);
+      if (!(Number(fx.rate) > 0) || !fx.as_of) return problems.push(`${label}: fx stored without a rate and a date (${JSON.stringify(row.fx)})`);
+      if (Math.abs(row.kg - expectKg(Number(fx.rate))) > 0.001) problems.push(`${label}: stored ${row.kg} kg, the stored fx and indexes give ${expectKg(Number(fx.rate)).toFixed(4)}`);
+      for (const code of ["FX_RATE_FALLBACK", "NO_DEFLATOR", "DEFLATOR_FALLBACK_YEAR"]) {
+        if (code === warn && !codes.includes(code)) problems.push(`${label}: warnings [${codes.join(", ")}], expected ${code}`);
+        if (code !== warn && codes.includes(code)) problems.push(`${label}: unexpected ${code}`);
+      }
+      seen.push(`${label} ${warn || "no warning"}`);
+      return row;
+    };
+
+    // INR on a day with a stored rate: converted at it, deflated to the price year.
+    const exact = await spend(`${exactYear}-03-15`, 80000, "INR", rateDay);
+    const exactRow = await check("INR on a stored day", exact, { expectKg: (rate) => 80000 * rate * (index[base] / index[exactYear]) * FACTOR });
+    if (exactRow && Math.abs(Number(exactRow.fx.rate) - 1 / inrPerUsd) > 1e-9) problems.push(`INR on a stored day: fx.rate ${exactRow.fx.rate}, the stored rate gives ${1 / inrPerUsd}`);
+    if (exactRow && String(exactRow.fx.as_of).slice(0, 10) !== rateDay) problems.push(`INR on a stored day: fx.as_of ${exactRow.fx.as_of}, expected ${rateDay}`);
+    // INR three months after the last stored rate: the latest rate, flagged.
+    if (near.rows.length) seen.push("FX_RATE_FALLBACK not tried (this database stores an INR rate that week)");
+    else await check("INR with no rate that week", await spend(`${exactYear}-06-15`, 80000, "INR", `${exactYear}-06-10`), { warn: "FX_RATE_FALLBACK", expectKg: (rate) => 80000 * rate * (index[base] / index[exactYear]) * FACTOR });
+    // USD before the first index year: not deflated, flagged.
+    await check("USD before the first index", await spend(`${base - 1}-05-15`, 1000, "USD", `${base - 1}-05-15`), { warn: "NO_DEFLATOR", expectKg: () => 1000 * FACTOR });
+    // USD after the latest index: the latest index stands in, flagged.
+    if (years.includes(lateYear)) {
+      const latest = idx.rows[idx.rows.length - 1].year;
+      await check(`USD in ${lateYear}`, await spend(`${lateYear}-01-15`, 1000, "USD", `${lateYear}-01-15`), { warn: "DEFLATOR_FALLBACK_YEAR", expectKg: () => 1000 * (index[base] / index[latest]) * FACTOR });
+    } else seen.push(`DEFLATOR_FALLBACK_YEAR not tried (${lateYear} has not started)`);
+    return problems.length ? r.fail(`${problems.join("; ")} (held: ${seen.join("; ") || "nothing"})`) : r.pass(`spend rows store fx with rate and date and recompute from it: ${seen.join("; ")}`);
   });
 
   await needs("S3-08", "Supplier figures and hybrid allocation", "SUPPLIER_FACTOR_BOUNDARY on a wrong boundary; hybrid allocates by the chosen key", ["supplier", "emission.supplier_id"], async (r) =>
@@ -864,7 +1041,7 @@ async function runRows(db, head, golden, logs) {
       R3: every((x) => "biogenic_tco2e" in x),
       R4: every((x) => typeof x.status === "string" && Array.isArray(x.mapped_categories)),
       R5: rows.filter((x) => ["excluded", "not_relevant"].includes(x.status)).every((x) => String(x.reason || "").trim()),
-      R6: true, // the base-year block, in the PDF (S3-14 fills it)
+      // R6 (base year) is a PDF block only; checked below against GET /scope3/base-year.
       R7: every((x) => x.biogenic_tco2e === null || typeof x.biogenic_tco2e === "number") && (t.biogenic || cat.every((x) => x.biogenic_tco2e === null)),
       R8: every((x) => Array.isArray(x.datasets) && Array.isArray(x.gwp_sets) && x.dq && typeof x.dq === "object"),
       R9: every((x) => x.methods && typeof x.methods === "object" && "method_note" in x),
@@ -892,13 +1069,22 @@ async function runRows(db, head, golden, logs) {
     if (!text) {
       const { scope3Blocks } = require(path.join(ESG_DIR, "dist/reporting/ghg-scope3.js"));
       text = JSON.stringify(scope3Blocks(body, null, "S3-16 probe"));
-      source = `the PDF's Scope 3 blocks from dist (PDF answered ${pdf.status}; no browser on this host)`;
+      source = `the PDF's Scope 3 blocks from dist (${pdf.status === 200 ? "PDF rendered, but no pdftotext on this host" : `PDF answered ${pdf.status}: no browser on this host`})`;
+    }
+    // null: not known (S3-14 not built or not readable); false: no base year set; else the year.
+    let baseYear = null;
+    if (head.get("GET /scope3/base-year")) {
+      const by = await call("GET", "/scope3/base-year", "admin");
+      if (by.status === 200) baseYear = by.json?.base_year ? Number(by.json.base_year.base_year ?? by.json.base_year) : false;
     }
     const pdfItems = {
       R1: source === "PDF text" ? /Scope 1/.test(text) && /Scope 2/.test(text) : null,
       R2: /Scope 3 by category/i.test(text),
       R5: /(Excluded|not relevant)/i.test(text),
-      R6: /base year/i.test(text),
+      // The base-year block says what GET /scope3/base-year says. Only the
+      // rendered PDF carries the stored base year (the dist blocks are built
+      // here with none), so without it R6 is read by hand, never assumed.
+      R6: source !== "PDF text" ? null : baseYear === null ? null : baseYear ? new RegExp(`Scope 3 base year ${baseYear}`).test(text) : /No Scope 3 base year set/i.test(text),
       R7: /Biogenic/i.test(text) && (t.biogenic || /Not tracked/.test(text)),
       R8: /Data quality/i.test(text) && /(dataset|GWP|AR\d)/i.test(text),
       R9: /Methodology/i.test(text),
@@ -906,15 +1092,63 @@ async function runRows(db, head, golden, logs) {
     };
     const missingPdf = Object.entries(pdfItems).filter(([, ok]) => ok === false).map(([k]) => k);
     if (missingPdf.length) return r.fail(`${source} lacks ${missingPdf.join(", ")}`);
-    return r.pass(
+    const unread = Object.entries(pdfItems).filter(([, ok]) => ok === null).map(([k]) => k);
+    const held =
       `JSON: 15 categories + Unmapped carry R2-R5 and R7-R10${notTracked.length ? `; Not tracked: ${notTracked.join(", ")}` : ""}; ` +
-        `${source}: ${Object.entries(pdfItems).filter(([, ok]) => ok).map(([k]) => k).join(", ")}${pdfItems.R1 === null ? " (R1 is the KPI row of the rendered PDF, not in these blocks)" : ""}`,
-    );
+      `${source}: ${Object.entries(pdfItems).filter(([, ok]) => ok).map(([k]) => k).join(", ")}`;
+    // R1 (KPI row) and R6 (base year) live only in the rendered PDF: a row that
+    // could not read them is manual, not a pass.
+    if (unread.length) return r.manual(`${held}; ${unread.join(" and ")} not read: they are in the rendered PDF only (needs Chromium and pdftotext on this host${baseYear === null ? "; R6 also needs S3-14's GET /scope3/base-year" : ""})`);
+    return r.pass(held);
   });
 
-  await needs("S3-16", "Base year freezes and re-freezes", "a freeze, a proposal at or above the threshold, approval re-freezes, rows untouched", ["company_base_year", "GET /scope3/base-year"], async (r) =>
-    r.manual("S3-14 is built; walk freeze, proposal and re-freeze until this row learns the base-year API"),
-  );
+  await needs("S3-16", "Base year freezes and re-freezes", "a freeze, a proposal at or above the threshold, approval re-freezes, rows untouched", ["company_base_year", "GET /scope3/base-year"], async (r) => {
+    // Company 1 freezes the golden year (its rows are approved by now), a late
+    // approved row moves it by about 20 %, and the Admin approves the proposal.
+    // A company that already has a base year is never touched.
+    if ((await db.query(`SELECT 1 FROM company_base_year WHERE company_id = 1`)).rows.length) {
+      return r.manual("company 1 already has a Scope 3 base year, which the probe never overwrites; walk freeze, proposal and re-freeze by hand");
+    }
+    const preview = await call("GET", `/scope3/base-year/preview?base_year=${GOLDEN_YEAR}`, "admin");
+    if (preview.status !== 200) return r.fail(`preview of ${GOLDEN_YEAR} answered ${preview.status} ${preview.json?.code || ""}`.trim());
+    const manager = await call("PUT", "/scope3/base-year", "manager", { base_year: GOLDEN_YEAR, rationale: TAG });
+    if (manager.status !== 403) return r.fail(`Manager PUT /scope3/base-year answered ${manager.status}, expected 403 (D12)`);
+    const freeze = await call("PUT", "/scope3/base-year", "admin", { base_year: GOLDEN_YEAR, rationale: TAG, significance_pct: 5 });
+    if (freeze.status !== 200) return r.fail(`Admin freeze answered ${freeze.status} ${freeze.json?.code || ""}`.trim());
+    const snap = freeze.json.snapshot || {};
+    if (snap.version !== 1 || snap.total_tco2e !== preview.json.total_tco2e) {
+      return r.fail(`freeze stored version ${snap.version}, ${snap.total_tco2e} t; the preview showed ${preview.json.total_tco2e} t (expected version 1)`);
+    }
+    if (!(snap.total_tco2e > 0)) return r.fail(`the frozen ${GOLDEN_YEAR} total is ${snap.total_tco2e} t; the golden rows should be in it`);
+
+    const lateKg = Math.round(snap.total_tco2e * 1000 * 0.2);
+    const cat = await probeCategory(db, head, 2);
+    const name = `${TAG} late base-year row`;
+    await probeFactor(head, { categoryId: cat, n: 2, name, value: 1, unit: "kgco2e", year: GOLDEN_YEAR - 1, type: "other" });
+    const late = await postEntry({ categoryId: cat, date: `${GOLDEN_YEAR}-12-28`, name, value: lateKg, unit: "kgco2e" });
+    if (late.status !== 201) return r.fail(`the late ${GOLDEN_YEAR} row answered ${late.status} ${late.json?.code || ""}`.trim());
+    await approve([late.json.emission.pk_id]);
+
+    const open = await call("GET", "/scope3/recalculations?status=proposed", "admin");
+    const events = open.json?.events || [];
+    if (open.status !== 200 || events.length !== 1) return r.fail(`after a ~20 % late row, GET /scope3/recalculations?status=proposed answered ${open.status} with ${events.length} proposal(s), expected 1`);
+    const p = events[0];
+    if (!(Math.abs(p.delta_pct) >= 5)) return r.fail(`the proposal moves the base year ${p.delta_pct} %, below the 5 % threshold it was raised for`);
+    const noReason = await call("POST", "/scope3/recalculations", "admin", { note: TAG });
+    if (noReason.status !== 400 || noReason.json?.code !== "RECALCULATION_REASON_REQUIRED") return r.fail(`approve with no reason answered ${noReason.status} ${noReason.json?.code || ""}, expected 400 RECALCULATION_REASON_REQUIRED`);
+    const byManager = await call("POST", "/scope3/recalculations", "manager", { reason: p.reason });
+    if (byManager.status !== 403) return r.fail(`Manager approve answered ${byManager.status}, expected 403`);
+
+    const rowsBefore = (await db.query(`SELECT count(*)::int AS n, coalesce(sum(total_kgco2e), 0)::text AS kg, max(updated_at)::text AS at FROM emission`)).rows[0];
+    const ok = await call("POST", "/scope3/recalculations", "admin", { reason: p.reason, note: TAG });
+    const rowsAfter = (await db.query(`SELECT count(*)::int AS n, coalesce(sum(total_kgco2e), 0)::text AS kg, max(updated_at)::text AS at FROM emission`)).rows[0];
+    if (ok.status !== 200) return r.fail(`Admin approve answered ${ok.status} ${ok.json?.code || ""}`.trim());
+    const refrozen = ok.json.base_year?.snapshot || {};
+    const want = Math.round((snap.total_tco2e * 1000 + lateKg) / 10) / 100;
+    if (refrozen.version !== 2 || Math.abs(refrozen.total_tco2e - want) > 0.011) return r.fail(`approval re-froze version ${refrozen.version} at ${refrozen.total_tco2e} t, expected version 2 at about ${want} t`);
+    if (JSON.stringify(rowsBefore) !== JSON.stringify(rowsAfter)) return r.fail(`approval touched emission rows: ${JSON.stringify(rowsBefore)} → ${JSON.stringify(rowsAfter)}`);
+    return r.pass(`froze ${GOLDEN_YEAR} at ${snap.total_tco2e} t (as previewed; Manager 403); a ${p.delta_pct} % late row raised one ${p.reason} proposal; no reason → RECALCULATION_REASON_REQUIRED, Manager 403; approval re-froze version 2 at ${refrozen.total_tco2e} t with emission rows untouched`);
+  });
 
   await needs("S3-17", "Review checks hold and release rows", "every pending row carries checks of the §8 ids; ready filter and counts; \"approve all ready\" approves only ready rows", ["emission.checks"], async (r) => {
     const { rows } = await db.query(
@@ -950,16 +1184,19 @@ async function runRows(db, head, golden, logs) {
     const built = ISOLATION.filter((e) => !missing(head, e.needs));
     const owed = [...new Set(ISOLATION.filter((e) => missing(head, e.needs)).map((e) => missing(head, e.needs)))].join(", ");
     if (!built.length) return r.na(`S3-1, S3-9 to S3-15 (no Scope 3 endpoint is mounted yet)`);
+    await otherAdmin(db);
     const leaks = [];
     for (const e of built) {
-      for (const who of ["otherManager", "otherUser"]) {
-        const res = await call(e.method, e.route, who, e.body);
-        if (![403, 404].includes(res.status)) leaks.push(`${e.method} ${e.route} as ${who} answered ${res.status}`);
+      // company_id=1 on the query too, so a write route that reads it there is asked for company 1.
+      const route = /company_id=|^\/company\/|^\/reports\//.test(e.route) ? e.route : `${e.route}${e.route.includes("?") ? "&" : "?"}company_id=1`;
+      for (const who of ["otherManager", "otherUser", "otherAdmin"]) {
+        const res = await call(e.method, route, who, e.body);
+        if (![403, 404].includes(res.status)) leaks.push(`${e.method} ${route} as ${who} answered ${res.status}`);
       }
     }
     return leaks.length
       ? r.fail(leaks.join("; "))
-      : r.pass(`${built.length} endpoint(s) × 2 company 2 tokens answer 403/404${owed ? `; not built yet: ${owed}` : ""}`);
+      : r.pass(`${built.length} endpoint(s) × company 2's Manager, User and Admin answer 403/404${owed ? `; not built yet: ${owed}` : ""}`);
   });
 
   await probe("S3-20", "The role matrix holds", "User, Manager, Admin and Superadmin per D12, layer rule 3 and each module's roles", async (r) => {
@@ -1046,6 +1283,10 @@ const ISOLATION = [
   { method: "GET", route: `/reports/ghg/scope3?siteIds=${SITE}&year=2025`, needs: ["GET /reports/ghg/scope3"] },
   { method: "GET", route: `/reports/ghg/scope3/1?siteIds=${SITE}&year=2025`, needs: ["GET /reports/ghg/scope3"] },
   { method: "GET", route: "/scope3/base-year?company_id=1", needs: ["GET /scope3/base-year"] },
+  { method: "GET", route: `/scope3/base-year/preview?company_id=1&base_year=${GOLDEN_YEAR}`, needs: ["GET /scope3/base-year"] },
+  { method: "PUT", route: "/scope3/base-year?company_id=1", body: { company_id: 1, base_year: "x" }, needs: ["GET /scope3/base-year"] },
+  { method: "GET", route: "/scope3/recalculations?company_id=1", needs: ["GET /scope3/base-year"] },
+  { method: "POST", route: "/scope3/recalculations?company_id=1", body: { company_id: 1 }, needs: ["GET /scope3/base-year"] },
   { method: "GET", route: "/periods/lock?company_id=1&year=2025&month=1", needs: ["GET /periods/lock"] },
   { method: "POST", route: "/periods/lock", body: { company_id: 1, site_id: SITE, year: 2025, month: 13 }, needs: ["GET /periods/lock"] },
   { method: "POST", route: "/periods/unlock", body: { company_id: 1, site_id: SITE, year: 2025, month: 1, reason: "" }, needs: ["GET /periods/lock"] },

@@ -1,4 +1,5 @@
 import type { Scope3Sub } from "../scope3/contracts/ghgCategory";
+import type { EmissionFx } from "../scope3/spend/types";
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -12,6 +13,8 @@ import {
 import { Category } from "./Category";
 import { Site } from "./Site";
 import { User } from "./User";
+import type { Method } from "../scope3/contracts/ghgCategory";
+import type { Dq, DataType } from "../scope3/contracts/dq";
 import type { RowChecks } from "../scope3/contracts/checks";
 import type { Gas } from "../scope3/contracts/factor";
 
@@ -108,6 +111,13 @@ export class Emission {
   @Column({ type: "jsonb", nullable: true, insert: false, update: false })
   checks!: RowChecks | null;
 
+  // S3-5 · the exchange rate a spend row used (migrate:scope3-spend):
+  // `rate` converts 1 `currency` into the factor's currency `to`, on `as_of`.
+  // Stored so the figure can be reproduced in any later year; null on rows
+  // that weren't calculated from an amount spent.
+  @Column({ type: "jsonb", nullable: true })
+  fx!: EmissionFx | null;
+
   // Snapshot of the emission factor used at creation time
   // Ensures factor details are always available even if the factor is later deleted/renamed
   @Column({ type: "jsonb", nullable: true })
@@ -134,4 +144,22 @@ export class Emission {
 
   @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
   biogenic_kg!: string | null;
+
+  // S3-3 · how the row was calculated and how good its data is
+  // (docs/scope3/01-contracts.md §3, migrate:scope3-row-quality). The types
+  // come from the S3-0 contracts, never redefined here (00-plan §2.2).
+  // Scope 1 and Scope 2 rows carry no method; legacy Scope 3 rows the backfill
+  // could not place carry 'average_data'.
+  @Column({ type: "varchar", length: 40, nullable: true })
+  method!: Method | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  dq!: Dq | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  data_type!: DataType | null;
+
+  // For example a distance the route helper worked out rather than one entered.
+  @Column({ type: "boolean", default: false })
+  is_estimate!: boolean;
 }
