@@ -1,3 +1,4 @@
+import type { Scope3Sub } from "../scope3/contracts/ghgCategory";
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -86,6 +87,12 @@ export class Emission {
 
   @Column({ nullable: true })
   fera_linked_id!: number;
+
+  // S3-7: the Category 3 sub-activity of a FERA twin (3a_upstream_fuels,
+  // 3b_upstream_electricity, 3c_td_losses); null on every other row.
+  // migrate:scope3-fera-sub adds it and backfills existing twins.
+  @Column({ type: "varchar", length: 32, nullable: true })
+  scope3_sub!: Scope3Sub | null;
 
   @Index()
   @Column({ nullable: true })

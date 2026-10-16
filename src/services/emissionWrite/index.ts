@@ -22,6 +22,7 @@ import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../
 import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
 import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
+import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
@@ -53,9 +54,14 @@ export interface PreparedEntry {
   factor: EmissionFactor | null;
   computed: Computed | null;
   fera: FeraTwin | null;
-  /** Never block (01-contracts §7): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING. Typed entries return them too (S3-4). */
+  /** S3-7: the Category 3 T&D-loss twin of a Scope 2 row (3c), linked to the parent one way. */
+  tdLoss: FeraTwin | null;
+  /**
+   * Never block (01-contracts §7): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING (S3-4),
+   * FACTOR_TYPE_MISMATCH, WTT_ALREADY_IN_FACTOR (S3-7). Typed entries return them too.
+   */
   warnings: EngineIssue[];
-  /** When FERA applies but no twin was made: why (an edit puts it on the twin it can't recalculate). */
+  /** When FERA applies but no 3a/3b twin was made: why (an edit puts it on the twin it can't recalculate). */
   feraSkipped?: string;
 }
 
@@ -95,20 +101,24 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
 
   let fera: FeraTwin | null = null;
   let feraSkipped: string | undefined;
+  let tdLoss: FeraTwin | null = null;
   if (activity_data.emission_category) {
     fera = feraTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
-    if (fera) {
-      const conflict = await checks.modeLock(input.site_id, fera.category_id, input.period);
+    tdLoss = tdLossTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
+    const twinCategory = fera?.category_id ?? tdLoss?.category_id;
+    if (twinCategory) {
+      const conflict = await checks.modeLock(input.site_id, twinCategory, input.period);
       if (conflict) {
-        fera = null; // the twin respects the lock on its own category; skipped, never fatal
-        feraSkipped = `the FERA category is filed ${conflict.conflicting_period} for this period`;
+        // The twins respect the lock on their own category; skipped, never fatal.
+        if (fera) feraSkipped = `the FERA category is filed ${conflict.conflicting_period} for this period`;
+        fera = tdLoss = null;
       }
-    } else {
-      feraSkipped = feraGap(ctx, activity_data.emission_category, unit, targetYear) ?? undefined;
     }
-    // FERA applies (the site has it and the activity has FERA factors) but no twin was made: say why,
-    // never silently (S3-4): no factor for the year, a unit that doesn't convert (LSHS per litre vs a
-    // FERA factor per kWh), or the FERA category filed the other way.
+    if (!fera && !feraSkipped) feraSkipped = feraGap(ctx, activity_data.emission_category, unit, targetYear) ?? undefined;
+    // FERA applies (the site has it and the activity has upstream FERA factors) but no 3a/3b twin was
+    // made: say why, never silently (S3-4): no factor for the year, a unit that doesn't convert (LSHS
+    // per litre vs a FERA factor per kWh), or the FERA category filed the other way. A missing td_loss
+    // factor (3c) is normal and raises nothing (S3-7).
     if (feraSkipped) {
       const name = activity_data.emission_category;
       warnings.push({
@@ -118,9 +128,12 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
           : `No fuel- and energy-related (Category 3) row was added: ${feraSkipped}.`,
       });
     }
+    for (const w of [feraFactorTypeWarning(fera), feraFactorTypeWarning(tdLoss)]) if (w) warnings.push(w);
   }
+  const wtt = wttDoubleCountWarning(ctx, factor);
+  if (wtt) warnings.push(wtt);
 
-  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
+  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, tdLoss, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
 };
 
 export interface AuditInfo {
@@ -136,7 +149,7 @@ export const insertEntry = async (
   batch: BatchInfo | null,
   audit: AuditInfo | null,
   opts: { deferChecks?: boolean } = {},
-): Promise<{ emission: Emission; fera: Emission | null }> => {
+): Promise<{ emission: Emission; fera: Emission | null; tdLoss: Emission | null }> => {
   const repo = tx.getRepository(Emission);
   const { input } = entry;
   const base = {
@@ -170,15 +183,34 @@ export const insertEntry = async (
       total_kgco2e: entry.fera.total_kgco2e,
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
+      scope3_sub: entry.fera.scope3_sub,
     });
     await repo.save(fera);
     emission.fera_linked_id = fera.pk_id;
     await repo.save(emission);
   }
 
+  // S3-7: the T&D-loss twin points at its parent only (the parent's own link
+  // stays on the upstream twin), so it approves, rejects and deletes with the
+  // parent through the reverse link.
+  let tdLoss: Emission | null = null;
+  if (entry.tdLoss) {
+    tdLoss = repo.create({
+      ...base,
+      category: { category_id: entry.tdLoss.category_id },
+      activity_data: input.activity_data,
+      total_emission: entry.tdLoss.total,
+      total_kgco2e: entry.tdLoss.total_kgco2e,
+      fera_linked_id: emission.pk_id,
+      emission_factor_snapshot: factorSnapshot(entry.tdLoss.factor),
+      scope3_sub: entry.tdLoss.scope3_sub,
+    });
+    await repo.save(tdLoss);
+  }
+
   if (audit) {
     const auditRepo = tx.getRepository(AuditLog);
-    for (const row of [emission, fera]) {
+    for (const row of [emission, fera, tdLoss]) {
       if (!row) continue;
       await auditRepo.save(
         auditRepo.create({
@@ -193,8 +225,8 @@ export const insertEntry = async (
     }
   }
   // S3-15 review checks; insertRows defers them and refreshes the whole batch once.
-  if (!opts.deferChecks) await refreshChecksSafely(tx, fera ? [emission.pk_id, fera.pk_id] : [emission.pk_id]);
-  return { emission, fera };
+  if (!opts.deferChecks) await refreshChecksSafely(tx, [emission.pk_id, ...(fera ? [fera.pk_id] : []), ...(tdLoss ? [tdLoss.pk_id] : [])]);
+  return { emission, fera, tdLoss };
 };
 
 // ---------------------------------------------------------------------------
@@ -343,7 +375,7 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
       errors.push(issue("MISSING_VALUE", "No quantity greater than 0 was found for this row.", "activity_value"));
     } else {
       // FACTOR_FALLBACK_YEAR is already on the row from the resolution above.
-      for (const w of result.entry.warnings) if (w.code === "FERA_FACTOR_MISSING") issues.push(issue(w.code, w.message));
+      for (const w of result.entry.warnings) if (w.code !== "FACTOR_FALLBACK_YEAR") issues.push(issue(w.code, w.message, w.field));
     }
 
     // Duplicates: saved rows (monthly only, as a yearly batch has many rows per activity) and this plan.
@@ -384,7 +416,8 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
         activity_unit: computed.activity_unit,
         conversion: computed.conversion,
         total_tco2e: computed.total,
-        fera: entry.fera ? { category_id: entry.fera.category_id, total_tco2e: entry.fera.total } : undefined,
+        fera: entry.fera ? { category_id: entry.fera.category_id, total_tco2e: entry.fera.total, scope3_sub: entry.fera.scope3_sub } : undefined,
+        td_loss: entry.tdLoss ? { category_id: entry.tdLoss.category_id, total_tco2e: entry.tdLoss.total } : undefined,
         reporting_date: period.date_of_reporting,
         reporting_period: period.reporting_period,
         year_type: period.year_type ?? undefined,
@@ -431,7 +464,8 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     .filter((p, i) => {
       const r = ready[i].result!;
       const now = p.result!;
-      return now.factor.emission_factor_id !== r.factor.emission_factor_id || now.total_tco2e !== r.total_tco2e || (now.fera?.total_tco2e ?? null) !== (r.fera?.total_tco2e ?? null);
+      return now.factor.emission_factor_id !== r.factor.emission_factor_id || now.total_tco2e !== r.total_tco2e || (now.fera?.total_tco2e ?? null) !== (r.fera?.total_tco2e ?? null) ||
+        (now.td_loss?.total_tco2e ?? null) !== (r.td_loss?.total_tco2e ?? null);
     })
     .map((p) => p.row_ref);
   if (stale.length) {
@@ -455,12 +489,14 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     // which the attention filter reads from the plan row.
     if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
-    const { emission, fera } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
+    if (row.survey) extra_data.survey = row.survey; // S3-9 commuting survey scaling
+    const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
     inserted += 1;
     ids.push(emission.pk_id);
-    if (fera) {
+    for (const twin of [fera, tdLoss]) {
+      if (!twin) continue;
       fera_inserted += 1;
-      ids.push(fera.pk_id);
+      ids.push(twin.pk_id);
     }
   }
   await refreshChecksSafely(tx, ids);

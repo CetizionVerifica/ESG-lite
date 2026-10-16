@@ -100,6 +100,9 @@ export const ROW_ISSUE_CODES = {
   // Scope 3 engine integrity (S3-4, docs/scope3/01-contracts.md §7).
   UNIT_REQUIRED: "error",
   FERA_FACTOR_MISSING: "warning",
+  // Scope 3 Category 3 split (S3-7, docs/scope3/01-contracts.md §7). Never block.
+  FACTOR_TYPE_MISMATCH: "warning",
+  WTT_ALREADY_IN_FACTOR: "warning",
 } as const;
 
 export type RowIssueCode = keyof typeof ROW_ISSUE_CODES;

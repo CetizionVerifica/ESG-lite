@@ -91,49 +91,198 @@
       "id": "ex-3.x-upstream-fuels",
       "guidance_ref": {
         "example": "3.x",
-        "lines": "L2577-2660 (Cat 3)"
+        "lines": "L2338-2348 (formula 3.1)"
       },
-      "source": "S3-7 spec",
+      "source": "S3-7 constructed",
       "category": 3,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
-      "status": "skip",
+      "factors": {
+        "diesel_wtt": {
+          "kgco2e_per_unit": 0.61,
+          "unit": "litre"
+        },
+        "natural_gas_wtt": {
+          "kgco2e_per_unit": 0.03,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Diesel",
+          "quantity": 10000,
+          "unit": "litre",
+          "factor": "diesel_wtt"
+        },
+        {
+          "label": "Natural gas",
+          "quantity": 50000,
+          "unit": "kwh",
+          "factor": "natural_gas_wtt"
+        }
+      ],
+      "expected_kgco2e": 7600,
+      "status": "run",
       "owner": "S3-7",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3a_upstream_fuels."
+      "note": "Constructed: the guidance gives formula 3.1 for upstream fuels but no worked example (01-contracts §9 lets the owner fill figures). Factors are round WTT values in the range of DESNZ 2024. Sub-activity 3a_upstream_fuels: the FERA twin of a Scope 1 fuel row, on a wtt factor.",
+      "formula": "Σ fuel consumed × upstream (WTT) factor: diesel 10,000 L × 0.61 + natural gas 50,000 kWh × 0.03 (formula 3.1)"
     },
     {
       "id": "ex-3.x-upstream-electricity",
       "guidance_ref": {
-        "example": "3.x",
-        "lines": "L2577-2660 (Cat 3)"
+        "example": "3.1",
+        "lines": "L2577-2660"
       },
       "source": "S3-7 spec",
       "category": 3,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
-      "status": "skip",
+      "factors": {
+        "australia_upstream": {
+          "kgco2e_per_unit": 0.12,
+          "unit": "kwh"
+        },
+        "canada_upstream": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "kwh"
+        },
+        "india_upstream": {
+          "kgco2e_per_unit": 0.15,
+          "unit": "kwh"
+        },
+        "united_states_upstream": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "kwh"
+        },
+        "turkey_upstream": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "kwh"
+        },
+        "canada_heating_upstream": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Australia electricity",
+          "quantity": 500000,
+          "unit": "kwh",
+          "factor": "australia_upstream"
+        },
+        {
+          "label": "Canada electricity",
+          "quantity": 600000,
+          "unit": "kwh",
+          "factor": "canada_upstream"
+        },
+        {
+          "label": "India electricity",
+          "quantity": 400000,
+          "unit": "kwh",
+          "factor": "india_upstream"
+        },
+        {
+          "label": "United States electricity",
+          "quantity": 5500000,
+          "unit": "kwh",
+          "factor": "united_states_upstream"
+        },
+        {
+          "label": "Turkey electricity",
+          "quantity": 200000,
+          "unit": "kwh",
+          "factor": "turkey_upstream"
+        },
+        {
+          "label": "Canada heating",
+          "quantity": 50000,
+          "unit": "kwh",
+          "factor": "canada_heating_upstream"
+        }
+      ],
+      "expected_kgco2e": 742500,
+      "status": "run",
       "owner": "S3-7",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3b_upstream_electricity."
+      "note": "Example 3.1 (data centres): upstream of purchased electricity and heating, sub-activity 3b_upstream_electricity. In ESGLite each row is the FERA twin of a Scope 2 row, on a wtt factor.",
+      "formula": "Σ kWh × upstream factor: electricity 740,000 kg + district heating 2,500 kg (formula 3.2)"
     },
     {
       "id": "ex-3.x-td-losses",
       "guidance_ref": {
-        "example": "3.x",
+        "example": "3.1",
         "lines": "L2542-2581, L2577-2660"
       },
       "source": "S3-7 spec",
       "category": 3,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
-      "status": "skip",
+      "factors": {
+        "australia_td_loss": {
+          "kgco2e_per_unit": 0.08,
+          "unit": "kwh"
+        },
+        "canada_td_loss": {
+          "kgco2e_per_unit": 0.052,
+          "unit": "kwh"
+        },
+        "india_td_loss": {
+          "kgco2e_per_unit": 0.12,
+          "unit": "kwh"
+        },
+        "united_states_td_loss": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "kwh"
+        },
+        "turkey_td_loss": {
+          "kgco2e_per_unit": 0.048,
+          "unit": "kwh"
+        },
+        "canada_heating_td_loss": {
+          "kgco2e_per_unit": 0.0075,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Australia T&D losses",
+          "quantity": 500000,
+          "unit": "kwh",
+          "factor": "australia_td_loss"
+        },
+        {
+          "label": "Canada T&D losses",
+          "quantity": 600000,
+          "unit": "kwh",
+          "factor": "canada_td_loss"
+        },
+        {
+          "label": "India T&D losses",
+          "quantity": 400000,
+          "unit": "kwh",
+          "factor": "india_td_loss"
+        },
+        {
+          "label": "United States T&D losses",
+          "quantity": 5500000,
+          "unit": "kwh",
+          "factor": "united_states_td_loss"
+        },
+        {
+          "label": "Turkey T&D losses",
+          "quantity": 200000,
+          "unit": "kwh",
+          "factor": "turkey_td_loss"
+        },
+        {
+          "label": "Canada heating T&D losses",
+          "quantity": 50000,
+          "unit": "kwh",
+          "factor": "canada_heating_td_loss"
+        }
+      ],
+      "expected_kgco2e": 404175,
+      "status": "run",
       "owner": "S3-7",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3c_td_losses: electricity × loss rate × life-cycle grid factor."
+      "note": "Example 3.1: T&D losses of the same electricity and heating, sub-activity 3c_td_losses. The guidance's combustion factor stands in for the life-cycle factor, as the example does. In ESGLite each row is the 3c twin of a Scope 2 row, on a td_loss factor (docs/emission-factor-sources.md).",
+      "formula": "Σ kWh × life-cycle factor × T&D loss rate (formula 3.3); the factor is uploaded as life-cycle × loss rate per kWh consumed"
     },
     {
       "id": "ex-4.1",
@@ -494,7 +643,7 @@
         }
       ],
       "expected_kgco2e": 8317583.33,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9"
     },
     {
@@ -532,9 +681,9 @@
         }
       ],
       "expected_kgco2e": 3072,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9",
-      "note": "Run it through the survey path, not just the form (S3-9 spec)."
+      "note": "Run it through the survey path, not just the form (S3-9 spec): ci/unit/scope3-travel.test.cjs plans the survey and runs its rows through the Category 7 form; here the rows are the survey's per-mode sums."
     },
     {
       "id": "ex-7.2",
@@ -581,7 +730,7 @@
         }
       ],
       "expected_kgco2e": 6697500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9",
       "note": "The foot row has factor 0 and is skipped (S3-9 spec)."
     },
@@ -633,7 +782,7 @@
         }
       ],
       "expected_kgco2e": 1320,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "The guidance prints 1,325 because it rounds the refrigerant to 0.67 kg; 1,320 is exact (01-contracts.md §9)."
     },
@@ -663,7 +812,7 @@
         }
       ],
       "expected_kgco2e": 3000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "Partner-reported figure with an identity factor (01-contracts.md §10)."
     },
@@ -716,7 +865,7 @@
         }
       ],
       "expected_kgco2e": 355000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "Partner-reported scope 1+2 with an identity factor (01-contracts.md §10)."
     },
@@ -773,7 +922,7 @@
         }
       ],
       "expected_kgco2e": 23500000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11"
     },
     {
@@ -823,7 +972,7 @@
         }
       ],
       "expected_kgco2e": 493000000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11"
     },
     {
@@ -895,11 +1044,10 @@
           "share": 0.1
         }
       ],
-      "expected_kgco2e": 2242500,
+      "expected_kgco2e": 2332500,
       "status": "skip",
       "owner": "S3-11",
-      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). Runs once S3-5 spend.ts is merged.",
-      "open_question": "The formula's investee 4 term (5,500,000 × 60 % × 2 + 5,500,000 × 40 % × 1.5) × 10 % gives 990,000, so the rows sum to 2,332,500, not 2,242,500. Confirm the expected figure before turning this case on."
+      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). The guidance prints 2,242,500 because it writes the investee 4 term as 900,000; its own inputs give 990,000, so the exact total is 2,332,500 (S3-11). Runs once S3-5 spend.ts is merged."
     },
     {
       "id": "ex-10.1",
