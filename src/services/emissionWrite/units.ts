@@ -98,6 +98,13 @@ export const UNIT_ALIASES: Record<string, string> = {
   kilograms: "kg",
 };
 
+/**
+ * The currencies the conversion table converts (S3-4). Forms offer only these:
+ * GBP, BHD, SAR and AED were offered but had no rate. S3-5 replaces this with
+ * a real FX source (FX_RATE_FALLBACK when a rate is missing).
+ */
+export const CONVERTIBLE_CURRENCIES = ["INR", "USD", "EUR"] as const;
+
 export const canonicalUnit = (unit: string | null | undefined): string => {
   const u = (unit ?? "").toLowerCase().trim();
   return UNIT_ALIASES[u] ?? u;
@@ -111,8 +118,13 @@ export const getConversionFactor = (fromUnit: string, toUnit: string): number | 
   return unitConversions[from]?.[to] || null;
 };
 
-// Check if units match (handles null/undefined like frontend)
+/**
+ * Whether two units are the same unit. A missing unit on either side is no
+ * longer a match (S3-4): a factor with no unit is UNIT_REQUIRED (computeTotal),
+ * and a missing activity unit is the form's unit only when the form has a
+ * single one (prepareEntry fills it in before any matching).
+ */
 export const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null | undefined): boolean => {
-  if (!unit1 || !unit2) return true; // Treat null/undefined as match (like frontend)
+  if (!unit1 || !unit2) return false;
   return canonicalUnit(unit1) === canonicalUnit(unit2);
 };

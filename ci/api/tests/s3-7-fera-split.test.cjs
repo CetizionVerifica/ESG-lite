@@ -22,7 +22,7 @@ const { planRows, insertRows } = require(path.resolve("dist/services/emissionWri
 const SITE = 3;
 const FREIGHT = 120; // a Scope 3 Category 4 category, added below
 const CTX = { user_id: 4, role: "User", company_id: 2, allowed_site_ids: [SITE], allowed_category_ids_by_site: {} };
-const FACTORS = [931, 932, 933, 934, 935, 936, 937, 938, 939, 940];
+const FACTORS = [931, 932, 933, 934, 935, 936, 937, 938, 939, 940, 941, 942];
 
 const typed = (category_id, date, unit, emission_category, activity_value) =>
   call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id, date_of_reporting: date, activity_data_unit: unit, activity_data: { emission_category, activity_value: String(activity_value) } });
@@ -50,7 +50,9 @@ test.before(async () => {
       (937, ${SITE}, 5, 2024, 610, 'litre', 'CI', 'Diesel S3-7', 'Diesel S3-7', 'combustion', false),
       (938, ${SITE}, ${FREIGHT}, 2024, 0.11, 'tonne.km', 'DEFRA freighting goods + WTT, summed', 'HGV S3-7 summed', 'HGV S3-7 summed', 'life_cycle', true),
       (939, ${SITE}, ${FREIGHT}, 2024, 0.09, 'tonne.km', 'DEFRA freighting goods', 'HGV S3-7 split', 'HGV S3-7 split', 'life_cycle', false),
-      (940, ${SITE}, 5, 2023, 0.05, 'kwh', 'CI', 'Grid AU T&D losses', 'Grid AU', 'td_loss', false)`);
+      (940, ${SITE}, 5, 2023, 0.05, 'kwh', 'CI', 'Grid AU T&D losses', 'Grid AU', 'td_loss', false),
+      (941, ${SITE}, 2, 2024, 0.7, 'kwh', 'CI', 'Grid IN', 'Grid IN', 'combustion', false),
+      (942, ${SITE}, 5, 2024, 0.07, 'kwh', 'CI', 'Grid IN T&D losses', 'Grid IN', 'td_loss', false)`);
   });
   await AppDataSource.initialize();
 });
@@ -79,7 +81,7 @@ test("a Scope 2 entry gets an upstream (3b) and a T&D-loss (3c) twin", async () 
   assert.equal(Number(res.json.td_loss_emission.total_emission), 40); // × 0.08 kg = 0.8 × 10 %
   assert.equal(res.json.td_loss_emission.fera_linked_id, parent.pk_id);
   assert.equal(res.json.td_loss_emission.emission_factor_snapshot.factor_type, "td_loss");
-  assert.equal(res.json.warnings, undefined);
+  assert.deepEqual(res.json.warnings, []);
 });
 
 test("no td_loss factor, no 3c twin; a Scope 1 fuel's twin is upstream of fuels (3a)", async () => {
@@ -95,6 +97,18 @@ test("no td_loss factor, no 3c twin; a Scope 1 fuel's twin is upstream of fuels 
   assert.equal(Number(diesel.json.fera_emission.total_emission), 610, "the twin's total is computed as before");
   // Its FERA factor is typed combustion: still a twin, with a warning that never blocks.
   assert.deepEqual(diesel.json.warnings.map((w) => w.code), ["FACTOR_TYPE_MISMATCH"]);
+});
+
+test("a td_loss factor alone: a 3c twin with kgCO2e, no 3b twin and FERA_FACTOR_MISSING (S3-4 + S3-7)", async () => {
+  const res = await typed(2, "2025-03-31", "kwh", "Grid IN", 1000);
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  assert.equal(res.json.fera_emission, null, "no upstream (wtt) factor, so no 3b twin");
+  assert.equal(res.json.td_loss_emission.scope3_sub, "3c_td_losses");
+  assert.equal(Number(res.json.td_loss_emission.total_emission), 0.07); // 1,000 kWh × 0.07 kg
+  assert.equal(res.json.td_loss_emission.total_kgco2e, "70.0000");
+  const missing = res.json.warnings.find((w) => w.code === "FERA_FACTOR_MISSING");
+  assert.ok(missing, JSON.stringify(res.json.warnings));
+  assert.doesNotMatch(missing.message, /T&D/, "the hint never names the td_loss factor");
 });
 
 test("imports plan and write both twins; the T&D twin counts as a FERA row", async () => {

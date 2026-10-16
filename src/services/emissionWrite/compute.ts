@@ -14,6 +14,7 @@ import type { RowIssueCode } from "../../imports/errors";
 import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
+import type { Gas } from "../../scope3/contracts/factor";
 import * as activity from "./methods/activity";
 import * as spec from "./methods/spec";
 import * as spend from "./methods/spend";
@@ -21,8 +22,8 @@ import * as supplier from "./methods/supplier";
 import * as hybrid from "./methods/hybrid";
 import * as proxy from "./methods/proxy";
 
-export { totalFor } from "./methods/activity";
-export { feraTwinFor, type FeraTwin } from "./methods/fera";
+export { totalFor, kgFor, factorHasUnit } from "./methods/activity";
+export { feraTwinFor, feraGap, type FeraTwin } from "./methods/fera";
 
 /** Loaded once per site × category and shared by every row of that pair. */
 export interface CategoryContext {
@@ -39,6 +40,8 @@ export interface CategoryContext {
   factors: FactorIndex;
   /** The site's FERA category and its factors, when the site has one. */
   fera: { category_id: number; factors: FactorIndex } | null;
+  /** The form's unit options for site × category (`unit` table). With exactly one, an entry without a unit is in that unit (S3-4). */
+  formUnits?: string[];
 }
 
 export interface EngineIssue {
@@ -56,8 +59,11 @@ export interface Computed {
   activity_unit: string;
   conversion?: number;
   total: number;
-  /** Scope 3 fields (01-contracts.md §6). Unset until their modules fill them. */
+  /** Scope 3 fields (01-contracts.md §6). Unset until their modules fill them; S3-4 fills total_kgco2e (kgCO₂e at 4 dp). */
   total_kgco2e?: string;
+  /** kg of each gas and of biogenic CO₂ from the factor's gas parts (S3-4, §4); unset when the factor has none. */
+  gas_kg?: Partial<Record<Gas, number>>;
+  biogenic_kg?: string;
   method?: Method;
   dq?: Dq;
   data_type?: DataType;

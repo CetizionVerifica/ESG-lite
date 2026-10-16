@@ -77,7 +77,8 @@ test("FACTOR_TYPE_MISMATCH only when the category has a number and the type is o
   assert.equal(meta.factorTypeWarning(null, "wtt"), null);
   assert.equal(meta.factorTypeWarning(1, null), null);
   assert.equal(meta.factorTypeWarning(1, "eeio_spend"), null);
-  assert.equal(meta.factorTypeWarning(8, "wtt"), null); // Cat 8 has no list
+  assert.equal(meta.factorTypeWarning(8, "other"), null); // reported partner emissions (D13)
+  assert.equal(meta.factorTypeWarning(8, "wtt").code, "FACTOR_TYPE_MISMATCH"); // Cat 8 has a list since S3-0 #144
   const w = meta.factorTypeWarning(3, "combustion");
   assert.equal(w.code, "FACTOR_TYPE_MISMATCH");
   assert.deepEqual(w.details, { ghg_category: 3, factor_type: "combustion", allowed: ["wtt", "td_loss"] });
