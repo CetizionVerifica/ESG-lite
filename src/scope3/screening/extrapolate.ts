@@ -271,6 +271,9 @@ export async function extrapolate(companyId: number, caller: Caller, raw: unknow
     tdLoss: null,
     warnings: [],
   };
+  // TODO(S3-15·2): refuse with PERIOD_LOCKED when the target site's year is locked
+  // (period_lock, contracts §4 and §7). The lock table and its check arrive with
+  // S3-15 part 2, which isn't on production; until then no lock is checked here.
   const saved = await AppDataSource.transaction(async (tx) => {
     // Re-check the duplicate inside the transaction (two clicks at once). FOR UPDATE
     // locks nothing when no row exists yet, so serialise on the key first.
