@@ -15,6 +15,7 @@ import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
 import type { Gas } from "../../scope3/contracts/factor";
+import type { DeflatorUsed, EmissionFx, SpendQuote } from "../../scope3/spend/types";
 import * as activity from "./methods/activity";
 import * as spec from "./methods/spec";
 import * as spend from "./methods/spend";
@@ -67,6 +68,11 @@ export interface Computed {
   method?: Method;
   dq?: Dq;
   data_type?: DataType;
+  /** S3-5: the rate a spend row used (stored as `emission.fx`) and the deflator (stored in the snapshot). */
+  fx?: EmissionFx;
+  deflator?: DeflatorUsed;
+  /** Warnings the method raised (never block): FX_RATE_FALLBACK, NO_DEFLATOR. */
+  warnings?: EngineIssue[];
 }
 
 export type ComputeResult = { ok: true; computed: Computed } | { ok: false; issue: EngineIssue };
@@ -81,18 +87,22 @@ export interface EngineRow {
   method?: Method | null;
   /** Set on estimated rows (S3-12). */
   proxy?: unknown;
+  /** S3-5: amount, rate and deflator of a spend row, loaded before the engine runs (src/scope3/spend/rates.ts). */
+  spend?: SpendQuote;
 }
 
 /** Every method file exports `compute(ctx, row)`. */
 type MethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeResult };
 
 /**
- * The method file for a row. Spec categories always use the spec; otherwise
- * the row's method, falling back to activity × factor.
+ * The method file for a row, in the order of 01-contracts §6: a proxy row;
+ * then the row's method spend_based / supplier_specific / hybrid on any
+ * category, spec or not; then a row carrying a spend quote (asked for with
+ * `@method` until S3-3, or on a spend factor); then the category's spec; else
+ * activity × factor.
  * TODO(S3-3): fall back to the form's `method_options[0]` when the row has none.
  */
 const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
-  if (ctx.spec) return spec;
   if (row.proxy) return proxy;
   switch (row.method) {
     case "spend_based":
@@ -101,9 +111,11 @@ const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
       return supplier;
     case "hybrid":
       return hybrid;
-    default:
-      return activity;
   }
+  // S3-5: a spend row is the amount spent whatever fields the form multiplies (a Category 6 trip paid in INR).
+  if (row.spend) return spend;
+  if (ctx.spec) return spec;
+  return activity;
 };
 
 /** One row's total, from the method file the row picks. */
@@ -119,9 +131,11 @@ export const computeTotal = (
   factor: EmissionFactor,
   activity_data: Record<string, any>,
   activity_unit: string,
-): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit });
+  extra: Pick<EngineRow, "method" | "spend"> = {},
+): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit, ...extra });
 
-export const factorSnapshot = (f: EmissionFactor) => ({
+/** The stored factor snapshot; a spend row adds the deflator it used (S3-5). */
+export const factorSnapshot = (f: EmissionFactor, deflator?: DeflatorUsed) => ({
   emission_factor_id: f.emission_factor_id,
   emission_category_name: f.emission_category_name,
   global_category_name: f.global_category_name || undefined,
@@ -132,4 +146,5 @@ export const factorSnapshot = (f: EmissionFactor) => ({
   year: f.year,
   // S3-2: factor_type, gwp_set, geography, dataset, dataset_version, gases.
   ...metaSnapshot(f),
+  ...(deflator ? { deflator } : {}),
 });

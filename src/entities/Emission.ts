@@ -1,4 +1,5 @@
 import type { Scope3Sub } from "../scope3/contracts/ghgCategory";
+import type { EmissionFx } from "../scope3/spend/types";
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -107,6 +108,13 @@ export class Emission {
   // save of a stale entity can't overwrite a fresher result.
   @Column({ type: "jsonb", nullable: true, insert: false, update: false })
   checks!: RowChecks | null;
+
+  // S3-5 · the exchange rate a spend row used (migrate:scope3-spend):
+  // `rate` converts 1 `currency` into the factor's currency `to`, on `as_of`.
+  // Stored so the figure can be reproduced in any later year; null on rows
+  // that weren't calculated from an amount spent.
+  @Column({ type: "jsonb", nullable: true })
+  fx!: EmissionFx | null;
 
   // Snapshot of the emission factor used at creation time
   // Ensures factor details are always available even if the factor is later deleted/renamed
