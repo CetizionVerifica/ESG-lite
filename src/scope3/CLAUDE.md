@@ -17,7 +17,7 @@ src/scope3/
   assets/                      S3-11 (leases, franchises, investments)
   screening/                   S3-12
   baseYear/                    S3-14
-  review/                      S3-15 (checks.ts, service.ts, lock.ts, periodLock.ts, guard.ts, workflow.ts; /periods router)
+  review/                      S3-15 (checks.ts, service.ts, lock.ts, periodLock.ts, guard.ts, workflow.ts, liveChecks.ts, evidence.ts; /periods router)
 ```
 Each module folder has `router.ts`, `controller.ts`, `service.ts`, `CLAUDE.md` (the module spec copy) and tests in `ci/api/tests/s3-<n>-*.test.cjs` and `ci/unit/scope3-<name>.test.cjs`.
 
