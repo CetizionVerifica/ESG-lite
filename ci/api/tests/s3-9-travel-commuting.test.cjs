@@ -195,6 +195,7 @@ test("migrate:scope3-travel runs twice: one form per site × category, its units
       return {
         configs: await q(`SELECT COUNT(*)::int AS n FROM column_config WHERE category_id IN ($1, $2)`),
         units: await q(`SELECT COUNT(*)::int AS n FROM unit WHERE category_id IN ($1, $2)`),
+        factors: await q(`SELECT COUNT(*)::int AS n FROM emission_factors WHERE category_id IN ($1, $2)`),
         columns: await q(`SELECT COUNT(*)::int AS n FROM column_config_columns cc JOIN column_config c ON c.pk_id = cc."columnConfigPkId" WHERE c.category_id IN ($1, $2)`).catch(() => null),
       };
     });
@@ -215,6 +216,16 @@ test("migrate:scope3-travel runs twice: one form per site × category, its units
   assert.equal(forms.rows[2].calculation, null);
   const units = await withDb((db) => db.query(`SELECT unit_name FROM unit WHERE site_id = 1 AND category_id = $1 ORDER BY unit_name`, [CAT6]));
   assert.deepEqual(units.rows.map((r) => r.unit_name), ["litre", "night", "passenger.km", "vehicle.km"]);
+  // DEFRA 2025 factors are seeded on the standard forms only, beside the site's own (2024) ones.
+  const seeded = await withDb((db) =>
+    db.query(`SELECT site_id, category_id, factor_value::float AS v, dataset_version, factor_type, gwp_set FROM emission_factors WHERE year = 2025 AND emission_category_name = 'Rail - National rail [passenger.km]' AND category_id IN ($1, $2) ORDER BY category_id`, [CAT7, CAT6]),
+  );
+  assert.deepEqual(seeded.rows.map((f) => [f.site_id, f.v, f.dataset_version, f.factor_type, f.gwp_set]), [
+    [1, 0.03546, "2025 condensed v1", "life_cycle", "AR5"],
+    [1, 0.03546, "2025 condensed v1", "life_cycle", "AR5"],
+  ]);
+  const onCustomised = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission_factors WHERE site_id = 3 AND category_id = $1`, [CAT7]));
+  assert.equal(onCustomised.rows[0].n, 0);
   // The commuting survey refuses a site whose form a client customised.
   const r = await call("POST", "/scope3/commuting/surveys", "otherManager", survey({ site_id: 3 }));
   assert.equal(r.status, 400);
