@@ -77,7 +77,7 @@ const SPEND = {
   invoice_date: `${YEAR}-06-10`,
   row_date: `${YEAR}-06-30`, // looks up the sector copied for factor year 2024
   inr_per_usd: 85.6, // stands in for the daily FX job (network) on the invoice date
-  deflator_2025: 322.4, // CI test figure for US CPI-U 2025; the Superadmin adds it (the seeded list stops at 2024)
+  deflator_2025: 321.943, // US CPI-U 2025 annual average (BLS), seeded by migrate:scope3-spend
 };
 
 /**

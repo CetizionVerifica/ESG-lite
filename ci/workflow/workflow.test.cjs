@@ -76,9 +76,9 @@ step("0.3 the deploy loaded the USEEIO spend library", async () => {
   S.spendLibraryFactor = sector;
 });
 
-step("0.3a Superadmin adds the US price index for the spend year (the seeded list stops at 2024)", async () => {
-  const r = await call("POST", "/scope3/deflators", S.sa, { country: "US", source: "CI workflow", values: [{ year, index: SC.SPEND.deflator_2025 }] });
-  ok(r, 201);
+step("0.3a the deploy seeded the US price index for the spend year", async () => {
+  const r = await withDb((db) => db.query(`SELECT "index"::float8 AS i FROM price_deflator WHERE country = 'US' AND year = $1`, [year]));
+  assert.equal(r.rows[0]?.i, SC.SPEND.deflator_2025, `US CPI-U ${year} seeded by migrate:scope3-spend`);
 });
 
 // ── Phase 1 · Create the client (Superadmin) ───────────────────────────────

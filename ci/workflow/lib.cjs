@@ -4,6 +4,10 @@
 const path = require("path");
 const { spawnSync } = require("child_process");
 const { Client } = require("pg");
+const { assertThrowawayDb } = require("../lib/throwaway-db.cjs");
+
+// Also guards a direct `node --test workflow.test.cjs` run, which skips run.cjs.
+assertThrowawayDb();
 
 const ROOT = path.resolve(__dirname, "../..");
 

@@ -22,7 +22,7 @@ npm run build && npm run test:workflow
 
 It refuses any database that isn't a local `ci_*` one (`ci/lib/throwaway-db.cjs`), empties it,
 builds the schema from `dist/` and runs `migrate-all` as a deploy does. It needs no network.
-About 15 seconds.
+About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is taken.
 
 ## Rule: run it after every lane
 
@@ -39,7 +39,7 @@ About 15 seconds.
 
 | Step | Role | Checks |
 |---|---|---|
-| 0.1–0.3a | Superadmin | categories keep their GHG numbers (a Scope 1 category can't take one); country; USEEIO library loaded by the deploy; price index for the spend year |
+| 0.1–0.3a | Superadmin | categories keep their GHG numbers (a Scope 1 category can't take one); country; USEEIO library loaded by the deploy; the deploy seeded the price index for the spend year |
 | 1–5 | Superadmin | onboarding creates the company, main site and Admin, who can sign in; Smart import and Claude imports start off |
 | 6–7 | Superadmin | second site; categories assigned to both sites |
 | 10 | Admin | 15 boundary rows, 13–15 start Not relevant, an exclusion needs a reason, every category in use has its number and is Included, consolidation approach saved |
@@ -64,8 +64,8 @@ Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-
 - **The FERA category is found by its name**, "FERA", on the site (`emissionWrite/context.ts`).
 - **A T&D-loss factor needs its own name** ("… T&D losses") and the activity as its global name. The
   single-factor create has no global name, so it must come through the factor import.
-- **Price indexes stop at 2024.** A spend row from 2025 isn't deflated (`NO_DEFLATOR` warning)
-  until a Superadmin adds that year's index (`POST /scope3/deflators`).
+- **US CPI-U is seeded through 2025** (`migrate:scope3-spend`). A year without an index isn't deflated
+  (`NO_DEFLATOR` warning) until a Superadmin adds it (`POST /scope3/deflators`).
 - **USEEIO library factors have no GWP set**, so the report's GWP list doesn't name one for spend rows.
 - **People get their sites' categories when they are invited**, so sites and categories come before people.
 - **Standard Scope 3 forms (Categories 6, 7, 8, 13, 14) arrive with the next deploy**, not when a

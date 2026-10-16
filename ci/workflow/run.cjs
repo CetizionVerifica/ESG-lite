@@ -63,6 +63,11 @@ async function waitForServer(server, logs) {
 }
 
 (async () => {
+  try {
+    await fetch(`${BASE}/`);
+    console.error(`Port ${PORT} is already in use: stop that process or set WORKFLOW_PORT.`);
+    process.exit(1);
+  } catch {}
   if (!fs.existsSync(path.join(ROOT, "dist/index.js"))) {
     console.error("dist/ is missing: run `npm run build` first.");
     process.exit(1);
