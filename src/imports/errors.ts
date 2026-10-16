@@ -103,6 +103,11 @@ export const ROW_ISSUE_CODES = {
   // Scope 3 Category 3 split (S3-7, docs/scope3/01-contracts.md §7). Never block.
   FACTOR_TYPE_MISMATCH: "warning",
   WTT_ALREADY_IN_FACTOR: "warning",
+  // Spend-based rows (S3-5). A currency without a rate blocks the row; a rate
+  // from another day or no price deflator only warn.
+  CURRENCY_NOT_SUPPORTED: "error",
+  FX_RATE_FALLBACK: "warning",
+  NO_DEFLATOR: "warning",
   // S3-3: the row named a method the form does not offer.
   METHOD_NOT_ALLOWED: "error",
 } as const;

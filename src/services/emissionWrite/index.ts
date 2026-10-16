@@ -29,7 +29,10 @@ import { refreshChecksSafely } from "../../scope3/review/service";
 import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
 import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
-import { methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import { MethodSchema, methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import { ROW_METHOD_COLUMN } from "../calculationSpec";
+import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
+import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -59,6 +62,8 @@ export interface EntryInput {
   method?: Method | null;
   is_estimate?: boolean;
   dq?: ManualDqInput | null;
+  /** S3-5: the row's saved `fx`, so a recalculation with the same currency and date reuses its rate. */
+  storedFx?: EmissionFx | null;
 }
 
 export interface PreparedEntry {
@@ -118,6 +123,12 @@ const twinQuality = (siteCountry: string | null | undefined, factor: EmissionFac
   };
 };
 
+/** A valid method key in `activity_data["@method"]`, or null (S3-3). */
+const rowMethodOf = (activity_data: Record<string, any>): Method | null => {
+  const parsed = MethodSchema.safeParse(String(activity_data?.[ROW_METHOD_COLUMN] ?? "").trim());
+  return parsed.success && parsed.data !== "unknown" ? parsed.data : null;
+};
+
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
   // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
@@ -127,9 +138,14 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
+  // S3-3: the method the row names: its `method`, else `activity_data["@method"]`
+  // (S3-9 forms and rows sent before rows had a method). A key ESGLite doesn't
+  // know in "@method" is left to the spec, as before.
+  const named = input.method ?? rowMethodOf(activity_data);
+
   // S3-3: the form decides which methods its category offers. Checked here so
   // typed entries, bulk upload, smart import and MCP all refuse the same ones.
-  if (!methodAllowedForForm(input.method, ctx.method_options)) {
+  if (!methodAllowedForForm(named, ctx.method_options)) {
     const offered = (ctx.method_options ?? []).map((m) => methodLabel(m)).join(", ");
     return {
       ok: false,
@@ -139,6 +155,14 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
         field: "method",
       },
     };
+  }
+  // S3-5 asks for an amount and a currency when the row's method is spend_based: the
+  // one it names, else the form's default (01-contracts §6: row → method_options[0]).
+  const spendMethod = named ?? ctx.method_options?.[0] ?? null;
+
+  // S3-5: a row entered as an amount and a currency is in that currency.
+  if (!unit && rowAsksForSpend(activity_data, spendMethod)) {
+    unit = spendInputOf(activity_data, input.extra_data, null, input.period.date_of_reporting, undefined, spendMethod)?.currency;
   }
 
   if (activity_data.emission_category && unit) {
@@ -153,15 +177,32 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     if (match.fallback_year) {
       warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
     }
+    // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs. That includes
+    // an amount in another currency than its factor's (INR on a factor per USD), so its rate is stored too.
+    let spend: SpendQuote | undefined;
+    if (isSpendRow(activity_data, factor, spendMethod, unit)) {
+      const spendInput = spendInputOf(activity_data, input.extra_data, unit, input.period.date_of_reporting, ctx.selectColumns, spendMethod);
+      if (spendInput && ctx.rates) {
+        const quoted = await ctx.rates.quote(spendInput, factor, input.storedFx);
+        if (!quoted.ok) return { ok: false, issue: { code: quoted.code, message: quoted.message, field: quoted.field } };
+        spend = quoted.quote;
+      } else if (!spendInput && rowAsksForSpend(activity_data, spendMethod)) {
+        return { ok: false, issue: { code: "FIELD_REQUIRED", message: "Give the amount spent and its currency.", field: "spent_value" } };
+      }
+    }
+    // S3-3: the method and quality the engine records; S3-5: the spend quote that picks the spend file.
     const result = computeTotal(ctx, factor, activity_data, unit, {
       method: input.method,
+      rowMethod: input.method ? null : rowMethodOf(activity_data),
       reportingYear: reportingYearFor(input.period.date_of_reporting),
       manualDq: input.dq ? manualDqFrom(input.dq) : null,
+      spend,
     });
     if (!result.ok) return result;
     computed = result.computed;
     unit = computed.activity_unit;
   }
+  const methodWarnings = computed?.warnings ?? [];
 
   let fera: FeraTwin | null = null;
   let feraSkipped: string | undefined;
@@ -196,6 +237,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   }
   const wtt = wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
+  warnings.push(...methodWarnings);
 
   return {
     ok: true,
@@ -247,7 +289,8 @@ export const insertEntry = async (
     total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
     gas_kg: entry.computed?.gas_kg ?? null,
     biogenic_kg: entry.computed?.biogenic_kg ?? null,
-    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
+    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null,
+    fx: entry.computed?.fx ?? null,
     // S3-3: null on Scope 1 and Scope 2 rows, where a method means nothing.
     method: entry.computed?.method ?? null,
     dq: entry.computed?.dq ?? null,
