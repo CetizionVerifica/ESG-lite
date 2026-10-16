@@ -6,7 +6,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 
-const { buildScope3Rows, scope3Blocks, methodMixText } = require(path.resolve("dist/reporting/ghg-scope3.js"));
+const { buildScope3Rows, scope3Blocks, methodMixText, hasScope3 } = require(path.resolve("dist/reporting/ghg-scope3.js"));
 const { renderBlocks } = require(path.resolve("dist/reporting/blocks.js"));
 
 const theme = {
@@ -181,4 +181,36 @@ test("PDF pages: by category with the ch. 11 footnote, exclusions with reasons, 
   assert.match(withBase, /by 5% or more/);
   assert.match(withBase, /Correction of errors/);
   assert.match(withBase, /\+20\.0%/); // 5 t → 6 t
+});
+
+test("radiative forcing and proxy basis are disclosed per category (Standard L4218)", () => {
+  const rows = buildScope3Rows(
+    [
+      g({ n: 6, kg: 100, rf: "with" }),
+      g({ n: 6, kg: 50, rf: "without" }),
+      g({ n: 7, kg: 80, is_proxy: true, proxy_basis: "Commuting survey scaled to all employees" }),
+      g({ n: 1, kg: 10 }),
+    ],
+    boundary, [], { biogenic: false },
+  ).rows;
+  assert.equal(rows[5].rf, "mixed");
+  assert.equal(rows[0].rf, null);
+  assert.deepEqual(rows[6].proxy_basis, ["Commuting survey scaled to all employees"]);
+  const report = { company_id: 1, consolidation_approach: "operational_control", period: { label: "CY2025", year: 2025, year_type: "CY" }, total_tco2e: 0.24, gwp_sets: [], tracked: { method: false }, rows };
+  const text = JSON.stringify(scope3Blocks(report, null, "Source: test."));
+  assert.match(text, /flights with and without radiative forcing/);
+  assert.match(text, /extrapolated or proxy data \(Commuting survey scaled to all employees\)/);
+  assert.match(text, /Allocation and assumptions/);
+});
+
+test("a category marked excluded that still has emissions says so; Scope 1/2-only reports get no Scope 3 pages", () => {
+  const built = buildScope3Rows([g({ n: 9, kg: 2000 })], boundary, [], { biogenic: false });
+  const report = { company_id: 1, consolidation_approach: "operational_control", period: { label: "CY2025", year: 2025, year_type: "CY" }, total_tco2e: built.total_tco2e, gwp_sets: [], tracked: { method: false }, rows: built.rows };
+  assert.match(JSON.stringify(scope3Blocks(report, null, "")), /Excluded, but 2 tCO₂e reported/);
+  assert.equal(hasScope3(report), true);
+  const empty = buildScope3Rows([], boundary, [], { biogenic: false });
+  assert.equal(hasScope3({ ...report, total_tco2e: 0, rows: empty.rows }), false);
+  const mappedOnly = buildScope3Rows([], boundary, [{ category_id: 3, category_name: "Business Travel", ghg_category: 6 }], { biogenic: false });
+  assert.equal(hasScope3({ ...report, total_tco2e: 0, rows: mappedOnly.rows }), true);
+  assert.equal(hasScope3(null), false);
 });

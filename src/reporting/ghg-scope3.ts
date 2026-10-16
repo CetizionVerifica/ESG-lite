@@ -50,6 +50,10 @@ export interface Scope3ReportRow {
   /** null = "Not tracked" until `emission.biogenic_kg` is written. */
   biogenic_tco2e: number | null;
   mapped_categories: { category_id: number; name: string }[];
+  /** Air travel radiative forcing (Standard L4218): null = no flight entries. */
+  rf: "with" | "without" | "mixed" | null;
+  /** How extrapolated or proxy data was made (survey scaling, S3-12 proxy basis). */
+  proxy_basis: string[];
 }
 
 /** Which optional inputs this database records yet. false → the report says "Not recorded" / "Not tracked". */
@@ -88,6 +92,9 @@ export interface Scope3Group {
   gwp_set: string | null;
   kg: number;
   biogenic_kg: number | null;
+  /** "with" / "without" radiative forcing for flight factors; null otherwise. */
+  rf?: "with" | "without" | null;
+  proxy_basis?: string | null;
 }
 
 export interface BoundaryRow {
@@ -174,6 +181,8 @@ export function buildScope3Rows(
     const cat = n === null ? null : ghgCategory(n)!;
     const b = n === null ? undefined : boundary.find((r) => r.n === n);
     const biogenic = tracked.biogenic ? gs.reduce((a, g) => a + (g.biogenic_kg ?? 0), 0) : null;
+    const rfs = new Set(gs.map((g) => g.rf).filter((v): v is "with" | "without" => v === "with" || v === "without"));
+    const proxyBasis = [...new Set(gs.filter((g) => g.is_proxy && g.proxy_basis).map((g) => g.proxy_basis as string))].sort();
 
     return {
       n,
@@ -200,6 +209,8 @@ export function buildScope3Rows(
       mapped_categories: mapped
         .filter((m) => keyOf(m.ghg_category) === n)
         .map((m) => ({ category_id: m.category_id, name: m.category_name })),
+      rf: rfs.size === 0 ? null : rfs.size > 1 ? "mixed" : [...rfs][0],
+      proxy_basis: proxyBasis,
     };
   };
 
@@ -244,6 +255,8 @@ async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Que
     params.push(filters.categoryIds);
     catFilter = `AND c.category_id = ANY($${params.length}::int[])`;
   }
+  const surveyBasis = `CASE WHEN COALESCE(e.extra_data ? 'survey', false) THEN 'Commuting survey scaled to all employees' END`;
+  const proxyBasisExpr = cols.has("proxy") ? `COALESCE(e.proxy ->> 'basis', ${surveyBasis})` : surveyBasis;
   const proxyExpr = cols.has("proxy")
     ? `(e.proxy IS NOT NULL OR COALESCE(e.extra_data ? 'survey', false))`
     : `COALESCE(e.extra_data ? 'survey', false)`; // S3-9 survey scaling until S3-12 backfills emission.proxy
@@ -258,7 +271,10 @@ async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Que
             e.emission_factor_snapshot ->> 'factor_type' AS factor_type,
             e.emission_factor_snapshot ->> 'gwp_set' AS gwp_set,
             SUM(${kg}) AS kg,
-            ${cols.has("biogenic_kg") ? "SUM(e.biogenic_kg)" : "NULL"} AS biogenic_kg
+            ${cols.has("biogenic_kg") ? "SUM(e.biogenic_kg)" : "NULL"} AS biogenic_kg,
+            CASE WHEN e.emission_factor_snapshot ->> 'emission_category_name' ILIKE '% - With RF %' THEN 'with'
+                 WHEN e.emission_factor_snapshot ->> 'emission_category_name' ILIKE '% - Without RF %' THEN 'without' END AS rf,
+            ${proxyBasisExpr} AS proxy_basis
        FROM emission e
        JOIN category c ON c.category_id = e.category_id
       WHERE e.status = 'approved'
@@ -266,7 +282,7 @@ async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Que
         AND e.date_of_reporting >= $2 AND e.date_of_reporting <= $3
         AND ${isScope3Sql("c")}
         ${catFilter}
-      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11`,
+      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 15`,
     params,
   );
   return rows.map((r) => ({
@@ -283,6 +299,8 @@ async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Que
     gwp_set: r.gwp_set ?? null,
     kg: Number(r.kg) || 0,
     biogenic_kg: r.biogenic_kg === null ? null : Number(r.biogenic_kg),
+    rf: r.rf === "with" || r.rf === "without" ? r.rf : null,
+    proxy_basis: r.proxy_basis ?? null,
   }));
 }
 
@@ -293,22 +311,29 @@ async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Que
  */
 export async function computeScope3(filters: GhgFilters, companyId: number, q: Queryable = AppDataSource): Promise<Scope3Report> {
   const cols = await emissionColumns(q);
-  // Same seed as GET /scope3/categories, so the report never shows a category without a status.
-  await ensureBoundaryRows(companyId, q);
-  const [company]: any[] = await q.query(`SELECT consolidation_approach FROM company WHERE company_id = $1`, [companyId]);
-  const boundary: BoundaryRow[] = (
-    await q.query(`SELECT ghg_category, status, reason, method_note FROM company_scope3_category WHERE company_id = $1`, [companyId])
-  ).map((r: any) => ({ n: Number(r.ghg_category), status: r.status, reason: r.reason ?? null, method_note: r.method_note ?? null }));
-  // Categories "included" per row: the company's Scope 3 categories on the selected sites.
+  // Categories "included" per row: the company's Scope 3 categories on the selected sites (and in the category filter).
+  const mapParams: any[] = [filters.siteIds];
+  let mapFilter = "";
+  if (filters.categoryIds?.length) {
+    mapParams.push(filters.categoryIds);
+    mapFilter = "AND c.category_id = ANY($2::int[])";
+  }
   const mapped: any[] = await q.query(
     `SELECT DISTINCT c.category_id, c.category_name, c.ghg_category
        FROM category c
        JOIN site_categories sc ON sc.category_id = c.category_id
-      WHERE sc.site_id = ANY($1::int[]) AND ${isScope3Sql("c")}
+      WHERE sc.site_id = ANY($1::int[]) AND ${isScope3Sql("c")} ${mapFilter}
       ORDER BY c.category_name`,
-    [filters.siteIds],
+    mapParams,
   );
   const groups = await loadGroups(filters, cols, q);
+  // Same seed as GET /scope3/categories, so the report never shows a category without a status;
+  // only for a company that has Scope 3, so rendering a Scope 1/2-only report writes nothing.
+  if (groups.length || mapped.length) await ensureBoundaryRows(companyId, q);
+  const [company]: any[] = await q.query(`SELECT consolidation_approach FROM company WHERE company_id = $1`, [companyId]);
+  const boundary: BoundaryRow[] = (
+    await q.query(`SELECT ghg_category, status, reason, method_note FROM company_scope3_category WHERE company_id = $1`, [companyId])
+  ).map((r: any) => ({ n: Number(r.ghg_category), status: r.status, reason: r.reason ?? null, method_note: r.method_note ?? null }));
   const tracked: Scope3Tracked = {
     method: cols.has("method"),
     dq: cols.has("dq"),
@@ -335,6 +360,10 @@ export async function computeScope3(filters: GhgFilters, companyId: number, q: Q
     rows: built.rows,
   };
 }
+
+/** The report has Scope 3 to show: approved Scope 3 emissions, or a Scope 3 category used on its sites. */
+export const hasScope3 = (r: Scope3Report | null): r is Scope3Report =>
+  !!r && (r.total_tco2e > 0 || r.rows.some((x) => x.tco2e > 0 || x.mapped_categories.length > 0));
 
 // ---------------------------------------------------------------------------
 // Wording shared by the PDF pages
@@ -388,6 +417,9 @@ export interface Scope3BaseYearSummary {
   /** Approved recalculations, newest first. */
   events: { reason: string; delta_tco2e: number; note: string | null; created_at: string }[];
 }
+
+/** Air travel radiative forcing, as the methodology table discloses it (Standard L4218). */
+export const RF_TEXT = { with: "flights with radiative forcing", without: "flights without radiative forcing", mixed: "flights with and without radiative forcing" } as const;
 
 const fmtT = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 0 : 2 });
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
@@ -449,6 +481,8 @@ export function scope3Blocks(r: Scope3Report, baseYear: Scope3BaseYearSummary | 
           ? { text: "Needs a category", pill: "warn" as const }
           : x.status === "included"
           ? { text: STATUS_LABELS.included, pill: "ok" as const }
+          : (x.status === "excluded" || x.status === "not_relevant") && x.tco2e > 0
+          ? { text: `${STATUS_LABELS[x.status]}, but ${fmtT(x.tco2e)} ${unit} reported`, pill: "warn" as const }
           : { text: STATUS_LABELS[x.status ?? "screening"], pill: x.status === "screening" ? ("warn" as const) : ("medium" as const) },
         x.tco2e > 0 ? fmtT(x.tco2e) : "—",
         x.tco2e > 0 ? fmtPct(x.share_pct) : "—",
@@ -500,22 +534,26 @@ export function scope3Blocks(r: Scope3Report, baseYear: Scope3BaseYearSummary | 
   B.push({
     type: "section",
     kicker: "03 · Scope 3 methodology",
-    title: `Methods, data sources and assumptions for ${method.length} categor${method.length === 1 ? "y" : "ies"}.`,
+    title: method.length
+      ? `Methods, data sources and assumptions for ${method.length} categor${method.length === 1 ? "y" : "ies"}.`
+      : "No category has Scope 3 emissions or a method note yet.",
   });
   if (method.length) {
     B.push({
       type: "table",
       title: "Methodology by category",
-      columns: ["Category", "Method mix", "Activity data and emission factors", "GWP", "Assumptions"],
+      columns: ["Category", "Method mix", "Activity data and emission factors", "GWP", "Allocation and assumptions"],
       align: ["left", "left", "left", "left", "left"],
       rows: method.map((x) => [
         label(x),
         r.tracked.method ? methodMixText(x) : "Not recorded",
-        `${datasetText(x)}${x.proxy_pct > 0 ? `; ${fmtPct(x.proxy_pct)} extrapolated or proxy data` : ""}`,
+        `${datasetText(x)}${x.proxy_pct > 0 ? `; ${fmtPct(x.proxy_pct)} extrapolated or proxy data${x.proxy_basis.length ? ` (${x.proxy_basis.join("; ")})` : ""}` : ""}${x.rf ? `; ${RF_TEXT[x.rf]}` : ""}`,
         x.gwp_sets.join(", ") || "—",
         x.method_note ?? "—",
       ]),
-      caption: "Every figure is activity data multiplied by an emission factor in ESGLite's calculation engine; no client-supplied total is used.",
+      caption:
+        "Every figure is activity data multiplied by an emission factor in ESGLite's calculation engine; no client-supplied total is used. " +
+        "Allocation methods, where used, are described in the company's method note for the category.",
     });
   }
   B.push({
