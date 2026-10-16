@@ -17,9 +17,10 @@ import { SupplierFacilityData } from "./SupplierFacilityData";
 @Entity("supplier")
 // The real index is on (company_id, lower(name)) and is created by
 // migrate:scope3-suppliers. TypeORM cannot express a functional index, so it
-// is declared here only to be left alone: without synchronize: false the
-// schema check asks to drop an index it does not recognise.
-@Index("UQ_supplier_company_lower_name", ["company", "name"], { unique: true, synchronize: false })
+// is named here only to be left alone: without synchronize: false the schema
+// check asks to drop an index it does not recognise. Same form as
+// Notification's notification_upload_batch_user_uq.
+@Index("UQ_supplier_company_lower_name", { synchronize: false })
 export class Supplier {
   @PrimaryGeneratedColumn()
   supplier_id!: number;

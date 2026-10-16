@@ -1,3 +1,4 @@
+import type { Scope3Sub } from "../scope3/contracts/ghgCategory";
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -11,6 +12,8 @@ import {
 import { Category } from "./Category";
 import { Site } from "./Site";
 import { User } from "./User";
+import type { RowChecks } from "../scope3/contracts/checks";
+import type { Gas } from "../scope3/contracts/factor";
 import { Supplier } from "./Supplier";
 
 export enum EmissionStatus {
@@ -87,12 +90,24 @@ export class Emission {
   @Column({ nullable: true })
   fera_linked_id!: number;
 
+  // S3-7: the Category 3 sub-activity of a FERA twin (3a_upstream_fuels,
+  // 3b_upstream_electricity, 3c_td_losses); null on every other row.
+  // migrate:scope3-fera-sub adds it and backfills existing twins.
+  @Column({ type: "varchar", length: 32, nullable: true })
+  scope3_sub!: Scope3Sub | null;
+
   @Index()
   @Column({ nullable: true })
   upload_batch_id!: string;
 
   @Column({ type: "jsonb", nullable: true, default: {} })
   extra_data!: Record<string, any>;
+
+  // S3-15 review checks of a pending row ({ready, held}), written only by
+  // src/scope3/review/service.ts (raw UPDATE), never by entity saves, so a
+  // save of a stale entity can't overwrite a fresher result.
+  @Column({ type: "jsonb", nullable: true, insert: false, update: false })
+  checks!: RowChecks | null;
 
   // Snapshot of the emission factor used at creation time
   // Ensures factor details are always available even if the factor is later deleted/renamed
@@ -106,6 +121,20 @@ export class Emission {
     source: string;
     year: number;
   } | null;
+  // S3-4: the total in kgCO₂e at 4 dp beside total_emission (tCO₂e, 2 dp), so
+  // small rows keep their precision (D5). Written by emissionWrite on every
+  // insert and edit; older rows backfilled as total_emission × 1000.
+  @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
+  total_kgco2e!: string | null;
+
+  // S3-4 (contracts §4): kg of CO2, CH4 and N2O from the factor's gas parts,
+  // and kg of biogenic CO₂, at 4 dp. Null when the factor has none (the
+  // report shows "Not tracked"); older rows are never backfilled.
+  @Column({ type: "jsonb", nullable: true })
+  gas_kg!: Partial<Record<Gas, number>> | null;
+
+  @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
+  biogenic_kg!: string | null;
 
   // S3-6 · which supplier this row's goods came from, when it is known
   // (migrate:scope3-suppliers). Set on Cat 1 and Cat 2 rows entered with a

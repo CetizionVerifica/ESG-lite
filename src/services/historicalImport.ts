@@ -6,6 +6,11 @@
  * imported (with its total) or skipped (with a reason), and lists the people
  * the sheet names. The controller runs it for the preview (dry run) and again
  * for the import, so both always agree.
+ *
+ * Totals come from the emission write service (S3-4, historicalEngine.ts):
+ * the site's factor for the year, the unit check and the rounding a typed
+ * entry gets. The sheet's own emissionFactor and calculatedEmission are kept
+ * in activity_data as written but never used for the total (root rule).
  */
 
 export interface HistoricalRow {
@@ -33,26 +38,7 @@ export const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-// tCO2e per (activity x factor) for the factor units this file format uses,
-// e.g. "kgCO2e/litre" -> 0.001, "tCO2e/MWh" -> 1. null when the unit is unknown.
-export const factorUnitToTonnes = (unit: unknown): number | null => {
-  const u = String(unit ?? "").toLowerCase().replace(/\s/g, "").replace(/₂/g, "2");
-  if (/^kgco2/.test(u)) return 0.001;
-  if (/^gco2/.test(u)) return 0.000001;
-  if (/^(t|tonne|tonnes|ton|tons)co2/.test(u)) return 1;
-  return null;
-};
-
-// "kgCO2e/kWh" -> "kWh"; null when the factor unit has no denominator.
-export const factorDenominator = (unit: unknown): string | null => {
-  const parts = String(unit ?? "").split("/");
-  return parts.length === 2 ? parts[1] : null;
-};
-
-const normUnit = (u: unknown) => String(u ?? "").toLowerCase().replace(/\s/g, "");
-const sameUnit = (a: unknown, b: unknown) => normUnit(a) !== "" && normUnit(a) === normUnit(b);
 const text = (v: unknown) => (v == null ? "" : String(v).trim());
-const present = (v: unknown) => v != null && text(v) !== "";
 
 /** Month index 0–11 from "January", "jan" or 1–12; null when not recognised. */
 export const monthIndex = (v: unknown): number | null => {
@@ -80,27 +66,8 @@ export const periodDate = (period: string): Date => {
   return new Date(y, m - 1, 15);
 };
 
-/**
- * The row's total in tCO2e. It is recomputed from activity x factor (audit
- * F-05) and taken from the file's calculatedEmission only when the row has no
- * usable activity, factor or matching units. The activity unit must be the
- * factor's denominator ("kWh" with "kgCO2e/kWh"), or kWh x tCO2e/MWh would be
- * off by 1000.
- */
-export const rowTotal = (row: HistoricalRow): { total: number; from: "calculated" | "file" } | null => {
-  const activity = Number(row.activity);
-  const factor = Number(row.emissionFactor);
-  const toTonnes = factorUnitToTonnes(row.emissionFactorUnit);
-  if (
-    present(row.activity) && present(row.emissionFactor) && Number.isFinite(activity) && Number.isFinite(factor) &&
-    toTonnes !== null && sameUnit(row.unit, factorDenominator(row.emissionFactorUnit))
-  ) {
-    return { total: Math.round(activity * factor * toTonnes * 100) / 100, from: "calculated" };
-  }
-  const fromFile = Number(row.calculatedEmission);
-  if (present(row.calculatedEmission) && Number.isFinite(fromFile)) return { total: fromFile, from: "file" };
-  return null;
-};
+/** The engine's answer for one row (S3-4): its total, or why it can't be imported. */
+export type EngineResult = { ok: true; total: number; warnings?: string[] } | { ok: false; reason: string };
 
 export type FiledEntry = { date_of_reporting: Date | string; reporting_period?: string | null };
 
@@ -139,9 +106,12 @@ export type PlannedRow = {
   activity: string;
   unit: string;
   total: number | null;
-  totalFrom: "calculated" | "file" | null;
+  /** Always "calculated" (by the engine) for a row that imports; the sheet's figure is never used. */
+  totalFrom: "calculated" | null;
   status: "import" | "skip";
   reason: string | null;
+  /** The engine's warnings for the row (an older factor year, no FERA factor). */
+  warnings?: string[];
 };
 
 export type PlannedPerson = { email: string; name: string; exists: boolean };
@@ -159,36 +129,41 @@ export type HistoricalPlan = {
  * @param filed months ("2025-01") already reported for the chosen site and
  *   category, with the reason to show (see filedMonths): those rows are skipped.
  * @param existingEmails lower-case emails that already have an account.
+ * @param engine the engine's answer per row number (1 = the first row under the
+ *   header; historicalEngine.engineResults). A row it refuses is skipped with
+ *   the engine's reason; only rows it accepts count for "one entry per month".
  */
 export const planHistoricalRows = (
   rows: HistoricalRow[],
   filed: ReadonlyMap<string, string>,
   existingEmails: ReadonlySet<string>,
+  engine: ReadonlyMap<number, EngineResult>,
 ): HistoricalPlan => {
   const firstRowFor = new Map<string, number>();
   const planned = rows.map((r, i): PlannedRow => {
     const row = i + 1;
     const period = rowPeriod(r);
-    const total = rowTotal(r);
     const base = {
       row,
       period,
       fuelType: text(r.fuelType),
       activity: text(r.activity),
       unit: text(r.unit),
-      total: total?.total ?? null,
-      totalFrom: total?.from ?? null,
+      total: null,
+      totalFrom: null,
     };
     const skip = (reason: string): PlannedRow => ({ ...base, status: "skip", reason });
 
     if (!period) return skip("Year or month is missing or not recognised.");
     const filedReason = filed.get(period);
     if (filedReason) return skip(filedReason);
+    const result = engine.get(row);
+    if (!result) return skip("Not checked against the site's emission factors.");
+    if (!result.ok) return skip(result.reason);
     const first = firstRowFor.get(period);
     if (first !== undefined) return skip(`Same month as row ${first}; only one entry per month is kept.`);
-    if (!total) return skip("No total: the activity, factor and units don't give one and the sheet has no calculatedEmission.");
     firstRowFor.set(period, row);
-    return { ...base, status: "import", reason: null };
+    return { ...base, total: result.total, totalFrom: "calculated", status: "import", reason: null, ...(result.warnings?.length ? { warnings: result.warnings } : {}) };
   });
 
   const people = new Map<string, PlannedPerson>();

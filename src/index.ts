@@ -14,7 +14,9 @@ import oauthRoutes from "./oauth/router";
 import wellKnownRoutes from "./oauth/wellKnown";
 import importsRouter from "./imports/router";
 import internalImportsRouter from "./routes/internalImports.routes";
+import scope3Router from "./scope3/router";
 import supplierPublicRoutes from "./routes/supplierPublic.routes";
+import { companyRouter as scope3CompanyRouter } from "./scope3/boundary/router";
 import { registerUploadNotifyListener } from "./services/uploadNotify";
 import { registerMappingMemoryListener } from "./imports/profiles/service";
 import { onBatchCommitted } from "./imports/writer";
@@ -83,8 +85,10 @@ app.use("/pcf", pcfRoutes);
 app.use("/oauth", oauthRoutes);
 app.use("/.well-known", wellKnownRoutes);
 app.use("/imports", authenticate, importsRouter);
+app.use("/scope3", authenticate, scope3Router); // S3-0; each Scope 3 module adds its routes in src/scope3/router.ts
 app.use("/internal/imports", internalImportsRouter); // IM4, service key
 app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, no account
+app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
 
 let server: any;
 

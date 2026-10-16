@@ -19,7 +19,7 @@ Each emission row records how it was calculated (method) and how good its data i
 
 ## Build
 ### Backend (ESG-lite)
-1. `migrate:scope3-row-quality` adds `emission.method`, `dq`, `data_type`, `is_estimate`, and `column_config.method_options jsonb null` (an ordered list of method keys allowed for that form).
+1. `migrate:scope3-row-quality` adds `emission.method`, `dq`, `data_type`, `is_estimate`, and `column_config.method_options jsonb null`: the methods allowed for that form, most specific first, each with the units it offers (`[{method, units: string[]}]`). Type the column and validate writes with `MethodOptionsSchema` from `src/scope3/contracts/schemas.ts` (01-contracts.md §6); don't declare a keys-only `string[]`.
    - Backfill `method` for existing Scope 3 rows: spec forms with `per_unit` and tonne.km → `distance_based`, a currency unit → `spend_based`, a Cat 11 spec → `direct_use`, everything else → `average_data`.
    - Scope 1/2 rows get null.
    - DQ backfill uses the §3 auto default with `source: 'auto'`.

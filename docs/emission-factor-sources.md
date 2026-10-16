@@ -50,6 +50,20 @@ Source: DEFRA/DESNZ conversion factors, **Freighting goods** tab plus
 **WTT- delivery vehs & freight** (well-to-tank), summed. Units: `tonne.km` for
 tonne-kilometre rows (HGV, van, rail, air, sea), `km` for per-vehicle-km rows.
 
+**From Scope 3 (S3-7, decision D6):** these summed factors count well-to-tank
+(WTT) inside Category 4/9, while the FERA twin can count it again in
+Category 3. ESGLite now flags such rows (`WTT_ALREADY_IN_FACTOR`) and keeps
+their totals as they are. Upload **new** freight factors as two factors
+instead:
+
+- the Freighting goods value alone, `factor_type` `life_cycle`,
+  `includes_wtt` off, in the transport category (Upstream or Downstream);
+- the WTT value, `factor_type` `wtt`, in the site's FERA category under the
+  same name, so the WTT part lands in Category 3 (upstream of fuels).
+
+Old summed factors keep `includes_wtt` on (the S3-2 backfill set it from the
+source text) and old rows are not recalculated.
+
 The production template (Chieron) holds 22 names × years 2021–2025:
 
 ```
@@ -71,3 +85,25 @@ Known data issues to resolve with DEFRA's published table:
 - Plug-in hybrid van factors exist only for 2024–2025.
 
 Refresh every June when DEFRA publishes, uploading under the new year.
+
+## Category 3 (FERA) factors (S3-7)
+
+The site's FERA category holds the Category 3 factors. Each FERA twin records
+its sub-activity in `emission.scope3_sub`:
+
+| Sub-activity | Parent row | FERA factor |
+|---|---|---|
+| 3a upstream of fuels | a fuel row (Scope 1, or no scope) | `wtt`, same name as the fuel factor |
+| 3b upstream of electricity | a Scope 2 row | `wtt`, same name as the electricity factor |
+| 3c T&D losses | a Scope 2 row | `td_loss`, name or global name = the electricity factor's name |
+
+- Upstream (`wtt`) factors exclude combustion: life-cycle factor minus the
+  combustion factor (guidance formulas 3.1 and 3.2).
+- A `td_loss` factor is uploaded **per kWh consumed**: the life-cycle grid
+  factor × the grid's T&D loss rate (formula 3.3). Example: 0.8 kgCO₂e/kWh at
+  a 10 % loss rate is 0.08. Name it, for example, `Grid electricity T&D
+  losses` with global name `Grid electricity`, since a FERA category can hold
+  only one factor per name and year. No `td_loss` factor, no 3c row.
+- A FERA factor typed anything other than `wtt` or `td_loss` still makes its
+  twin, with the warning `FACTOR_TYPE_MISMATCH`.
+- 3d (energy bought and resold) is not supported: no client sells energy.

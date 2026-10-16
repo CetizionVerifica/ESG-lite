@@ -32,6 +32,10 @@ import { OauthClient } from "../entities/OauthClient";
 import { OauthGrant } from "../entities/OauthGrant";
 import { OauthCode } from "../entities/OauthCode";
 import { OauthToken } from "../entities/OauthToken";
+import { CompanyScope3Category } from "../entities/CompanyScope3Category";
+import { CategoryGhgMapProposal } from "../entities/CategoryGhgMapProposal";
+import { Investment } from "../entities/Investment";
+import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
 import { SupplierFactor } from "../entities/SupplierFactor";
 import { SupplierFacilityData } from "../entities/SupplierFacilityData";
@@ -76,6 +80,10 @@ const entities = [
     OauthGrant,
     OauthCode,
     OauthToken,
+    CompanyScope3Category,
+    CategoryGhgMapProposal,
+    Investment, // S3-11
+    ProductSale, // S3-10
     // S3-6
     Supplier,
     SupplierFactor,
