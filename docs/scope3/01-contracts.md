@@ -150,7 +150,13 @@ src/services/emissionWrite/
 ```
 `ComputedRow = { total_tco2e: number (2 dp, as today), total_kgco2e: string, factor_snapshot: FactorSnapshot, method: Method, dq: Dq, data_type, warnings: Warning[] }`.
 `FactorSnapshot` gains `factor_type, gwp_set, geography, dataset, dataset_version, gases?`.
-The method is chosen by the row's `method` field. When it's missing, by the form's `method_options[0]`. Otherwise `activity`.
+The row's method is set by the form, not by the contributor (simple data entry, ESG-lite_FE `docs/simple-entry/00-plan.md` §5.2), first that applies:
+1. an import by an Admin or Superadmin, a Manager's smart Excel import, or an MCP row may send `method` (it must be in the form's `method_options`, else `METHOD_NOT_ALLOWED`); a User's manual bulk upload does not;
+2. the form's `method_by_choice` (SE-2): the answer to a client-worded select field picks the method;
+3. the form's `method_options[0]`;
+4. `spend_based` when the matched factor is `eeio_spend` (S3-5);
+5. `activity`.
+A User's typed entry never sends a method; any `method` / `@method` it carries is ignored when the form fixes one.
 Dispatch order (`methodFileFor` in `compute.ts`), first match wins:
 1. a row with `proxy` → `methods/proxy.ts`;
 2. method `spend_based` → `methods/spend.ts`, `supplier_specific` → `methods/supplier.ts`, `hybrid` → `methods/hybrid.ts`, on any category, spec or not (so Cat 4/9 spend rows under S3-8 and Cat 6 spend rows under S3-9 get S3-5's FX and deflator maths);
@@ -173,7 +179,7 @@ Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACT
 
 ## 8. Review check ids (S3-15, `review/checks.ts`)
 
-`FACTOR_FOUND`, `UNIT_OK`, `EVIDENCE_ATTACHED`, `WITHIN_THRESHOLD` (company `emission_threshold`, vs previous month same site/category/activity), `NO_DUPLICATE`, `IMPORT_MATCH_SURE` (smart import ≥ 80 %), `METHOD_GIVEN` (Scope 3 only), `DQ_ACCEPTABLE` (overall ≤ 2 or a note). Ready = all pass. The UI shows a fixed label per id (`src/lib/scope3/checks.ts`).
+`FACTOR_FOUND`, `UNIT_OK`, `EVIDENCE_ATTACHED`, `WITHIN_THRESHOLD` (company `emission_threshold`, vs previous month same site/category/activity), `NO_DUPLICATE`, `IMPORT_MATCH_SURE` (smart import ≥ 80 %), `METHOD_GIVEN` (Scope 3 only; the method set by the form or the import, never asked of a User), `DQ_ACCEPTABLE` (overall ≤ 2 or a note). Ready = all pass. The UI shows a fixed label per id (`src/lib/scope3/checks.ts`).
 
 ## 9. Golden cases (`ci/golden/scope3/cases.json`, S3-0)
 

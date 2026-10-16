@@ -3,6 +3,8 @@
 > Module spec. Lane L4. Copy to `ESG-lite/src/scope3/commuting/CLAUDE.md` as the first commit. PR titles `[S3-9 k/m] …` (1/2 ESG-lite, 2/2 ESG-lite_FE).
 > Depends on (merged): S3-3 · Owns: travel and commuting configs, `src/scope3/commuting/*` (survey import, extrapolation) · Touches: `calculationSpec.ts`
 
+> Simple data entry (ESG-lite_FE `docs/simple-entry/`): a User never picks `@method`. SE-1 picks it out of sight when the form has one method and shows "Type of record" when it has several; SE-5 migrates these `@method` forms to `method_options` or a client-worded `method_by_choice` select.
+
 ## Job to be done
 A contributor records trips (air, rail, car, hotel nights) by distance, fuel or spend, and a manager loads one commuting survey a year that ESGLite scales to all staff, or uses headcount × national averages when there is no survey.
 

@@ -1,7 +1,7 @@
 # S3-3 · Method and data quality on every row
 
 > Module spec. Lane L3. Copy it to `ESG-lite/src/scope3/dq/CLAUDE.md` and `ESG-lite_FE/src/lib/scope3/CLAUDE.md`. PR titles `[S3-3 k/m] …`.
-> Depends on (merged): S3-0 · Owns: `emission.method/dq/data_type/is_estimate`, `src/scope3/dq/*`, `ColumnConfig.method_options`, FE `src/lib/scope3/dq.ts`, `src/ui/DataQualityBadge`, the add-data method picker · Touches: `emissionWrite/index.ts`, `src/imports/contracts.ts` (row shape), approvals-ledger drawer, my-entries drawer
+> Depends on (merged): S3-0 · Owns: `emission.method/dq/data_type/is_estimate`, `src/scope3/dq/*`, `ColumnConfig.method_options`, FE `src/lib/scope3/dq.ts`, `src/ui/DataQualityBadge` · Touches: `emissionWrite/index.ts`, `src/imports/contracts.ts` (row shape), approvals-ledger drawer, my-entries drawer
 
 ## Job to be done
 Each emission row records how it was calculated (method) and how good its data is (DQ, primary or secondary, estimated or not). Contributors pick the method in plain words. Managers and reports can see quality at a glance.
@@ -33,8 +33,8 @@ Each emission row records how it was calculated (method) and how good its data i
 ### Frontend (ESG-lite_FE)
 1. `src/lib/scope3/dq.ts` (labels, overall mapping) and `src/ui/DataQualityBadge` (Good / Fair / Poor plus a tooltip with the five indicators; word and glyph, never colour alone).
 2. **Capture setup** (`src/features/capture-setup`): the form builder gets a "Methods offered" multi-select, ordered, for Scope 3 categories, prefilled from `ghgCategory` methods.
-3. **Add data:** when a form has two or more `method_options`, show the method radio cards (canvas screen 3) above the fields. A single method shows as a read-only line. Save the distance helper's estimate flag as `is_estimate`. The live "Data quality" line comes from the same defaults (mirror `defaults.ts` in `src/lib/scope3/dq.ts`).
-4. My entries and approvals-ledger drawers: show a "How it was calculated" line (the method label) and the `DataQualityBadge`. The list gets a DQ column, hidden by default.
+3. **Add data:** no method picker, method line or "Data quality" line for contributors (simple data entry SE-1/SE-2: the form sets the method, from `method_options` or `method_by_choice`). Save the distance helper's estimate flag as `is_estimate`.
+4. Approvals-ledger drawer (reviewers): show a "How it was calculated" line (the method label) and the `DataQualityBadge`. The list gets a DQ column, hidden by default. My entries (Users) shows neither.
 
 ### AI service
 None.
@@ -54,5 +54,4 @@ None calculate. DQ default unit tests cover every rule in §3.
 ## Done when
 - New rows always carry a method (Scope 3) and a DQ.
 - Old Scope 3 rows are backfilled.
-- The method picker shows on multi-method forms.
 - DQ is visible in the drawers.

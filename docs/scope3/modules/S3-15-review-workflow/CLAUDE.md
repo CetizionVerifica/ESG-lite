@@ -22,7 +22,7 @@ A contributor fills the month as drafts, fixes what was sent back and submits it
 ### Backend (ESG-lite)
 Part 1 (checks, read-only; status flow unchanged):
 1. `migrate:scope3-review-checks`: `emission.checks jsonb null`; backfill pending rows in batches of 1,000.
-2. `review/checks.ts`: pure `computeChecks(row, ctx) → {ready, held: CheckId[]}` for the §8 ids: `FACTOR_FOUND` (snapshot factor for the target year, no `FACTOR_FALLBACK_YEAR`), `UNIT_OK`, `EVIDENCE_ATTACHED`, `WITHIN_THRESHOLD` (vs the previous month, same site, category and `emission_category`; no previous month passes), `NO_DUPLICATE`, `IMPORT_MATCH_SURE` (reuse the XI5 `attentionSql` rule), `METHOD_GIVEN` and `DQ_ACCEPTABLE` (pass as "not applicable" until S3-3 fields exist). Ready = nothing held.
+2. `review/checks.ts`: pure `computeChecks(row, ctx) → {ready, held: CheckId[]}` for the §8 ids: `FACTOR_FOUND` (snapshot factor for the target year, no `FACTOR_FALLBACK_YEAR`), `UNIT_OK`, `EVIDENCE_ATTACHED`, `WITHIN_THRESHOLD` (vs the previous month, same site, category and `emission_category`; no previous month passes), `NO_DUPLICATE`, `IMPORT_MATCH_SURE` (reuse the XI5 `attentionSql` rule), `METHOD_GIVEN` (the method set by the form or the import, never asked of a User; simple data entry SE-2) and `DQ_ACCEPTABLE` (pass as "not applicable" until S3-3 fields exist). Ready = nothing held.
 3. Recompute and store `checks` on insert (`emissionWrite/index.ts`), edit, evidence add or remove, and when the previous month changes. `GET /user/emissions` returns `checks` and `summary.{ready, attention}`. S3-0 follow-ups: list filter `ready=1|0` and `PUT /user/emissions/bulk-approve {ids, only_ready: true}` (skips rows not ready, returns them) in §5.
 Part 2 (behind `company.review_workflow_v2`, default off, D9):
 4. `migrate:scope3-review-workflow`: `company.review_workflow_v2`, `ALTER TYPE emission_status_enum ADD VALUE IF NOT EXISTS 'draft'` (TypeORM's default enum name, confirm with `\dT`; run outside a transaction; S3-0 follow-up: §4 says "still varchar", correct it), `period_lock` (§4, unique on company, site, year, month).
@@ -39,7 +39,7 @@ Part 1:
 3. Record drawer becomes the single-entry review (canvas 5): "Why held" (each check with pass or fail), Calculation, 6-month mini chart (`ChartFrame`), Evidence, History, reject reason chips (`SUGGESTED_REASONS`), "Approve and next".
 Part 2 (hidden unless the company switch is on):
 4. My month (canvas 2): due banner, Sent back on top, Draft rows with checkboxes and a sticky "Submit N rows", "Nothing this month" per category (confirm + undo), status words Draft / Pending / Approved / Rejected / Missing / Locked; a locked month is read-only with a Locked banner.
-5. Fix and resubmit (canvas 3): "Fix" opens the rejected row in add-data with method radio cards (S3-3), evidence `FileDrop`, live checks panel and DQ line, "Save and submit". Add-data is outside §4 for S3-15: list it under "Deviations".
+5. Fix and resubmit (canvas 3): "Fix" opens the rejected row in add-data with evidence `FileDrop`, live checks panel and "Save and submit" (no method cards or DQ line for contributors: simple data entry SE-1). Add-data is outside §4 for S3-15: list it under "Deviations".
 6. Close month (canvas 6), Approvals tab `?view=close&period=`: site completeness table, Scope 3 category grid, "Left before you can lock" list with links, Lock disabled until the list is empty (the reason in text beside it), Reopen dialog with a required reason (focus trapped, Esc closes).
 
 ### AI service
