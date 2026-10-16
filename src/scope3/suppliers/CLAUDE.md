@@ -62,3 +62,15 @@ Supplier portal logins (suppliers keep using the tokenised C06 link), and extrap
 - C06 answers appear as supplier factors.
 - The supplier coverage % is available to reports.
 - Golden 1.1–1.3 pass.
+
+## As built (S3-6, 2026-10-16)
+- **Part 1** (`migrate:scope3-suppliers`): the three tables, `emission.supplier_id`, the backfill (exact case-folded names only).
+- **Part 2** (engine): `emissionWrite/methods/supplier.ts` and `hybrid.ts`; `allocate.ts` (shared with PCF, which now calls it); `engineInput.ts` (what the engine gets on `EngineRow.supplier`, the figure and facility choice, the hybrid line parser); `entryInput.ts` (`supplier_id` / `supplier_factor_id` on `POST /user/emissions`). Golden 1.1–1.3 run.
+- **Part 3** (API, `src/index.ts` mounts `/suppliers` behind `authenticate`, as §5 names it, the way S3-1 mounts `/company`):
+  - `GET /suppliers?year=&year_type=` (rows and tCO₂e of the year, figure and facility flags, last C06 request), `POST /suppliers`, `GET/PUT /suppliers/:id` (detail: figures, facility data, requests).
+  - `GET/POST /suppliers/:id/factors` (`SUPPLIER_FACTOR_BOUNDARY` 422 unless `confirm_boundary: true`; `evidence_document_id` must be a document of the company), `GET/POST /suppliers/:id/facility-data` (one row per supplier and year; a repeat replaces it, 200).
+  - `GET/POST /suppliers/name-matches`: similar spellings (`nameMatch.ts`: legal-form words and punctuation ignored, or two typos in a long name) and unlinked `extra_data.supplier_name` rows. Link merges (rows, figures and facility data move, the other supplier row goes) or links rows; Not the same is remembered as an `audit_log` row (`scope3_supplier_match`), since §4 has no table for it.
+  - `GET /suppliers/coverage?year=&year_type=&status=approved|all` and `coverage(companyId, {from, to}, {statuses, siteIds})` in `service.ts` for S3-13: Cat 1/2 tCO₂e by method, coverage %, top 20 suppliers. Approved rows by default; kg summed and rounded once (D5).
+  - Roles: reads any role with access to the company (layer rule 3; contributors need the list for the add-data Supplier field); writes and the name-match list Manager, Admin, Superadmin. Another company's ids → 404.
+  - Audit: `scope3_supplier` (create, update, merge, link_rows), `scope3_supplier_factor` (create, with the boundary confirmation), `scope3_supplier_facility`, `scope3_supplier_match`.
+- **C06 link (D8)**: `acceptRequest` calls `linkC06Accept` inside its transaction: the supplier by case-folded name, then email, else created; a `supplier_factor` with source `supplier_request` and `material_factor_id`. The figure's evidence is the file the supplier sent, which stays on `supplier_request` (bytea), so `has_evidence` reads it through `material_factor_id` rather than `evidence_document_id`. A figure that isn't cradle-to-gate is written only with `confirm_boundary: true`. PCF's MaterialFactor and input line are untouched.

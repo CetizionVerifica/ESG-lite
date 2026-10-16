@@ -74,9 +74,10 @@ function runMigration() {
   return output;
 }
 
+// Only this test's suppliers: others (a C06 accept, S3-6 part 3) may exist in the same company.
 const suppliersOf = async (db, company) => {
   const { rows } = await db.query(
-    `SELECT supplier_id, name, email FROM "supplier" WHERE company_id = $1 ORDER BY supplier_id`,
+    `SELECT supplier_id, name, email FROM "supplier" WHERE company_id = $1 AND lower(name) LIKE 'gulf smelter%' ORDER BY supplier_id`,
     [company],
   );
   return rows;

@@ -84,6 +84,16 @@ export interface LoadedSupplier {
 
 const fold = (s: string | null | undefined) => String(s ?? "").trim().toLowerCase();
 
+/**
+ * Whether a figure has evidence: a document attached to it, or — for a figure
+ * from an accepted C06 request — the file the supplier sent with its answer,
+ * which stays on the request (`supplier_request.reply_file`). Alias `sf`.
+ */
+export const FACTOR_EVIDENCE_SQL = `(sf.evidence_document_id IS NOT NULL OR EXISTS (
+  SELECT 1 FROM supplier_request sr
+   WHERE sr.material_factor_id = sf.material_factor_id AND sf.material_factor_id IS NOT NULL
+     AND sr.company_id = sf.company_id AND sr.reply_file_name IS NOT NULL))`;
+
 /** Loads a supplier of `companyId` with its factors and facility data, or null when it is not that company's. */
 export const loadSupplier = async (manager: EntityManager, companyId: number, supplierId: number): Promise<LoadedSupplier | null> => {
   if (!Number.isInteger(supplierId) || supplierId <= 0) return null;
@@ -91,10 +101,10 @@ export const loadSupplier = async (manager: EntityManager, companyId: number, su
   if (!supplier) return null;
   const [factors, facilities] = await Promise.all([
     manager.query(
-      `SELECT supplier_factor_id, item, unit, kgco2e_per_unit, boundary, reference_year, gwp_set, source,
-              (evidence_document_id IS NOT NULL) AS has_evidence
-         FROM supplier_factor WHERE supplier_id = $1 AND company_id = $2
-        ORDER BY reference_year DESC, supplier_factor_id DESC`,
+      `SELECT sf.supplier_factor_id, sf.item, sf.unit, sf.kgco2e_per_unit, sf.boundary, sf.reference_year, sf.gwp_set, sf.source,
+              ${FACTOR_EVIDENCE_SQL} AS has_evidence
+         FROM supplier_factor sf WHERE sf.supplier_id = $1 AND sf.company_id = $2
+        ORDER BY sf.reference_year DESC, sf.supplier_factor_id DESC`,
       [supplierId, companyId],
     ),
     manager.query(
