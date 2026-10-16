@@ -188,6 +188,9 @@ test("changing the base year needs a note and records an approved methodology ev
   assert.deepEqual(approved[0].affected_years, [BASE, BASE + 1]);
   assert.equal(approved[0].note, "Acquired site data starts in 2013");
   assert.equal(approved[0].approved_by_name !== undefined, true);
+  // GET /scope3/base-year lists approved recalculations for the report's Methodology tab, newest first.
+  const by = (await call("GET", "/scope3/base-year", "manager")).json;
+  assert.deepEqual(by.approved_recalculations.map((e) => e.reason), ["methodology", "error"]);
   const count = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM company_base_year WHERE company_id = 1`));
   assert.equal(count.rows[0].n, 1);
 });

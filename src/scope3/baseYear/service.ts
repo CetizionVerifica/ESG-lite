@@ -182,12 +182,14 @@ async function openProposal(companyId: number, q: Queryable) {
 /** GET /scope3/base-year: the base year (or null), today's drift against it and the open proposal. */
 export async function getBaseYear(companyId: number) {
   const row = await baseYearRow(companyId, AppDataSource);
-  if (!row) return { base_year: null, drift: null, open_proposal: null };
+  if (!row) return { base_year: null, approved_recalculations: [], drift: null, open_proposal: null };
   const state = await currentState(companyId, Number(row.base_year), row.year_type, AppDataSource);
   const cmp = detectChanges(row.snapshot, state, Number(row.significance_pct));
   const open = await openProposal(companyId, AppDataSource);
+  const approved = (await baseYearSummary(companyId, AppDataSource))?.events ?? [];
   return {
     base_year: publicRow(row),
+    approved_recalculations: approved,
     drift: {
       delta_tco2e: cmp.delta_tco2e,
       delta_pct: cmp.delta_pct,
