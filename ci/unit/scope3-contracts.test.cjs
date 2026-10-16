@@ -193,3 +193,16 @@ test("schemas for the §5 bodies and shapes folded in from §10 and the module s
   assert.equal(ok(schemas.Scope3ReportRowSchema, { ...row, n: null, direction: null, status: null, name: "Unmapped" }), true);
   for (const t of schemas.SCOPE3_AUDIT_ENTITY_TYPES) assert.match(t, /^scope3_/);
 });
+
+test("emission.proxy: basis coverage, intensity or sample; coverage needs 1–99; from is the source row ids", () => {
+  const ok = (p) => schemas.ProxySchema.safeParse(p).success;
+  assert.equal(ok({ basis: "coverage", coverage_pct: 85, from: [1, 2] }), true);
+  assert.equal(ok({ basis: "coverage", from: [1] }), false, "coverage without a share");
+  assert.equal(ok({ basis: "coverage", coverage_pct: 100, from: [1] }), false, "coverage of 100 % is not a proxy");
+  assert.equal(ok({ basis: "coverage", coverage_pct: 0.5, from: [1] }), false);
+  assert.equal(ok({ basis: "intensity", from: [3] }), true, "intensity needs no share");
+  assert.equal(ok({ basis: "sample", coverage_pct: 100, from: [] }), true, "a survey may reach everyone");
+  assert.equal(ok({ basis: "floor_area", from: [] }), false);
+  assert.equal(ok({ basis: "coverage", coverage_pct: 85, from: "known 850,000 kg" }), false);
+  for (const b of schemas.PROXY_BASES) assert.match(schemas.PROXY_BASIS_LABELS[b], /^[A-Z][a-z]/, b);
+});

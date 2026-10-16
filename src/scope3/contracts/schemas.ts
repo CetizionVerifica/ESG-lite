@@ -157,12 +157,35 @@ export const FxSchema = z.object({
   spend_date: isoDate.optional(),
 });
 
-/** `emission.proxy` (S3-12). */
-export const ProxySchema = z.object({
-  basis: text(200),
-  coverage_pct: z.number().min(0).max(100),
-  from: z.string().max(200),
-});
+/**
+ * `emission.proxy` (S3-12): how an extrapolated or proxy row was made.
+ *   coverage   the known rows cover `coverage_pct` (1–99) of the activity; scaled up to 100 %
+ *   intensity  kg per unit of output at sites with data × output at sites without
+ *   sample     a survey sample scaled to the whole population (S3-9 commuting; `coverage_pct` = respondents share)
+ * `from` holds the ids of the emission rows it was made from (empty for a survey).
+ */
+export const PROXY_BASES = ["coverage", "intensity", "sample"] as const;
+export const ProxyBasisSchema = z.enum(PROXY_BASES);
+export type ProxyBasis = z.infer<typeof ProxyBasisSchema>;
+
+/** Plain label per basis, for reports and the UI (never print the raw key). */
+export const PROXY_BASIS_LABELS: Record<ProxyBasis, string> = {
+  coverage: "Scaled up from the share of activity with data",
+  intensity: "Intensity per unit of output at sites with data",
+  sample: "Commuting survey scaled to all employees",
+};
+
+export const ProxySchema = z
+  .object({
+    basis: ProxyBasisSchema,
+    coverage_pct: z.number().gt(0).max(100).optional(),
+    from: z.array(id).max(10_000),
+  })
+  .refine((p) => p.basis !== "coverage" || (p.coverage_pct !== undefined && p.coverage_pct >= 1 && p.coverage_pct <= 99), {
+    message: "coverage_pct from 1 to 99 is required when basis is coverage",
+    path: ["coverage_pct"],
+  });
+export type Proxy = z.infer<typeof ProxySchema>;
 
 /** The new nullable `emission` columns, by owning module. */
 export const EmissionScope3FieldsSchema = z.object({

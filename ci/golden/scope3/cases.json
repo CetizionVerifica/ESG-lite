@@ -1714,7 +1714,7 @@
       "proxy": {
         "basis": "coverage",
         "coverage_pct": 85,
-        "from": "known 850,000 kg"
+        "from": []
       },
       "factors": {
         "scale": {
@@ -1749,7 +1749,7 @@
       "proxy": {
         "basis": "intensity",
         "coverage_pct": 66.67,
-        "from": "2 sites, 500 t output"
+        "from": []
       },
       "factors": {
         "intensity": {
