@@ -10,7 +10,7 @@
  */
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
-import { Emission } from "../../entities/Emission";
+import { Emission, EmissionStatus } from "../../entities/Emission";
 import { EmissionFactor } from "../../entities/EmissionFactor";
 import { AuditLog } from "../../entities/AuditLog";
 import { User } from "../../entities/User";
@@ -27,7 +27,6 @@ import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type Resolv
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
 import { lockedSiteMonths, siteMonthOf } from "../../scope3/review/periodLock";
-import { EmissionStatus } from "../../entities/Emission";
 import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
 import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";

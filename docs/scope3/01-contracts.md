@@ -132,6 +132,15 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `GET /user/emissions/:id/history?months=6` | S3-15 | a row's last 6 months |
 | `POST/DELETE /user/my-month/nothing` `{site_id, category_id, month}` | S3-15 | "Nothing this month"; notification kind `draft_submitted` for submitted drafts |
 
+**As built by S3-15 part 2 (ESG-lite `[S3-15 3/4]`), response shapes.** Errors are `{code, message, details?}`; access and validation use the S3-1 codes `SCOPE3_VALIDATION` (400), `SCOPE3_COMPANY_REQUIRED` (400), `SCOPE3_FORBIDDEN` (403), `SCOPE3_NOT_FOUND` (404, also another company's ids).
+- `POST /user/emissions/submit {ids}` (1–1,000) → 200 `{submitted: number[], refused: [{id, code: "NOT_DRAFT" | "PERIOD_LOCKED"}]}`. Own drafts only (another person's draft or a non-draft is `NOT_DRAFT`); FERA twins move with their parent; any id outside the caller's sites → 404.
+- `POST /user/emissions/check {ids}` (1–200) → 200 `{results: [{id, status, checks: {ready, held: CheckId[]}}]}`; any status is checked as if submitted now; nothing is stored.
+- `GET /user/emissions/:id/history?months=6` (1–24) → 200 `{id, site_id, category_id, emission_category, unit: "tCO2e", months: [{month: "YYYY-MM", total_tco2e, rows}]}`, oldest first, ending with the row's month; pending and approved rows of the same site, category and `emission_category`.
+- `POST /user/my-month/nothing` and `DELETE` (body or query) `{site_id, category_id, month: "YYYY-MM-DD" | "YYYY-MM"}` → 200 `{site_id, category_id, month: "YYYY-MM-01", nothing: boolean}`; 403 `REVIEW_WORKFLOW_OFF` with the switch off, 409 `PERIOD_LOCKED` in a closed month.
+- `GET /periods/lock?year&month[&site_id][&company_id]` → 200 `PeriodStatus`: `{company_id, year, month, period: "YYYY-MM", review_workflow_v2, can_lock, locked, left: [{site_id, site_name, category_id, category_name, reason: "missing" | "draft" | "pending" | "rejected"}], sites: [{site_id, name, locked, lock: {locked_at, locked_by, locked_by_name} | null, reopened: {reopened_at, reopened_by, reopened_by_name, reason} | null, left: number, categories: [{category_id, category_name, scope, ghg_category, state: "missing" | "draft" | "pending" | "rejected" | "approved" | "nothing" | "covered", counts: {draft, pending, approved, rejected}, nothing}], scope3: [{n: 1–15, status: boundary status (default "screening"), data: boolean}]}]}`.
+- `POST /periods/lock {site_id?: number | null, year, month, company_id?}` → 200 `PeriodStatus`; 422 `PERIOD_INCOMPLETE` `{details: {left}}`; 403 `REVIEW_WORKFLOW_OFF`. `POST /periods/unlock {site_id?, year, month, reason, company_id?}` → 200 `PeriodStatus`; 400 `UNLOCK_REASON_REQUIRED` `{details: {min_length: 5}}`. A Manager names one of their sites; `site_id` null is every site (Admin, Superadmin).
+- `GET /user/my-month` with the switch on adds `review_workflow_v2: true`, per site `locked`, per category `entries.draft` and `nothing`, statuses `draft` and `nothing`, and `summary.draft`; with it off the response is unchanged.
+
 Existing endpoints that gain fields: `GET /user/emissions` (method, dq, data_type, supplier, checks); `GET /admin/emission-factors` (§2 fields); `GET /user/my-month` (draft count, nothing-this-month flag); the GHG report endpoints (ghg_category per row).
 
 ## 6. Engine interface (`emissionWrite`)
@@ -168,7 +177,7 @@ S3-5 put `methodFileFor` in this order. A row carrying a spend quote (asked for 
 
 ## 7. Error and warning codes (add to `src/imports/errors.ts` style)
 
-Errors: `SCOPE_INVALID`, `GHG_CATEGORY_INVALID`, `GHG_CATEGORY_REQUIRED` (Scope 3 category with no number, after the backfill is confirmed), `EXCLUSION_REASON_REQUIRED`, `UNIT_REQUIRED` (a factor with no unit), `METHOD_NOT_ALLOWED`, `CURRENCY_NOT_SUPPORTED`, `SUPPLIER_FACTOR_BOUNDARY`, `PERIOD_LOCKED`, `UNLOCK_REASON_REQUIRED`, `NOT_DRAFT`, `EXTRAPOLATION_BASIS_INVALID`, `PERIOD_INCOMPLETE`, `BASE_YEAR_NO_DATA`, `RECALCULATION_REASON_REQUIRED`.
+Errors: `SCOPE_INVALID`, `GHG_CATEGORY_INVALID`, `GHG_CATEGORY_REQUIRED` (Scope 3 category with no number, after the backfill is confirmed), `EXCLUSION_REASON_REQUIRED`, `UNIT_REQUIRED` (a factor with no unit), `METHOD_NOT_ALLOWED`, `CURRENCY_NOT_SUPPORTED`, `SUPPLIER_FACTOR_BOUNDARY`, `PERIOD_LOCKED`, `UNLOCK_REASON_REQUIRED`, `NOT_DRAFT`, `EXTRAPOLATION_BASIS_INVALID`, `PERIOD_INCOMPLETE`, `BASE_YEAR_NO_DATA`, `RECALCULATION_REASON_REQUIRED`, `REVIEW_WORKFLOW_OFF` (S3-15 part 2: lock or "Nothing this month" for a client without review workflow v2).
 Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `DEFLATOR_FALLBACK_YEAR` (spend year with no index yet: the latest earlier index was used), `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
 
 ## 8. Review check ids (S3-15, `review/checks.ts`)
