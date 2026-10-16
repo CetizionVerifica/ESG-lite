@@ -16,13 +16,14 @@ const { spawnSync } = require("child_process");
 const { call, withDb } = require("../helpers.cjs");
 
 const ROOT = path.resolve(__dirname, "../../..");
-const COMPILED = path.join(ROOT, "dist/scripts/addEmissionRowQualityColumns.js");
+const COMPILED = path.join(ROOT, "dist/scripts/backfillEmissionRowQuality.js");
 
 // Ids well clear of ci/api/fixture.sql so the fixture's own rows stay as they are.
 const PER_UNIT_CATEGORY = 9301;
 const PER_METHOD_CATEGORY = 9302;
 const PLAIN_CATEGORY = 9303;
 const SCOPE1_CATEGORY = 9304;
+const COMMUTING_CATEGORY = 9305;
 const FIRST_EMISSION = 93001;
 
 const ROWS = [
@@ -32,6 +33,7 @@ const ROWS = [
   // A currency wins over the form: a per_unit form priced in money is spend-based.
   { pk_id: FIRST_EMISSION + 3, category_id: PER_UNIT_CATEGORY, unit: "kg", activity_data_unit: "usd", method: null, expected: "spend_based" },
   { pk_id: FIRST_EMISSION + 4, category_id: PLAIN_CATEGORY, unit: "INR", activity_data_unit: null, method: null, expected: "spend_based" },
+  // A Category 11 form: use of sold products, direct use-phase.
   { pk_id: FIRST_EMISSION + 5, category_id: PER_METHOD_CATEGORY, unit: "kg", activity_data_unit: null, method: null, expected: "direct_use" },
   { pk_id: FIRST_EMISSION + 6, category_id: PLAIN_CATEGORY, unit: "kg", activity_data_unit: null, method: null, expected: "average_data" },
   // No site, so no form to read: still a Scope 3 row and still gets a method.
@@ -40,17 +42,28 @@ const ROWS = [
   { pk_id: FIRST_EMISSION + 8, category_id: SCOPE1_CATEGORY, unit: "kwh", activity_data_unit: null, method: null, expected: null },
   // Already answered: the backfill must leave it alone.
   { pk_id: FIRST_EMISSION + 9, category_id: PLAIN_CATEGORY, unit: "kg", activity_data_unit: null, method: "supplier_specific", expected: "supplier_specific" },
+  // A per_method form outside Category 11 (Category 7 commuting): the row's own
+  // "@method" wins, the way new rows record it; an unknown key or none is average data.
+  { pk_id: FIRST_EMISSION + 10, category_id: COMMUTING_CATEGORY, unit: "km", activity_data_unit: null, row_method: "distance_based", method: null, expected: "distance_based" },
+  { pk_id: FIRST_EMISSION + 11, category_id: COMMUTING_CATEGORY, unit: "litre", activity_data_unit: null, row_method: "fuel_based", method: null, expected: "fuel_based" },
+  { pk_id: FIRST_EMISSION + 12, category_id: COMMUTING_CATEGORY, unit: "km", activity_data_unit: null, row_method: "teleport", method: null, expected: "average_data" },
+  { pk_id: FIRST_EMISSION + 13, category_id: COMMUTING_CATEGORY, unit: "kg", activity_data_unit: null, method: null, expected: "average_data" },
+  // Any currency the spend method knows, not only INR, USD and EUR.
+  { pk_id: FIRST_EMISSION + 14, category_id: PLAIN_CATEGORY, unit: "GBP", activity_data_unit: null, method: null, expected: "spend_based" },
 ];
+
+const ALL_CATEGORIES = [PER_UNIT_CATEGORY, PER_METHOD_CATEGORY, PLAIN_CATEGORY, SCOPE1_CATEGORY, COMMUTING_CATEGORY];
 
 async function seed(db) {
   await db.query(
-    `INSERT INTO category (category_id, category_name, scope) VALUES
-       ($1, 'S3-3 transport form', 'Scope 3'),
-       ($2, 'S3-3 use of sold form', 'Scope 3'),
-       ($3, 'S3-3 no form', 'Scope 3'),
-       ($4, 'S3-3 scope 1', 'Scope 1')
+    `INSERT INTO category (category_id, category_name, scope, ghg_category) VALUES
+       ($1, 'S3-3 transport form', 'Scope 3', 4),
+       ($2, 'S3-3 use of sold form', 'Scope 3', 11),
+       ($3, 'S3-3 no form', 'Scope 3', 1),
+       ($4, 'S3-3 scope 1', 'Scope 1', NULL),
+       ($5, 'S3-3 commuting form', 'Scope 3', 7)
      ON CONFLICT (category_id) DO NOTHING`,
-    [PER_UNIT_CATEGORY, PER_METHOD_CATEGORY, PLAIN_CATEGORY, SCOPE1_CATEGORY],
+    ALL_CATEGORIES,
   );
   // Two forms for the same site × category: the backfill must read the first
   // one and must not multiply the row.
@@ -58,41 +71,49 @@ async function seed(db) {
     `INSERT INTO column_config (config_name, site_id, category_id, calculation) VALUES
        ('s3-3 per_unit', 1, $1, '{"mode":"per_unit","methods":{}}'),
        ('s3-3 per_unit twin', 1, $1, '{"mode":"per_method","methods":{}}'),
-       ('s3-3 per_method', 1, $2, '{"mode":"per_method","methods":{}}')`,
-    [PER_UNIT_CATEGORY, PER_METHOD_CATEGORY],
+       ('s3-3 per_method', 1, $2, '{"mode":"per_method","methods":{}}'),
+       ('s3-3 commuting', 1, $3, '{"mode":"per_method","methods":{}}')`,
+    [PER_UNIT_CATEGORY, PER_METHOD_CATEGORY, COMMUTING_CATEGORY],
   );
   for (const row of ROWS) {
     await db.query(
       `INSERT INTO emission (pk_id, activity_data, total_emission, unit, activity_data_unit,
                              date_of_reporting, category_id, site_id, method)
-       VALUES ($1, '{"activity_value": 1}', 1, $2, $3, '2026-01-31', $4, $5, $6)`,
-      [row.pk_id, row.unit, row.activity_data_unit, row.category_id, row.site === null ? null : 1, row.method],
+       VALUES ($1, $7::jsonb, 1, $2, $3, '2026-01-31', $4, $5, $6)`,
+      [
+        row.pk_id,
+        row.unit,
+        row.activity_data_unit,
+        row.category_id,
+        row.site === null ? null : 1,
+        row.method,
+        JSON.stringify({ activity_value: 1, ...(row.row_method ? { "@method": row.row_method } : {}) }),
+      ],
     );
   }
 }
 
 async function cleanUp(db) {
   await db.query(`DELETE FROM emission WHERE pk_id >= $1`, [FIRST_EMISSION]);
-  await db.query(`DELETE FROM column_config WHERE category_id = ANY($1)`, [[PER_UNIT_CATEGORY, PER_METHOD_CATEGORY]]);
-  await db.query(`DELETE FROM category WHERE category_id = ANY($1)`, [
-    [PER_UNIT_CATEGORY, PER_METHOD_CATEGORY, PLAIN_CATEGORY, SCOPE1_CATEGORY],
-  ]);
+  await db.query(`DELETE FROM column_config WHERE category_id = ANY($1)`, [ALL_CATEGORIES]);
+  await db.query(`DELETE FROM category WHERE category_id = ANY($1)`, [ALL_CATEGORIES]);
 }
 
 function runMigration() {
   const run = fs.existsSync(COMPILED)
     ? spawnSync(process.execPath, [COMPILED], { cwd: ROOT, env: process.env, encoding: "utf8" })
-    : spawnSync("npm", ["run", "--silent", "migrate:scope3-row-quality"], {
+    : spawnSync("npm", ["run", "--silent", "migrate:scope3-row-quality-backfill"], {
         cwd: ROOT,
         env: process.env,
         encoding: "utf8",
         shell: process.platform === "win32",
       });
   const output = `${run.stdout || ""}${run.stderr || ""}`;
-  assert.equal(run.status, 0, `migrate:scope3-row-quality failed:\n${output}`);
+  assert.equal(run.status, 0, `migrate:scope3-row-quality-backfill failed:\n${output}`);
   const backfilled = /Backfilled method on (\d+) Scope 3 emission row\(s\)/.exec(output);
-  assert.ok(backfilled, `migration did not report its backfill:\n${output}`);
-  return Number(backfilled[1]);
+  const dq = /Backfilled data quality on (\d+) Scope 3 emission row\(s\)/.exec(output);
+  assert.ok(backfilled && dq, `migration did not report its backfill:\n${output}`);
+  return { methods: Number(backfilled[1]), dq: Number(dq[1]) };
 }
 
 const methodsById = async (db) => {
@@ -111,23 +132,40 @@ test("the method backfill reads the form and the unit, and runs twice unchanged"
     const firstPass = runMigration();
     // Every seeded Scope 3 row without a method, plus any fixture Scope 3 row
     // the suite has not already backfilled.
-    assert.ok(firstPass >= 8, `expected at least the 8 seeded rows, got ${firstPass}`);
+    const seededScope3 = ROWS.filter((row) => row.expected !== null);
+    const withoutMethod = seededScope3.filter((row) => row.method === null);
+    assert.ok(firstPass.methods >= withoutMethod.length, `expected at least ${withoutMethod.length} rows, got ${firstPass.methods}`);
+    assert.ok(firstPass.dq >= seededScope3.length, `expected at least ${seededScope3.length} DQ rows, got ${firstPass.dq}`);
 
     const afterFirst = await methodsById(db);
     for (const row of ROWS) {
       assert.equal(afterFirst.get(row.pk_id).method, row.expected, `row ${row.pk_id}`);
     }
 
-    // New columns are additive: nothing else is written by the backfill.
+    // Scope 3 rows get the §3 automatic data quality and a data type; Scope 1
+    // rows get neither, and is_estimate is never written.
     for (const row of ROWS) {
       const stored = afterFirst.get(row.pk_id);
       assert.equal(stored.is_estimate, false, `row ${row.pk_id} is_estimate`);
-      assert.equal(stored.dq, null, `row ${row.pk_id} dq`);
-      assert.equal(stored.data_type, null, `row ${row.pk_id} data_type`);
+      if (row.expected === null) {
+        assert.equal(stored.dq, null, `row ${row.pk_id} dq`);
+        assert.equal(stored.data_type, null, `row ${row.pk_id} data_type`);
+        continue;
+      }
+      assert.equal(stored.dq.source, "auto", `row ${row.pk_id} dq.source`);
+      assert.ok([1, 2, 3].includes(stored.dq.overall), `row ${row.pk_id} dq.overall`);
+      // No evidence document on any seeded row, so reliability is capped at fair.
+      assert.ok(stored.dq.reliability >= 2, `row ${row.pk_id} dq.reliability`);
+      assert.equal(stored.data_type, row.expected === "supplier_specific" ? "primary" : "secondary", `row ${row.pk_id} data_type`);
     }
+    // A spend row scores poor on reliability; no factor snapshot means poor geography and time.
+    const spend = afterFirst.get(FIRST_EMISSION + 4).dq;
+    assert.equal(spend.reliability, 3);
+    assert.equal(spend.geography, 3);
+    assert.equal(spend.time, 3);
 
     const secondPass = runMigration();
-    assert.equal(secondPass, 0, "a second run must have nothing left to backfill");
+    assert.deepEqual(secondPass, { methods: 0, dq: 0 }, "a second run must have nothing left to backfill");
 
     const afterSecond = await methodsById(db);
     for (const row of ROWS) {
@@ -486,4 +524,52 @@ test("column-config writes take method_options as [{method, units}] and refuse a
 
   // Column configs are Superadmin-only.
   assert.equal((await call("PUT", `/admin/column-configs/${id}`, "manager", { method_options: next })).status, 403);
+});
+
+test("an import plan keeps the row's method, estimate flag and data quality through commit", async (t) => {
+  const created = await withFactorAndForm(t, DISTANCE_AND_SPEND);
+  const importRow = (over) => ({
+    site_id: 1,
+    category_id: FORM_CATEGORY,
+    activity_name: S3_ACTIVITY,
+    activity_value: 100,
+    activity_unit: "km",
+    ...over,
+  });
+  const manualDq = { technology: 1, geography: 1, time: 2, completeness: 1, reliability: 1 };
+  const plan = await call("POST", "/imports/plans", "manager", {
+    source_name: "travel.xlsx",
+    channel: "api",
+    rows: [
+      importRow({ row_ref: "ok", period: { kind: "monthly", date: "2026-03-01" }, method: "distance_based", is_estimate: true, dq: manualDq }),
+      importRow({ row_ref: "refused", period: { kind: "monthly", date: "2026-04-01" }, method: "supplier_specific" }),
+    ],
+  });
+  assert.equal(plan.status, 201, JSON.stringify(plan.json));
+  const byRef = new Map(plan.json.rows.map((r) => [r.row_ref, r]));
+  assert.equal(byRef.get("ok").state, "ready", JSON.stringify(byRef.get("ok")));
+  assert.equal(byRef.get("refused").state, "issue");
+  assert.ok(byRef.get("refused").issues.some((i) => i.code === "METHOD_NOT_ALLOWED"), "a method the form does not offer is refused at plan time");
+
+  const commit = await call("POST", `/imports/plans/${plan.json.plan_id}/commit`, "manager", {
+    version: plan.json.version,
+    skip_rows_with_issues: true,
+    idempotency_key: `s3-3-${plan.json.plan_id}`,
+  });
+  assert.equal(commit.status, 200, JSON.stringify(commit.json));
+  assert.equal(commit.json.committed.inserted, 1);
+
+  await withDb(async (db) => {
+    const { rows } = await db.query(
+      `SELECT pk_id, method, is_estimate, dq, data_type, total_emission FROM emission WHERE upload_batch_id = $1`,
+      [commit.json.committed.upload_batch_id],
+    );
+    assert.equal(rows.length, 1);
+    created.push(rows[0].pk_id);
+    assert.equal(rows[0].method, "distance_based");
+    assert.equal(rows[0].is_estimate, true);
+    assert.deepEqual(rows[0].dq, { ...manualDq, overall: 1, source: "manual" });
+    assert.equal(rows[0].data_type, "secondary");
+    assert.equal(Number(rows[0].total_emission), 0.1, "100 km × 1 kg, the same as a typed entry");
+  });
 });

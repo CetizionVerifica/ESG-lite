@@ -56,3 +56,9 @@ None calculate. DQ default unit tests cover every rule in §3.
 - Old Scope 3 rows are backfilled.
 - The method picker shows on multi-method forms.
 - DQ is visible in the drawers.
+
+## As built (carry PR for #135)
+- `migrate:scope3-row-quality` only adds the columns and is listed right after `migrate:calculation-column`, before every Scope 3 migration that loads the `ColumnConfig` or `Emission` entity. Listed last, it made `migrate:scope3-travel` fail with `column ColumnConfig.method_options does not exist` on any database with sites and forms in it (an empty CI database hid it). The Data safety job now also runs `migrate-all` twice on the base schema with `ci/api/fixture.sql` loaded.
+- `migrate:scope3-row-quality-backfill` (`src/scripts/backfillEmissionRowQuality.ts`, listed last) backfills `method` (the row's valid `@method` first, then distance, then any currency `looksLikeCurrency` knows, then `direct_use` only for a Category 11 form, else `average_data`), then `dq` with the §3 auto default (`source: 'auto'`) and `data_type`, in batches of 1,000. Totals are never read or written.
+- Import plans pass the row's `method`, `is_estimate` and `dq` to the engine, so plan and commit store what a typed entry would.
+- Follow-ups, not in this PR: the role rule for Users' `method`/`dq` (SE-0), the edit path refreshing method/dq/data_type, ledger export columns, `data_type` on evidence change, and the `TODO(S3-3)` `method_options` writers in the asset, travel and sold-product form migrations.
