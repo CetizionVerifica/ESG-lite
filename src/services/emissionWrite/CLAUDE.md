@@ -68,3 +68,8 @@ MCP-09, MCP-10, MCP-11, MCP-22 (golden).
 - `compute.ts` keeps the types and `factorSnapshot`, adds `computeRow(ctx, row)` (spec category → spec; `row.proxy` → proxy; `row.method` spend_based / supplier_specific / hybrid → their file; else activity) and keeps `computeTotal` as a wrapper, so `index.ts` is unchanged. Rows carry no method yet; the form's `method_options[0]` fallback comes with S3-3.
 - `Computed` gains optional `total_kgco2e`, `method`, `dq`, `data_type`, all unset. Golden snapshot byte-identical before and after (sha256 of the LF file `bd2f996f…`).
 - Tests: `ci/unit/scope3-engine-split.test.cjs`.
+
+### As built (S3-8, 2026-10-16)
+- `methodFor` (compute.ts): row `method` → `@method` → **the first offered method whose `method_options` units hold the row's unit** (`methodForUnit`, unit keys via `normalizeUnitKey`; `context.ts` loads `method_units`) → `method_options[0]` → `average_data`. It only labels the row (method, DQ, data_type); `methodFileFor` and the spend default in index.ts are unchanged, so no total moves.
+- `transportWarnings.ts`: `ESTIMATED_DISTANCE` and `TRANSPORT_PAID_BY_MISMATCH` (warnings, never block).
+
