@@ -68,6 +68,19 @@ test("PUT: Admin and Superadmin only; a year without approved Scope 3 rows is BA
   assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: new Date().getFullYear() + 1 })).status, 400);
 });
 
+test("preview shows what a freeze would store, without saving", async () => {
+  const r = await call("GET", `/scope3/base-year/preview?base_year=${BASE}`, "manager");
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.total_tco2e, 10);
+  assert.equal(r.json.categories.find((c) => c.n === 6).tco2e, 10);
+  assert.equal(r.json.rows, 2);
+  assert.equal((await call("GET", `/scope3/base-year/preview?base_year=${BASE - 1}`, "admin")).json.code, "BASE_YEAR_NO_DATA");
+  assert.equal((await call("GET", "/scope3/base-year/preview?base_year=abc", "admin")).status, 400);
+  assert.equal((await call("GET", `/scope3/base-year/preview?base_year=${BASE}&company_id=1`, "otherManager")).status, 404);
+  const count = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM company_base_year WHERE company_id = 1`));
+  assert.equal(count.rows[0].n, 0);
+});
+
 test("PUT freezes approved base-year rows by category (kg then round); freezing twice keeps one row", async () => {
   const r = await call("PUT", "/scope3/base-year", "admin", { base_year: BASE, rationale: "First year with supplier data", significance_pct: 5 });
   assert.equal(r.status, 200, JSON.stringify(r.json));

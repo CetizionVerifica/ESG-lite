@@ -3,7 +3,7 @@ import { AuthRequest } from "../../middlewares/auth.middleware";
 import { Scope3Error } from "../contracts/errors";
 import { BoundaryError } from "../boundary/errors";
 import { canEditBoundary, companyForRequest } from "../boundary/access";
-import { approveRecalculation, dismissRecalculation, getBaseYear, listRecalculations, putBaseYear } from "./service";
+import { approveRecalculation, dismissRecalculation, getBaseYear, listRecalculations, previewBaseYear, putBaseYear } from "./service";
 
 type Handler = (req: AuthRequest, res: Response) => Promise<unknown>;
 
@@ -24,6 +24,12 @@ const userId = (req: AuthRequest) => Number(req.user?.userId) || 0;
 export const getBaseYearHandler = handle("get base year", async (req, res) => {
   const companyId = await companyForRequest(req);
   res.json({ ...(await getBaseYear(companyId)), can_edit: canEditBoundary(req) });
+});
+
+/** GET /scope3/base-year/preview: the per-category totals a freeze would store (any role with access). */
+export const previewBaseYearHandler = handle("preview base year", async (req, res) => {
+  const companyId = await companyForRequest(req);
+  res.json(await previewBaseYear(companyId, req.query));
 });
 
 /** PUT /scope3/base-year: Admin and Superadmin (D12). */

@@ -254,6 +254,19 @@ export async function baseYearSummary(companyId: number, q: Queryable = AppDataS
   };
 }
 
+/** GET /scope3/base-year/preview?base_year=&year_type=: what PUT would freeze, without saving. */
+export async function previewBaseYear(companyId: number, query: any) {
+  const year = Number(query?.base_year);
+  const yearType: YearType = query?.year_type === "FY" ? "FY" : "CY";
+  if (!Number.isInteger(year) || year < 1990 || year > new Date().getFullYear()) {
+    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "Give a year from 1990 to this year." }]);
+  }
+  const state = await currentState(companyId, year, yearType, AppDataSource);
+  if (!Object.keys(state.rows).length) throw new Scope3Error("BASE_YEAR_NO_DATA", { base_year: year, year_type: yearType });
+  const totals = categoryTotals(state.rows);
+  return { base_year: year, year_type: yearType, total_tco2e: totals.total_tco2e, categories: totals.categories, rows: Object.keys(state.rows).length };
+}
+
 // ---------------------------------------------------------------------------
 // Freeze
 // ---------------------------------------------------------------------------
