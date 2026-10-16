@@ -152,7 +152,7 @@ const SCOPE_3 = "Scope 3";
  * times a published factor *is* the average-data method. `unknown` is kept for
  * legacy rows that never recorded anything.
  */
-export const methodFor = (ctx: CategoryContext, row: Pick<EngineRow, "method" | "rowMethod">): Method | null => {
+export const methodFor = (ctx: CategoryContext, row: Pick<EngineRow, "method" | "rowMethod" | "activity_unit">): Method | null => {
   if (ctx.scope !== SCOPE_3) return null;
   return row.method ?? row.rowMethod ?? ctx.method_options?.[0] ?? "average_data";
 };
