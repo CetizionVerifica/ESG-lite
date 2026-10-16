@@ -409,6 +409,19 @@ export const deleteRequest = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/**
+ * S3-6: the accept response's note when the figure wasn't written as a Scope 3
+ * supplier figure because its boundary isn't cradle-to-gate and wasn't
+ * confirmed (SUPPLIER_FACTOR_BOUNDARY). PCF took the figure as before.
+ */
+export const scope3BoundaryWarning = (boundary: string) => ({
+  code: "SUPPLIER_FACTOR_BOUNDARY" as const,
+  message: `The figure is ${boundary.replace(/_/g, "-")}, so it wasn't added as the supplier's Scope 3 figure. Accept with the boundary confirmed, or add it on the Suppliers page and confirm the boundary there.`,
+  boundary,
+  expected: "cradle_to_gate" as const,
+  confirm_with: "confirm_boundary" as const,
+});
+
 // POST /pcf/supplier-requests/:id/accept
 // { value_kgco2e, boundary?, confirm_boundary?, standard?, gwp_set?, valid_from?, valid_to?, verifier?, source?, material_group?, dqr_time? }
 // The manager's reviewed figure (typed, or the AI-read one they confirmed).
@@ -534,6 +547,8 @@ export const acceptRequest = async (req: AuthRequest, res: Response) => {
       // S3-6: where the figure landed for Scope 3 (null when its boundary wasn't confirmed).
       supplier_id: result.s3?.supplier_id ?? null,
       supplier_factor_id: result.s3?.supplier_factor_id ?? null,
+      // S3-6: why no Scope 3 supplier figure was written, so the manager isn't left guessing.
+      scope3_warning: result.s3 ? null : scope3BoundaryWarning(boundary ?? r.study.boundary),
       note: result.applied ? null : r.input ? "The footprint is no longer a draft, so the factor is ready for its next version" : "No input line is linked, so pick the new factor in the builder",
     });
   } catch (error) {

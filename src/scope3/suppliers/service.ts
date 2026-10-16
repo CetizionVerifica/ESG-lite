@@ -15,6 +15,7 @@ import { Scope3Error } from "../contracts/errors";
 import { DEFAULT_GWP_SET } from "../contracts/factor";
 import { similarPairs, looksSame, pairKey } from "./nameMatch";
 import { FACTOR_EVIDENCE_SQL } from "./engineInput";
+import { SUPPORTED_CURRENCIES, supportedCurrency } from "../spend/currencies";
 import {
   CreateSupplierFactorSchema,
   CreateSupplierSchema,
@@ -304,6 +305,18 @@ export const listFacilityData = async (companyId: number, supplierId: number) =>
  */
 export const upsertFacilityData = async (companyId: number, userId: number, supplierId: number, body: unknown) => {
   const b = parse(FacilityDataSchema, body);
+  // Allocating by economic value compares what was paid with the facility's
+  // output value, so that output must be an amount in a currency ESGLite knows.
+  if (b.allocation_key === "economic") {
+    const currency = supportedCurrency(b.output_unit);
+    if (!currency) {
+      throw new BoundaryError("SCOPE3_VALIDATION", {
+        field: "output_unit",
+        message: `To allocate by economic value, give the facility's output in a currency (${SUPPORTED_CURRENCIES.join(", ")}).`,
+      });
+    }
+    b.output_unit = currency;
+  }
   return AppDataSource.transaction(async (m) => {
     await ownSupplier(m, companyId, supplierId);
     const [existing] = await m.query(
