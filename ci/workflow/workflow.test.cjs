@@ -200,9 +200,21 @@ step("15a after the next deploy the sites have the standard Category 6 form and 
   assert.equal(factors.rows[0]?.v, SC.FLIGHT.kg_per_pkm);
 });
 
+// The methods the Category 6 form offers, most specific first, with the units each takes (01-contracts §6).
+const TRAVEL_METHODS = [
+  { method: "distance_based", units: ["passenger.km", "vehicle.km", "night"] },
+  { method: "fuel_based", units: ["litre"] },
+  { method: "spend_based", units: ["INR", "USD"] },
+];
+
 pendingStep("16-17 each Scope 3 form fixes its method for this client", "S3-3", () => hasColumn("column_config", "method_options"), async () => {
-  const r = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM column_config WHERE site_id = $1 AND method_options IS NOT NULL`, [S.sites.main]));
-  assert.ok(r.rows[0].n >= 1);
+  const forms = await withDb((db) => db.query(`SELECT pk_id FROM column_config WHERE site_id = $1 AND category_id = $2 ORDER BY pk_id`, [S.sites.main, S.cats.travel]));
+  assert.ok(forms.rows.length >= 1, "the standard Category 6 form is there (15a)");
+  for (const { pk_id } of forms.rows) ok(await call("PUT", `/admin/column-configs/${pk_id}`, S.sa, { method_options: TRAVEL_METHODS }));
+  const stored = await withDb((db) => db.query(`SELECT method_options FROM column_config WHERE pk_id = $1`, [forms.rows[0].pk_id]));
+  assert.deepEqual(stored.rows[0].method_options, TRAVEL_METHODS);
+  // Only a Superadmin sets a form's methods.
+  assert.equal((await call("PUT", `/admin/column-configs/${forms.rows[0].pk_id}`, S.admin, { method_options: TRAVEL_METHODS })).status, 403);
 });
 
 pendingStep("18 forms pass the form check and are published", "SE-4", async () => (await call("GET", "/admin/column-configs/0/check", S.sa)).status !== 404, async () => {});
@@ -290,8 +302,29 @@ step("25d people stay inside their own sites", async () => {
 });
 
 pendingStep("25e every new row records its method and data quality", "S3-3", () => hasColumn("emission", "method"), async () => {
-  const r = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id = ANY($1) AND (method IS NULL OR dq IS NULL)`, [siteIds()]));
+  // Scope 1 and Scope 2 rows carry no method; every Scope 3 row (twins included) has one and a quality.
+  const r = await withDb((db) =>
+    db.query(
+      `SELECT COUNT(*)::int AS n FROM emission e JOIN category c ON c.category_id = e.category_id
+        WHERE e.site_id = ANY($1) AND c.scope = 'Scope 3' AND (e.method IS NULL OR e.dq IS NULL OR e.data_type IS NULL)`,
+      [siteIds()],
+    ),
+  );
   assert.equal(r.rows[0].n, 0);
+  const notScope3 = await withDb((db) =>
+    db.query(
+      `SELECT COUNT(*)::int AS n FROM emission e JOIN category c ON c.category_id = e.category_id
+        WHERE e.site_id = ANY($1) AND c.scope <> 'Scope 3' AND e.method IS NOT NULL`,
+      [siteIds()],
+    ),
+  );
+  assert.equal(notScope3.rows[0].n, 0, "Scope 1 and 2 rows record no method");
+  const flight = await withDb((db) => db.query(`SELECT method, dq FROM emission WHERE pk_id = $1`, [S.rows[SC.TRAVEL.ref].id]));
+  assert.equal(flight.rows[0].method, "distance_based", "the form's first method");
+  assert.equal(flight.rows[0].dq.source, "auto");
+  const spend = await withDb((db) => db.query(`SELECT method, dq FROM emission WHERE pk_id = $1`, [S.rows["spend-jun"].id]));
+  assert.equal(spend.rows[0].method, "spend_based");
+  assert.equal(spend.rows[0].dq.reliability, 3, "spend data is poor on reliability (contracts §3)");
 });
 
 step("26 the Manager approves, rejects the wrong row and leaves one pending", async () => {

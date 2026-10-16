@@ -500,7 +500,18 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     }
 
     // Totals (unit, spec fields).
-    const result = await prepareEntry(ctx, checks, { site_id: row.site_id, category_id: row.category_id, activity_data, activity_data_unit: row.activity_unit, period });
+    // S3-3: the row's own method, estimate flag and hand-judged quality ride along, so
+    // plan and commit store the same method, dq and is_estimate a typed entry would.
+    const result = await prepareEntry(ctx, checks, {
+      site_id: row.site_id,
+      category_id: row.category_id,
+      activity_data,
+      activity_data_unit: row.activity_unit,
+      period,
+      method: row.method ?? null,
+      is_estimate: row.is_estimate,
+      dq: row.dq ?? null,
+    });
     if (!result.ok) {
       errors.push(issue(result.issue.code, result.issue.message, result.issue.field));
     } else if (!result.entry.computed || result.entry.computed.activityValue <= 0) {
