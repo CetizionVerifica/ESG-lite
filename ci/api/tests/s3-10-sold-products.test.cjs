@@ -395,6 +395,18 @@ test("migrate:scope3-sold-product-forms runs twice: forms, units, AR6 for rows d
     [2025, 1530, "AR6"],
     [2026, 1530, "AR6"],
   ]);
+  // The raised 2025 seed row keeps its old value in audit_log (one row, not repeated on the second run).
+  const audit = await withDb((db) =>
+    db.query(
+      `SELECT a.changed_fields, a.reason FROM audit_log a JOIN emission_factors f ON f.emission_factor_id = a.entity_id WHERE a.entity_type = 'scope3_emission_factor' AND f.category_id = $1 AND f.emission_category_name = 'R134a - GWP'`,
+      [CAT11],
+    ),
+  );
+  assert.equal(audit.rows.length, 1);
+  assert.equal(Number(audit.rows[0].changed_fields.factor_value.old), 1430);
+  assert.equal(Number(audit.rows[0].changed_fields.factor_value.new), 1530);
+  assert.equal(audit.rows[0].changed_fields.source.old, "IPCC AR4 GWP100");
+  assert.match(audit.rows[0].reason, /AR4 to AR6/);
   const cfg11 = await withDb((db) => db.query(`SELECT config_name, calculation FROM column_config WHERE category_id = $1`, [CAT11]));
   assert.equal(cfg11.rows[0].config_name, "Use of Sold Products - Standard");
   assert.ok(cfg11.rows[0].calculation.methods["Part of a customer's product"]);

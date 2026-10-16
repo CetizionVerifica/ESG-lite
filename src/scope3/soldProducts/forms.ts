@@ -86,6 +86,9 @@ export async function ensureSeedFactors(m: EntityManager, site_id: number, categ
   return added;
 }
 
+const AR6_SOURCE = "IPCC AR6 GWP100 (AR6 WG1 Table 7.SM.7)";
+const AR6_RAISE_REASON = "S3-10 D7: seed refrigerant factor raised from IPCC AR4 to AR6 GWP100 so rows dated 2026 on use AR6";
+
 /**
  * D7: the seed's untouched AR4 rows on an AR6 factor year (the AR4 value and the
  * seed's source) take the AR6 value, so rows dated 2026 resolve to AR6. Saved
@@ -94,12 +97,24 @@ export async function ensureSeedFactors(m: EntityManager, site_id: number, categ
 export async function raiseSeedRefrigerantsToAr6(m: EntityManager, site_id: number, category_id: number): Promise<number> {
   let raised = 0;
   for (const f of REFRIGERANT_FACTORS) {
-    // WHERE kept on the UPDATE line for the data-safety check.
-    const [, n]: [unknown, number] = await m.query(
-      `UPDATE emission_factors SET factor_value = $5, gwp_set = 'AR6', source = 'IPCC AR6 GWP100 (AR6 WG1 Table 7.SM.7)', dataset = 'IPCC', dataset_version = 'AR6 GWP100' WHERE site_id = $1 AND category_id = $2 AND emission_category_name = $3 AND year = ANY($4::int[]) AND factor_value = $6 AND source = $7`,
-      [site_id, category_id, f.name, [...AR6_FACTOR_YEARS], f.ar6, f.ar4, SEED_AR4_SOURCE],
+    // One statement: lock the matching rows, raise them, and write one audit_log row each with the old
+    // value, source, dataset and GWP set, so nothing is lost. WHERE kept on the UPDATE line for the data-safety check.
+    const rows: Array<{ entity_id: number }> = await m.query(
+      `WITH old AS (SELECT emission_factor_id, factor_value, gwp_set, source, dataset, dataset_version FROM emission_factors WHERE site_id = $1 AND category_id = $2 AND emission_category_name = $3 AND year = ANY($4::int[]) AND factor_value = $6 AND source = $7 FOR UPDATE),
+       up AS (UPDATE emission_factors e SET factor_value = $5, gwp_set = 'AR6', source = $8, dataset = 'IPCC', dataset_version = 'AR6 GWP100' FROM old WHERE e.emission_factor_id = old.emission_factor_id RETURNING old.*)
+       INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, reason, changed_by)
+       SELECT 'scope3_emission_factor', up.emission_factor_id, 'update',
+              jsonb_build_object(
+                'factor_value', jsonb_build_object('old', up.factor_value, 'new', $5::numeric),
+                'gwp_set', jsonb_build_object('old', up.gwp_set, 'new', 'AR6'),
+                'source', jsonb_build_object('old', up.source, 'new', $8::text),
+                'dataset', jsonb_build_object('old', up.dataset, 'new', 'IPCC'),
+                'dataset_version', jsonb_build_object('old', up.dataset_version, 'new', 'AR6 GWP100')),
+              $9, NULL
+       FROM up RETURNING entity_id`,
+      [site_id, category_id, f.name, [...AR6_FACTOR_YEARS], f.ar6, f.ar4, SEED_AR4_SOURCE, AR6_SOURCE, AR6_RAISE_REASON],
     );
-    raised += Number(n) || 0;
+    raised += rows.length;
   }
   return raised;
 }
