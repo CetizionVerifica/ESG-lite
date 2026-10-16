@@ -26,6 +26,7 @@ import { connectRabbitMQ } from "./config/rabbitmq";
 import { startEmailConsumer } from "./workers/emailConsumer";
 import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
+import { startBaseYearScheduler } from "./scope3/baseYear/job"; // S3-14
 import { logMailStatus } from "./config/mailer";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
@@ -137,6 +138,7 @@ connectWithRetry()
         server = app.listen(port, () => {
             console.log(`🚀 Server running on http://localhost:${port}`);
         });
+        startBaseYearScheduler(); // S3-14: nightly Scope 3 base-year check
 
         // Connect RabbitMQ in background (non-blocking)
         connectRabbitMQ()

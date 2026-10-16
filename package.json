@@ -40,6 +40,7 @@
     "migrate:scope3-assets": "ts-node src/scripts/migrateScope3Assets.ts",
     "migrate:scope3-asset-forms": "ts-node src/scripts/migrateScope3AssetForms.ts",
     "migrate:scope3-travel": "ts-node src/scripts/migrateScope3Travel.ts",
+    "migrate:scope3-base-year": "ts-node src/scripts/migrateScope3BaseYear.ts",
     "migrate:scope3-sold-products": "ts-node src/scripts/migrateScope3SoldProducts.ts",
     "migrate:scope3-sold-product-forms": "ts-node src/scripts/migrateScope3SoldProductForms.ts",
     "test:api": "node ci/api/run.cjs",
