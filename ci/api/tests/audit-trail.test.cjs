@@ -333,33 +333,45 @@ test("a manager edit can't move an entry into a period filed the other way (mode
   }
 });
 
-test("legacy Excel import computes the total from activity x factor, not the file's calculatedEmission", async () => {
+test("legacy Excel import: totals from the engine and the site's factor, never the sheet's; unknown categories refused (S3-4)", async () => {
   const XLSX = require("xlsx");
-  const sheet = XLSX.utils.json_to_sheet([
-    { year: "2018", month: "March", fuelType: "Diesel", unit: "litre", activity: 400, emissionFactor: 2.5, emissionFactorUnit: "kg CO₂e/litre", calculatedEmission: 999 },
-    // Activity in kWh, factor per MWh: no conversion here, so the file's value is kept.
-    { year: "2018", month: "April", fuelType: "Grid", unit: "kWh", activity: 2000, emissionFactor: 1, emissionFactorUnit: "tCO2e/MWh", calculatedEmission: 2 },
-  ]);
-  const book = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(book, sheet, "Sheet1");
-  const form = new FormData();
-  form.append(
-    "file",
-    new Blob([XLSX.write(book, { type: "buffer", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-    "import.xlsx",
-  );
-  form.append("siteName", "CI Plant A");
-  form.append("categoryName", "Stationary Combustion");
+  const upload = (rows, categoryName = "Stationary Combustion") => {
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), "Sheet1");
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob([XLSX.write(book, { type: "buffer", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      "import.xlsx",
+    );
+    form.append("siteName", "CI Plant A");
+    form.append("categoryName", categoryName);
+    return call("POST", "/admin/upload/emissions", "superadmin", form);
+  };
+  // The site's 2017 Diesel factor applies to 2018 rows (reporting year − 1).
+  await q(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (9928, 'Diesel', 2.6, 'litre', 2017, 1, 1)`);
   try {
-    const r = await call("POST", "/admin/upload/emissions", "superadmin", form);
-    assert.equal(r.status, 200);
-    assert.equal(r.json.summary.emissionsCreated, 2);
-    const [row] = await q("SELECT total_emission FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-03-01' AND date_of_reporting < '2018-04-01'");
-    assert.equal(Number(row.total_emission), 1); // 400 x 2.5 kg = 1 t
-    const [kwh] = await q("SELECT total_emission FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-04-01' AND date_of_reporting < '2018-05-01'");
-    assert.equal(Number(kwh.total_emission), 2); // not 2000
+    const r = await upload([
+      { year: "2018", month: "March", fuelType: "Diesel", unit: "litre", activity: 400, emissionFactor: 2.5, emissionFactorUnit: "kg CO₂e/litre", calculatedEmission: 999 },
+      // No Grid factor for this site and category: refused, not stored with the sheet's 2 t.
+      { year: "2018", month: "April", fuelType: "Grid", unit: "kWh", activity: 2000, emissionFactor: 1, emissionFactorUnit: "tCO2e/MWh", calculatedEmission: 2 },
+    ]);
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([r.json.summary.emissionsCreated, r.json.summary.emissionsSkipped], [1, 1]);
+    const rows = await q("SELECT total_emission, total_kgco2e, extra_data->'import'->>'channel' AS channel FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01'");
+    assert.deepEqual(rows.map((x) => [Number(x.total_emission), x.total_kgco2e, x.channel]), [[1.04, "1040.0000", "historical"]]); // 400 x 2.6 kg, not 999 nor 400 x 2.5
+    const [audit] = await auditRows("emission", (await q("SELECT pk_id FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-03-01' AND date_of_reporting < '2018-04-01'"))[0].pk_id);
+    assert.match(audit.reason, /Imported via Historical import by CI Superadmin \(import.xlsx\)/);
+
+    // An unknown category is refused, never created as "Scope 1".
+    const unknown = await upload([{ year: "2018", month: "May", fuelType: "Diesel", unit: "litre", activity: 1 }], "Mystery Category");
+    assert.equal(unknown.status, 400);
+    assert.equal(unknown.json.code, "SCOPE_INVALID");
+    assert.equal((await q(`SELECT 1 FROM category WHERE category_name = 'Mystery Category'`)).length, 0);
   } finally {
+    await q("DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id::text IN (SELECT pk_id::text FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01')");
     await q("DELETE FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01'");
+    await q("DELETE FROM emission_factors WHERE emission_factor_id = 9928");
   }
 });
 

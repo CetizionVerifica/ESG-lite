@@ -374,11 +374,11 @@ async function copyForm(ctx: Ctx, f: BundleForm, siteId: number, categoryId: num
     else columnOptions[String(id)] = value;
   }
   if (orphanOptions.length) sr.warnings.push(`Form "${name}" has dropdown options for columns it does not have: ${orphanOptions.join(", ")}; they were not copied.`);
-  const calc = f.calculation as { methods?: Record<string, { multiply?: string[] }> } | null;
+  const calc = f.calculation as { methods?: Record<string, { multiply?: string[]; divide?: string[] }> } | null;
   if (calc?.methods) {
     const names = new Set(f.columns.map((c) => c.column_name));
     const missing = new Set<string>();
-    for (const mth of Object.values(calc.methods)) (mth.multiply ?? []).forEach((col) => !names.has(col) && missing.add(col));
+    for (const mth of Object.values(calc.methods)) [...(mth.multiply ?? []), ...(mth.divide ?? [])].forEach((col) => !names.has(col) && missing.add(col));
     if (missing.size) sr.warnings.push(`Form "${name}" multiplies columns it does not have: ${[...missing].join(", ")}.`);
   }
   const row = await m.query(
