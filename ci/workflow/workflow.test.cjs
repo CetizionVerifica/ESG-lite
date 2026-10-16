@@ -105,9 +105,13 @@ pendingStep("5a default currency is INR and Users see the total only", "SE-2", (
   assert.deepEqual(r.rows[0], { default_currency: "INR", entry_detail: "total" });
 });
 
-pendingStep("5b review workflow v2 is off until the Superadmin turns it on", "S3-15 parts 3-4", () => hasColumn("company", "review_workflow_v2"), async () => {
+step("5b review workflow v2 (drafts and month lock) is off until the Superadmin turns it on", async () => {
   const r = await withDb((db) => db.query(`SELECT review_workflow_v2 FROM company WHERE company_id = $1`, [S.companyId]));
   assert.equal(r.rows[0].review_workflow_v2, false);
+  // Off means today's behaviour: no month can be closed (step 25 checks entries are Pending).
+  const lock = await call("POST", "/periods/lock", S.admin, { site_id: S.sites.main, year: SC.YEAR, month: 4 });
+  assert.equal(lock.status, 403);
+  assert.equal(lock.json.code, "REVIEW_WORKFLOW_OFF");
 });
 
 // ── Phase 2 · Sites and categories (Superadmin) ────────────────────────────
@@ -423,6 +427,108 @@ step("24 the Admin freezes the base year: the preview shows the approved Scope 3
   const got = await call("GET", "/scope3/base-year", S.people.manager);
   ok(got);
   assert.equal(got.json.base_year?.base_year ?? got.json.base_year, SC.REPORT_YEAR);
+});
+
+// ── Review workflow v2 (S3-15 parts 3–4): drafts, submit, close the month ──
+
+const V2 = SC.REVIEW_V2;
+const v2Rows = {};
+const lockBody = () => ({ site_id: S.sites.main, year: V2.year, month: V2.month });
+
+step("29a the Superadmin turns review workflow v2 on; a User's entries are Drafts (twins too) the Manager doesn't see", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { review_workflow_v2: true }));
+  for (const e of V2.entries) {
+    const r = await call("POST", "/user/emissions", S.people.userMain, {
+      site_id: S.sites.main,
+      category_id: S.cats[e.cat],
+      date_of_reporting: e.date,
+      activity_data_unit: e.unit,
+      activity_data: { emission_category: e.activity, activity_value: String(e.value) },
+    });
+    ok(r, 201);
+    assert.equal(r.json.emission.status, "draft", e.ref);
+    assert.equal(Number(r.json.emission.total_emission), tonnes(SC.expectedFor(e).kg), `${e.ref} tCO₂e`);
+    const twins = await withDb((db) => db.query(`SELECT pk_id, status::text AS status FROM emission WHERE fera_linked_id = $1 OR pk_id = (SELECT fera_linked_id FROM emission WHERE pk_id = $1)`, [r.json.emission.pk_id]));
+    assert.equal(twins.rows.length, Object.keys(SC.expectedFor(e).twins).length, `${e.ref} twins`);
+    assert.ok(twins.rows.every((t) => t.status === "draft"), `${e.ref} twins are Drafts`);
+    v2Rows[e.ref] = r.json.emission.pk_id;
+  }
+  const list = await call("GET", `/user/emissions?siteId=${S.sites.main}&year=${V2.year}&month=${V2.month}&page=1&limit=50`, S.people.manager);
+  ok(list);
+  assert.equal(list.json.total, 0, "the Manager's list has none of the Drafts");
+  const mm = await call("GET", `/user/my-month?month=${V2.period}`, S.people.userMain);
+  ok(mm);
+  assert.equal(mm.json.review_workflow_v2, true);
+  const fuel = mm.json.sites.find((x) => x.site_id === S.sites.main).categories.find((c) => c.category_id === S.cats.fuel);
+  assert.equal(fuel.status, "draft");
+  assert.equal(fuel.total_emission, 0, "a Draft adds nothing to My month");
+});
+
+step("29b the Manager can't close the month while Drafts and missing categories are left", async () => {
+  const st = await call("GET", `/periods/lock?year=${V2.year}&month=${V2.month}&site_id=${S.sites.main}`, S.people.manager);
+  ok(st);
+  const left = Object.fromEntries(st.json.left.map((l) => [l.category_id, l.reason]));
+  assert.deepEqual(left, { [S.cats.fuel]: "draft", [S.cats.electricity]: "draft", [S.cats.travel]: "missing", [S.cats.goods]: "missing" });
+  const refused = await call("POST", "/periods/lock", S.people.manager, lockBody());
+  assert.equal(refused.status, 422);
+  assert.equal(refused.json.code, "PERIOD_INCOMPLETE");
+});
+
+step("29c the User submits the month and marks the rest Nothing this month; the Manager gets one notification", async () => {
+  const ids = Object.values(v2Rows);
+  const r = await call("POST", "/user/emissions/submit", S.people.userMain, { ids });
+  ok(r);
+  assert.deepEqual(r.json, { submitted: [...ids].sort((a, b) => a - b), refused: [] });
+  const statuses = await withDb((db) => db.query(`SELECT DISTINCT status::text AS s FROM emission WHERE site_id = $1 AND date_of_reporting = $2`, [S.sites.main, V2.entries[0].date]));
+  assert.deepEqual(statuses.rows.map((x) => x.s), ["pending"], "rows and twins are Pending");
+  const notes = await withDb((db) => db.query(`SELECT user_id FROM notification WHERE type = 'draft_submitted'`));
+  assert.deepEqual(notes.rows.map((n) => n.user_id), [S.people.manager.user.user_id]);
+  for (const cat of ["travel", "goods"]) {
+    ok(await call("POST", "/user/my-month/nothing", S.people.userMain, { site_id: S.sites.main, category_id: S.cats[cat], month: V2.period }));
+  }
+});
+
+step("29d the Manager approves and closes the month: every category done, the totals are the hand-worked ones", async () => {
+  ok(await call("PUT", "/user/emissions/bulk-approve", S.people.manager, { ids: Object.values(v2Rows) }));
+  const st = await call("GET", `/periods/lock?year=${V2.year}&month=${V2.month}&site_id=${S.sites.main}`, S.people.manager);
+  assert.deepEqual(st.json.left, []);
+  const states = Object.fromEntries(st.json.sites[0].categories.map((c) => [c.category_id, c.state]));
+  assert.deepEqual(states, { [S.cats.fuel]: "approved", [S.cats.electricity]: "approved", [S.cats.travel]: "nothing", [S.cats.goods]: "nothing" });
+  assert.equal(st.json.sites[0].scope3.find((c) => c.n === 3).data, true, "the twins are Category 3 data");
+  const lock = await call("POST", "/periods/lock", S.people.manager, lockBody());
+  ok(lock);
+  assert.equal(lock.json.sites[0].locked, true);
+  const mm = await call("GET", `/user/my-month?month=${V2.period}`, S.people.userMain);
+  const site = mm.json.sites.find((x) => x.site_id === S.sites.main);
+  assert.equal(site.locked, true);
+  for (const e of V2.entries) {
+    const c = site.categories.find((x) => x.category_id === S.cats[e.cat]);
+    assert.equal(c.status, "approved", e.ref);
+    assert.equal(c.total_emission, tonnes(SC.expectedFor(e).kg), `${e.ref} in My month`);
+  }
+  const audit = await withDb((db) => db.query(`SELECT action FROM audit_log WHERE entity_type = 'scope3_period_lock'`));
+  assert.deepEqual(audit.rows.map((a) => a.action), ["lock"]);
+});
+
+step("29e a closed month refuses every write (PERIOD_LOCKED); reopening needs a reason and opens it again", async () => {
+  const e = V2.entries[0];
+  const late = { site_id: S.sites.main, category_id: S.cats[e.cat], date_of_reporting: V2.late_date, activity_data_unit: e.unit, activity_data: { emission_category: e.activity, activity_value: "10" } };
+  const refused = await call("POST", "/user/emissions", S.people.userMain, late);
+  assert.equal(refused.status, 409);
+  assert.equal(refused.json.code, "PERIOD_LOCKED");
+  assert.equal((await call("DELETE", `/user/emissions/${v2Rows[e.ref]}`, S.people.manager)).json.code, "PERIOD_LOCKED");
+  assert.equal((await call("PUT", "/user/emissions/bulk-reject", S.people.manager, { ids: [v2Rows[e.ref]], comment: "late" })).json.code, "PERIOD_LOCKED");
+  const short = await call("POST", "/periods/unlock", S.people.manager, { ...lockBody(), reason: "oops" });
+  assert.equal(short.status, 400);
+  assert.equal(short.json.code, "UNLOCK_REASON_REQUIRED");
+  const reopened = await call("POST", "/periods/unlock", S.people.manager, { ...lockBody(), reason: "A late fuel invoice arrived" });
+  ok(reopened);
+  assert.equal(reopened.json.sites[0].locked, false);
+  assert.equal(reopened.json.sites[0].reopened.reason, "A late fuel invoice arrived");
+  const again = await call("POST", "/user/emissions", S.people.userMain, late);
+  ok(again, 201);
+  assert.equal(again.json.emission.status, "draft");
+  assert.equal(Number(again.json.emission.total_emission), tonnes(10 * SC.FACTORS.diesel.values[SC.factorYearOf(V2.late_date)]));
 });
 
 // ── Go-live checks still to come ───────────────────────────────────────────

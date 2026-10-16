@@ -124,7 +124,8 @@ export async function submitDrafts(caller: Caller, ids: number[]): Promise<Submi
   const acceptedIds = accepted.map((r) => Number(r.pk_id));
   const moved: number[] = await AppDataSource.transaction(async (tx) => {
     // The rows and their twins (either direction of the FERA link), drafts only.
-    const updated: Array<{ pk_id: number }> = await tx.query(
+    // TypeORM answers an UPDATE … RETURNING with [rows, count].
+    const result: unknown = await tx.query(
       `UPDATE emission SET status = 'pending', updated_at = now()
         WHERE status = 'draft'
           AND (pk_id = ANY($1::int[]) OR fera_linked_id = ANY($1::int[])
@@ -132,6 +133,7 @@ export async function submitDrafts(caller: Caller, ids: number[]): Promise<Submi
         RETURNING pk_id`,
       [acceptedIds],
     );
+    const updated = (Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result) as Array<{ pk_id: number }>;
     const movedIds = updated.map((u) => Number(u.pk_id));
     await tx.query(
       `INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, reason, changed_by)

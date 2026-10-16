@@ -40,7 +40,7 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | Step | Role | Checks |
 |---|---|---|
 | 0.1–0.3a | Superadmin | categories keep their GHG numbers (a Scope 1 category can't take one); country; USEEIO library loaded by the deploy; the deploy seeded the price index for the spend year |
-| 1–5 | Superadmin | onboarding creates the company, main site and Admin, who can sign in; Smart import and Claude imports start off |
+| 1–5b | Superadmin | onboarding creates the company, main site and Admin, who can sign in; Smart import, Claude imports and review workflow v2 start off (no month can be closed) |
 | 6–7 | Superadmin | second site; categories assigned to both sites |
 | 10 | Admin | 15 boundary rows, 13–15 start Not relevant, an exclusion needs a reason, every category in use has its number and is Included, consolidation approach saved |
 | 11–12 | Superadmin | site factors for both factor years (with Category 3 WTT and T&D factors); USEEIO sector copied to a site |
@@ -49,7 +49,8 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | 25–25d | Users | every row's tCO₂e, its 3a/3b/3c twins, a Category 6 flight, a Category 1 INR spend row (rate on the invoice date, deflated); a User can't enter for another site or approve |
 | 26–26c | Manager | approve, reject and pending rows (twins follow their parent); Scope 3 table per category (kg summed then rounded), statuses and reasons, GWP sets; Scope 1/2/3 totals; another client sees nothing |
 | 24 | Admin | base year preview per category, only the Admin freezes it |
-| skipped | — | 5a SE-2, 5b S3-15 parts 3–4, 9 S3-12, 14 S3-6, 16–17 and 25e S3-3, 18 SE-4, 27 S3-16 |
+| 29a–29e | Superadmin, User, Manager | review workflow v2 on: a User's August rows (and twins) are Drafts the Manager doesn't see; the month can't close while Drafts or missing categories are left; submit makes them Pending with one notification; "Nothing this month" and approval complete it; the Manager closes it; a closed month refuses writes with `PERIOD_LOCKED` until reopened with a reason |
+| skipped | — | 5a SE-2, 9 S3-12, 14 S3-6, 18 SE-4, 27 S3-16 |
 
 Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-lite_FE, not here.
 

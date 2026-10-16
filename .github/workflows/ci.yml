@@ -102,6 +102,7 @@ jobs:
         run: |
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_migrate'
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_golden'
+          psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_golden_v2'
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_api'
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_seeded'
 
@@ -146,6 +147,14 @@ jobs:
       - name: Calculation results match the locked snapshot
         env:
           DB_NAME: ci_golden
+        run: |
+          node ci/schema-sync.cjs dist
+          node ci/golden/run.cjs
+
+      - name: Calculation results match the snapshot with review workflow v2 on (S3-15)
+        env:
+          DB_NAME: ci_golden_v2
+          GOLDEN_REVIEW_V2: "1"
         run: |
           node ci/schema-sync.cjs dist
           node ci/golden/run.cjs
