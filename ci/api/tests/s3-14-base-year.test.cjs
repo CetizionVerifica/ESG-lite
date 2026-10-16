@@ -84,6 +84,10 @@ test("PUT: Admin and Superadmin only; a year without approved Scope 3 rows is BA
   assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: BASE, scope: "Scope 1" })).status, 400);
   assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: new Date().getFullYear() + 1 })).status, 400);
   assert.equal((await call("PUT", "/scope3/base-year", "admin", { base_year: new Date().getFullYear() })).status, 400); // only completed years
+  // An FY that ended earlier this calendar year counts as completed (FY2026 ends March 2026).
+  const fyNow = await call("GET", `/scope3/base-year/preview?base_year=${new Date().getFullYear()}&year_type=FY`, "admin");
+  if (new Date().getMonth() >= 3) assert.notEqual(fyNow.json?.code, "SCOPE3_VALIDATION", JSON.stringify(fyNow.json));
+  else assert.equal(fyNow.status, 400);
 });
 
 test("preview shows what a freeze would store, without saving", async () => {

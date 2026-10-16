@@ -270,12 +270,17 @@ export async function baseYearSummary(companyId: number, q: Queryable = AppDataS
   };
 }
 
+/** A base year must have ended: CY up to last year, an FY once its last month is over. */
+function isCompletedYear(yearType: YearType, year: number, now = new Date()) {
+  return getPeriodRange(yearType, year, "yearly").endDate.getTime() < now.getTime();
+}
+
 /** GET /scope3/base-year/preview?base_year=&year_type=: what PUT would freeze, without saving. */
 export async function previewBaseYear(companyId: number, query: any) {
   const year = Number(query?.base_year);
   const yearType: YearType = query?.year_type === "FY" ? "FY" : "CY";
-  if (!Number.isInteger(year) || year < 1990 || year > new Date().getFullYear() - 1) {
-    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "Give a year from 1990 to last year." }]);
+  if (!Number.isInteger(year) || year < 1990 || !isCompletedYear(yearType, year)) {
+    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "Give a completed year from 1990 on." }]);
   }
   const state = await currentState(companyId, year, yearType, AppDataSource);
   if (!Object.keys(state.rows).length) throw new Scope3Error("BASE_YEAR_NO_DATA", { base_year: year, year_type: yearType });
@@ -303,10 +308,10 @@ export async function putBaseYear(companyId: number, body: any, userId: number) 
   }
   const input = parsed.data;
   if (input.scope !== SCOPE) throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "scope", message: "Only a Scope 3 base year can be set here." }]);
-  if (input.base_year > new Date().getFullYear() - 1) {
-    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "The base year must be a completed year (last year or earlier)." }]);
-  }
   const yearType: YearType = input.year_type === "FY" ? "FY" : "CY";
+  if (!isCompletedYear(yearType, input.base_year)) {
+    throw new BoundaryError("SCOPE3_VALIDATION", [{ path: "base_year", message: "The base year must be a completed year." }]);
+  }
   const policy = {
     significance_pct: input.significance_pct ?? 5,
     policy_note: cleanText(input.policy_note),

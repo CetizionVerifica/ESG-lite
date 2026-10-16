@@ -42,6 +42,24 @@ export class Product {
   @Column({ type: "varchar", nullable: true })
   pcr_tag!: string | null;
 
+  // S3-10: Scope 3 sold products (docs/scope3/01-contracts.md §4, §10). Product gains
+  // columns although the plan lists it as read-only (allowed deviation, §10).
+  /** Lifetime uses of one product (Category 11), or of the customer's final product (11.5). */
+  @Column({ type: "decimal", nullable: true })
+  lifetime_uses!: string | null;
+
+  /** End-of-life mix `[{treatment, share}]`, shares summing to 1 (Category 12). */
+  @Column({ type: "jsonb", nullable: true })
+  eol_mix!: Array<{ treatment: string; share: number }> | null;
+
+  /**
+   * STAND-IN until an S3-0 follow-up names it: the rest of the use profile the
+   * Category 11 and 12 plans need (packaging per unit, how the product is used).
+   * Shape: src/scope3/soldProducts/schemas.ts UseProfileExtraSchema.
+   */
+  @Column({ type: "jsonb", nullable: true })
+  use_profile!: Record<string, string | number | null> | null;
+
   @OneToMany(() => ProductionData, (pd) => pd.product)
   production_data!: ProductionData[];
 
