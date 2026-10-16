@@ -195,3 +195,57 @@ test("a Category 9 row the company says it paid for warns TRANSPORT_PAID_BY_MISM
   assert.equal(up.status, 201);
   assert.deepEqual(up.json.warnings ?? [], []);
 });
+
+test("a row that names no method records the one its unit belongs to; totals are the same (S3-8 default by unit)", async () => {
+  // Rows saved above on the Category 4 form (fuel_based first): each unit's own method.
+  const byRef = Object.fromEntries(
+    (await q(`SELECT activity_data->>'Shipment Ref' AS ref, method FROM emission WHERE pk_id = ANY($1::int[]) AND category_id = ${UP}`, [created])).map((r) => [r.ref, r.method]),
+  );
+  assert.equal(byRef.A, "fuel_based", "litre");
+  assert.equal(byRef.B, "fuel_based", "kWh: fuel_based and site_specific both list it; the form's order decides");
+  assert.equal(byRef.C, "fuel_based", "kg: likewise");
+  assert.equal(byRef.D, "average_data", "m³.day");
+  assert.equal(byRef.E, "average_data", "pallet day");
+  assert.equal(byRef.F, "average_data", "teu.day");
+  assert.equal(byRef.G, "distance_based", "tonne.km");
+  assert.equal(byRef.I, "distance_based", "a legacy tonne.km row");
+
+  // Category 9 (distance_based first): litres record fuel_based, not the form's first method.
+  const [down] = await q(`SELECT pk_id FROM column_config WHERE site_id = ${SITE} AND category_id = ${DOWN}`);
+  await q(`UPDATE column_config SET method_options = $1 WHERE pk_id = $2`, [
+    JSON.stringify([
+      { method: "distance_based", units: ["tonne.km", "km"] },
+      { method: "fuel_based", units: ["litre", "kWh", "kg"] },
+      { method: "average_data", units: ["m3.day", "pallet.day", "teu.day"] },
+    ]),
+    down.pk_id,
+  ]);
+  const fuel = { "Fuel used (litres)": "500", "Your share of the load (%)": "50", emission_category: "Fuel - Diesel (average biofuel blend) [litre]", "Shipment Ref": "DN-FUEL" };
+  const r = await createEntry(fuel, "litre", { category_id: DOWN });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  const [row] = await q(`SELECT method, total_emission FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]);
+  assert.equal(row.method, "fuel_based");
+  assert.equal(Number(row.total_emission), 0.8, "500 L × 50 % × 3.18183 kg/L = 795 kg");
+  const named = await createEntry({ ...fuel, "Shipment Ref": "DN-FUEL-2" }, "litre", { category_id: DOWN, method: "fuel_based" });
+  assert.equal(named.status, 201);
+  assert.equal((await q(`SELECT method FROM emission WHERE pk_id = $1`, [named.json.emission.pk_id]))[0].method, "fuel_based", "a method the row names wins");
+});
+
+test("D6: the seeded DEFRA fuel factors are flagged as including WTT; fuel rows warn WTT_ALREADY_IN_FACTOR and keep their total", async () => {
+  const flags = await q(`SELECT DISTINCT emission_category_name AS n, factor_type, includes_wtt FROM emission_factors WHERE site_id = ${SITE} AND category_id = ${UP} AND source LIKE '% (S3-8)' ORDER BY 1`);
+  for (const f of flags) assert.equal(f.includes_wtt, f.n.startsWith("Fuel - "), f.n);
+  for (const f of flags) assert.equal(f.factor_type, f.n.startsWith("Fuel - ") ? "life_cycle" : "other", f.n);
+
+  // Rows seeded before the flag existed are flagged on the next run; nothing else changes.
+  await q(`UPDATE emission_factors SET includes_wtt = false WHERE site_id = ${SITE} AND category_id = ${UP} AND emission_category_name = 'Fuel - Diesel (average biofuel blend) [litre]'`);
+  const before = await q(`SELECT emission_factor_id, factor_value FROM emission_factors WHERE category_id IN (${UP}, ${DOWN}) ORDER BY 1`);
+  assert.match(seed(), /WTT flagged: 2\b/);
+  assert.deepEqual(await q(`SELECT emission_factor_id, factor_value FROM emission_factors WHERE category_id IN (${UP}, ${DOWN}) ORDER BY 1`), before);
+  assert.match(seed(), /WTT flagged: 0\b/);
+
+  const r = await createEntry({ "Fuel used (litres)": "1000", "Your share of the load (%)": "100", emission_category: "Fuel - Diesel (average biofuel blend) [litre]", "Shipment Ref": "WTT-1" }, "litre");
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.deepEqual(r.json.warnings.map((w) => w.code), ["WTT_ALREADY_IN_FACTOR"]);
+  assert.equal(Number((await q(`SELECT total_emission FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]))[0].total_emission), 3.18, "the total is kept");
+});
+

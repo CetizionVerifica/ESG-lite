@@ -204,3 +204,56 @@ test("ESTIMATED_DISTANCE on an estimated distance; TRANSPORT_PAID_BY_MISMATCH on
   assert.equal(w.paidByMismatchWarning(ctx("Upstream transportation and distribution", 4), { paid_by: "Customer or other" }), null);
   assert.equal(w.paidByMismatchWarning(ctx("Upstream transportation and distribution", 4), { paid_by: "We paid" }), null);
 });
+
+test("a row with no method records the offered method its unit belongs to; the total never moves", () => {
+  const { methodUnits, offeredMethods } = require(path.resolve("dist/scope3/dq/methodOptions.js"));
+  const { methodForUnit } = require(path.resolve("dist/services/emissionWrite/compute.js"));
+  const formCtx = (ghg) => {
+    const opts = cfg.methodOptionsFor(ghg);
+    return { ...ctx, method_options: offeredMethods(opts), method_units: methodUnits(opts) };
+  };
+  const cat4 = formCtx(4);
+  const cat9 = formCtx(9);
+  const cases = [
+    // [ctx, data, unit, factor, expected method]
+    [cat4, { "Weight (tonne)": "2", "Distance travelled": "2000" }, "tonne.km", factor("HGV", 0.2, "tonne.km"), "distance_based"],
+    [cat4, { "Distance travelled": "300" }, "km", factor("Van", 0.25, "km"), "distance_based"],
+    [cat4, { "Fuel used (litres)": "100", "Your share of the load (%)": "50" }, "Litres", factor("Diesel", 3, "litre"), "fuel_based"],
+    [cat4, { "Volume stored": "4000", "Days stored": "2" }, "m³.day", factor("Store", 0.01, "m3.day"), "average_data"],
+    // kWh is listed by fuel_based and site_specific: the form's order (most specific first) decides.
+    [cat4, { "Energy used (kWh)": "1000", "Your share (%)": "25" }, "kWh", factor("Grid", 0.8, "kWh"), "fuel_based"],
+    [cat9, { "Fuel used (litres)": "100", "Your share of the load (%)": "50" }, "litre", factor("Diesel", 3, "litre"), "fuel_based"],
+    [cat9, { "Weight (tonne)": "4", "Distance travelled": "2000" }, "tonne.km", factor("HGV", 0.2, "tonne.km"), "distance_based"],
+    [cat9, { "Volume stored": "120", "Days stored": "30" }, "pallet day", factor("Pallets", 0.02, "pallet.day"), "average_data"],
+  ];
+  for (const [c, data, unit, f, method] of cases) {
+    const withForm = computeTotal(c, f, { ...data }, unit);
+    const bare = computeTotal(ctx, f, { ...data }, unit);
+    assert.equal(withForm.ok, true, JSON.stringify(withForm));
+    assert.equal(withForm.computed.method, method, unit);
+    assert.equal(withForm.computed.total, bare.computed.total, `${unit}: same total`);
+    assert.equal(withForm.computed.total_kgco2e, bare.computed.total_kgco2e, `${unit}: same kg`);
+  }
+  // A method the row names wins over its unit.
+  assert.equal(computeTotal(cat4, factor("HGV", 0.2, "tonne.km"), { "Weight (tonne)": "1", "Distance travelled": "1" }, "tonne.km", { method: "fuel_based" }).computed.method, "fuel_based");
+  // No method lists the unit, or the list has no units (legacy bare keys): the form's first method, as before.
+  assert.equal(methodForUnit(cat4, "gallon"), null);
+  assert.equal(methodForUnit({ ...cat4, method_units: methodUnits(["distance_based", "fuel_based"]) }, "litre"), null);
+  assert.equal(computeTotal({ ...cat9, method_units: {} }, factor("Diesel", 3, "litre"), { "Fuel used (litres)": "1", "Your share of the load (%)": "100" }, "litre").computed.method, "distance_based");
+  // Spend units are currencies: an INR row on a form offering spend records spend_based.
+  assert.equal(methodForUnit(cat4, "INR"), "spend_based");
+  // Outside Scope 3 nothing is recorded.
+  assert.equal(computeTotal({ ...cat4, scope: "Scope 1" }, factor("Diesel", 3, "litre"), { "Fuel used (litres)": "1", "Your share of the load (%)": "100" }, "litre").computed.method, undefined);
+});
+
+test("D6: the seeded fuel factors are life cycle and flagged as including WTT; refrigerants are not", () => {
+  for (const f of TRANSPORT_FACTORS) {
+    assert.equal(f.includes_wtt, f.name.startsWith("Fuel - "), f.name);
+    assert.equal(f.factor_type, f.includes_wtt ? "life_cycle" : "other", f.name);
+  }
+  const { wttDoubleCountWarning } = require(path.resolve("dist/services/emissionWrite/methods/fera.js"));
+  const diesel = TRANSPORT_FACTORS.find((f) => f.name.startsWith("Fuel - Diesel"));
+  const seeded = { ...factor(diesel.name, diesel.values[2025].value, "litre"), factor_type: "life_cycle", includes_wtt: true };
+  assert.equal(wttDoubleCountWarning({ ...ctx, category_name: "Upstream transportation and distribution" }, seeded).code, "WTT_ALREADY_IN_FACTOR");
+  assert.equal(wttDoubleCountWarning({ ...ctx, category_name: "Downstream transportation and distribution" }, seeded).code, "WTT_ALREADY_IN_FACTOR");
+});
