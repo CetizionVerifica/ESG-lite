@@ -123,7 +123,7 @@ test("the FERA twin is computed and written alike for typed entries and imports"
     const row = { ...ROWS[0], row_ref: "Fera!B2", period: { kind: "monthly", date: "2025-05-15" }, activity_value: 100, activity_unit: "gallon" };
     const planned = await planRows(CTX, [row], { planMatches: [] });
     assert.equal(planned[0].state, "ready", JSON.stringify(planned[0].issues));
-    assert.deepEqual([planned[0].result.total_tco2e, planned[0].result.fera], [1014.49, { category_id: 5, total_tco2e: 230.91 }]);
+    assert.deepEqual([planned[0].result.total_tco2e, planned[0].result.fera], [1014.49, { category_id: 5, total_tco2e: 230.91, scope3_sub: "3a_upstream_fuels" }]);
 
     const batch = { upload_batch_id: "im1-parity-fera", channel: "bulk_upload", source_name: "May.xlsx" };
     const result = await AppDataSource.transaction((tx) => insertRows(tx, CTX, planned, batch));

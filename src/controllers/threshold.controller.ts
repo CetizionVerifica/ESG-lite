@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { EmissionThreshold } from "../entities/Threshold";
+import { refreshCompanyChecksSafely } from "../scope3/review/service";
 
 const MIN_THRESHOLD = 2;
 const MAX_THRESHOLD = 5;
@@ -54,6 +55,8 @@ export const createThreshold = async (req: Request, res: Response) => {
       threshold_percentage: value,
     });
     await repo.save(threshold);
+    // The change limit moves WITHIN_THRESHOLD on the company's pending rows (S3-15).
+    await refreshCompanyChecksSafely(AppDataSource.manager, Number(company_id));
 
     const saved = await repo
       .createQueryBuilder("threshold")
@@ -100,6 +103,9 @@ export const updateThreshold = async (req: Request, res: Response) => {
       .leftJoinAndSelect("threshold.company", "company")
       .where("threshold.threshold_id = :id", { id: threshold.threshold_id })
       .getOne();
+    const companyId = saved?.company?.company_id;
+    // The change limit moves WITHIN_THRESHOLD on the company's pending rows (S3-15).
+    if (companyId) await refreshCompanyChecksSafely(AppDataSource.manager, Number(companyId));
 
     return res.json(saved);
   } catch (error) {

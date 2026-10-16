@@ -76,4 +76,16 @@ export class Site {
 
   @OneToMany(() => ProductionData, (pd) => pd.site)
   production_data!: ProductionData[];
+
+  // S3-11 · leased assets and franchises (docs/scope3/01-contracts.md §4,
+  // migrate:scope3-assets). All nullable: a site with none is neither leased
+  // nor a franchise. Values from src/scope3/contracts/schemas.ts (LEASE_ROLES, LEASE_TYPES).
+  @Column({ type: "varchar", length: 20, nullable: true })
+  lease_role?: string | null;
+
+  @Column({ type: "varchar", length: 20, nullable: true })
+  lease_type?: string | null;
+
+  @Column("decimal", { precision: 14, scale: 2, nullable: true })
+  floor_area_m2?: string | null;
 }

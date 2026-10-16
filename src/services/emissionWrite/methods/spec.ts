@@ -23,7 +23,7 @@ const specIssueCode = (message: string): RowIssueCode =>
 export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
   const spec = ctx.spec as CalculationSpec;
   let unit = row.activity_unit;
-  const computed = computeSpecActivityValue(spec, row.activity_data, unit);
+  const computed = computeSpecActivityValue(spec, row.activity_data, unit, row.method);
   if (!computed.ok) {
     return { ok: false, issue: { code: specIssueCode(computed.message), message: computed.message } };
   }
