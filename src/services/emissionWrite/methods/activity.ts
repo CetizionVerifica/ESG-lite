@@ -8,7 +8,7 @@
 import type { EmissionFactor } from "../../../entities/EmissionFactor";
 import { pickActivityValue } from "../../activityValue";
 import { getConversionFactor, unitsMatchExact } from "../units";
-import type { CategoryContext, ComputeResult, EngineRow } from "../compute";
+import type { CategoryContext, ComputeResult, FactorRow } from "../compute";
 import type { Gas } from "../../../scope3/contracts/factor";
 
 /** tCO₂e for a value in the factor's unit, rounded as the controller did. */
@@ -102,5 +102,5 @@ export const applyFactor = (activityValue: number, unit: string, factor: Emissio
   };
 };
 
-export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult =>
+export const compute = (ctx: CategoryContext, row: FactorRow): ComputeResult =>
   applyFactor(pickActivityValue(row.activity_data, ctx.selectColumns), row.activity_unit, row.factor);

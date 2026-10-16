@@ -21,7 +21,7 @@ import type { ActivityMatch, ImportRow, PlannedRow, RowIssue, StrippedTotal } fr
 import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../../imports/writer";
 import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
-import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
+import { computeTotal, factorSnapshot, feraGap, feraTwinFor, methodFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
@@ -30,6 +30,15 @@ import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
 import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
 import { methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import {
+  loadSupplier,
+  parseHybridLines,
+  pickFacility,
+  pickSupplierFactor,
+  type HybridLine,
+  type LoadedSupplier,
+  type SupplierEngineInput,
+} from "../../scope3/suppliers/engineInput";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -59,6 +68,14 @@ export interface EntryInput {
   method?: Method | null;
   is_estimate?: boolean;
   dq?: ManualDqInput | null;
+  /**
+   * S3-6: the supplier the goods came from (one of the site's company), and
+   * for the supplier-specific method the figure to use when the supplier has
+   * several. Hybrid rows carry their input lines in `extra_data.inputs` and,
+   * for economic allocation, what was paid in `extra_data.purchased_value`.
+   */
+  supplier_id?: number | null;
+  supplier_factor_id?: number | null;
 }
 
 export interface PreparedEntry {
@@ -78,6 +95,8 @@ export interface PreparedEntry {
   feraSkipped?: string;
   /** S3-3: the site's country, so a twin's data quality can be scored where the twin is written. */
   site_country?: string | null;
+  /** S3-6: the supplier the row is linked to (checked to be the site's company's), or null. */
+  supplier_id?: number | null;
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -118,6 +137,86 @@ const twinQuality = (siteCountry: string | null | undefined, factor: EmissionFac
   };
 };
 
+type SupplierPrep = { ok: true; supplier: LoadedSupplier | null; engine: SupplierEngineInput | null; warnings: EngineIssue[] } | { ok: false; issue: EngineIssue };
+
+const supplierIssue = (code: RowIssueCode, message: string, field: string): SupplierPrep => ({ ok: false, issue: { code, message, field } });
+
+/**
+ * S3-6: loads the row's supplier (only ever one of the site's company) and,
+ * for the supplier-specific and hybrid methods, the figures the engine needs:
+ * the supplier factor to use, or the facility data and the resolved input
+ * lines. The maths stays in `methods/supplier.ts` and `methods/hybrid.ts`.
+ */
+const prepareSupplier = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput, method: Method | null, targetYear: number): Promise<SupplierPrep> => {
+  const wanted = input.supplier_id ?? null;
+  const supplierMethod = method === "supplier_specific" || method === "hybrid";
+  let supplier: LoadedSupplier | null = null;
+  if (wanted !== null) {
+    supplier = ctx.company_id ? await loadSupplier(checks.manager, ctx.company_id, Number(wanted)) : null;
+    // Another company's supplier reads exactly like one that doesn't exist.
+    if (!supplier) return supplierIssue("FIELD_INVALID", "This supplier wasn't found for this company.", "supplier_id");
+  }
+  if (!supplierMethod) return { ok: true, supplier, engine: null, warnings: [] };
+  if (!supplier) {
+    return supplierIssue("FIELD_REQUIRED", `Choose the supplier to use "${methodLabel(method)}".`, "supplier_id");
+  }
+
+  const reportingYear = reportingYearFor(input.period.date_of_reporting);
+  if (method === "supplier_specific") {
+    const pick = pickSupplierFactor(supplier.factors, reportingYear, input.activity_data.emission_category, input.supplier_factor_id ?? null);
+    if (!pick.ok) {
+      switch (pick.reason) {
+        case "ambiguous":
+          return supplierIssue("FIELD_REQUIRED", "This supplier has figures for several items. Choose which one this purchase is.", "supplier_factor_id");
+        case "future_year":
+          return supplierIssue("FIELD_INVALID", `That supplier figure is from after ${reportingYear}, so it can't be used for this period.`, "supplier_factor_id");
+        case "none_for_year":
+          return supplierIssue("NO_FACTOR_FOR_YEAR", `This supplier has no figure from ${reportingYear} or earlier. Request one or use an average.`, "supplier_factor_id");
+        default:
+          return input.supplier_factor_id
+            ? supplierIssue("FIELD_INVALID", "That figure isn't one of this supplier's.", "supplier_factor_id")
+            : supplierIssue("NO_FACTOR_FOR_YEAR", "No figure from this supplier yet. Request one or use an average.", "supplier_factor_id");
+      }
+    }
+    return { ok: true, supplier, engine: { supplier_id: supplier.supplier_id, country: supplier.country, factor: pick.factor }, warnings: [] };
+  }
+
+  // Hybrid: input lines × the factors of this site × category, and the facility data.
+  const extra = input.extra_data ?? {};
+  const parsed = parseHybridLines(extra.inputs);
+  if (!parsed.ok) return supplierIssue("FIELD_INVALID", parsed.message, parsed.field);
+  const warnings: EngineIssue[] = [];
+  const lines: HybridLine[] = [];
+  for (let i = 0; i < parsed.lines.length; i++) {
+    const line = parsed.lines[i];
+    const match = ctx.factors.find(line.name, targetYear);
+    if (!match) {
+      return supplierIssue("NO_FACTOR_FOR_YEAR", `Input line ${i + 1}: no emission factor named "${line.name}" for this category (year ${targetYear}).`, `extra_data.inputs[${i}].name`);
+    }
+    if (match.fallback_year) {
+      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${match.factor.emission_category_name}"; the ${match.factor.year} factor was used.` });
+    }
+    lines.push({ ...line, factor: match.factor });
+  }
+  let purchasedValue: number | null = null;
+  if (extra.purchased_value !== undefined && extra.purchased_value !== null && extra.purchased_value !== "") {
+    purchasedValue = Number(extra.purchased_value);
+    if (!Number.isFinite(purchasedValue) || purchasedValue <= 0) return supplierIssue("FIELD_INVALID", "What was paid must be a number greater than 0.", "extra_data.purchased_value");
+  }
+  return {
+    ok: true,
+    supplier,
+    engine: {
+      supplier_id: supplier.supplier_id,
+      country: supplier.country,
+      facility: pickFacility(supplier.facilities, reportingYear),
+      lines,
+      purchased_value: purchasedValue,
+    },
+    warnings,
+  };
+};
+
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
   // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
@@ -141,22 +240,32 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     };
   }
 
+  // S3-6: the supplier, and for the supplier-specific and hybrid methods its figures.
+  const method = methodFor(ctx, { method: input.method });
+  const supplierMethod = method === "supplier_specific" || method === "hybrid";
+  const prep = await prepareSupplier(ctx, checks, input, method, targetYear);
+  if (!prep.ok) return prep;
+  warnings.push(...prep.warnings);
+
   if (activity_data.emission_category && unit) {
     const match = ctx.factors.find(activity_data.emission_category, targetYear);
-    if (!match) {
+    // A supplier's own figure (or a hybrid row's lines) stands in for the
+    // activity's factor, so the activity needs none of its own.
+    if (!match && !supplierMethod) {
       return {
         ok: false,
         issue: { code: "NO_FACTOR_FOR_YEAR", message: `No emission factor found for emission category "${activity_data.emission_category}" (year ${targetYear})` },
       };
     }
-    factor = match.factor;
-    if (match.fallback_year) {
-      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
+    factor = match?.factor ?? null;
+    if (match?.fallback_year && !supplierMethod) {
+      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${match.factor.emission_category_name}"; the ${match.factor.year} factor was used.` });
     }
     const result = computeTotal(ctx, factor, activity_data, unit, {
       method: input.method,
       reportingYear: reportingYearFor(input.period.date_of_reporting),
       manualDq: input.dq ? manualDqFrom(input.dq) : null,
+      supplier: prep.engine,
     });
     if (!result.ok) return result;
     computed = result.computed;
@@ -194,7 +303,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     }
     for (const w of [feraFactorTypeWarning(fera), feraFactorTypeWarning(tdLoss)]) if (w) warnings.push(w);
   }
-  const wtt = wttDoubleCountWarning(ctx, factor);
+  const wtt = supplierMethod ? null : wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
 
   return {
@@ -207,10 +316,18 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       tdLoss,
       warnings,
       site_country: ctx.site_country ?? null,
+      supplier_id: computed?.supplier_id ?? prep.supplier?.supplier_id ?? null,
       ...(feraSkipped ? { feraSkipped } : {}),
     },
   };
 };
+
+/**
+ * The snapshot a row stores: the method's own (a supplier's figure, a hybrid
+ * row's components; S3-6) or the row's emission factor, as before.
+ */
+export const entryFactorSnapshot = (entry: Pick<PreparedEntry, "factor" | "computed">): Record<string, unknown> | null =>
+  entry.computed?.snapshot ?? (entry.factor ? factorSnapshot(entry.factor) : null);
 
 export interface AuditInfo {
   changed_by: number;
@@ -247,7 +364,9 @@ export const insertEntry = async (
     total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
     gas_kg: entry.computed?.gas_kg ?? null,
     biogenic_kg: entry.computed?.biogenic_kg ?? null,
-    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
+    emission_factor_snapshot: entryFactorSnapshot(entry),
+    // S3-6: the supplier the goods came from, when the entry names one.
+    supplier: entry.supplier_id ? ({ supplier_id: entry.supplier_id } as any) : null,
     // S3-3: null on Scope 1 and Scope 2 rows, where a method means nothing.
     method: entry.computed?.method ?? null,
     dq: entry.computed?.dq ?? null,

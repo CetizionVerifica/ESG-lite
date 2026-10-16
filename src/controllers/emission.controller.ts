@@ -8,7 +8,8 @@ import { In, IsNull, Not, Or } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
-import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
+import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, entryFactorSnapshot, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
+import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
 import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
@@ -159,7 +160,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       .leftJoinAndSelect("emission.site", "site")
       .leftJoinAndSelect("emission.category", "category")
       .leftJoinAndSelect("emission.reviewed_by", "reviewed_by")
-      .leftJoinAndSelect("emission.created_by", "created_by");
+      .leftJoinAndSelect("emission.created_by", "created_by")
+      // S3-6: the supplier the goods came from (id and name only).
+      .leftJoin("emission.supplier", "supplier")
+      .addSelect(["supplier.supplier_id", "supplier.name"]);
 
     if (searchParams) {
       qb.andWhere(emissionSearchSql({ e: "emission", c: "category", s: "site", u: "created_by" }), searchParams);
@@ -443,6 +447,11 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     if (!quality.ok) {
       return res.status(400).json({ message: quality.message, code: "FIELD_INVALID", field: quality.field });
     }
+    // S3-6: the supplier the goods came from, and the supplier figure to use.
+    const supplierRef = parseSupplierRef(req.body);
+    if (!supplierRef.ok) {
+      return res.status(400).json({ message: supplierRef.message, code: "FIELD_INVALID", field: supplierRef.field });
+    }
     const userId = req.user?.userId;
 
     if (!site_id || !category_id || !activity_data || !date_of_reporting) {
@@ -576,6 +585,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       },
       extra_data: extra_data || {},
       ...quality.value,
+      ...supplierRef.value,
     });
     if (!prepared.ok) {
       return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
@@ -672,7 +682,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.reviewed_at = null as any;
 
       // The factor year follows the new reporting date when one is sent.
-      const prepared = await recalculateEntry(emission, activity_data, date_of_reporting);
+      const prepared = await recalculateEntry(emission, activity_data, date_of_reporting, extra_data);
       if (!prepared.ok) {
         return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
       }
@@ -764,11 +774,16 @@ const ymd = (d: unknown): string => (typeof d === "string" ? d.slice(0, 10) : ne
  * resolution, unit check, kgCO₂e total, snapshot and the FERA twin. A new
  * reporting date counts, since the factor year follows it. Nothing is written.
  */
-async function recalculateEntry(emission: Emission, activity_data: any, newDate?: string): Promise<PrepareResult> {
+async function recalculateEntry(emission: Emission, activity_data: any, newDate?: string, newExtra?: Record<string, any>): Promise<PrepareResult> {
   const site_id = emission.site.site_id;
   const category_id = emission.category.category_id;
   const ctx = await new ContextCache(AppDataSource.manager).context(site_id, category_id);
   const yearly = emission.reporting_period === "yearly";
+  // S3-6: a supplier-specific or hybrid row is recalculated the same way, from
+  // the same supplier (and figure); every other row as before.
+  const supplierRow = emission.method === "supplier_specific" || emission.method === "hybrid";
+  const [linked] = supplierRow ? await AppDataSource.query(`SELECT supplier_id FROM emission WHERE pk_id = $1`, [emission.pk_id]) : [];
+  const snapshotFactorId = Number((emission.emission_factor_snapshot as any)?.supplier_factor_id) || null;
   return prepareEntry(ctx, new CheckCache(AppDataSource.manager), {
     site_id,
     category_id,
@@ -779,12 +794,21 @@ async function recalculateEntry(emission: Emission, activity_data: any, newDate?
       reporting_period: yearly ? "yearly" : "monthly",
       year_type: yearly ? ((emission.year_type as "CY" | "FY" | null) ?? null) : null,
     },
+    ...(supplierRow
+      ? {
+          method: emission.method,
+          supplier_id: linked?.supplier_id ?? null,
+          supplier_factor_id: emission.method === "supplier_specific" ? snapshotFactorId : null,
+          extra_data: newExtra ?? emission.extra_data ?? {},
+        }
+      : {}),
   });
 }
 
 /** Puts the engine's total, kgCO₂e total, snapshot and unit on an edited row; no factor means no total (audit F-05). */
 function applyComputed(emission: Emission, entry: PreparedEntry): void {
-  if (!entry.factor || !entry.computed) {
+  const snapshot = entryFactorSnapshot(entry);
+  if (!entry.computed || !snapshot) {
     emission.total_emission = 0;
     emission.total_kgco2e = "0.0000";
     emission.gas_kg = null;
@@ -796,7 +820,7 @@ function applyComputed(emission: Emission, entry: PreparedEntry): void {
   emission.total_kgco2e = entry.computed.total_kgco2e ?? null;
   emission.gas_kg = entry.computed.gas_kg ?? null;
   emission.biogenic_kg = entry.computed.biogenic_kg ?? null;
-  emission.emission_factor_snapshot = factorSnapshot(entry.factor) as any;
+  emission.emission_factor_snapshot = snapshot as any;
   emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
 }
 
