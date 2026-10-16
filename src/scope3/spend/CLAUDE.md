@@ -62,7 +62,7 @@ PPP adjustment, and basic vs purchaser price. Note these as a future option in t
 - The golden cases 1.5 and 4.4 pass.
 
 ## As built notes (review run 23)
-- A current-year row (or any year without an index in `price_deflator`) is stored not deflated with `NO_DEFLATOR`, as the spec says. US CPI-U is seeded 2015–2024 only; 2025 and later are added with `POST /scope3/deflators` (Superadmin) or a later seed, after which new and edited rows use them. Rows already saved keep their stored snapshot until edited.
+- A spend year with no published index yet (the current year) uses the latest earlier index and warns `DEFLATOR_FALLBACK_YEAR` (Shyam, 2026-10-16); `NO_DEFLATOR` is left for a factor base year with no index. The snapshot's `deflator.index_year` names the year used. US CPI-U is seeded 2015–2025 (2025 = 321.943, the annual average of the BLS monthly CPI-U); 2026 and later are added with `POST /scope3/deflators` (Superadmin) or a later seed, after which new and edited rows use them. Rows already saved keep their stored snapshot until edited.
 - Edits go through S3-4's `recalculateEntry` → `prepareEntry` with the row's `extra_data` and stored `fx` (reused while currency and purchase date are unchanged); `applyComputed` stores `fx` and the deflator snapshot.
 - The USEEIO library rows (site-less, `eeio_spend`) are hidden from `GET /admin/emission-factors` unless `?library=1`; `GET /scope3/spend/library` lists them.
 - `spent_value` is skipped as a quantity only on rows with `@method = spend_based`; `invoice_date` is never a quantity.

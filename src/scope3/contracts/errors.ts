@@ -67,6 +67,7 @@ export const SCOPE3_WARNINGS = {
   WTT_ALREADY_IN_FACTOR: "This transport factor already includes well-to-tank emissions.",
   FX_RATE_FALLBACK: "No exchange rate for that day; the nearest earlier rate was used.",
   NO_DEFLATOR: "No price deflator for that year; the amount was not deflated.",
+  DEFLATOR_FALLBACK_YEAR: "No price index for the spend year yet; the latest published year's was used.",
   ESTIMATED_DISTANCE: "The distance is an estimate from the route helper.",
   TRANSPORT_PAID_BY_MISMATCH: "Who paid for this transport doesn't match the category.",
 } as const;
