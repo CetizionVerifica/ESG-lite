@@ -60,3 +60,7 @@ Turning the switch on for clients (Shyam, D9). Changing who may approve. Year-le
 - Every pending row carries checks; managers can approve all ready rows in one action and see why the rest are held.
 - With the switch on: drafts, submit, and lock/unlock work as on the canvas, and locked months refuse every write with `PERIOD_LOCKED`.
 - With the switch off, contributor behaviour and golden totals are unchanged.
+
+## As built
+- Part 1 (1/4, ESG-lite #139): checks on every pending row, `ready` filter, `only_ready` bulk approve.
+- Part 2 (3/4, ESG-lite `s3-15-part2-drafts-lock`): in progress — drafts, submit, month lock and the `PERIOD_LOCKED` guard behind `company.review_workflow_v2`.
