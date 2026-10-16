@@ -175,3 +175,43 @@ test("methodFor: the row's own method, then the form's first, then average data"
   assert.equal(methodFor({ scope: "Scope 2" }, {}), null);
   assert.equal(methodFor({ scope: null }, {}), null);
 });
+
+test("method_options: read in either shape, offered keys most specific first", () => {
+  const { readMethodOptions, offeredMethods } = require(path.resolve("dist/scope3/dq/methodOptions.js"));
+  const contract = [
+    { method: "distance_based", units: ["km", " passenger.km "] },
+    { method: "spend_based", units: ["USD"] },
+  ];
+  assert.deepEqual(readMethodOptions(contract), [
+    { method: "distance_based", units: ["km", "passenger.km"] },
+    { method: "spend_based", units: ["USD"] },
+  ]);
+  assert.deepEqual(offeredMethods(contract), ["distance_based", "spend_based"]);
+  // A legacy bare key reads as that method with no unit limit.
+  assert.deepEqual(readMethodOptions(["fuel_based", "spend_based"]), [
+    { method: "fuel_based", units: [] },
+    { method: "spend_based", units: [] },
+  ]);
+  // Junk is skipped, never trusted: unknown keys, "unknown", repeats, stray values.
+  assert.deepEqual(offeredMethods(["teleportation", "unknown", { method: "hybrid" }, "hybrid", null, 7, { units: ["kg"] }]), ["hybrid"]);
+  assert.deepEqual(offeredMethods(null), []);
+  assert.deepEqual(offeredMethods({ method: "hybrid", units: ["kg"] }), []);
+});
+
+test("method_options writes: MethodOptionsSchema, refused by name", () => {
+  const { parseMethodOptionsInput } = require(path.resolve("dist/scope3/dq/methodOptions.js"));
+  assert.deepEqual(parseMethodOptionsInput(undefined), { ok: true, value: undefined }, "absent keeps what is stored");
+  assert.deepEqual(parseMethodOptionsInput(null), { ok: true, value: null }, "null clears");
+  assert.deepEqual(parseMethodOptionsInput([]), { ok: true, value: null }, "an empty list clears too");
+  const ok = parseMethodOptionsInput([{ method: "supplier_specific", units: ["kg"] }]);
+  assert.deepEqual(ok, { ok: true, value: [{ method: "supplier_specific", units: ["kg"] }] });
+
+  const field = (v) => parseMethodOptionsInput(v).field;
+  assert.equal(field([{ method: "teleportation", units: ["kg"] }]), "method_options[0].method");
+  assert.equal(field([{ method: "unknown", units: ["kg"] }]), "method_options[0].method");
+  assert.equal(field([{ method: "hybrid", units: ["kg"] }, { method: "spend_based", units: [] }]), "method_options[1].units");
+  assert.equal(field(["hybrid"]), "method_options[0]", "bare keys are read, never written");
+  assert.equal(field([{ method: "hybrid", units: ["kg"] }, { method: "hybrid", units: ["t"] }]), "method_options");
+  assert.equal(field("hybrid"), "method_options");
+  assert.match(parseMethodOptionsInput([{ method: "spend_based", units: [] }]).message, /at least one unit/);
+});
