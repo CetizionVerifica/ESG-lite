@@ -49,7 +49,7 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | 25–25d | Users | every row's tCO₂e, its 3a/3b/3c twins, a Category 6 flight, a Category 1 INR spend row (rate on the invoice date, deflated); a User can't enter for another site or approve |
 | 26–26c | Manager | approve, reject and pending rows (twins follow their parent); Scope 3 table per category (kg summed then rounded), statuses and reasons, GWP sets; Scope 1/2/3 totals; another client sees nothing |
 | 24 | Admin | base year preview per category, only the Admin freezes it |
-| 27 | audit | when `audit/harness/scope3-probes.cjs` is reachable (`SCOPE3_PROBES`, the shared audit folder or this checkout): the S3-16 probes in a scratch `<DB_NAME>_probes` database with the API fixture and their own server (`SCOPE3_PROBE_PORT`, default 3996); red on a harness error, `fail` rows listed (red with `SCOPE3_PROBES_STRICT=1`) |
+| 27 | audit | when `audit/harness/scope3-probes.cjs` is reachable (`SCOPE3_PROBES`, the shared audit folder or this checkout): the S3-16 probes in a scratch `<DB_NAME>_probes` database with the API fixture and their own server (`SCOPE3_PROBE_PORT`, default 3996); by default red only on a harness error (setup, residue): `fail` rows are the owning lanes' findings and are listed as diagnostics; `SCOPE3_PROBES_STRICT=1` makes them red too |
 | skipped | — | 5a SE-2, 5b S3-15 parts 3–4, 9 S3-12, 14 S3-6, 16–17 and 25e S3-3, 18 SE-4 |
 
 Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-lite_FE, not here.

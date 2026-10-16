@@ -390,13 +390,43 @@ async function cleanup(db, startNotification) {
 const tableExists = async (db, name) =>
   (await db.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`, [name])).rows.length > 0;
 
-/** Row counts of every table: equal before and after a run, or the fixture was not cleaned. */
+/** Company `company`'s boundary row for category `n`, every column, or null. */
+async function boundaryRow(db, company, n) {
+  if (!(await tableExists(db, "company_scope3_category"))) return null;
+  const { rows } = await db.query(`SELECT * FROM company_scope3_category WHERE company_id = $1 AND ghg_category = $2`, [company, n]);
+  return rows[0] || null;
+}
+
+/**
+ * Puts a boundary row back exactly as `before` (every column) and removes the
+ * audit rows written for it since `auditFrom`. Returns what had changed, or null.
+ */
+async function restoreBoundaryRow(db, before, auditFrom) {
+  if (!before) return null;
+  const now = await boundaryRow(db, before.company_id, before.ghg_category);
+  const cols = Object.keys(before).filter((c) => c !== "id");
+  const changed = cols.filter((c) => JSON.stringify(now?.[c] ?? null) !== JSON.stringify(before[c] ?? null));
+  if (!changed.length) return null;
+  const sets = changed.map((c, i) => `"${c}" = $${i + 2}`).join(", ");
+  const values = changed.map((c) => (before[c] !== null && typeof before[c] === "object" && !(before[c] instanceof Date) ? JSON.stringify(before[c]) : before[c]));
+  await db.query(`UPDATE company_scope3_category SET ${sets} WHERE id = $1`, [before.id, ...values]);
+  await db.query(`DELETE FROM audit_log WHERE entity_type = 'scope3_boundary' AND entity_id = $1 AND id > $2`, [before.id, auditFrom]);
+  return changed.join(", ");
+}
+
+/**
+ * Row counts of every table, plus company 1's Cat 8 boundary row (the one the
+ * S3-03, S3-19 and S3-20 writes aim at): equal before and after a run, or the
+ * fixture was not cleaned.
+ */
 async function fingerprint(db) {
   const { rows } = await db.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`);
   const counts = {};
   for (const { tablename } of rows) {
     counts[tablename] = Number((await db.query(`SELECT count(*) AS n FROM "${tablename}"`)).rows[0].n);
   }
+  const cat8 = await boundaryRow(db, 1, 8);
+  if (cat8) counts["company_scope3_category (company 1, Cat 8)"] = JSON.stringify(cat8);
   return counts;
 }
 const diffCounts = (a, b) =>
@@ -730,11 +760,26 @@ async function runRows(db, head, golden, logs) {
     const reasonless = rows.filter((row) => Number(row.reasonless) > 0);
     if (short.length) return r.fail(`company ${short[0].company_id} has ${short[0].rows} boundary row(s), not 15`);
     if (reasonless.length) return r.fail(`company ${reasonless[0].company_id} excludes a category with no reason`);
-    const noReason = await call("PUT", "/scope3/categories/8", "admin", { status: "excluded", reason: "  " });
-    if (noReason.status !== 400 || noReason.json?.code !== "EXCLUSION_REASON_REQUIRED") return r.fail(`an exclusion with no reason answered ${noReason.status} ${noReason.json?.code || ""}, expected 400 EXCLUSION_REASON_REQUIRED`);
-    const guarded = await call("PUT", "/scope3/categories/8", "manager", { status: "excluded", reason: TAG });
-    if (guarded.status !== 403) return r.fail(`Manager PUT answered ${guarded.status}, expected 403 (D12)`);
-    return r.pass(`${rows.length} company boundary(ies) of 15 rows, every exclusion with a reason; EXCLUSION_REASON_REQUIRED; Manager PUT 403`);
+    // Both PUTs below must be refused; if either is not, it wrote company 1's
+    // Cat 8 row, which is put back exactly as found (also on a throw) and the
+    // write is reported. The residue check compares this row too.
+    const before = await boundaryRow(db, 1, 8);
+    const auditFrom = Number((await db.query(`SELECT coalesce(max(id), 0) AS n FROM audit_log`)).rows[0].n);
+    let wrote = null;
+    let refused = null;
+    try {
+      const noReason = await call("PUT", "/scope3/categories/8", "admin", { status: "excluded", reason: "  " });
+      if (noReason.status !== 400 || noReason.json?.code !== "EXCLUSION_REASON_REQUIRED") refused = `an exclusion with no reason answered ${noReason.status} ${noReason.json?.code || ""}, expected 400 EXCLUSION_REASON_REQUIRED`;
+      else {
+        const guarded = await call("PUT", "/scope3/categories/8", "manager", { status: "excluded", reason: TAG });
+        if (guarded.status !== 403) refused = `Manager PUT answered ${guarded.status}, expected 403 (D12)`;
+      }
+    } finally {
+      wrote = await restoreBoundaryRow(db, before, auditFrom);
+    }
+    const restored = wrote ? `company 1's Cat 8 boundary row was changed (${wrote}) and has been restored` : null;
+    if (refused || restored) return r.fail([refused, restored].filter(Boolean).join("; "));
+    return r.pass(`${rows.length} company boundary(ies) of 15 rows, every exclusion with a reason; EXCLUSION_REASON_REQUIRED; Manager PUT 403; Cat 8 row unchanged`);
   });
 
   await needs("S3-04", "Factors carry their metadata and the snapshot copies it", "factor_type, gwp_set, geography, dataset on new factors; the row snapshot copies them; FACTOR_TYPE_MISMATCH warns only", ["emission_factors.factor_type", "category.ghg_category"], async (r) => {
@@ -967,7 +1012,7 @@ async function runRows(db, head, golden, logs) {
       R3: every((x) => "biogenic_tco2e" in x),
       R4: every((x) => typeof x.status === "string" && Array.isArray(x.mapped_categories)),
       R5: rows.filter((x) => ["excluded", "not_relevant"].includes(x.status)).every((x) => String(x.reason || "").trim()),
-      R6: true, // the base-year block, in the PDF (S3-14 fills it)
+      // R6 (base year) is a PDF block only; checked below against GET /scope3/base-year.
       R7: every((x) => x.biogenic_tco2e === null || typeof x.biogenic_tco2e === "number") && (t.biogenic || cat.every((x) => x.biogenic_tco2e === null)),
       R8: every((x) => Array.isArray(x.datasets) && Array.isArray(x.gwp_sets) && x.dq && typeof x.dq === "object"),
       R9: every((x) => x.methods && typeof x.methods === "object" && "method_note" in x),
@@ -995,13 +1040,22 @@ async function runRows(db, head, golden, logs) {
     if (!text) {
       const { scope3Blocks } = require(path.join(ESG_DIR, "dist/reporting/ghg-scope3.js"));
       text = JSON.stringify(scope3Blocks(body, null, "S3-16 probe"));
-      source = `the PDF's Scope 3 blocks from dist (PDF answered ${pdf.status}; no browser on this host)`;
+      source = `the PDF's Scope 3 blocks from dist (${pdf.status === 200 ? "PDF rendered, but no pdftotext on this host" : `PDF answered ${pdf.status}: no browser on this host`})`;
+    }
+    // null: not known (S3-14 not built or not readable); false: no base year set; else the year.
+    let baseYear = null;
+    if (head.get("GET /scope3/base-year")) {
+      const by = await call("GET", "/scope3/base-year", "admin");
+      if (by.status === 200) baseYear = by.json?.base_year ? Number(by.json.base_year.base_year ?? by.json.base_year) : false;
     }
     const pdfItems = {
       R1: source === "PDF text" ? /Scope 1/.test(text) && /Scope 2/.test(text) : null,
       R2: /Scope 3 by category/i.test(text),
       R5: /(Excluded|not relevant)/i.test(text),
-      R6: /base year/i.test(text),
+      // The base-year block says what GET /scope3/base-year says. Only the
+      // rendered PDF carries the stored base year (the dist blocks are built
+      // here with none), so without it R6 is read by hand, never assumed.
+      R6: source !== "PDF text" ? null : baseYear === null ? null : baseYear ? new RegExp(`Scope 3 base year ${baseYear}`).test(text) : /No Scope 3 base year set/i.test(text),
       R7: /Biogenic/i.test(text) && (t.biogenic || /Not tracked/.test(text)),
       R8: /Data quality/i.test(text) && /(dataset|GWP|AR\d)/i.test(text),
       R9: /Methodology/i.test(text),
@@ -1009,10 +1063,14 @@ async function runRows(db, head, golden, logs) {
     };
     const missingPdf = Object.entries(pdfItems).filter(([, ok]) => ok === false).map(([k]) => k);
     if (missingPdf.length) return r.fail(`${source} lacks ${missingPdf.join(", ")}`);
-    return r.pass(
+    const unread = Object.entries(pdfItems).filter(([, ok]) => ok === null).map(([k]) => k);
+    const held =
       `JSON: 15 categories + Unmapped carry R2-R5 and R7-R10${notTracked.length ? `; Not tracked: ${notTracked.join(", ")}` : ""}; ` +
-        `${source}: ${Object.entries(pdfItems).filter(([, ok]) => ok).map(([k]) => k).join(", ")}${pdfItems.R1 === null ? " (R1 is the KPI row of the rendered PDF, not in these blocks)" : ""}`,
-    );
+      `${source}: ${Object.entries(pdfItems).filter(([, ok]) => ok).map(([k]) => k).join(", ")}`;
+    // R1 (KPI row) and R6 (base year) live only in the rendered PDF: a row that
+    // could not read them is manual, not a pass.
+    if (unread.length) return r.manual(`${held}; ${unread.join(" and ")} not read: they are in the rendered PDF only (needs Chromium and pdftotext on this host${baseYear === null ? "; R6 also needs S3-14's GET /scope3/base-year" : ""})`);
+    return r.pass(held);
   });
 
   await needs("S3-16", "Base year freezes and re-freezes", "a freeze, a proposal at or above the threshold, approval re-freezes, rows untouched", ["company_base_year", "GET /scope3/base-year"], async (r) => {
