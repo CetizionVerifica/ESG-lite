@@ -24,7 +24,7 @@ import { EmissionFactor } from "../../entities/EmissionFactor";
 import { Unit } from "../../entities/Unit";
 import type { Site } from "../../entities/Site";
 import type { Category } from "../../entities/Category";
-import { AR6_FROM_YEAR, REFRIGERANT_FACTORS, type SoldProductCategory, formFields, isLegacyUseConfig, isStandardConfig, same, soldProductForm, standardHash } from "./configs";
+import { AR6_FACTOR_YEARS, REFRIGERANT_FACTORS, SEED_AR4_SOURCE, type SoldProductCategory, formFields, isLegacyUseConfig, isStandardConfig, same, soldProductForm, standardHash } from "./configs";
 import { EOL_FACTORS, REFRIGERANT_AR6, type SeedFactor } from "./factors";
 
 export interface FormResult {
@@ -34,6 +34,8 @@ export interface FormResult {
   factors_added: number;
   /** Category 11 refrigerant rows marked AR4. */
   factors_marked: number;
+  /** Category 11 seed refrigerant rows raised to AR6 (factor years 2025 and 2026). */
+  factors_raised?: number;
 }
 
 const stripHash = (c: unknown) => {
@@ -84,14 +86,32 @@ export async function ensureSeedFactors(m: EntityManager, site_id: number, categ
   return added;
 }
 
-/** D7: the seed's AR4 refrigerant rows (before the AR6 year, the AR4 value) say AR4. */
+/**
+ * D7: the seed's untouched AR4 rows on an AR6 factor year (the AR4 value and the
+ * seed's source) take the AR6 value, so rows dated 2026 resolve to AR6. Saved
+ * rows keep their own factor snapshot and total.
+ */
+export async function raiseSeedRefrigerantsToAr6(m: EntityManager, site_id: number, category_id: number): Promise<number> {
+  let raised = 0;
+  for (const f of REFRIGERANT_FACTORS) {
+    // WHERE kept on the UPDATE line for the data-safety check.
+    const [, n]: [unknown, number] = await m.query(
+      `UPDATE emission_factors SET factor_value = $5, gwp_set = 'AR6', source = 'IPCC AR6 GWP100 (AR6 WG1 Table 7.SM.7)', dataset = 'IPCC', dataset_version = 'AR6 GWP100' WHERE site_id = $1 AND category_id = $2 AND emission_category_name = $3 AND year = ANY($4::int[]) AND factor_value = $6 AND source = $7`,
+      [site_id, category_id, f.name, [...AR6_FACTOR_YEARS], f.ar6, f.ar4, SEED_AR4_SOURCE],
+    );
+    raised += Number(n) || 0;
+  }
+  return raised;
+}
+
+/** D7: the seed's AR4 refrigerant rows (before the AR6 factor years, the AR4 value) say AR4. */
 export async function markAr4Refrigerants(m: EntityManager, site_id: number, category_id: number): Promise<number> {
   let marked = 0;
   for (const f of REFRIGERANT_FACTORS) {
     // WHERE kept on the UPDATE line for the data-safety check.
     const [, n]: [unknown, number] = await m.query(
       `UPDATE emission_factors SET gwp_set = 'AR4' WHERE site_id = $1 AND category_id = $2 AND emission_category_name = $3 AND year < $4 AND factor_value = $5 AND gwp_set IS DISTINCT FROM 'AR4'`,
-      [site_id, category_id, f.name, AR6_FROM_YEAR, f.ar4],
+      [site_id, category_id, f.name, AR6_FACTOR_YEARS[0], f.ar4],
     );
     marked += Number(n) || 0;
   }
@@ -166,7 +186,8 @@ export async function ensureSoldProductForm(m: EntityManager, site_id: number, c
     units_added++;
   }
 
+  const factors_raised = n === 11 ? await raiseSeedRefrigerantsToAr6(m, site_id, category_id) : 0;
   const factors_added = await ensureSeedFactors(m, site_id, category_id, n === 11 ? REFRIGERANT_AR6 : n === 12 ? EOL_FACTORS : []);
   const factors_marked = n === 11 ? await markAr4Refrigerants(m, site_id, category_id) : 0;
-  return { config: state, units_added, factors_added, factors_marked };
+  return { config: state, units_added, factors_added, factors_marked, factors_raised };
 }

@@ -5,7 +5,7 @@ import { ImportError } from "../../imports/errors";
 import { BoundaryError } from "../boundary/errors";
 import { companyForRequest } from "../boundary/access";
 import type { TokenUser } from "../../imports/plans/scope";
-import { createSales, listSales, planSoldProducts, putUseProfile, updateSale } from "./service";
+import { createSales, deleteSale, listSales, planSoldProducts, putUseProfile, updateSale } from "./service";
 
 type Handler = (req: AuthRequest, res: Response) => Promise<unknown>;
 
@@ -44,6 +44,12 @@ export const postProductSales = handle("create product sales", async (req, res) 
 export const putProductSale = handle("update product sale", async (req, res) => {
   const companyId = await companyForRequest(req);
   res.json(await updateSale(companyId, tokenUser(req), Number(req.params.id), bodyOf(req)));
+});
+
+/** DELETE /scope3/product-sales/:id */
+export const deleteProductSale = handle("delete product sale", async (req, res) => {
+  const companyId = await companyForRequest(req);
+  res.json(await deleteSale(companyId, tokenUser(req), Number(req.params.id)));
 });
 
 /** PUT /scope3/products/:id/use-profile `{lifetime_uses?, eol_mix?, use_profile?}` */

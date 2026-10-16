@@ -4,7 +4,7 @@
 // with their units and the factors in src/scope3/soldProducts/factors.ts that
 // carry values. Category 11's form as seedUseOfSoldProducts.ts wrote it is
 // upgraded in place (option "Part of a customer's product", 11.5) and gets the
-// D7 AR6 refrigerant rows for 2026; its older refrigerant rows are marked AR4.
+// D7 AR6 refrigerant values for rows dated 2026 on (factor years 2025 and 2026); its older refrigerant rows are marked AR4.
 // A client's own form, or one a Superadmin changed, is left alone and its id
 // logged; so is a site × category with entries but no form.
 //
@@ -31,7 +31,7 @@ async function main() {
     );
     const targets = assigned.filter((a) => siteArgs.length === 0 || siteArgs.includes(Number(a.site_id)));
     console.log(`S3-10 sold-product forms: ${targets.length} site × category assignment(s)`);
-    const counts = { created: 0, updated: 0, upgraded: 0, unchanged: 0, units: 0, factors: 0, marked: 0 };
+    const counts = { created: 0, updated: 0, upgraded: 0, unchanged: 0, units: 0, factors: 0, marked: 0, raised: 0 };
     const customised: string[] = [];
     const withEntries: string[] = [];
     for (const t of targets) {
@@ -42,9 +42,10 @@ async function main() {
       counts.units += r.units_added;
       counts.factors += r.factors_added;
       counts.marked += r.factors_marked;
+      counts.raised += r.factors_raised ?? 0;
     }
     console.log(
-      `  configs created: ${counts.created} · updated: ${counts.updated} · upgraded: ${counts.upgraded} · unchanged: ${counts.unchanged} · units added: ${counts.units} · factors added: ${counts.factors} · marked AR4: ${counts.marked}`,
+      `  configs created: ${counts.created} · updated: ${counts.updated} · upgraded: ${counts.upgraded} · unchanged: ${counts.unchanged} · units added: ${counts.units} · factors added: ${counts.factors} · marked AR4: ${counts.marked} · raised to AR6: ${counts.raised}`,
     );
     if (customised.length) console.log(`  customised forms left as they are (site/category): ${customised.join(", ")}`);
     if (withEntries.length) console.log(`  no form but existing entries, left as they are (site/category): ${withEntries.join(", ")}`);

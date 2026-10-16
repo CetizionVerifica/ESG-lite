@@ -155,11 +155,17 @@ export const useSpec = (): CalculationSpec & { standard: string } => ({
 });
 
 /**
- * D7: refrigerant GWPs at AR6 as new 2026 factor rows (GWP100, IPCC AR6 WG1
- * Table 7.SM.7); the older rows the seed wrote at AR4 (1430, 2088) keep their
- * value and get `gwp_set` AR4.
+ * D7: rows dated 2026 on use refrigerant GWPs at AR6 (GWP100, IPCC AR6 WG1
+ * Table 7.SM.7). Rows take the factor of the year before (targetYearFor), so
+ * the AR6 values sit on factor years 2025 and 2026: the seed's untouched 2025
+ * AR4 rows are raised to AR6, a missing year is added, and the older seed rows
+ * (2024 and before) keep their AR4 value and get `gwp_set` AR4.
  */
 export const AR6_FROM_YEAR = 2026;
+/** Factor years that carry AR6: the year before the first AR6 reporting year (N − 1 rule) and that year. */
+export const AR6_FACTOR_YEARS = [AR6_FROM_YEAR - 1, AR6_FROM_YEAR] as const;
+/** The seed's source text on its AR4 refrigerant rows (seedUseOfSoldProducts.ts). */
+export const SEED_AR4_SOURCE = "IPCC AR4 GWP100";
 export const REFRIGERANT_FACTORS = [
   { name: "R134a - GWP", ar4: 1430, ar6: 1530 },
   { name: "R410A - GWP", ar4: 2088, ar6: 2256 },

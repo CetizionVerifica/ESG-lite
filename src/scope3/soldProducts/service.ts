@@ -297,6 +297,20 @@ export async function updateSale(companyId: number, user: TokenUser, id: number,
   });
 }
 
+/** DELETE /scope3/product-sales/:id: removes one sale (a typo, a wrong product). Rows already imported stay. */
+export async function deleteSale(companyId: number, user: TokenUser, id: number) {
+  assertRole(user);
+  if (!Number.isInteger(id) || id <= 0) throw new BoundaryError("SCOPE3_NOT_FOUND");
+  return AppDataSource.transaction(async (m) => {
+    const rows: any[] = await m.query(`${SALE_SELECT} WHERE ps.id = $1 AND ps.company_id = $2 AND s.company_id = $2 FOR UPDATE OF ps`, [id, companyId]);
+    if (!rows.length) throw new BoundaryError("SCOPE3_NOT_FOUND");
+    const allowed = await accessibleSiteIds(user.userId, user.role);
+    if (allowed && !allowed.has(Number(rows[0].site_id))) throw new BoundaryError("SCOPE3_NOT_FOUND");
+    await m.query(`DELETE FROM product_sale WHERE id = $1 AND company_id = $2`, [id, companyId]);
+    return { deleted: 1 };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Use profile
 // ---------------------------------------------------------------------------
@@ -396,6 +410,22 @@ async function importedRows(site_id: number, category_id: number, period: Stored
   };
 }
 
+/**
+ * Cancels the open draft plans this endpoint made for the same site, category
+ * and year (same source name), other than `keep`, so only one can be imported:
+ * two drafts would both pass the duplicate check and count the year twice.
+ * A plan being committed holds its row lock, so this waits for that commit and
+ * the saved-rows check that follows sees its rows. Returns the number cancelled.
+ */
+async function cancelOtherDrafts(companyId: number, sourceName: string, site_id: number, category_id: number, keep: string | null): Promise<number> {
+  // WHERE kept on the UPDATE line for the data-safety check.
+  const [, n]: [unknown, number] = await AppDataSource.query(
+    `UPDATE import_plan p SET status = 'cancelled', version = p.version + 1, updated_at = now() WHERE p.status = 'draft' AND p.company_id = $1 AND p.source_name = $2 AND p.plan_id::text IS DISTINCT FROM $5 AND EXISTS (SELECT 1 FROM import_plan_row r WHERE r.plan_id = p.plan_id AND (r.input->>'site_id')::int = $3 AND (r.input->>'category_id')::int = $4)`,
+    [companyId, sourceName, site_id, category_id, keep],
+  );
+  return Number(n) || 0;
+}
+
 /** POST /scope3/sold-products/plan `{site_id, year, year_type, ghg_category}` → an import plan. */
 export async function planSoldProducts(companyId: number, user: TokenUser, raw: unknown) {
   assertRole(user);
@@ -422,16 +452,17 @@ export async function planSoldProducts(companyId: number, user: TokenUser, raw: 
   const products = await productsFor(companyId, [site_id]);
   const sales = await salesIn(companyId, [site_id], yearWindow(year, year_type));
   const boms = n === 12 ? await bomsFor(companyId, [...new Set(sales.map((s) => s.product_id))]) : new Map();
+  // Older drafts for this site and year are replaced by this one (before the saved-rows check).
+  const source_name = `Category ${n} sold products ${year_type} ${year}`;
+  await cancelOtherDrafts(companyId, source_name, site_id, category_id, null);
   const built = soldProductRows(n, products, sales, boms, { site_id, category_id, period });
   const { rows, planned, skipped } = withoutImported(built, await importedRows(site_id, category_id, stored.period));
   const sold = new Set(sales.map((s) => s.product_id)).size;
   if (!rows.length) return { plan: null, planned, skipped, products_sold: sold };
 
-  const plan = await createPlan(
-    user,
-    { source_name: `Category ${n} sold products ${year_type} ${year}`, channel: "bulk_upload", company_id: companyId, rows },
-    new Set(),
-  );
+  const plan = await createPlan(user, { source_name, channel: "bulk_upload", company_id: companyId, rows }, new Set());
+  // A draft another call made meanwhile is replaced too (the newest call's plan stays).
+  await cancelOtherDrafts(companyId, source_name, site_id, category_id, plan.plan_id);
   return { plan, planned, skipped, products_sold: sold };
 }
 

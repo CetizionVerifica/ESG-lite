@@ -127,6 +127,17 @@ test("sales: a Manager adds, re-imports (upsert) and edits; Admin and Superadmin
   assert.equal(edit.json.mass_kg, 1200);
   await call("PUT", `/scope3/product-sales/${april.id}`, "manager", { quantity: 500 });
 
+  // A sale typed by mistake can be removed.
+  const typo = await call("POST", "/scope3/product-sales", "manager", sale({ period: "2025-05", quantity: 9999 }));
+  assert.equal(typo.status, 201);
+  const typoId = (await call("GET", "/scope3/product-sales?year=2025", "manager")).json.sales.find((s) => s.period === "2025-05-01").id;
+  assert.equal((await call("DELETE", `/scope3/product-sales/${typoId}`, "user")).status, 403);
+  assert.equal((await call("DELETE", `/scope3/product-sales/${typoId}`, "otherManager")).status, 404);
+  const del = await call("DELETE", `/scope3/product-sales/${typoId}`, "manager");
+  assert.equal(del.status, 200, JSON.stringify(del.json));
+  assert.equal((await call("DELETE", `/scope3/product-sales/${typoId}`, "manager")).status, 404);
+  assert.equal((await call("GET", "/scope3/product-sales?year=2025", "manager")).json.sales.length, 3);
+
   assert.equal((await call("GET", "/scope3/product-sales?company_id=1", "superadmin")).status, 200);
   assert.equal((await call("GET", "/scope3/product-sales", "superadmin")).json.code, "SCOPE3_COMPANY_REQUIRED");
   assert.equal((await call("GET", "/scope3/product-sales", "user")).status, 403);
@@ -282,6 +293,43 @@ test("Category 10 and 11 plans: one row per product; products without the data a
   assert.equal(empty.json.plan, null);
 });
 
+test("plan: a newer plan for the same site, category and year cancels the older draft, so the year can't be imported twice", async () => {
+  const first = await plan("admin", 10);
+  assert.equal(first.status, 201, JSON.stringify(first.json));
+  const second = await plan("manager", 10);
+  assert.equal(second.status, 201, JSON.stringify(second.json));
+  const status = (id) => withDb((db) => db.query(`SELECT status FROM import_plan WHERE plan_id = $1`, [id])).then((r) => r.rows[0].status);
+  assert.equal(await status(first.json.plan.plan_id), "cancelled");
+  assert.equal(await status(second.json.plan.plan_id), "draft");
+  const late = await call("POST", `/imports/plans/${first.json.plan.plan_id}/commit`, "admin", {
+    version: first.json.plan.version,
+    skip_rows_with_issues: true,
+    idempotency_key: `s3-10-late-${first.json.plan.plan_id}`,
+  });
+  assert.equal(late.status, 409, JSON.stringify(late.json));
+  // Another category's draft for the same site and year is left alone.
+  const other = await plan("admin", 11);
+  assert.equal(other.status, 201, JSON.stringify(other.json));
+  assert.equal(await status(second.json.plan.plan_id), "draft");
+  await withDb((db) => db.query(`DELETE FROM import_plan WHERE plan_id = ANY($1::uuid[])`, [[first.json.plan.plan_id, second.json.plan.plan_id, other.json.plan.plan_id]]));
+});
+
+test("Category 11 rows dated 2026 use the AR6 refrigerant value (D7)", async () => {
+  const add = await call("POST", "/scope3/product-sales", "manager", { product_id: CHILLER, period: "2026-02", quantity: 10, unit: "unit" });
+  assert.equal(add.status, 201, JSON.stringify(add.json));
+  try {
+    const p = await plan("admin", 11, { year: 2026 });
+    assert.equal(p.status, 201, JSON.stringify(p.json));
+    const [row] = p.json.plan.rows;
+    assert.equal(row.state, "ready", JSON.stringify(row.issues));
+    // 10 × 2 kg × 100 % × 1,530 (factor year 2025, raised from the seed's AR4 1,430) = 30.6 t.
+    assert.equal(row.result.total_tco2e, 30.6);
+    await withDb((db) => db.query(`DELETE FROM import_plan WHERE plan_id = $1`, [p.json.plan.plan_id]));
+  } finally {
+    await withDb((db) => db.query(`DELETE FROM product_sale WHERE product_id = $1 AND period = '2026-02-01'`, [CHILLER]));
+  }
+});
+
 test("plan: a site without the category, a bad body, a customised form give 400", async () => {
   const r = await call("POST", "/scope3/sold-products/plan", "admin", { site_id: 2, year: 2025, year_type: "CY", ghg_category: 12 });
   assert.equal(r.status, 400);
@@ -320,7 +368,7 @@ test("migrate:scope3-sold-products runs twice: columns present, Category 10 once
   }
 });
 
-test("migrate:scope3-sold-product-forms runs twice: forms, units, AR6 rows for 2026, older rows marked AR4", async () => {
+test("migrate:scope3-sold-product-forms runs twice: forms, units, AR6 for rows dated 2026 on (factor years 2025, 2026), older rows marked AR4", async () => {
   await withDb((db) => db.query(`DELETE FROM column_config WHERE category_id = $1`, [CAT10]));
   const counts = () =>
     withDb(async (db) => {
@@ -344,7 +392,7 @@ test("migrate:scope3-sold-product-forms runs twice: forms, units, AR6 rows for 2
   );
   assert.deepEqual(r134a.rows.map((r) => [r.year, Number(r.factor_value), r.gwp_set]), [
     [2024, 1430, "AR4"],
-    [2025, 1430, "AR4"],
+    [2025, 1530, "AR6"],
     [2026, 1530, "AR6"],
   ]);
   const cfg11 = await withDb((db) => db.query(`SELECT config_name, calculation FROM column_config WHERE category_id = $1`, [CAT11]));

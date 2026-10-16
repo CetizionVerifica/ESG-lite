@@ -249,12 +249,12 @@ test("Category 11: the seeded form is recognised for the upgrade; a changed one 
 });
 
 // ── Seed factors ────────────────────────────────────────────────────────────
-test("AR6 refrigerant rows (D7): R134a 1530 and R410A 2256 for 2026, gwp_set AR6", () => {
+test("AR6 refrigerant rows (D7): R134a 1530 and R410A 2256 on factor years 2025 and 2026 (rows dated 2026 on), gwp_set AR6", () => {
   assert.deepEqual(
     REFRIGERANT_AR6.map((f) => [f.name, f.unit, f.gwp_set, f.factor_type, Object.entries(f.values).map(([y, v]) => [y, v.value])]),
     [
-      ["R134a - GWP", "kg", "AR6", "other", [["2026", 1530]]],
-      ["R410A - GWP", "kg", "AR6", "other", [["2026", 2256]]],
+      ["R134a - GWP", "kg", "AR6", "other", [["2025", 1530], ["2026", 1530]]],
+      ["R410A - GWP", "kg", "AR6", "other", [["2025", 2256], ["2026", 2256]]],
     ],
   );
   // The AR4 rows the seed wrote are the ones the migration marks AR4.
@@ -270,6 +270,18 @@ test("Category 12 seed factors: one per mapped name, per kg, process type; per t
   assert.deepEqual(new Set(EOL_FACTORS.map((f) => f.name)), mapped);
   assert.ok(EOL_FACTORS.every((f) => f.unit === "kg" && f.factor_type === "process"));
   assert.equal(perTonneToPerKg(1250.5), 1.2505);
+  // DEFRA 2025 "Waste disposal", per tonne ÷ 1,000, factor year 2025.
+  const v = (name) => EOL_FACTORS.find((f) => f.name === name).values["2025"]?.value ?? null;
+  assert.equal(v("End of life - Aluminium - Landfill [kg]"), 0.00898311);
+  assert.equal(v("End of life - Paper and board - Landfill [kg]"), 1.1644894);
+  assert.equal(v("End of life - Wood - Composting [kg]"), 0.00898311);
+  assert.equal(v("End of life - Plastics - Recycling (cut-off) [kg]"), 0.00468568);
+  assert.equal(v("End of life - Mixed - Incineration [kg]"), 0.00468568);
+  // DEFRA leaves these blank; no average across treatments is published.
+  assert.equal(v("End of life - Mixed - Recycling (cut-off) [kg]"), null);
+  assert.equal(v("End of life - Textiles - Composting [kg]"), null);
+  assert.equal(v("End of life - Mixed - Average [kg]"), null);
+  assert.ok(EOL_FACTORS.every((f) => f.gwp_set === "AR5" && f.dataset === "DEFRA" && Object.keys(f.values).every((y) => y === "2025")));
 });
 
 // ── Schemas ─────────────────────────────────────────────────────────────────
