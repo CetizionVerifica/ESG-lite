@@ -28,6 +28,8 @@ import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
 import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
 import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
+import type { Proxy } from "../../scope3/contracts/schemas";
+import { surveyProxy } from "../../scope3/screening/proxyRows";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -50,6 +52,8 @@ export interface EntryInput {
   extra_data?: Record<string, any>;
   /** S3-5: the row's saved `fx`, so a recalculation with the same currency and date reuses its rate. */
   storedFx?: EmissionFx | null;
+  /** S3-12: how an estimated row was made (`emission.proxy`, ProxySchema); set by src/scope3/screening and survey rows only. */
+  proxy?: Proxy | null;
 }
 
 export interface PreparedEntry {
@@ -194,6 +198,7 @@ export const insertEntry = async (
     biogenic_kg: entry.computed?.biogenic_kg ?? null,
     emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null,
     fx: entry.computed?.fx ?? null,
+    proxy: input.proxy ?? null,
   });
   await repo.save(emission);
 
@@ -518,7 +523,9 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
     if (row.survey) extra_data.survey = row.survey; // S3-9 commuting survey scaling
-    const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
+    // S3-12: a survey row is a proxy too (basis sample), as the backfill writes for older rows.
+    const proxy = row.survey ? surveyProxy(row.survey) : null;
+    const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data, proxy } }, batch, audit, { deferChecks: true });
     inserted += 1;
     ids.push(emission.pk_id);
     for (const twin of [fera, tdLoss]) {

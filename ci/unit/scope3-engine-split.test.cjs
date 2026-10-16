@@ -1,5 +1,5 @@
 // S3-0 engine split: compute.ts dispatches to emissionWrite/methods/*. Until
-// their modules build them, the spend, supplier, hybrid and proxy stubs give
+// their modules build them, the spend, supplier and hybrid stubs give
 // the activity method's result; spec categories always use the spec.
 //   npm run build && npm run test:unit
 const test = require("node:test");
@@ -41,7 +41,9 @@ test("the stub methods fall back to activity until their modules land", () => {
   for (const method of ["spend_based", "supplier_specific", "hybrid", "average_data", "distance_based"]) {
     assert.deepEqual(engine.computeRow(ctx(), row({ method })), expected, method);
   }
-  assert.deepEqual(engine.computeRow(ctx(), row({ proxy: { basis: "floor_area" } })), expected, "proxy");
+  // S3-12 built proxy.ts: a survey sample keeps the category's own method; an unknown basis is refused.
+  assert.deepEqual(engine.computeRow(ctx(), row({ proxy: { basis: "sample", coverage_pct: 40, from: [] } })), expected, "proxy sample");
+  assert.equal(engine.computeRow(ctx(), row({ proxy: { basis: "floor_area" } })).issue.code, "FIELD_INVALID", "proxy basis");
 });
 
 test("spec categories always use the spec method, whatever the row's method", () => {

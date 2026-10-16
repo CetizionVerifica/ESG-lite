@@ -4,14 +4,34 @@
 //   the scope3_screening_input table (one rough spend, headcount, revenue or
 //   mass figure per company, year, category and basis).
 //
+// It also backfills S3-9's commuting-survey rows: `extra_data.survey` →
+// `emission.proxy = {basis: "sample", coverage_pct, from: []}` (S3-9 step 5),
+// in batches of 1,000, only where proxy is still null.
+//
 //   npm run migrate:scope3-screening
 //
-// Idempotent: IF NOT EXISTS only, additive, so a re-run changes nothing.
+// Idempotent: IF NOT EXISTS only, additive, and the backfill only fills
+// nulls, so a re-run changes nothing.
 // Statements match what TypeORM generates for the entities
 // (Emission.proxy, Scope3ScreeningInput), so ci/schema-diff.cjs sees nothing
 // left to do. Logs no data.
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
+import { SURVEY_BACKFILL_SQL } from "../scope3/screening/proxyRows";
+
+const BATCH = 1000;
+
+/** Fills emission.proxy on survey rows that have none; returns how many rows were filled. */
+export async function backfillSurveyProxies(q: { query: (sql: string, params?: unknown[]) => Promise<any> } = AppDataSource): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const result = await q.query(SURVEY_BACKFILL_SQL(BATCH));
+    // pg returns [rows, count] for UPDATE through TypeORM's query().
+    const n = Array.isArray(result) && typeof result[1] === "number" ? result[1] : Number(result?.rowCount ?? 0);
+    total += n;
+    if (n < BATCH) return total;
+  }
+}
 
 export const SCREENING_SCHEMA = [
   `ALTER TABLE "emission" ADD COLUMN IF NOT EXISTS "proxy" jsonb`,
@@ -23,7 +43,8 @@ async function main() {
   await AppDataSource.initialize();
   try {
     for (const sql of SCREENING_SCHEMA) await AppDataSource.query(sql);
-    console.log("S3-12 emission.proxy and scope3_screening_input present.");
+    const filled = await backfillSurveyProxies();
+    console.log(`S3-12 emission.proxy and scope3_screening_input present; ${filled} survey row(s) given a proxy basis.`);
   } finally {
     await AppDataSource.destroy();
   }

@@ -15,6 +15,7 @@ import { Site } from "./Site";
 import { User } from "./User";
 import type { RowChecks } from "../scope3/contracts/checks";
 import type { Gas } from "../scope3/contracts/factor";
+import type { Proxy } from "../scope3/contracts/schemas";
 
 export enum EmissionStatus {
   PENDING = "pending",
@@ -145,7 +146,7 @@ export class Emission {
 
   // S3-12 (contracts §4): how an extrapolated or proxy row was made
   // ({basis, coverage_pct, from}); null on every measured row. Written only by
-  // src/scope3/screening (extrapolate and the S3-9 survey backfill).
+  // src/scope3/screening (extrapolate, the S3-9 survey backfill) and survey rows on commit.
   @Column({ type: "jsonb", nullable: true })
-  proxy!: Record<string, unknown> | null;
+  proxy!: Proxy | null;
 }

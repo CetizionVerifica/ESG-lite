@@ -1561,7 +1561,8 @@
       ],
       "expected_kgco2e": 1725,
       "status": "run",
-      "owner": "S3-10", "note": "Runs once S3-4 (ESG-lite #137) gives the engine its kg figure: until then each row is 2 dp tCO2e, so the 25 kg waste row counts as 30 kg (1,730). The form gives 1,725 exactly (ci/unit/scope3-sold-products.test.cjs)."
+      "owner": "S3-10",
+      "note": "Runs once S3-4 (ESG-lite #137) gives the engine its kg figure: until then each row is 2 dp tCO2e, so the 25 kg waste row counts as 30 kg (1,730). The form gives 1,725 exactly (ci/unit/scope3-sold-products.test.cjs)."
     },
     {
       "id": "ex-10.2",
@@ -1724,17 +1725,16 @@
       },
       "rows": [
         {
-          "label": "Missing 15 % from the known 85 %",
+          "label": "Known 85 % (850,000 kg), scaled to the missing 15 %",
           "quantity": 850000,
           "unit": "kgco2e",
-          "factor": "scale",
-          "share": 0.17647058823529413
+          "factor": "scale"
         }
       ],
       "expected_kgco2e": 150000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-12",
-      "note": "Proxy rows go through methods/proxy.ts."
+      "note": "Proxy rows go through methods/proxy.ts: the row is the known kg (factor 1 kgCO2e per kgCO2e) and the engine scales it by (100 - 85) / 85."
     },
     {
       "id": "intro-proxy-intensity",
@@ -1766,8 +1766,9 @@
         }
       ],
       "expected_kgco2e": 500000,
-      "status": "skip",
-      "owner": "S3-12"
+      "status": "run",
+      "owner": "S3-12",
+      "note": "Proxy rows go through methods/proxy.ts: the factor is the intensity of the sites with data (1,000,000 kg / 500 t = 2,000 kg per t), the row the missing site's output."
     }
   ]
 }
