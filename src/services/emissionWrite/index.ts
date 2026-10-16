@@ -23,6 +23,7 @@ import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
 import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
+import { estimatedDistanceWarning, paidByMismatchWarning } from "./transportWarnings";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
@@ -238,6 +239,8 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const wtt = wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
   warnings.push(...methodWarnings);
+  // S3-8: an estimated distance, and a Category 9 row the company says it paid for.
+  for (const w of [estimatedDistanceWarning(input.is_estimate, unit), paidByMismatchWarning(ctx, input.extra_data)]) if (w) warnings.push(w);
 
   return {
     ok: true,

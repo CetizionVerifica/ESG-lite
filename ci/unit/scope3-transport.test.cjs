@@ -144,6 +144,7 @@ test("ex-4.6 average-data storage: 4,000 m³ × 2 days at 0.01 and 0.02 → 240 
 
 test("a config is the standard one by name or by the S3-8 marker; Who paid? is added once", () => {
   assert.equal(cfg.isStandardConfig({ config_name: "Transport - Standard - Upstream", calculation: null }), true);
+  // The marker without a hash: written by an S3-8 build before hashes, so still the standard one.
   assert.equal(cfg.isStandardConfig({ config_name: "Glochem freight", calculation: cfg.CALCULATION }), true);
   assert.equal(cfg.isStandardConfig({ config_name: "Glochem freight", calculation: { mode: "per_unit", methods: {} } }), false);
   const once = cfg.withPaidBy([{ key: "po_number", label: "PO", type: "text", required: false }]);
@@ -152,4 +153,54 @@ test("a config is the standard one by name or by the S3-8 marker; Who paid? is a
   assert.deepEqual(cfg.PAID_BY_FIELD.options, ["We paid", "Customer or other"]);
   assert.deepEqual(cfg.METHOD_OPTIONS[4][0], "fuel_based");
   assert.deepEqual(cfg.METHOD_OPTIONS[9][0], "distance_based");
+});
+
+test("an edited standard form is a client's form: the hash covers what a Superadmin can change", () => {
+  const form = cfg.transportForm({ mode: 1, vehicle: 2, cls: 3 });
+  const written = cfg.withStandardHash({ config_name: "Transport - Standard - Upstream", columns: [{ pk_id: 1 }, { pk_id: 2 }], ...form, extra_fields: cfg.withPaidBy([]) });
+  assert.match(written.calculation.standard_hash, /^[0-9a-f]{32}$/);
+  assert.equal(cfg.isStandardConfig(written), true, "as written");
+  // jsonb reads back with its own key order: still the standard form.
+  const reordered = { ...written, calculation: Object.fromEntries(Object.entries(written.calculation).reverse()) };
+  assert.equal(cfg.isStandardConfig(reordered), true);
+  // A Superadmin maps one more chain, or relabels a field: left alone from then on.
+  const mapped = { ...written, emission_category_mapping: { ...written.emission_category_mapping, "Road|Van|Diesel [km]": "Client van factor" } };
+  assert.equal(cfg.isStandardConfig(mapped), false);
+  const relabelled = { ...written, extra_fields: [{ ...cfg.PAID_BY_FIELD, label: "Paid by" }] };
+  assert.equal(cfg.isStandardConfig(relabelled), false);
+  // The pre-S3-8 standard set (by name, distance-only spec) is upgraded; an edited one by the same name is not.
+  assert.equal(cfg.isStandardConfig({ config_name: "Transport - Standard - Downstream", calculation: cfg.LEGACY_CALCULATION }), true);
+  assert.equal(cfg.isStandardConfig({ config_name: "Transport - Standard - Downstream", calculation: { ...cfg.LEGACY_CALCULATION, identity_columns: [] } }), false);
+});
+
+test("method_options: each method with the units it shows, most specific first (01-contracts §6)", () => {
+  const { MethodOptionsSchema } = require(path.resolve("dist/scope3/contracts/schemas.js"));
+  for (const ghg of [4, 9]) {
+    const opts = cfg.methodOptionsFor(ghg);
+    assert.equal(MethodOptionsSchema.safeParse(opts).success, true, `Cat ${ghg}`);
+    assert.deepEqual(opts.map((o) => o.method), cfg.METHOD_OPTIONS[ghg]);
+    // Every non-spend unit is a spec key of the form.
+    for (const o of opts) if (o.method !== "spend_based") for (const u of o.units) assert.ok(cfg.CALCULATION.methods[normalizeUnitKey(u)], `${o.method} ${u}`);
+  }
+  assert.deepEqual(cfg.methodOptionsFor(4).find((o) => o.method === "spend_based").units, ["INR", "USD", "EUR", "GBP", "BHD", "SAR", "AED"]);
+});
+
+test("ESTIMATED_DISTANCE on an estimated distance; TRANSPORT_PAID_BY_MISMATCH on a Category 9 row we paid for", () => {
+  const w = require(path.resolve("dist/services/emissionWrite/transportWarnings.js"));
+  assert.equal(w.estimatedDistanceWarning(true, "tonne.km").code, "ESTIMATED_DISTANCE");
+  assert.equal(w.estimatedDistanceWarning(true, "Tonne KM").code, "ESTIMATED_DISTANCE");
+  assert.equal(w.estimatedDistanceWarning(true, "km").code, "ESTIMATED_DISTANCE");
+  assert.equal(w.estimatedDistanceWarning(true, "passenger.km").code, "ESTIMATED_DISTANCE");
+  assert.equal(w.estimatedDistanceWarning(true, "litre"), null, "not a distance");
+  assert.equal(w.estimatedDistanceWarning(false, "km"), null, "measured");
+  assert.equal(w.estimatedDistanceWarning(undefined, "km"), null);
+  const ctx = (category_name, ghg_category) => ({ scope: "Scope 3", category_name, ghg_category });
+  assert.equal(w.paidByMismatchWarning(ctx("Downstream transportation and distribution", 9), { paid_by: "We paid" }).code, "TRANSPORT_PAID_BY_MISMATCH");
+  // Read from the name until S3-1's number is on the context.
+  assert.equal(w.paidByMismatchWarning(ctx("Downstream transportation and distribution"), { paid_by: "We paid" }).code, "TRANSPORT_PAID_BY_MISMATCH");
+  assert.equal(w.paidByMismatchWarning(ctx("Downstream transportation and distribution", 9), { paid_by: "Customer or other" }), null);
+  assert.equal(w.paidByMismatchWarning(ctx("Downstream transportation and distribution", 9), {}), null);
+  // Category 4 inbound freight is Category 4 whoever paid; the form has no direction, so no warning.
+  assert.equal(w.paidByMismatchWarning(ctx("Upstream transportation and distribution", 4), { paid_by: "Customer or other" }), null);
+  assert.equal(w.paidByMismatchWarning(ctx("Upstream transportation and distribution", 4), { paid_by: "We paid" }), null);
 });
