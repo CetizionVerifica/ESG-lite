@@ -20,6 +20,7 @@ import { buildVariety } from "./variety";
 import { writeNarrative } from "./ai-narrative";
 import { computeGhgTables, computeGhgByFuelType, getPeriodRange, type GhgFilters, type Frequency } from "./ghg-data";
 import type { Block, Report } from "./types";
+import { baseYearSummary } from "../scope3/baseYear/service"; // S3-14
 import { computeScope3, consolidationLabel, hasScope3, gwpText, scope3Blocks, type Scope3BaseYearSummary, type Scope3Report } from "./ghg-scope3";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -99,8 +100,15 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   } catch (e: any) {
     console.error("GHG report: Scope 3 section skipped:", e?.code ?? e?.message ?? e);
   }
-  // S3-14 fills the base year; until then the block says none is set.
-  const scope3BaseYear: Scope3BaseYearSummary | null = null;
+  // S3-14: the company's frozen Scope 3 base year and approved recalculations (null = none set).
+  let scope3BaseYear: Scope3BaseYearSummary | null = null;
+  if (scope3) {
+    try {
+      scope3BaseYear = await baseYearSummary(companyId);
+    } catch (e: any) {
+      console.error("GHG report: Scope 3 base year skipped:", e?.code ?? e?.message ?? e);
+    }
+  }
   const boundaryText = consolidationLabel(scope3?.consolidation_approach ?? company?.consolidation_approach);
 
   // Period labels reflect the CY/FY filter AND the selected month/quarter, so a
