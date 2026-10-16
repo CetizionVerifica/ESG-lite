@@ -1768,23 +1768,6 @@
       "expected_kgco2e": 500000,
       "status": "skip",
       "owner": "S3-12"
-    },
-    {
-      "id": "report-cat4-cat9",
-      "guidance_ref": {
-        "example": "constructed",
-        "lines": null
-      },
-      "source": "01-contracts.md §9, S3-13 spec",
-      "category": null,
-      "method": "unknown",
-      "formula": "post ex-4.2 and ex-9.1, approve, read GET /reports/ghg/scope3 → Cat 4 = 5.00 t, Cat 9 = 1.60 t, Scope 3 = 6.60 t",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": 6600,
-      "status": "skip",
-      "owner": "S3-13",
-      "note": "Report-level case; S3-13 moves it to ci/golden/scope3/report.json and checks it through the API."
     }
   ]
 }
