@@ -205,11 +205,12 @@ export class SpendRateSource {
     if (base != null && base !== spendYear) {
       const country = DEFLATOR_COUNTRY[to];
       const [bi, si] = await Promise.all([this.deflatorIndex(country, base), this.deflatorIndex(country, spendYear)]);
-      // A spend year whose index isn't published yet uses the latest one (2026 rows use 2025 until BLS publishes 2026).
+      // A spend year with no stored index uses the latest one before it, after the base year (2026 rows use 2025
+      // until BLS publishes 2026). Only the base year itself would mean no deflation at all, so that is NO_DEFLATOR.
       const latest = bi && !si && spendYear > base ? await this.latestIndexBefore(country, spendYear) : null;
       if (bi && si && si.index > 0) {
         deflator = { country, base_year: base, spend_year: spendYear, base_index: bi.index, spend_index: si.index, source: si.source };
-      } else if (bi && latest && latest.year >= base && latest.index > 0) {
+      } else if (bi && latest && latest.year > base && latest.index > 0) {
         deflator = { country, base_year: base, spend_year: spendYear, base_index: bi.index, spend_index: latest.index, source: latest.source, index_year: latest.year };
         deflatorFallback = true;
       } else {

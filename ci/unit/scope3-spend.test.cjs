@@ -259,9 +259,16 @@ test("deflator: index[base] and index[spend year] of the factor currency's count
   assert.equal(missing.quote.deflator, null);
   assert.equal(missing.quote.noDeflator, true);
   // A year missing inside the series uses the latest one before it, with the same warning.
-  const gap = await src.quote({ amount: 100, currency: "USD", spend_date: "2023-05-01" }, eeio());
-  assert.equal(gap.quote.deflator.index_year, 2022);
-  assert.equal(gap.quote.deflatorFallback, true);
+  const gap = await src.quote({ amount: 100, currency: "USD", spend_date: "2024-05-01" }, eeio({ price_base_year: 2021 }));
+  assert.equal(gap.quote.deflator, null, "2021 has no index: nothing to deflate from");
+  const src2 = new SpendRateSource(fakeManager([], defl.concat([{ country: "US", year: 2020, index: 258.811 }])));
+  const mid = await src2.quote({ amount: 100, currency: "USD", spend_date: "2023-05-01" }, eeio({ price_base_year: 2020 }));
+  assert.equal(mid.quote.deflator.index_year, 2022);
+  assert.equal(mid.quote.deflatorFallback, true);
+  // Only the base year before the spend year: falling back would deflate by 1, so it stays NO_DEFLATOR.
+  const onlyBase = await src.quote({ amount: 100, currency: "USD", spend_date: "2023-05-01" }, eeio());
+  assert.equal(onlyBase.quote.deflator, null);
+  assert.equal(onlyBase.quote.noDeflator, true);
   const sameYear = await src.quote({ amount: 100, currency: "USD", spend_date: "2022-05-01" }, eeio());
   assert.equal(sameYear.quote.deflator, null);
   assert.equal(sameYear.quote.noDeflator, false);

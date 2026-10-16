@@ -81,7 +81,7 @@ export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => 
   if (quote.deflatorFallback && deflator?.index_year) {
     warnings.push({
       code: "DEFLATOR_FALLBACK_YEAR",
-      message: `No ${deflator.spend_year} price index is published yet; ${deflator.index_year}'s was used to bring the amount to the factor's ${deflator.base_year} prices.`,
+      message: `No ${deflator.spend_year} price index is stored; ${deflator.index_year}'s, the latest before it, was used to bring the amount to the factor's ${deflator.base_year} prices.`,
     });
   }
   if (quote.noDeflator) {
