@@ -184,7 +184,7 @@ step("12 Superadmin copies the USEEIO sector to the main site for factor year 20
   assert.equal(r.json.copied, 1);
 });
 
-pendingStep("14 the Manager records a supplier and its own product figure", "S3-6", async () => (await call("GET", "/suppliers", S.admin)).status !== 404, async () => {
+step("14 the Manager records a supplier and its own product figure", async () => {
   // The client Admin stands in for the Manager, who is invited in step 20 (suppliers are Manager and above).
   const created = await call("POST", "/suppliers", S.admin, { name: SC.SUPPLIER.name, country: SC.SUPPLIER.country });
   ok(created, 201);
@@ -317,6 +317,42 @@ step("25d people stay inside their own sites", async () => {
   assert.equal((await call("PUT", `/user/emissions/${S.rows[e.ref].id}/approve`, S.people.userMain)).status, 403, "a User can't approve");
 });
 
+step("25f a Category 1 purchase with the supplier's own figure: quantity × the supplier's figure, the supplier on the row", async () => {
+  const P = SC.SUPPLIER.purchase;
+  const r = await call("POST", "/user/emissions", S.people.userMain, {
+    site_id: S.sites.main,
+    category_id: S.cats.goods,
+    date_of_reporting: P.date,
+    activity_data_unit: P.unit,
+    activity_data: { emission_category: SC.SUPPLIER.factor.item, "@method": "supplier_specific", activity_value: String(P.quantity) },
+    supplier_id: S.supplierId,
+  });
+  ok(r, 201);
+  assert.equal(Number(r.json.emission.total_emission), tonnes(P.kg));
+  const row = await withDb((db) => db.query(`SELECT supplier_id, method, data_type, total_kgco2e::float8 AS kg, emission_factor_snapshot AS snap FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]));
+  const got = row.rows[0];
+  assert.equal(got.supplier_id, S.supplierId);
+  assert.equal(got.method, "supplier_specific");
+  assert.equal(got.kg, P.kg);
+  assert.equal(got.snap.factor_type, "supplier");
+  assert.equal(Number(got.snap.factor_value), SC.SUPPLIER.factor.kgco2e_per_unit);
+  assert.equal(got.snap.reference_year, SC.SUPPLIER.factor.reference_year);
+  // Another client's supplier id reads as unknown (tenant isolation through the engine). Another
+  // month, so the duplicate check doesn't answer first.
+  const other = await call("POST", "/user/emissions", S.people.userMain, {
+    site_id: S.sites.main,
+    category_id: S.cats.goods,
+    date_of_reporting: `${SC.YEAR}-08-31`,
+    activity_data_unit: P.unit,
+    activity_data: { emission_category: SC.SUPPLIER.factor.item, "@method": "supplier_specific", activity_value: "1" },
+    supplier_id: S.supplierId + 100000,
+  });
+  assert.equal(other.status, 400, JSON.stringify(other.json));
+  assert.equal(other.json.field, "supplier_id");
+  S.supplierKg = P.kg;
+  S.rows["supplier-jul"] = { id: r.json.emission.pk_id, twinIds: [] };
+});
+
 pendingStep("25e every new row records its method and data quality", "S3-3", () => hasColumn("emission", "method"), async () => {
   // Scope 1 and Scope 2 rows carry no method; every Scope 3 row (twins included) has one and a quality.
   const r = await withDb((db) =>
@@ -365,7 +401,7 @@ step("26 the Manager approves, rejects the wrong row and leaves one pending", as
 /** Approved kg by scope and by Scope 3 category, from the scenario alone. */
 function expectedTotals() {
   const approved = SC.ENTRIES.filter((e) => e.review === "approve");
-  const kg = { s1: 0, s2: 0, cat: { 1: S.spendKg, 3: 0, 6: SC.travelKg() } };
+  const kg = { s1: 0, s2: 0, cat: { 1: S.spendKg + S.supplierKg, 3: 0, 6: SC.travelKg() } };
   const t = { s1: 0, s2: 0, cat3: 0 }; // sums of stored 2-dp rows
   for (const e of approved) {
     const w = SC.expectedFor(e);
@@ -406,9 +442,21 @@ step("26b the GHG report's scope totals: Scope 1, 2 and 3 from approved rows onl
   assert.ok(totals, JSON.stringify(Object.keys(r.json)));
   assert.equal(r2(totals.scope1), r2(t.s1), "Scope 1");
   assert.equal(r2(totals.scope2), r2(t.s2), "Scope 2");
-  const s3rows = r2(t.cat3 + tonnes(S.spendKg) + tonnes(SC.travelKg()));
+  const s3rows = r2(t.cat3 + tonnes(S.spendKg) + tonnes(S.supplierKg) + tonnes(SC.travelKg()));
   assert.equal(r2(totals.scope3), s3rows, "Scope 3");
   assert.equal(r2(totals.total), r2(t.s1 + t.s2 + s3rows), "Total");
+});
+
+step("26d supplier coverage for reports: the share of Category 1 and 2 from supplier data, and the top suppliers", async () => {
+  const q = `year=${SC.REPORT_YEAR}&year_type=${SC.YEAR_TYPE}`;
+  const r = await call("GET", `/suppliers/coverage?${q}`, S.people.manager);
+  ok(r);
+  const all = S.spendKg + S.supplierKg;
+  assert.equal(r.json.cat12_tco2e, tonnes(all));
+  assert.equal(r.json.supplier_specific_tco2e, tonnes(S.supplierKg));
+  assert.equal(r.json.hybrid_tco2e, 0);
+  assert.equal(r.json.coverage_pct, Math.round((S.supplierKg / all) * 1000) / 10);
+  assert.deepEqual(r.json.top_suppliers.map((x) => [x.supplier_id, x.tco2e, x.rows]), [[S.supplierId, tonnes(S.supplierKg), 1]]);
 });
 
 step("26c tenant isolation: another client's Admin and Manager see none of this client's data", async () => {
