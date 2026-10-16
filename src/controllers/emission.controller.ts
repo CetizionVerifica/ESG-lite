@@ -37,6 +37,8 @@ import { pcfDataChanged } from "../pcf/staleness";
 import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
 import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
 import { checkKeysFor, refreshChecks, refreshChecksSafely } from "../scope3/review/service";
+import { parseRowQuality } from "../scope3/dq/input";
+import { METHOD_KEYS } from "../scope3/contracts/ghgCategory";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -116,6 +118,19 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "ready must be 1 or 0" });
     }
     const readyFilter = readyParam === null ? null : readyParam === "1" || readyParam === "true";
+    // S3-3 method=<key>: rows calculated that way. An unknown key is refused
+    // rather than quietly matching nothing.
+    const methodFilter = typeof req.query.method === "string" ? req.query.method.trim() : "";
+    if (methodFilter && !(METHOD_KEYS as readonly string[]).includes(methodFilter)) {
+      return res.status(400).json({ message: `method must be one of ${METHOD_KEYS.join(", ")}` });
+    }
+    // S3-3 dq_max=<1|2|3>: rows whose overall data quality is at least that
+    // good (1 is best). A row with no data quality has none to meet, so it is
+    // left out rather than counted as good.
+    const dqMaxParam = req.query.dq_max === undefined ? null : String(req.query.dq_max);
+    if (dqMaxParam !== null && !["1", "2", "3"].includes(dqMaxParam)) {
+      return res.status(400).json({ message: "dq_max must be 1, 2 or 3" });
+    }
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     // categoryIds=1,2 (several) or the older categoryId=1.
     if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
@@ -171,6 +186,11 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       if (attention) qb.andWhere(attentionSql("emission"), { attentionBelow: ATTENTION_BELOW });
     }
     if (readyFilter !== null) qb.andWhere(readyFilter ? READY_SQL("emission") : HELD_SQL("emission"));
+
+    if (methodFilter) qb.andWhere("emission.method = :methodFilter", { methodFilter });
+    if (dqMaxParam !== null) {
+      qb.andWhere("(emission.dq->>'overall')::int <= :dqMax", { dqMax: Number(dqMaxParam) });
+    }
 
     if (date) {
       // Date format: YYYY-MM (e.g., 2024-01)
@@ -417,6 +437,12 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     // `let`: per-unit spec categories replace a spelling variant ("Tonne KM")
     // with the canonical unit key so matching and storage stay consistent.
     let activity_data_unit = req.body.activity_data_unit;
+    // S3-3: how the contributor says the row was calculated, whether the
+    // figure is an estimate, and a data quality they judged by hand.
+    const quality = parseRowQuality(req.body);
+    if (!quality.ok) {
+      return res.status(400).json({ message: quality.message, code: "FIELD_INVALID", field: quality.field });
+    }
     const userId = req.user?.userId;
 
     if (!site_id || !category_id || !activity_data || !date_of_reporting) {
@@ -549,6 +575,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         year_type: effectivePeriod === "yearly" ? year_type : null,
       },
       extra_data: extra_data || {},
+      ...quality.value,
     });
     if (!prepared.ok) {
       return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
