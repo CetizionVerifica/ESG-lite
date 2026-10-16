@@ -7,6 +7,7 @@
  * (data/emission-factor-sources). Refrigerants are AR6 GWP100 per D7.
  * Not seeded: grid electricity (DEFRA 2025 has a UK factor only; overseas factors
  * are sold by the IEA) and the per-day storage factors. The client adds those.
+ * Fuel rows are stored with includes_wtt = true (D6: the warning, not a split).
  * The factor table stores 4 decimal places.
  * A .ts module rather than factors.json: the build (tsc, no resolveJsonModule) does not ship JSON.
  */
@@ -14,6 +15,12 @@ export interface TransportFactor {
   name: string;
   unit: string;
   factor_type: "life_cycle" | "other";
+  /**
+   * The value bundles well-to-tank (DEFRA "Fuels" + "WTT- fuels"). D6: flagged,
+   * not split, so a Cat 4/9 row on it warns WTT_ALREADY_IN_FACTOR and its total
+   * is kept as it is.
+   */
+  includes_wtt: boolean;
   gwp_set: "AR5" | "AR6";
   /** ISO-3166 alpha-2 or GLO (S3-2 `geography`): DEFRA factors are UK ones. */
   geography: string;
@@ -27,6 +34,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     name: "Fuel - Diesel (average biofuel blend) [litre]",
     unit: "litre",
     factor_type: "life_cycle",
+    includes_wtt: true,
     gwp_set: "AR5",
     geography: "GB",
     dataset: "DEFRA",
@@ -39,6 +47,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     name: "Fuel - Petrol (average biofuel blend) [litre]",
     unit: "litre",
     factor_type: "life_cycle",
+    includes_wtt: true,
     gwp_set: "AR5",
     geography: "GB",
     dataset: "DEFRA",
@@ -51,6 +60,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     name: "Fuel - LPG [litre]",
     unit: "litre",
     factor_type: "life_cycle",
+    includes_wtt: true,
     gwp_set: "AR5",
     geography: "GB",
     dataset: "DEFRA",
@@ -63,6 +73,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     name: "Fuel - Natural gas [kWh]",
     unit: "kWh",
     factor_type: "life_cycle",
+    includes_wtt: true,
     gwp_set: "AR5",
     geography: "GB",
     dataset: "DEFRA",
@@ -75,6 +86,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     name: "Refrigerant - R134a [kg]",
     unit: "kg",
     factor_type: "other",
+    includes_wtt: false,
     gwp_set: "AR6",
     geography: "GLO",
     dataset: "IPCC AR6",
@@ -87,6 +99,7 @@ export const TRANSPORT_FACTORS: TransportFactor[] = [
     name: "Refrigerant - R410A [kg]",
     unit: "kg",
     factor_type: "other",
+    includes_wtt: false,
     gwp_set: "AR6",
     geography: "GLO",
     dataset: "IPCC AR6",

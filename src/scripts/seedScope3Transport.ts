@@ -196,6 +196,7 @@ async function main() {
             global_category_name: f.name,
             // S3-2 factor metadata
             factor_type: f.factor_type,
+            includes_wtt: f.includes_wtt,
             gwp_set: f.gwp_set,
             geography: f.geography,
             dataset: f.dataset,
@@ -215,7 +216,20 @@ async function main() {
     }
   }
 
-  console.log(`  configs written: ${configsWritten} · units added: ${unitsAdded} · factors added: ${factorsAdded}`);
+  // D6: fuel factors seeded before includes_wtt was set bundle WTT too. Flag them
+  // (only rows this module wrote, by name and source); values and totals stay.
+  const wttNames = factors.filter((f) => f.includes_wtt).map((f) => f.name);
+  const flagged: unknown[] = wttNames.length
+    ? await AppDataSource.query(
+        `UPDATE emission_factors SET includes_wtt = true
+          WHERE emission_category_name = ANY($1) AND source LIKE '% (S3-8)' AND includes_wtt = false AND category_id = ANY($2)
+          RETURNING emission_factor_id`,
+        [wttNames, [...categories.keys()]],
+      )
+    : [];
+  const wttFlagged = Array.isArray(flagged[0]) ? (flagged[0] as unknown[]).length : flagged.length;
+
+  console.log(`  configs written: ${configsWritten} · units added: ${unitsAdded} · factors added: ${factorsAdded} · WTT flagged: ${wttFlagged}`);
   if (customised.length) console.log(`  customised configs left as they are: ${customised.join(", ")}`);
   await AppDataSource.destroy();
 }
