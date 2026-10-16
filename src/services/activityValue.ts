@@ -5,6 +5,9 @@ import { ColumnConfig } from "../entities/ColumnConfig";
 // even without a config (older categories).
 const KNOWN_SELECTS = ["material", "disposal_method", "fuel_type", "vehicle_type", "source_type", "waste_type", "transport_mode"];
 
+// A purchase date ("2026-09-03" parses as 2026) is never the quantity (S3-5; the FE preview skips it too).
+const NOT_QUANTITIES = ["invoice_date"];
+
 // Common names for the quantity, tried first (case-insensitive).
 const COMMON_FIELDS = ["activity_value", "quantity", "value", "amount", "consumption", "activity data", "activity_data"];
 
@@ -50,7 +53,11 @@ export function pickActivityValue(activity_data: Record<string, unknown>, select
   // rather than another field's value; only an exact 0 falls through.
   if (common !== 0) return 0;
 
-  const skip = (key: string) => key === "emission_category" || KNOWN_SELECTS.includes(key.toLowerCase()) || selectColumns.has(columnKey(key));
+  // S3-5: the amount spent is not the quantity of a row that asks for spend (it has its own path); on
+  // any other form a "Spent value" column may be the form's quantity, as before.
+  const spendRow = String(activity_data["@method"] ?? "").trim() === "spend_based";
+  const skip = (key: string) =>
+    key === "emission_category" || NOT_QUANTITIES.includes(columnKey(key)) || (spendRow && columnKey(key) === "spent_value") || KNOWN_SELECTS.includes(key.toLowerCase()) || selectColumns.has(columnKey(key));
   const firstNumber = (min: number) => {
     for (const [key, value] of Object.entries(activity_data)) {
       if (skip(key) || value === undefined || value === "") continue;

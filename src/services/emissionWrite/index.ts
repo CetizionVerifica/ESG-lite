@@ -26,6 +26,8 @@ import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./m
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
+import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
+import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -46,6 +48,8 @@ export interface EntryInput {
   activity_data_unit: string | null | undefined;
   period: StoredPeriod;
   extra_data?: Record<string, any>;
+  /** S3-5: the row's saved `fx`, so a recalculation with the same currency and date reuses its rate. */
+  storedFx?: EmissionFx | null;
 }
 
 export interface PreparedEntry {
@@ -81,6 +85,9 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
+  // S3-5: a row entered as an amount and a currency is in that currency.
+  if (!unit && rowAsksForSpend(activity_data)) unit = spendInputOf(activity_data, input.extra_data, null, input.period.date_of_reporting)?.currency;
+
   if (activity_data.emission_category && unit) {
     const match = ctx.factors.find(activity_data.emission_category, targetYear);
     if (!match) {
@@ -93,11 +100,24 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     if (match.fallback_year) {
       warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
     }
-    const result = computeTotal(ctx, factor, activity_data, unit);
+    // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs.
+    let spend: SpendQuote | undefined;
+    if (isSpendRow(activity_data, factor)) {
+      const spendInput = spendInputOf(activity_data, input.extra_data, unit, input.period.date_of_reporting, ctx.selectColumns);
+      if (spendInput && ctx.rates) {
+        const quoted = await ctx.rates.quote(spendInput, factor, input.storedFx);
+        if (!quoted.ok) return { ok: false, issue: { code: quoted.code, message: quoted.message, field: quoted.field } };
+        spend = quoted.quote;
+      } else if (!spendInput && rowAsksForSpend(activity_data)) {
+        return { ok: false, issue: { code: "FIELD_REQUIRED", message: "Give the amount spent and its currency.", field: "spent_value" } };
+      }
+    }
+    const result = computeTotal(ctx, factor, activity_data, unit, { spend });
     if (!result.ok) return result;
     computed = result.computed;
     unit = computed.activity_unit;
   }
+  const methodWarnings = computed?.warnings ?? [];
 
   let fera: FeraTwin | null = null;
   let feraSkipped: string | undefined;
@@ -132,6 +152,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   }
   const wtt = wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
+  warnings.push(...methodWarnings);
 
   return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, tdLoss, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
 };
@@ -171,7 +192,8 @@ export const insertEntry = async (
     total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
     gas_kg: entry.computed?.gas_kg ?? null,
     biogenic_kg: entry.computed?.biogenic_kg ?? null,
-    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
+    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null,
+    fx: entry.computed?.fx ?? null,
   });
   await repo.save(emission);
 

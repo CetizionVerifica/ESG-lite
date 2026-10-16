@@ -551,7 +551,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       extra_data: extra_data || {},
     });
     if (!prepared.ok) {
-      return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
+      return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
     }
     const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
 
@@ -645,9 +645,9 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.reviewed_at = null as any;
 
       // The factor year follows the new reporting date when one is sent.
-      const prepared = await recalculateEntry(emission, activity_data, date_of_reporting);
+      const prepared = await recalculateEntry(emission, activity_data, extra_data !== undefined ? extra_data : emission.extra_data, date_of_reporting);
       if (!prepared.ok) {
-        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
+        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
       }
       if (prepared.entry.computed && !(prepared.entry.computed.activityValue > 0)) {
         return res.status(400).json({
@@ -737,7 +737,7 @@ const ymd = (d: unknown): string => (typeof d === "string" ? d.slice(0, 10) : ne
  * resolution, unit check, kgCO₂e total, snapshot and the FERA twin. A new
  * reporting date counts, since the factor year follows it. Nothing is written.
  */
-async function recalculateEntry(emission: Emission, activity_data: any, newDate?: string): Promise<PrepareResult> {
+async function recalculateEntry(emission: Emission, activity_data: any, extra_data: Record<string, any> | null | undefined, newDate?: string): Promise<PrepareResult> {
   const site_id = emission.site.site_id;
   const category_id = emission.category.category_id;
   const ctx = await new ContextCache(AppDataSource.manager).context(site_id, category_id);
@@ -752,6 +752,9 @@ async function recalculateEntry(emission: Emission, activity_data: any, newDate?
       reporting_period: yearly ? "yearly" : "monthly",
       year_type: yearly ? ((emission.year_type as "CY" | "FY" | null) ?? null) : null,
     },
+    extra_data: extra_data ?? {},
+    // S3-5: a spend row keeps the rate it was saved with while its currency and purchase date don't change.
+    storedFx: emission.fx,
   });
 }
 
@@ -763,13 +766,15 @@ function applyComputed(emission: Emission, entry: PreparedEntry): void {
     emission.gas_kg = null;
     emission.biogenic_kg = null;
     emission.emission_factor_snapshot = null as any;
+    emission.fx = null;
     return;
   }
   emission.total_emission = entry.computed.total;
   emission.total_kgco2e = entry.computed.total_kgco2e ?? null;
   emission.gas_kg = entry.computed.gas_kg ?? null;
   emission.biogenic_kg = entry.computed.biogenic_kg ?? null;
-  emission.emission_factor_snapshot = factorSnapshot(entry.factor) as any;
+  emission.emission_factor_snapshot = factorSnapshot(entry.factor, entry.computed.deflator) as any;
+  emission.fx = entry.computed.fx ?? null;
   emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
 }
 
@@ -3137,10 +3142,10 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
 
       // Same engine as a new entry (S3-4); the new date is already applied,
       // so the factor year follows it.
-      const prepared = await recalculateEntry(emission, activity_data);
+      const prepared = await recalculateEntry(emission, activity_data, emission.extra_data);
       if (!prepared.ok) {
         // Saving would keep the old total next to the new values.
-        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
+        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
       }
       const { entry } = prepared;
       if (entry.computed && !(entry.computed.activityValue > 0)) {
