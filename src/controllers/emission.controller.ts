@@ -4,13 +4,14 @@ import { Emission, EmissionStatus } from "../entities/Emission";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import { In } from "typeorm";
+import { In, IsNull, Not, Or } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
-import { findEmissionFactorForCategory } from "../utils/findEmissionFactor";
-import { getConversionFactor, unitsMatchExact } from "../services/emissionWrite/units";
-import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage } from "../services/emissionWrite";
+import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
+import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
+import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
@@ -21,9 +22,8 @@ import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
 import { validatePeriodFields, findModeLockConflict, futurePeriodError } from "../services/reportingPeriod";
-import { getCalculationSpec, computeSpecActivityValue, specIdentityMatches } from "../services/calculationSpec";
+import { getCalculationSpec, specIdentityMatches } from "../services/calculationSpec";
 import { ColumnConfig } from "../entities/ColumnConfig";
-import { getSelectColumns, pickActivityValue } from "../services/activityValue";
 import { computeBreakdown, type BreakdownSourceRow } from "../services/emissionBreakdown";
 import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
@@ -512,12 +512,13 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       if (duplicate.fera_linked_id) {
         idsToDelete.push(duplicate.fera_linked_id);
       }
-      // Check if any other emission links back to this one (reverse FERA link)
-      const linkedBack = await repo.findOne({
+      // Every emission that links back to this one (reverse FERA link; a
+      // Scope 2 row may have a T&D-loss twin too, S3-7)
+      const linkedBack = await repo.find({
         where: { fera_linked_id: duplicate.pk_id },
       });
-      if (linkedBack) {
-        idsToDelete.push(linkedBack.pk_id);
+      for (const l of linkedBack) {
+        if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
       }
       // Delete related documents first, then their stored files
       const replacedFiles = await documentFilesForEmissions(idsToDelete);
@@ -550,9 +551,9 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       extra_data: extra_data || {},
     });
     if (!prepared.ok) {
-      return res.status(400).json({ message: prepared.issue.message, ...(prepared.issue.extra ?? {}) });
+      return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
     }
-    const { emission, fera: feraEmission } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
+    const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
 
     const savedEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -574,6 +575,10 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       message: "Emission created successfully",
       emission: savedEmission,
       fera_emission: savedFera,
+      // S3-7: the Category 3 T&D-loss twin of a Scope 2 entry.
+      ...(tdLoss ? { td_loss_emission: await repo.findOne({ where: { pk_id: tdLoss.pk_id }, relations: ["site", "category", "created_by"] }) } : {}),
+      // Never block (S3-4, S3-7): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING, FACTOR_TYPE_MISMATCH, WTT_ALREADY_IN_FACTOR.
+      warnings: prepared.entry.warnings.map(({ code, message }) => ({ code, message })),
     });
   } catch (error) {
     console.error("Create emission error:", error);
@@ -620,6 +625,11 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
     const oldStatus = emission.status;
     const priorCheckKeys = await checkKeysFor(AppDataSource.manager, [emission.pk_id]);
 
+    // Edits use the engine, as a new entry does (S3-4): factor resolution,
+    // unit check, snapshot, kgCO₂e total and the FERA twin.
+    let warnings: EngineIssue[] = [];
+    let feraTwin: FeraTwin | null = null;
+    let feraSkipped: string | undefined;
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
 
@@ -634,97 +644,21 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.review_comment = null as any;
       emission.reviewed_at = null as any;
 
-      // Without a category and unit there is no factor to apply, so no
-      // total; the old one would no longer match the data (audit F-05).
-      if (!(activity_data.emission_category && emission.activity_data_unit)) {
-        emission.total_emission = 0;
-        emission.emission_factor_snapshot = null as any;
+      // The factor year follows the new reporting date when one is sent.
+      const prepared = await recalculateEntry(emission, activity_data, date_of_reporting);
+      if (!prepared.ok) {
+        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
       }
-
-      // Recalculate total emission if activity_data has emission_category
-      if (activity_data.emission_category && emission.activity_data_unit) {
-        // Calculate target year for emission factor (reporting year - 1, matching frontend logic)
-        // const targetYear = emission.date_of_reporting.getFullYear() - 1;
-
-        const reportingDate = emission.date_of_reporting instanceof Date 
-  ? emission.date_of_reporting 
-  : new Date(emission.date_of_reporting);
-
-const targetYear = reportingDate.getFullYear() - 1;
-
-        // Find the emission factor for the selected emission category and year
-        // (exact name/global match with year, then looser fallbacks).
-        const emissionFactor = await findEmissionFactorForCategory(emissionFactorRepo, {
-          site_id: emission.site.site_id,
-          category_id: emission.category.category_id,
-          emissionCategory: activity_data.emission_category,
-          year: targetYear,
+      if (prepared.entry.computed && !(prepared.entry.computed.activityValue > 0)) {
+        return res.status(400).json({
+          message: "No valid activity value found in the provided data",
         });
-
-        if (emissionFactor) {
-          // Update emission factor snapshot
-          emission.emission_factor_snapshot = {
-            emission_factor_id: emissionFactor.emission_factor_id,
-            emission_category_name: emissionFactor.emission_category_name,
-            global_category_name: emissionFactor.global_category_name || undefined,
-            factor_value: emissionFactor.factor_value,
-            denominator_unit: emissionFactor.denominator_unit,
-            source: emissionFactor.source,
-            year: emissionFactor.year,
-          } as any;
-
-          // Find activity value from activity_data
-          let activityValue = 0;
-
-          // Spec category (e.g. Use of Sold Products): multiply the method's
-          // fields instead of sniffing for one value — see createEmission.
-          const updateCalcSpec = await getCalculationSpec(
-            columnConfigRepo,
-            emission.site.site_id,
-            emission.category.category_id,
-          );
-          if (updateCalcSpec) {
-            const computed = computeSpecActivityValue(updateCalcSpec, activity_data, emission.activity_data_unit);
-            if (!computed.ok) {
-              return res.status(400).json({ message: computed.message });
-            }
-            activityValue = computed.value;
-            if (computed.unitKey) emission.activity_data_unit = computed.unitKey;
-            activity_data.activity_value = String(activityValue);
-          } else {
-          activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
-          }
-
-          if (activityValue > 0) {
-            // Check if units match (handles null/undefined like frontend)
-            const unitsMatch = unitsMatchExact(emissionFactor.denominator_unit, emission.activity_data_unit);
-
-            if (unitsMatch) {
-              emission.total_emission = Math.round((activityValue * emissionFactor.factor_value) / 1000 * 100) / 100;
-            } else {
-              const conversionFactor = getConversionFactor(emission.activity_data_unit, emissionFactor.denominator_unit);
-              if (conversionFactor) {
-                const convertedValue = activityValue * conversionFactor;
-                emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
-              } else {
-                return res.status(400).json({
-                  message: `Cannot convert unit "${emission.activity_data_unit}" to expected unit "${emissionFactor.denominator_unit}"`,
-                });
-              }
-            }
-          } else {
-            return res.status(400).json({
-              message: "No valid activity value found in the provided data",
-            });
-          }
-        } else {
-          return res.status(400).json({
-            message: `No emission factor found for category "${activity_data.emission_category}"`,
-          });
-        }
       }
+      applyComputed(emission, prepared.entry);
+      warnings = prepared.entry.warnings;
+      feraTwin = prepared.entry.fera;
+      feraSkipped = prepared.entry.feraSkipped;
     }
-
     if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
     const extraBefore = emission.extra_data;
     if (extra_data !== undefined) emission.extra_data = extra_data;
@@ -738,11 +672,12 @@ const targetYear = reportingDate.getFullYear() - 1;
     // Recalculate linked FERA emission if activity data changed
     let updatedFeraEmission: Emission | null = null;
     if (activity_data !== undefined && emission.fera_linked_id) {
-      updatedFeraEmission = await recalculateLinkedFera(emission, activity_data);
+      updatedFeraEmission = await recalculateLinkedFera(emission, activity_data, feraTwin, feraSkipped);
     }
+    const tdLossTwin = activity_data !== undefined ? await syncTdLossTwin(emission, activity_data) : null;
 
     // S3-15 review checks of the row, its twin and the next month (also where the row used to be).
-    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, updatedFeraEmission?.pk_id].filter(Boolean) as number[], priorCheckKeys);
+    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, updatedFeraEmission?.pk_id, tdLossTwin?.pk_id].filter(Boolean) as number[], priorCheckKeys);
 
     // Create audit log for user edit
     try {
@@ -784,6 +719,7 @@ const targetYear = reportingDate.getFullYear() - 1;
       message: "Emission updated successfully",
       emission,
       fera_emission: updatedFeraEmission || undefined,
+      warnings,
     });
   } catch (error) {
     console.error("Update emission error:", error);
@@ -793,140 +729,100 @@ const targetYear = reportingDate.getFullYear() - 1;
   }
 };
 
+/** The stored date as YYYY-MM-DD: "date" columns read back as strings; a Date set from a request is UTC midnight. */
+const ymd = (d: unknown): string => (typeof d === "string" ? d.slice(0, 10) : new Date(d as any).toISOString().slice(0, 10));
+
 /**
- * FERA twin total in tCO2e, converting the activity unit to the factor's unit.
- * null when there is no conversion: the raw value would give a wrong total.
+ * Recalculates an edited row with the engine, as a new entry (S3-4): factor
+ * resolution, unit check, kgCO₂e total, snapshot and the FERA twin. A new
+ * reporting date counts, since the factor year follows it. Nothing is written.
  */
-function feraTotal(activityValue: number, activityUnit: string | null | undefined, factor: EmissionFactor): number | null {
-  const conv = unitsMatchExact(factor.denominator_unit, activityUnit)
-    ? 1
-    : getConversionFactor(activityUnit as any, factor.denominator_unit);
-  if (!conv) return null;
-  return Math.round((activityValue * conv * factor.factor_value) / 1000 * 100) / 100;
+async function recalculateEntry(emission: Emission, activity_data: any, newDate?: string): Promise<PrepareResult> {
+  const site_id = emission.site.site_id;
+  const category_id = emission.category.category_id;
+  const ctx = await new ContextCache(AppDataSource.manager).context(site_id, category_id);
+  const yearly = emission.reporting_period === "yearly";
+  return prepareEntry(ctx, new CheckCache(AppDataSource.manager), {
+    site_id,
+    category_id,
+    activity_data,
+    activity_data_unit: emission.activity_data_unit,
+    period: {
+      date_of_reporting: ymd(newDate !== undefined ? newDate : emission.date_of_reporting),
+      reporting_period: yearly ? "yearly" : "monthly",
+      year_type: yearly ? ((emission.year_type as "CY" | "FY" | null) ?? null) : null,
+    },
+  });
+}
+
+/** Puts the engine's total, kgCO₂e total, snapshot and unit on an edited row; no factor means no total (audit F-05). */
+function applyComputed(emission: Emission, entry: PreparedEntry): void {
+  if (!entry.factor || !entry.computed) {
+    emission.total_emission = 0;
+    emission.total_kgco2e = "0.0000";
+    emission.gas_kg = null;
+    emission.biogenic_kg = null;
+    emission.emission_factor_snapshot = null as any;
+    return;
+  }
+  emission.total_emission = entry.computed.total;
+  emission.total_kgco2e = entry.computed.total_kgco2e ?? null;
+  emission.gas_kg = entry.computed.gas_kg ?? null;
+  emission.biogenic_kg = entry.computed.biogenic_kg ?? null;
+  emission.emission_factor_snapshot = factorSnapshot(entry.factor) as any;
+  emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
 }
 
 /**
- * Re-derive the FERA twin of an edited parent row from the parent's new
- * activity data, and send it back to pending. Returns the updated twin, or
- * null when there is none or no factor matches. Non-fatal on error: the
- * parent edit has already been saved.
+ * Bring the FERA twin of an edited parent in step, from the engine's twin
+ * for the parent's new data (S3-4: the same exact-year factor, unit check and
+ * mode lock as a new entry). Returns the updated twin, or null when there is
+ * none. When the engine makes no twin, the twin keeps its numbers but goes
+ * back to review with the reason, so a stale total is never left approved
+ * (audit F-12). Non-fatal on error: the parent edit has already been saved.
  */
-async function recalculateLinkedFera(emission: Emission, activity_data: any): Promise<Emission | null> {
+async function recalculateLinkedFera(emission: Emission, activity_data: any, twin: FeraTwin | null, skipped: string | undefined): Promise<Emission | null> {
   try {
     // (A null id in `where` is ignored by TypeORM and would match any row.)
     const feraEmission = emission.fera_linked_id
       ? await repo.findOne({ where: { pk_id: emission.fera_linked_id }, relations: ["site", "category"] })
       : null;
     // Also check reverse link
+    // (Never the T&D-loss twin: syncTdLossTwin keeps that one in step, S3-7.)
     const reverseFeraEmission = !feraEmission
-      ? await repo.findOne({ where: { fera_linked_id: emission.pk_id }, relations: ["site", "category"] })
+      ? await repo.findOne({ where: { fera_linked_id: emission.pk_id, scope3_sub: Or(IsNull(), Not("3c_td_losses")) }, relations: ["site", "category"] })
       : null;
     const linkedFera = feraEmission || reverseFeraEmission;
+    if (!linkedFera || linkedFera.category?.category_name?.toLowerCase() !== "fera") return null;
 
-    if (linkedFera && linkedFera.category?.category_name?.toLowerCase() === "fera" && !activity_data?.emission_category) {
-      // No category: no factor applies, so the twin carries no total either
-      // (an undefined name in the lookups below would match any factor).
-      linkedFera.activity_data = activity_data;
-      linkedFera.total_emission = 0;
-      linkedFera.emission_factor_snapshot = null as any;
-      linkedFera.date_of_reporting = emission.date_of_reporting;
-      linkedFera.activity_data_unit = emission.activity_data_unit;
+    const backToReview = (comment: string | null) => {
       linkedFera.status = EmissionStatus.PENDING;
       linkedFera.reviewed_by = null as any;
-      linkedFera.review_comment = null as any;
       linkedFera.reviewed_at = null as any;
+      linkedFera.review_comment = comment as any;
+    };
+
+    if (!activity_data?.emission_category || twin) {
+      // No category: no factor applies, so the twin carries no total either.
+      linkedFera.activity_data = activity_data;
+      linkedFera.total_emission = twin ? twin.total : 0;
+      linkedFera.total_kgco2e = twin ? twin.total_kgco2e : "0.0000";
+      linkedFera.gas_kg = twin?.gas_kg ?? null;
+      linkedFera.biogenic_kg = twin?.biogenic_kg ?? null;
+      linkedFera.emission_factor_snapshot = (twin ? factorSnapshot(twin.factor) : null) as any;
+      linkedFera.date_of_reporting = emission.date_of_reporting;
+      linkedFera.activity_data_unit = emission.activity_data_unit;
+      backToReview(null);
       await repo.save(linkedFera);
       return linkedFera;
     }
 
-    if (linkedFera && linkedFera.category?.category_name?.toLowerCase() === "fera") {
-      const reportingDate = emission.date_of_reporting instanceof Date
-        ? emission.date_of_reporting
-        : new Date(emission.date_of_reporting);
-      const feraTargetYear = reportingDate.getFullYear() - 1;
-
-      // Find FERA emission factor (same 4-level fallback as parent)
-      let feraFactor = await emissionFactorRepo.findOne({
-        where: {
-          site: { site_id: emission.site.site_id },
-          category: { category_id: linkedFera.category.category_id },
-          emission_category_name: activity_data.emission_category,
-          year: feraTargetYear,
-        },
-      });
-      if (!feraFactor) {
-        feraFactor = await emissionFactorRepo.findOne({
-          where: {
-            site: { site_id: emission.site.site_id },
-            category: { category_id: linkedFera.category.category_id },
-            global_category_name: activity_data.emission_category,
-            year: feraTargetYear,
-          },
-        });
-      }
-      if (!feraFactor) {
-        feraFactor = await emissionFactorRepo.findOne({
-          where: {
-            site: { site_id: emission.site.site_id },
-            category: { category_id: linkedFera.category.category_id },
-            emission_category_name: activity_data.emission_category,
-          },
-        });
-      }
-      if (!feraFactor) {
-        feraFactor = await emissionFactorRepo.findOne({
-          where: {
-            site: { site_id: emission.site.site_id },
-            category: { category_id: linkedFera.category.category_id },
-            global_category_name: activity_data.emission_category,
-          },
-        });
-      }
-
-      if (feraFactor) {
-        // The parent's quantity, as for the parent itself.
-        const feraActivityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
-
-        if (feraActivityValue > 0) {
-          // No unit conversion: don't store a total from the raw value (audit
-          // F-12). Keep the twin's numbers but send it back to review with a
-          // note, so a stale total is never left approved.
-          const feraCalculated = feraTotal(feraActivityValue, emission.activity_data_unit, feraFactor);
-          if (feraCalculated === null) {
-            console.warn(
-              `FERA recalculation skipped for emission ${linkedFera.pk_id}: cannot convert "${emission.activity_data_unit}" to the FERA factor unit "${feraFactor.denominator_unit}".`,
-            );
-            linkedFera.status = EmissionStatus.PENDING;
-            linkedFera.reviewed_by = null as any;
-            linkedFera.reviewed_at = null as any;
-            linkedFera.review_comment = `Not recalculated: "${emission.activity_data_unit}" can't be converted to the FERA factor unit "${feraFactor.denominator_unit}". Check and edit this entry.`;
-            await repo.save(linkedFera);
-            return Object.assign(linkedFera, { recalcSkipped: true });
-          }
-
-          linkedFera.activity_data = activity_data;
-          linkedFera.total_emission = feraCalculated;
-          linkedFera.date_of_reporting = emission.date_of_reporting;
-          linkedFera.activity_data_unit = emission.activity_data_unit;
-          linkedFera.status = EmissionStatus.PENDING;
-          linkedFera.reviewed_by = null as any;
-          linkedFera.review_comment = null as any;
-          linkedFera.reviewed_at = null as any;
-          linkedFera.emission_factor_snapshot = {
-            emission_factor_id: feraFactor.emission_factor_id,
-            emission_category_name: feraFactor.emission_category_name,
-            global_category_name: feraFactor.global_category_name || undefined,
-            factor_value: feraFactor.factor_value,
-            denominator_unit: feraFactor.denominator_unit,
-            source: feraFactor.source,
-            year: feraFactor.year,
-          };
-          await repo.save(linkedFera);
-          return linkedFera;
-        }
-      }
-    }
-    return null;
+    // No twin from the engine: keep the twin's numbers, back to review with the reason.
+    const why = skipped ?? `no FERA total could be worked out for "${activity_data.emission_category}"`;
+    console.warn(`FERA recalculation skipped for emission ${linkedFera.pk_id}: ${why}.`);
+    backToReview(`Not recalculated: ${why}. Check and edit this entry.`);
+    await repo.save(linkedFera);
+    return Object.assign(linkedFera, { recalcSkipped: true });
   } catch (feraError) {
     console.error("Failed to update linked FERA emission:", feraError);
     return null;
@@ -948,18 +844,9 @@ export const deleteEmission = async (req: Request, res: Response) => {
       });
     }
 
-    // Also delete the linked FERA entry (bi-directional)
-    const idsToDelete = [emission.pk_id];
-    if (emission.fera_linked_id) {
-      idsToDelete.push(emission.fera_linked_id);
-    }
-    // Check if any other emission links back to this one
-    const linkedBack = await repo.findOne({
-      where: { fera_linked_id: emission.pk_id },
-    });
-    if (linkedBack && !idsToDelete.includes(linkedBack.pk_id)) {
-      idsToDelete.push(linkedBack.pk_id);
-    }
+    // Also delete the linked FERA entries: the whole family, whichever row
+    // was picked (a Scope 2 row may have a T&D-loss twin too, S3-7)
+    const idsToDelete = [emission.pk_id, ...(await feraFamilyIds(repo, emission))];
     // S3-15: the next month's threshold check compares against these rows.
     const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
 
@@ -1169,11 +1056,15 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
     for (const e of emissionsToApprove) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
     if (feraIds.length > 0) {
       await repo
         .createQueryBuilder()
@@ -1603,10 +1494,8 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
     await repo.save(emission);
 
     // Auto-approve linked FERA entries (bidirectional)
-    const feraLinkedIds: number[] = [];
-    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
-    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
-    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    // The whole family, whichever row was picked: parent, upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
+    const feraLinkedIds = await feraFamilyIds(repo, emission);
     for (const fId of feraLinkedIds) {
       const feraEmission = await repo.findOne({ where: { pk_id: fId } });
       if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
@@ -1718,10 +1607,8 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
     await repo.save(emission);
 
     // Auto-reject linked FERA entries (bidirectional)
-    const feraLinkedIds: number[] = [];
-    if (emission.fera_linked_id) feraLinkedIds.push(emission.fera_linked_id);
-    const linkedBack = await repo.findOne({ where: { fera_linked_id: emission.pk_id } });
-    if (linkedBack) feraLinkedIds.push(linkedBack.pk_id);
+    // The whole family, whichever row was picked: parent, upstream twin and, for Scope 2, the T&D-loss twin (S3-7).
+    const feraLinkedIds = await feraFamilyIds(repo, emission);
     for (const fId of feraLinkedIds) {
       const feraEmission = await repo.findOne({ where: { pk_id: fId } });
       if (feraEmission && feraEmission.status === EmissionStatus.PENDING) {
@@ -1854,11 +1741,15 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
     for (const e of emissionsToApprove) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
 
     if (feraIds.length > 0) {
       await repo
@@ -1991,11 +1882,15 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
     for (const e of emissionsToReject) {
       if (e.fera_linked_id) feraIds.push(e.fera_linked_id);
     }
+    // Rows linking to a picked row, or (S3-7) to the row a picked twin links
+    // to: picking one twin also carries its sibling (upstream and T&D twins
+    // both link to the parent).
+    const linkTargets = [...eligibleIds, ...feraIds];
     const reverseLinked = await repo.find({
-      where: { fera_linked_id: In(eligibleIds), status: EmissionStatus.PENDING },
+      where: { fera_linked_id: In(linkTargets), status: EmissionStatus.PENDING },
       select: ["pk_id"],
     });
-    for (const e of reverseLinked) feraIds.push(e.pk_id);
+    for (const e of reverseLinked) if (!eligibleIds.includes(e.pk_id) && !feraIds.includes(e.pk_id)) feraIds.push(e.pk_id);
 
     if (feraIds.length > 0) {
       await repo
@@ -3234,94 +3129,32 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (activity_data_unit !== undefined) {
       emission.activity_data_unit = activity_data_unit;
     }
+    let warnings: EngineIssue[] = [];
+    let feraTwin: FeraTwin | null = null;
+    let feraSkipped: string | undefined;
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
 
-      // No category and unit: no factor, so no total (audit F-05).
-      if (!(activity_data.emission_category && emission.activity_data_unit)) {
-        emission.total_emission = 0;
-        emission.emission_factor_snapshot = null as any;
+      // Same engine as a new entry (S3-4); the new date is already applied,
+      // so the factor year follows it.
+      const prepared = await recalculateEntry(emission, activity_data);
+      if (!prepared.ok) {
+        // Saving would keep the old total next to the new values.
+        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
       }
-
-      // Recalculate total emission if activity_data has emission_category
-      if (activity_data.emission_category && emission.activity_data_unit) {
-        const reportingDate = emission.date_of_reporting instanceof Date
-          ? emission.date_of_reporting
-          : new Date(emission.date_of_reporting);
-        const targetYear = reportingDate.getFullYear() - 1;
-
-        // Same lookup as createEmission (exact name/global match with year,
-        // then any year, newest first, then case/space-insensitive).
-        const emissionFactor = await findEmissionFactorForCategory(emissionFactorRepo, {
-          site_id: emission.site.site_id,
-          category_id: emission.category.category_id,
-          emissionCategory: activity_data.emission_category,
-          year: targetYear,
-        });
-
-        if (emissionFactor) {
-          let activityValue = 0;
-
-          // Spec category (e.g. Use of Sold Products): multiply the method's
-          // fields instead of sniffing for one value — see createEmission.
-          // Keep the factor snapshot in step with the recalculation (the
-          // factor panel and the Excel export read the snapshot first).
-          emission.emission_factor_snapshot = {
-            emission_factor_id: emissionFactor.emission_factor_id,
-            emission_category_name: emissionFactor.emission_category_name,
-            global_category_name: emissionFactor.global_category_name || undefined,
-            factor_value: emissionFactor.factor_value,
-            denominator_unit: emissionFactor.denominator_unit,
-            source: emissionFactor.source,
-            year: emissionFactor.year,
-          } as any;
-
-          const managerCalcSpec = await getCalculationSpec(
-            columnConfigRepo,
-            emission.site.site_id,
-            emission.category.category_id,
-          );
-          if (managerCalcSpec) {
-            const computed = computeSpecActivityValue(managerCalcSpec, activity_data, emission.activity_data_unit);
-            if (!computed.ok) {
-              return res.status(400).json({ message: computed.message });
-            }
-            activityValue = computed.value;
-            if (computed.unitKey) emission.activity_data_unit = computed.unitKey;
-            activity_data.activity_value = String(activityValue);
-          } else {
-          activityValue = pickActivityValue(activity_data, await getSelectColumns(columnConfigRepo, emission.site.site_id, emission.category.category_id));
-          }
-
-          // New values without an amount above 0 would keep the old total next to them.
-          // (A date- or unit-only edit of a stored row keeps its old behaviour.)
-          if (activityDataInput !== undefined && !(activityValue > 0)) {
-            return res.status(400).json({ message: "Enter an amount greater than 0. Nothing was changed." });
-          }
-
-          if (activityValue > 0) {
-            const unitsMatch = unitsMatchExact(emissionFactor.denominator_unit, emission.activity_data_unit);
-            if (unitsMatch) {
-              emission.total_emission = Math.round((activityValue * emissionFactor.factor_value) / 1000 * 100) / 100;
-            } else {
-              const conversionFactor = getConversionFactor(emission.activity_data_unit, emissionFactor.denominator_unit);
-              if (conversionFactor) {
-                const convertedValue = activityValue * conversionFactor;
-                emission.total_emission = Math.round((convertedValue * emissionFactor.factor_value) / 1000 * 100) / 100;
-              } else {
-                return res.status(400).json({
-                  message: `Cannot convert unit "${emission.activity_data_unit}" to expected unit "${emissionFactor.denominator_unit}"`,
-                });
-              }
-            }
-          }
-        } else {
-          // Saving would keep the old total next to the new values.
-          return res.status(400).json({
-            message: `No emission factor found for category "${activity_data.emission_category}"`,
-          });
+      const { entry } = prepared;
+      if (entry.computed && !(entry.computed.activityValue > 0)) {
+        // New values without an amount above 0 would keep the old total next to them.
+        // (A date- or unit-only edit of a stored row keeps its old total.)
+        if (activityDataInput !== undefined) {
+          return res.status(400).json({ message: "Enter an amount greater than 0. Nothing was changed." });
         }
+      } else {
+        applyComputed(emission, entry);
       }
+      warnings = entry.warnings;
+      feraTwin = entry.fera;
+      feraSkipped = entry.feraSkipped;
     }
 
     keepImportProvenance(emission, emission.extra_data, userId);
@@ -3331,13 +3164,14 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // Keep the FERA twin in step (audit F-07). A manager edit does not send
     // the row back to review, so the twin keeps the parent's review state.
     let feraEmission: Emission | null = null;
+    let tdLossTwin: Emission | null = null;
     let feraWarning: string | undefined;
     if (activity_data !== undefined) {
       // The same twin recalculateLinkedFera picks: the forward link first.
       const [twinBefore] = emission.fera_linked_id
         ? await repo.query(`SELECT total_emission, status FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
-        : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 LIMIT 1`, [emission.pk_id]);
-      feraEmission = await recalculateLinkedFera(emission, activity_data);
+        : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 AND scope3_sub IS DISTINCT FROM '3c_td_losses' LIMIT 1`, [emission.pk_id]);
+      feraEmission = await recalculateLinkedFera(emission, activity_data, feraTwin, feraSkipped);
       if (feraEmission && (feraEmission as Emission & { recalcSkipped?: boolean }).recalcSkipped) {
         // The twin couldn't be recalculated and went back to review.
         changedFields.fera_status = { old: twinBefore?.status ?? null, new: EmissionStatus.PENDING };
@@ -3353,11 +3187,13 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
         // Return the twin as stored, with the review state just copied over.
         feraEmission = await repo.findOne({ where: { pk_id: feraEmission.pk_id } });
       }
+      // The T&D-loss twin (S3-7) follows the parent's new numbers and review state.
+      tdLossTwin = await syncTdLossTwin(emission, activity_data);
     }
     if (Number(oldTotal) !== Number(emission.total_emission)) {
       changedFields.total_emission = { old: oldTotal, new: emission.total_emission };
     }
-    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, feraEmission?.pk_id].filter(Boolean) as number[], priorCheckKeys);
+    await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, feraEmission?.pk_id, tdLossTwin?.pk_id].filter(Boolean) as number[], priorCheckKeys);
 
     // Write audit log
     const auditRepo = AppDataSource.getRepository(AuditLog);
@@ -3376,6 +3212,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       emission,
       fera_emission: feraEmission || undefined,
       warning: feraWarning,
+      warnings,
     });
   } catch (error) {
     console.error("Manager update emission error:", error);

@@ -1,4 +1,5 @@
 import { ExtraFieldDefinition } from "../entities/ColumnConfig";
+import { CONVERTIBLE_CURRENCIES } from "../services/emissionWrite/units";
 
 /**
  * Returns default supplementary (extra) fields for a given category.
@@ -21,7 +22,7 @@ const categoryFieldsMap: Record<string, ExtraFieldDefinition[]> = {
     { key: "description", label: "Description of Material/Service", type: "textarea", required: false },
     { key: "quantity", label: "Quantity", type: "number", required: false },
     { key: "spent_value", label: "Spent Value", type: "number", required: false },
-    { key: "currency", label: "Currency (INR/USD)", type: "select", required: false, options: ["INR", "USD", "EUR", "GBP", "BHD", "SAR", "AED"] },
+    { key: "currency", label: "Currency (INR/USD)", type: "select", required: false, options: [...CONVERTIBLE_CURRENCIES] }, // only currencies that convert (S3-4)
     { key: "supplier_name", label: "Name of Supplier", type: "text", required: false },
   ],
 
@@ -54,7 +55,7 @@ const categoryFieldsMap: Record<string, ExtraFieldDefinition[]> = {
     { key: "description", label: "Description of Material/Service", type: "textarea", required: false },
     { key: "quantity", label: "Quantity", type: "number", required: false },
     { key: "spent_value", label: "Spent Value", type: "number", required: false },
-    { key: "currency", label: "Currency (INR/USD)", type: "select", required: false, options: ["INR", "USD", "EUR", "GBP", "BHD", "SAR", "AED"] },
+    { key: "currency", label: "Currency (INR/USD)", type: "select", required: false, options: [...CONVERTIBLE_CURRENCIES] }, // only currencies that convert (S3-4)
     { key: "supplier_name", label: "Name of Supplier", type: "text", required: false },
   ],
 

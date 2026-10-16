@@ -34,9 +34,9 @@ export const GasSchema = z.enum(GASES);
 export type Gas = z.infer<typeof GasSchema>;
 
 /**
- * Factor types each category accepts (§2, §10). A category not listed here
- * is not checked yet: §10 asks S3-0 to add lists for Cats 8, 10, 13, 14 and
- * 15 but does not give them, so they wait for Shyam's lists (S3-0 follow-up).
+ * Factor types each category accepts (§2, §10). Cats 8, 10, 13, 14 and 15
+ * were added by S3-0 (#144) from what their forms use (S3-10, S3-11);
+ * `other` covers reported partner emissions (D13) and refrigerant GWP.
  */
 export const ALLOWED_FACTOR_TYPES: Partial<Record<GhgCategoryNumber, readonly FactorType[]>> = {
   1: ["cradle_to_gate", "eeio_spend", "supplier"],
@@ -46,14 +46,19 @@ export const ALLOWED_FACTOR_TYPES: Partial<Record<GhgCategoryNumber, readonly Fa
   5: ["process", "life_cycle"],
   6: ["life_cycle", "combustion", "eeio_spend"],
   7: ["life_cycle", "combustion", "eeio_spend"],
+  8: ["life_cycle", "combustion", "other"],
   9: ["life_cycle", "combustion", "eeio_spend", "other"],
+  10: ["process", "combustion", "life_cycle"],
   11: ["combustion", "other"],
   12: ["process", "life_cycle"],
+  13: ["life_cycle", "combustion", "other"],
+  14: ["life_cycle", "combustion", "other"],
+  15: ["eeio_spend", "other"],
 };
 
 /**
- * Whether a factor type suits a category. True when the category has no list
- * yet, so an unlisted category never produces a `FACTOR_TYPE_MISMATCH` warning.
+ * Whether a factor type suits a category. True when the category has no list,
+ * so an unlisted category never produces a `FACTOR_TYPE_MISMATCH` warning.
  */
 export const factorTypeAllowed = (n: number, type: FactorType): boolean => {
   const allowed = ALLOWED_FACTOR_TYPES[n as GhgCategoryNumber];

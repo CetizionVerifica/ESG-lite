@@ -1,5 +1,5 @@
 {
-  "about": "Scope 3 golden cases (S3-0), from docs/scope3/01-contracts.md §9 and the module specs' Golden cases sections. guidance_ref.lines are the plan's line references. Every case starts as skip; its owner module turns it to run (and fills in the figures where the docs give none). ci/golden/scope3/run.cjs runs the run cases.",
+  "about": "Scope 3 golden cases (S3-0), from docs/scope3/01-contracts.md §9 and the module specs' Golden cases sections. guidance_ref.lines are the plan's line references. Every case starts as skip; its owner module turns it to run. ci/golden/scope3/run.cjs runs the run cases.",
   "tolerance": {
     "kg": 0.5,
     "relative": 0.001,
@@ -11,129 +11,643 @@
       "id": "ex-1.1",
       "guidance_ref": {
         "example": "1.1",
-        "lines": "L1754"
+        "lines": "L1745-1775"
       },
       "source": "S3-6 spec",
       "category": 1,
       "method": "supplier_specific",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
+      "formula": "200,000 × 0.15 + 600,000 × 0.10 + 200,000 × 0.10 + 100,000 × 0.25 + 50,000 × 0.20 kg",
+      "factors": {
+        "cement_c": {
+          "kgco2e_per_unit": 0.15,
+          "unit": "kg"
+        },
+        "plaster_d": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "kg"
+        },
+        "paint_e": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "kg"
+        },
+        "timber_f": {
+          "kgco2e_per_unit": 0.25,
+          "unit": "kg"
+        },
+        "concrete_g": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Cement (supplier C)",
+          "quantity": 200000,
+          "unit": "kg",
+          "factor": "cement_c"
+        },
+        {
+          "label": "Plaster (supplier D)",
+          "quantity": 600000,
+          "unit": "kg",
+          "factor": "plaster_d"
+        },
+        {
+          "label": "Paint (supplier E)",
+          "quantity": 200000,
+          "unit": "kg",
+          "factor": "paint_e"
+        },
+        {
+          "label": "Timber (supplier F)",
+          "quantity": 100000,
+          "unit": "kg",
+          "factor": "timber_f"
+        },
+        {
+          "label": "Concrete (supplier G)",
+          "quantity": 50000,
+          "unit": "kg",
+          "factor": "concrete_g"
+        }
+      ],
+      "expected_kgco2e": 145000,
       "status": "skip",
       "owner": "S3-6",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 145,000 kg."
     },
     {
       "id": "ex-1.2",
       "guidance_ref": {
         "example": "1.2",
-        "lines": "L1832 (formula 1.2)"
+        "lines": "L1832-1965"
       },
       "source": "S3-6 spec",
       "category": 1,
       "method": "hybrid",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
+      "formula": "supplier S1+S2 (5,000 kWh × 0.5 + 2,500 × 0.2) + materials (5,000 × 7 + 2,500 × 5 + 500 × 2 + 500 × 1.5) + transport kg × km (5,000 × 1,000 × 0.01 + 2,500 × 2,500 × 0.02 + 500 × 800 × 0.05 + 500 × 200 × 0.10) + waste 100 × 0.5",
+      "factors": {
+        "electricity": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "kwh"
+        },
+        "natural_gas": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "kwh"
+        },
+        "cotton": {
+          "kgco2e_per_unit": 7,
+          "unit": "kg"
+        },
+        "polymer": {
+          "kgco2e_per_unit": 5,
+          "unit": "kg"
+        },
+        "chemical_a": {
+          "kgco2e_per_unit": 2,
+          "unit": "kg"
+        },
+        "chemical_b": {
+          "kgco2e_per_unit": 1.5,
+          "unit": "kg"
+        },
+        "transport_cotton": {
+          "kgco2e_per_unit": 0.01,
+          "unit": "kg.km"
+        },
+        "transport_polymer": {
+          "kgco2e_per_unit": 0.02,
+          "unit": "kg.km"
+        },
+        "transport_chem_a": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "kg.km"
+        },
+        "transport_chem_b": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "kg.km"
+        },
+        "landfill": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Supplier B electricity",
+          "quantity": 5000,
+          "unit": "kwh",
+          "factor": "electricity"
+        },
+        {
+          "label": "Supplier B natural gas",
+          "quantity": 2500,
+          "unit": "kwh",
+          "factor": "natural_gas"
+        },
+        {
+          "label": "Cotton",
+          "quantity": 5000,
+          "unit": "kg",
+          "factor": "cotton"
+        },
+        {
+          "label": "Polymer",
+          "quantity": 2500,
+          "unit": "kg",
+          "factor": "polymer"
+        },
+        {
+          "label": "Chemical A",
+          "quantity": 500,
+          "unit": "kg",
+          "factor": "chemical_a"
+        },
+        {
+          "label": "Chemical B",
+          "quantity": 500,
+          "unit": "kg",
+          "factor": "chemical_b"
+        },
+        {
+          "label": "Cotton transport",
+          "quantity": 5000000,
+          "unit": "kg.km",
+          "factor": "transport_cotton"
+        },
+        {
+          "label": "Polymer transport",
+          "quantity": 6250000,
+          "unit": "kg.km",
+          "factor": "transport_polymer"
+        },
+        {
+          "label": "Chemical A transport",
+          "quantity": 400000,
+          "unit": "kg.km",
+          "factor": "transport_chem_a"
+        },
+        {
+          "label": "Chemical B transport",
+          "quantity": 100000,
+          "unit": "kg.km",
+          "factor": "transport_chem_b"
+        },
+        {
+          "label": "Waste to landfill",
+          "quantity": 100,
+          "unit": "kg",
+          "factor": "landfill"
+        }
+      ],
+      "expected_kgco2e": 257300,
       "status": "skip",
       "owner": "S3-6",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). The guidance prints 20,500 kg for transport and 72,800 kg in total, but its own transport line (5,000 × 1,000 × 0.01 + 2,500 × 2,500 × 0.02 + 500 × 800 × 0.05 + 500 × 200 × 0.1) sums to 205,000, so the exact total is 3,000 + 49,250 + 205,000 + 50 = 257,300 kg. Stored exact, the same rule as 8.1 and 15.2 (01-contracts.md §9). Transport rows carry kg × km as one quantity."
     },
     {
       "id": "ex-1.3",
       "guidance_ref": {
         "example": "1.3",
-        "lines": "L1942 (formula 1.3)"
+        "lines": "L1966-2015"
       },
       "source": "S3-6 spec",
       "category": 1,
       "method": "hybrid",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
+      "formula": "supplier S1+S2 (5,000 kWh × 0.5 + 2,500 × 0.2) + waste 100 × 0.5 + 12,000 t-shirts × 5.6",
+      "factors": {
+        "electricity": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "kwh"
+        },
+        "natural_gas": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "kwh"
+        },
+        "landfill": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "kg"
+        },
+        "tshirt_excl_s1s2": {
+          "kgco2e_per_unit": 5.6,
+          "unit": "unit"
+        }
+      },
+      "rows": [
+        {
+          "label": "Supplier B electricity",
+          "quantity": 5000,
+          "unit": "kwh",
+          "factor": "electricity"
+        },
+        {
+          "label": "Supplier B natural gas",
+          "quantity": 2500,
+          "unit": "kwh",
+          "factor": "natural_gas"
+        },
+        {
+          "label": "Waste to landfill",
+          "quantity": 100,
+          "unit": "kg",
+          "factor": "landfill"
+        },
+        {
+          "label": "T-shirts (cradle-to-gate excl. supplier S1+S2 and waste)",
+          "quantity": 12000,
+          "unit": "unit",
+          "factor": "tshirt_excl_s1s2"
+        }
+      ],
+      "expected_kgco2e": 70250,
       "status": "skip",
       "owner": "S3-6",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 70,250 kg. The guidance's working line says 50,000 × 5.6 but its table and result use 12,000 t-shirts (12,000 × 5.6 = 67,200)."
     },
     {
       "id": "ex-1.4",
       "guidance_ref": {
         "example": "1.4",
-        "lines": "L1754-2125 (Cat 1)"
+        "lines": "L2082-2125"
       },
       "source": "01-contracts.md §9",
       "category": 1,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
+      "formula": "400 × 20 + 200 × 10 + 500 × 40 + 100 × 70 + 1,500 × 3 + 300 × 3 kg",
+      "factors": {
+        "hard_drive": {
+          "kgco2e_per_unit": 20,
+          "unit": "kg"
+        },
+        "integrated_circuits": {
+          "kgco2e_per_unit": 10,
+          "unit": "kg"
+        },
+        "lcd": {
+          "kgco2e_per_unit": 40,
+          "unit": "kg"
+        },
+        "semiconductors": {
+          "kgco2e_per_unit": 70,
+          "unit": "kg"
+        },
+        "battery": {
+          "kgco2e_per_unit": 3,
+          "unit": "kg"
+        },
+        "keyboard": {
+          "kgco2e_per_unit": 3,
+          "unit": "kg"
+        }
+      },
+      "rows": [
+        {
+          "label": "Hard drive",
+          "quantity": 400,
+          "unit": "kg",
+          "factor": "hard_drive"
+        },
+        {
+          "label": "Integrated circuits",
+          "quantity": 200,
+          "unit": "kg",
+          "factor": "integrated_circuits"
+        },
+        {
+          "label": "LCD",
+          "quantity": 500,
+          "unit": "kg",
+          "factor": "lcd"
+        },
+        {
+          "label": "Semiconductors",
+          "quantity": 100,
+          "unit": "kg",
+          "factor": "semiconductors"
+        },
+        {
+          "label": "Battery",
+          "quantity": 1500,
+          "unit": "kg",
+          "factor": "battery"
+        },
+        {
+          "label": "Keyboard",
+          "quantity": 300,
+          "unit": "kg",
+          "factor": "keyboard"
+        }
+      ],
+      "expected_kgco2e": 42400,
       "status": "skip",
       "owner": "S3-6",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Owner to confirm: no module spec lists 1.4."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Example 1.4 mixes two methods (54,100 kg in all). This case is its average-data part (semi-processed components by mass); the spend part is ex-1.5 (11,700 kg). 42,400 + 11,700 = 54,100."
     },
     {
       "id": "ex-1.5",
       "guidance_ref": {
-        "example": "1.5",
-        "lines": "L2074 (formula 1.5)"
+        "example": "1.4",
+        "lines": "L2068-2125 (formula 1.5, raw materials of example 1.4)"
       },
       "source": "S3-5 spec",
       "category": 1,
       "method": "spend_based",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
+      "formula": "5,000 × 0.3 + 3,000 × 0.3 + 4,000 × 0.3 + 6,000 × 0.5 + 1,500 × 0.2 + 5,000 × 0.2 + 5,000 × 0.3 + 1,000 × 0.3 + 5,000 × 0.4 USD",
+      "factors": {
+        "plastic_ps": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "plastic_abs": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "pet_film": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "aluminium": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "USD"
+        },
+        "steel": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "USD"
+        },
+        "cyclohexane": {
+          "kgco2e_per_unit": 0.2,
+          "unit": "USD"
+        },
+        "epoxy": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "copper": {
+          "kgco2e_per_unit": 0.3,
+          "unit": "USD"
+        },
+        "glass": {
+          "kgco2e_per_unit": 0.4,
+          "unit": "USD"
+        }
+      },
+      "rows": [
+        {
+          "label": "Plastic (PS)",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "plastic_ps"
+        },
+        {
+          "label": "Plastic (ABS)",
+          "quantity": 3000,
+          "unit": "USD",
+          "factor": "plastic_abs"
+        },
+        {
+          "label": "PET (film)",
+          "quantity": 4000,
+          "unit": "USD",
+          "factor": "pet_film"
+        },
+        {
+          "label": "Aluminium",
+          "quantity": 6000,
+          "unit": "USD",
+          "factor": "aluminium"
+        },
+        {
+          "label": "Steel",
+          "quantity": 1500,
+          "unit": "USD",
+          "factor": "steel"
+        },
+        {
+          "label": "Cyclohexane",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "cyclohexane"
+        },
+        {
+          "label": "Epoxy resin",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "epoxy"
+        },
+        {
+          "label": "Copper",
+          "quantity": 1000,
+          "unit": "USD",
+          "factor": "copper"
+        },
+        {
+          "label": "Glass",
+          "quantity": 5000,
+          "unit": "USD",
+          "factor": "glass"
+        }
+      ],
+      "expected_kgco2e": 11700,
       "status": "skip",
       "owner": "S3-5",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). The guidance has no separate Example 1.5; formula 1.5 is worked inside Example 1.4. This case is that example's spend part (raw materials by value); the mass part is ex-1.4. No FX or deflator: the example's spend and factors are both in USD of the same year."
     },
     {
       "id": "ex-3.x-upstream-fuels",
       "guidance_ref": {
         "example": "3.x",
-        "lines": "L2577-2660 (Cat 3)"
+        "lines": "L2338-2348 (formula 3.1)"
       },
-      "source": "S3-7 spec",
+      "source": "S3-7 constructed",
       "category": 3,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
-      "status": "skip",
+      "factors": {
+        "diesel_wtt": {
+          "kgco2e_per_unit": 0.61,
+          "unit": "litre"
+        },
+        "natural_gas_wtt": {
+          "kgco2e_per_unit": 0.03,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Diesel",
+          "quantity": 10000,
+          "unit": "litre",
+          "factor": "diesel_wtt"
+        },
+        {
+          "label": "Natural gas",
+          "quantity": 50000,
+          "unit": "kwh",
+          "factor": "natural_gas_wtt"
+        }
+      ],
+      "expected_kgco2e": 7600,
+      "status": "run",
       "owner": "S3-7",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3a_upstream_fuels."
+      "note": "Constructed: the guidance gives formula 3.1 for upstream fuels but no worked example (01-contracts §9 lets the owner fill figures). Factors are round WTT values in the range of DESNZ 2024. Sub-activity 3a_upstream_fuels: the FERA twin of a Scope 1 fuel row, on a wtt factor.",
+      "formula": "Σ fuel consumed × upstream (WTT) factor: diesel 10,000 L × 0.61 + natural gas 50,000 kWh × 0.03 (formula 3.1)"
     },
     {
       "id": "ex-3.x-upstream-electricity",
       "guidance_ref": {
-        "example": "3.x",
-        "lines": "L2577-2660 (Cat 3)"
+        "example": "3.1",
+        "lines": "L2577-2660"
       },
       "source": "S3-7 spec",
       "category": 3,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
-      "status": "skip",
+      "factors": {
+        "australia_upstream": {
+          "kgco2e_per_unit": 0.12,
+          "unit": "kwh"
+        },
+        "canada_upstream": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "kwh"
+        },
+        "india_upstream": {
+          "kgco2e_per_unit": 0.15,
+          "unit": "kwh"
+        },
+        "united_states_upstream": {
+          "kgco2e_per_unit": 0.1,
+          "unit": "kwh"
+        },
+        "turkey_upstream": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "kwh"
+        },
+        "canada_heating_upstream": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Australia electricity",
+          "quantity": 500000,
+          "unit": "kwh",
+          "factor": "australia_upstream"
+        },
+        {
+          "label": "Canada electricity",
+          "quantity": 600000,
+          "unit": "kwh",
+          "factor": "canada_upstream"
+        },
+        {
+          "label": "India electricity",
+          "quantity": 400000,
+          "unit": "kwh",
+          "factor": "india_upstream"
+        },
+        {
+          "label": "United States electricity",
+          "quantity": 5500000,
+          "unit": "kwh",
+          "factor": "united_states_upstream"
+        },
+        {
+          "label": "Turkey electricity",
+          "quantity": 200000,
+          "unit": "kwh",
+          "factor": "turkey_upstream"
+        },
+        {
+          "label": "Canada heating",
+          "quantity": 50000,
+          "unit": "kwh",
+          "factor": "canada_heating_upstream"
+        }
+      ],
+      "expected_kgco2e": 742500,
+      "status": "run",
       "owner": "S3-7",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3b_upstream_electricity."
+      "note": "Example 3.1 (data centres): upstream of purchased electricity and heating, sub-activity 3b_upstream_electricity. In ESGLite each row is the FERA twin of a Scope 2 row, on a wtt factor.",
+      "formula": "Σ kWh × upstream factor: electricity 740,000 kg + district heating 2,500 kg (formula 3.2)"
     },
     {
       "id": "ex-3.x-td-losses",
       "guidance_ref": {
-        "example": "3.x",
+        "example": "3.1",
         "lines": "L2542-2581, L2577-2660"
       },
       "source": "S3-7 spec",
       "category": 3,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
-      "status": "skip",
+      "factors": {
+        "australia_td_loss": {
+          "kgco2e_per_unit": 0.08,
+          "unit": "kwh"
+        },
+        "canada_td_loss": {
+          "kgco2e_per_unit": 0.052,
+          "unit": "kwh"
+        },
+        "india_td_loss": {
+          "kgco2e_per_unit": 0.12,
+          "unit": "kwh"
+        },
+        "united_states_td_loss": {
+          "kgco2e_per_unit": 0.05,
+          "unit": "kwh"
+        },
+        "turkey_td_loss": {
+          "kgco2e_per_unit": 0.048,
+          "unit": "kwh"
+        },
+        "canada_heating_td_loss": {
+          "kgco2e_per_unit": 0.0075,
+          "unit": "kwh"
+        }
+      },
+      "rows": [
+        {
+          "label": "Australia T&D losses",
+          "quantity": 500000,
+          "unit": "kwh",
+          "factor": "australia_td_loss"
+        },
+        {
+          "label": "Canada T&D losses",
+          "quantity": 600000,
+          "unit": "kwh",
+          "factor": "canada_td_loss"
+        },
+        {
+          "label": "India T&D losses",
+          "quantity": 400000,
+          "unit": "kwh",
+          "factor": "india_td_loss"
+        },
+        {
+          "label": "United States T&D losses",
+          "quantity": 5500000,
+          "unit": "kwh",
+          "factor": "united_states_td_loss"
+        },
+        {
+          "label": "Turkey T&D losses",
+          "quantity": 200000,
+          "unit": "kwh",
+          "factor": "turkey_td_loss"
+        },
+        {
+          "label": "Canada heating T&D losses",
+          "quantity": 50000,
+          "unit": "kwh",
+          "factor": "canada_heating_td_loss"
+        }
+      ],
+      "expected_kgco2e": 404175,
+      "status": "run",
       "owner": "S3-7",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Sub-activity 3c_td_losses: electricity × loss rate × life-cycle grid factor."
+      "note": "Example 3.1: T&D losses of the same electricity and heating, sub-activity 3c_td_losses. The guidance's combustion factor stands in for the life-cycle factor, as the example does. In ESGLite each row is the 3c twin of a Scope 2 row, on a td_loss factor (docs/emission-factor-sources.md).",
+      "formula": "Σ kWh × life-cycle factor × T&D loss rate (formula 3.3); the factor is uploaded as life-cycle × loss rate per kWh consumed"
     },
     {
       "id": "ex-4.1",
@@ -395,33 +909,134 @@
       "id": "ex-5.1",
       "guidance_ref": {
         "example": "5.1",
-        "lines": "L3777-3850 (Cat 5)"
+        "lines": "L3771-3800"
       },
       "source": "01-contracts.md §9",
       "category": 5,
       "method": "waste_type_specific",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
+      "formula": "2,000 t × 40 + 5,000 t × 2 + 4,000 t × 10 + 5,000 m3 × 0.5",
+      "factors": {
+        "plastic_landfill": {
+          "kgco2e_per_unit": 40,
+          "unit": "tonne"
+        },
+        "plastic_incineration_er": {
+          "kgco2e_per_unit": 2,
+          "unit": "tonne"
+        },
+        "plastic_recycled": {
+          "kgco2e_per_unit": 10,
+          "unit": "tonne"
+        },
+        "wastewater": {
+          "kgco2e_per_unit": 0.5,
+          "unit": "m3"
+        }
+      },
+      "rows": [
+        {
+          "label": "Plastic to landfill",
+          "quantity": 2000,
+          "unit": "tonne",
+          "factor": "plastic_landfill"
+        },
+        {
+          "label": "Plastic incinerated with energy recovery",
+          "quantity": 5000,
+          "unit": "tonne",
+          "factor": "plastic_incineration_er"
+        },
+        {
+          "label": "Plastic recycled",
+          "quantity": 4000,
+          "unit": "tonne",
+          "factor": "plastic_recycled"
+        },
+        {
+          "label": "Wastewater",
+          "quantity": 5000,
+          "unit": "m3",
+          "factor": "wastewater"
+        }
+      ],
+      "expected_kgco2e": 132500,
       "status": "skip",
       "owner": "S3-8",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Owner to confirm: no module spec lists Cat 5."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 132,500 kg. Owner to confirm: no module spec lists Cat 5."
     },
     {
       "id": "ex-5.2",
       "guidance_ref": {
         "example": "5.2",
-        "lines": "L3777-3850 (Cat 5)"
+        "lines": "L3818-3850"
       },
       "source": "01-contracts.md §9",
       "category": 5,
       "method": "average_data",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": null,
+      "formula": "40 t × (25 % × 300 + 5 % × 0 + 30 % × 0 + 20 % × 10 + 20 % × 30)",
+      "factors": {
+        "landfill": {
+          "kgco2e_per_unit": 300,
+          "unit": "tonne"
+        },
+        "incineration_er": {
+          "kgco2e_per_unit": 0,
+          "unit": "tonne"
+        },
+        "recycled_allocated": {
+          "kgco2e_per_unit": 0,
+          "unit": "tonne"
+        },
+        "recycled_not_allocated": {
+          "kgco2e_per_unit": 10,
+          "unit": "tonne"
+        },
+        "composted": {
+          "kgco2e_per_unit": 30,
+          "unit": "tonne"
+        }
+      },
+      "rows": [
+        {
+          "label": "Landfill",
+          "quantity": 40,
+          "unit": "tonne",
+          "factor": "landfill",
+          "share": 0.25
+        },
+        {
+          "label": "Incinerated with energy recovery",
+          "quantity": 40,
+          "unit": "tonne",
+          "factor": "incineration_er",
+          "share": 0.05
+        },
+        {
+          "label": "Recycled (recovery allocated to the material)",
+          "quantity": 40,
+          "unit": "tonne",
+          "factor": "recycled_allocated",
+          "share": 0.3
+        },
+        {
+          "label": "Recycled (recovery not allocated)",
+          "quantity": 40,
+          "unit": "tonne",
+          "factor": "recycled_not_allocated",
+          "share": 0.2
+        },
+        {
+          "label": "Composted",
+          "quantity": 40,
+          "unit": "tonne",
+          "factor": "composted",
+          "share": 0.2
+        }
+      ],
+      "expected_kgco2e": 3320,
       "status": "skip",
       "owner": "S3-8",
-      "note": "Named in 01-contracts.md §9; the docs give no figures yet. The owner adds factors, rows and expected_kgco2e when it turns the case on. Owner to confirm: no module spec lists Cat 5."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 3,320 kg. Owner to confirm: no module spec lists Cat 5."
     },
     {
       "id": "ex-6.1",
@@ -494,7 +1109,7 @@
         }
       ],
       "expected_kgco2e": 8317583.33,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9"
     },
     {
@@ -532,9 +1147,9 @@
         }
       ],
       "expected_kgco2e": 3072,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9",
-      "note": "Run it through the survey path, not just the form (S3-9 spec)."
+      "note": "Run it through the survey path, not just the form (S3-9 spec): ci/unit/scope3-travel.test.cjs plans the survey and runs its rows through the Category 7 form; here the rows are the survey's per-mode sums."
     },
     {
       "id": "ex-7.2",
@@ -581,7 +1196,7 @@
         }
       ],
       "expected_kgco2e": 6697500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-9",
       "note": "The foot row has factor 0 and is skipped (S3-9 spec)."
     },
@@ -633,7 +1248,7 @@
         }
       ],
       "expected_kgco2e": 1320,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "The guidance prints 1,325 because it rounds the refrigerant to 0.67 kg; 1,320 is exact (01-contracts.md §9)."
     },
@@ -663,7 +1278,7 @@
         }
       ],
       "expected_kgco2e": 3000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "Partner-reported figure with an identity factor (01-contracts.md §10)."
     },
@@ -716,7 +1331,7 @@
         }
       ],
       "expected_kgco2e": 355000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
       "note": "Partner-reported scope 1+2 with an identity factor (01-contracts.md §10)."
     },
@@ -773,7 +1388,7 @@
         }
       ],
       "expected_kgco2e": 23500000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11"
     },
     {
@@ -823,7 +1438,7 @@
         }
       ],
       "expected_kgco2e": 493000000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11"
     },
     {
@@ -895,11 +1510,10 @@
           "share": 0.1
         }
       ],
-      "expected_kgco2e": 2242500,
+      "expected_kgco2e": 2332500,
       "status": "skip",
       "owner": "S3-11",
-      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). Runs once S3-5 spend.ts is merged.",
-      "open_question": "The formula's investee 4 term (5,500,000 × 60 % × 2 + 5,500,000 × 40 % × 1.5) × 10 % gives 990,000, so the rows sum to 2,332,500, not 2,242,500. Confirm the expected figure before turning this case on."
+      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). The guidance prints 2,242,500 because it writes the investee 4 term as 900,000; its own inputs give 990,000, so the exact total is 2,332,500 (S3-11). Runs once S3-5 spend.ts is merged."
     },
     {
       "id": "ex-10.1",
@@ -946,8 +1560,8 @@
         }
       ],
       "expected_kgco2e": 1725,
-      "status": "skip",
-      "owner": "S3-10"
+      "status": "run",
+      "owner": "S3-10", "note": "Runs once S3-4 (ESG-lite #137) gives the engine its kg figure: until then each row is 2 dp tCO2e, so the 25 kg waste row counts as 30 kg (1,730). The form gives 1,725 exactly (ci/unit/scope3-sold-products.test.cjs)."
     },
     {
       "id": "ex-10.2",
@@ -974,7 +1588,7 @@
         }
       ],
       "expected_kgco2e": 1500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1014,7 +1628,7 @@
         }
       ],
       "expected_kgco2e": 13042500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1043,7 +1657,7 @@
         }
       ],
       "expected_kgco2e": 36000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10"
     },
     {
@@ -1083,7 +1697,7 @@
         }
       ],
       "expected_kgco2e": 3700,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-10",
       "note": "The 0 % recycling row is not created (S3-10 spec)."
     },
@@ -1154,23 +1768,6 @@
       "expected_kgco2e": 500000,
       "status": "skip",
       "owner": "S3-12"
-    },
-    {
-      "id": "report-cat4-cat9",
-      "guidance_ref": {
-        "example": "constructed",
-        "lines": null
-      },
-      "source": "01-contracts.md §9, S3-13 spec",
-      "category": null,
-      "method": "unknown",
-      "formula": "post ex-4.2 and ex-9.1, approve, read GET /reports/ghg/scope3 → Cat 4 = 5.00 t, Cat 9 = 1.60 t, Scope 3 = 6.60 t",
-      "factors": {},
-      "rows": [],
-      "expected_kgco2e": 6600,
-      "status": "skip",
-      "owner": "S3-13",
-      "note": "Report-level case; S3-13 moves it to ci/golden/scope3/report.json and checks it through the API."
     }
   ]
 }

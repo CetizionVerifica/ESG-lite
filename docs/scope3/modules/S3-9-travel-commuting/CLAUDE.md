@@ -21,7 +21,7 @@ A contributor records trips (air, rail, car, hotel nights) by distance, fuel or 
 
 ## Build
 ### Backend (ESG-lite)
-1. `calculationSpec.ts` + `ColumnConfig.ts` (`MethodCalculation`): add `divide?: string[]` (each > 0; a field also listed in `percent` divides by value/100) and `method_column: "@method"` meaning "the row's `method` (S3-3) picks the field set". Unit tests for both. S3-0 follow-up: `divide` is wanted by S3-8, S3-10 and S3-11 as well; record it in `01-contracts.md` §6.
+1. `calculationSpec.ts` + `ColumnConfig.ts` (`MethodCalculation`): add `divide?: string[]` (each > 0; a field also listed in `percent` divides by value/100) and `method_column: "@method"` meaning "the row's `method` (S3-3) picks the field set". Unit tests for both. `divide` is shared by S3-8, S3-10 and S3-11; its contract is in `01-contracts.md` §6 (owned by S3-0, built here).
 2. Business travel config (`src/scope3/commuting/configs.ts`, applied to every site with `ghg_category = 6`): `per_unit` spec
    - `passenger.km` → [Travellers, Distance (km)]; `vehicle.km` → [Travellers, Distance (km)] ÷ [Travellers per vehicle] (6.1 road);
    - `night` → [Rooms, Nights] (hotel); `litre` → [Fuel used (litres)] (fuel_based); spend via S3-5.

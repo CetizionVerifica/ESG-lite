@@ -72,6 +72,11 @@ export class Company {
   @Column({ type: "timestamp", nullable: true, select: false, insert: false, update: false })
   created_at?: Date | null;
 
+  // Scope 3 boundary approach (S3-1, D4): operational_control (default),
+  // financial_control or equity_share. Read by reports (S3-13).
+  @Column({ type: "varchar", length: 30, default: "operational_control" })
+  consolidation_approach!: string;
+
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];
 }
