@@ -60,8 +60,9 @@ test("a proxy row stays secondary and scores completeness 3 whatever its sources
   assert.equal(r.computed.method, "supplier_specific");
   assert.equal(r.computed.data_type, "secondary", "a primary method's sources still make a secondary proxy row");
   assert.equal(r.computed.dq.completeness, 3);
-  // A measured row with the same method stays primary.
-  const measured = engine.computeRow(ctx, { factor: factor(1, "kgCO2e"), activity_data: { activity_value: "1" }, activity_unit: "kgCO2e", method: "supplier_specific" });
+  // A measured row with a primary method stays primary. (site_specific, not
+  // supplier_specific: since S3-6 a supplier row needs its supplier's figures.)
+  const measured = engine.computeRow(ctx, { factor: factor(1, "kgCO2e"), activity_data: { activity_value: "1" }, activity_unit: "kgCO2e", method: "site_specific" });
   assert.equal(measured.computed.data_type, "primary");
   assert.equal(measured.computed.dq.completeness, 1);
 });

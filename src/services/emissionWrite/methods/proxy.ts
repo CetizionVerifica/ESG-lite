@@ -37,24 +37,28 @@ export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => 
     };
   }
   const proxy = parsed.data;
+  // Every proxy row scales a factor (coverage: 1 kgCO₂e per kgCO₂e; intensity: kg per output
+  // unit; sample: its form's own). The engine only routes factored rows here; the guard also
+  // narrows S3-6's nullable factor.
+  const factor = row.factor;
+  if (!factor) return { ok: false, issue: { code: "FIELD_REQUIRED", field: "emission_category", message: "An estimated row needs an emission factor." } };
   // A survey row is scaled by its own form's fields (S3-9); the proxy only labels it.
-  if (proxy.basis === "sample") return (ctx.spec ? specMethod : activity).compute(ctx, row);
-
+  if (proxy.basis === "sample") return (ctx.spec ? specMethod : activity).compute(ctx, { ...row, factor });
   const quantity = pickActivityValue(row.activity_data, ctx.selectColumns);
   // The activity step checks and converts the unit (kgCO₂e, or the output unit for intensity).
-  const base = activity.applyFactor(quantity, row.activity_unit, row.factor);
+  const base = activity.applyFactor(quantity, row.activity_unit, factor);
   if (!base.ok) return base;
   if (!(quantity > 0)) return base;
 
   const scale = proxy.basis === "coverage" ? coverageScale(proxy.coverage_pct!) : 1;
   const inFactorUnit = quantity * (base.computed.conversion ?? 1) * scale;
-  const kg = inFactorUnit * Number(row.factor.factor_value);
+  const kg = inFactorUnit * Number(factor.factor_value);
   return {
     ok: true,
     computed: {
       ...base.computed,
       ...totals(kg),
-      ...activity.gasesFor(inFactorUnit, row.factor),
+      ...activity.gasesFor(inFactorUnit, factor),
       ...(row.method && row.method !== "unknown" ? { method: row.method } : {}),
       data_type: "secondary",
     },
