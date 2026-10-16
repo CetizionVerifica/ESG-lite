@@ -427,4 +427,44 @@ step("24 the Admin freezes the base year: the preview shows the approved Scope 3
 
 // ── Go-live checks still to come ───────────────────────────────────────────
 
-pendingStep("27 the Scope 3 audit probes pass on this stack", "S3-16", async () => require("fs").existsSync("/mnt/project-files/audit/harness/scope3-probes.cjs"), async (t) => t.skip("run audit/harness/scope3-probes.cjs from the audit harness"));
+// S3-16: the audit harness, from the shared audit folder or this checkout, on
+// this build. It needs the shared API fixture (ci/api/fixture.sql), so it runs
+// in a scratch database of its own (<DB_NAME>_probes) and its own server
+// (SCOPE3_PROBE_PORT, default 3996), never in this client's database. Red on a
+// harness error (setup, residue left behind); a `fail` row is a finding for
+// the owning lane, listed here and red only with SCOPE3_PROBES_STRICT=1.
+const probeHarness = () =>
+  [process.env.SCOPE3_PROBES, "/mnt/project-files/audit/harness/scope3-probes.cjs", require("path").resolve(__dirname, "../../audit/harness/scope3-probes.cjs")].find(
+    (p) => p && require("fs").existsSync(p),
+  );
+pendingStep("27 the Scope 3 audit probes pass on this stack", "S3-16", async () => !!probeHarness(), async (t) => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const { Client } = require("pg");
+  const { createScratchDb, dropScratchDb } = require("../lib/throwaway-db.cjs");
+  const { spawnSync } = require("child_process");
+  const config = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USERNAME, password: process.env.DB_PASSWORD };
+  const dbName = await createScratchDb(Client, config, "probes");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "scope3-probes-"));
+  const out = path.join(dir, "scope3-probes.json");
+  try {
+    const run = spawnSync(process.execPath, [probeHarness(), path.resolve(__dirname, "../.."), out], {
+      env: { ...process.env, DB_NAME: dbName },
+      encoding: "utf8",
+      timeout: 15 * 60 * 1000,
+    });
+    assert.ok(fs.existsSync(out), `the harness wrote no result (exit ${run.status}): ${`${run.stdout}${run.stderr}`.slice(-1500)}`);
+    const { counts, results } = JSON.parse(fs.readFileSync(out, "utf8"));
+    t.diagnostic(String(run.stdout).trim().split("\n").pop());
+    const errors = results.filter((r) => r.status === "error");
+    assert.equal(errors.length, 0, errors.map((r) => `${r.ids.join(",")}: ${r.observed}`).join("\n"));
+    assert.equal(run.status, 0, `harness exited ${run.status}`);
+    const fails = results.filter((r) => r.status === "fail");
+    for (const r of fails) t.diagnostic(`fail ${r.ids.join(",")} (owning lane's finding): ${String(r.observed).slice(0, 400)}`);
+    if (process.env.SCOPE3_PROBES_STRICT === "1") assert.equal(counts.fail, 0, fails.map((r) => r.ids.join(",")).join(", "));
+  } finally {
+    await dropScratchDb(Client, config, "probes");
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
