@@ -494,20 +494,37 @@ async function postCase(db, head, k, categoryId, monthOffset) {
     names[key] = `${TAG} ${k.id} ${key}`;
     await probeFactor(head, { categoryId, n: k.category, name: names[key], value: f.kgco2e_per_unit, unit: f.unit, year: factorYear });
   }
-  for (const [i, row] of k.rows.entries()) {
+  for (const [i, line] of postedLines(k).entries()) {
     // One month per row keeps two rows on one factor apart (no duplicate entry).
     const month = String(((monthOffset + i) % 12) + 1).padStart(2, "0");
     const res = await postEntry({
       categoryId,
       date: `${GOLDEN_YEAR}-${month}-${String(1 + Math.floor((monthOffset + i) / 12)).padStart(2, "0")}`,
-      name: names[row.factor],
-      value: row.quantity * (row.share ?? 1),
-      unit: row.unit,
+      name: names[line.factor],
+      value: line.value,
+      unit: line.unit,
     });
-    if (res.status !== 201) return { error: `row ${i} (${row.label}): POST /user/emissions answered ${res.status} ${res.json?.code || res.json?.message || ""}`.trim() };
+    if (res.status !== 201) return { error: `row ${i} (${line.label}): POST /user/emissions answered ${res.status} ${res.json?.code || res.json?.message || ""}`.trim() };
     ids.push(res.json.emission.pk_id);
   }
   return { ids };
+}
+
+/**
+ * The typed rows a case posts, one per factor. A plain row is quantity × its
+ * factor. An S3-6 row with `supplier` is the supplier's own figure × quantity
+ * (`supplier.factor`) plus each hybrid input line × its factor
+ * (`supplier.lines`): the same sum ci/unit/scope3-golden-cases.test.cjs
+ * checks. Like every case here it goes through the typed path, not the
+ * supplier method (finding 6 in scope3-probes.CLAUDE.md).
+ */
+function postedLines(k) {
+  return k.rows.flatMap((row) => {
+    if (!row.supplier) return [{ label: row.label, factor: row.factor, value: row.quantity * (row.share ?? 1), unit: row.unit }];
+    const own = row.supplier.factor ? [{ label: row.label, factor: row.supplier.factor, value: row.quantity * (row.share ?? 1), unit: row.unit }] : [];
+    const lines = (row.supplier.lines ?? []).map((l) => ({ label: `${row.label}: ${l.name}`, factor: l.factor, value: l.quantity, unit: l.unit }));
+    return [...own, ...lines];
+  });
 }
 
 async function storedKg(db, head, ids) {
@@ -549,6 +566,15 @@ async function liveGolden(db, head) {
       out.cases.push(entry);
       continue;
     }
+    if (k.proxy) {
+      // A proxy case (S3-12) is calculated by POST /scope3/extrapolate from
+      // source rows, not by a typed entry; this harness doesn't drive that
+      // endpoint yet, so the case is the in-memory engine figure only.
+      entry.result = "skip";
+      entry.why = `proxy case: calculated by POST /scope3/extrapolate, not posted live yet (engine: ${entry.engine || "not run"})`;
+      out.cases.push(entry);
+      continue;
+    }
     if (!k.category || !k.rows?.length || k.expected_kgco2e === null) {
       entry.result = "fail";
       entry.why = "run case without a category, rows or figures";
@@ -566,7 +592,7 @@ async function liveGolden(db, head) {
       out.cases.push(entry);
       continue;
     }
-    monthOffset += k.rows.length;
+    monthOffset += postedLines(k).length;
     if (posted.error) {
       entry.result = "fail";
       entry.why = posted.error;
@@ -715,14 +741,17 @@ async function runRows(db, head, golden, logs) {
     const failed = golden.cases.filter((c) => c.result === "fail");
     for (const c of failed) problems.push(`${c.id} (${c.owner}): ${c.why}`);
     for (const c of golden.report_cases.filter((x) => x.result === "fail")) problems.push(`${c.id} (${c.owner}): ${c.why}`);
-    const run = golden.cases.filter((c) => c.status === "run");
-    const skipped = golden.cases.filter((c) => c.result === "skip");
+    const engineOnly = golden.cases.filter((c) => c.status === "run" && c.result === "skip");
+    const run = golden.cases.filter((c) => c.status === "run" && c.result !== "skip");
+    const skipped = golden.cases.filter((c) => c.status !== "run" && c.result === "skip");
     const owed = [...new Set(skipped.map((c) => c.why.replace(/^waits for /, "")).flatMap((w) => w.split(", ")))].sort(byModule);
     if (problems.length) return r.fail(problems.join("; "));
     const reports = golden.report_cases.filter((c) => c.result === "pass").length;
     return r.pass(
       `snapshot identical; ${golden.engine.summary.replace(/\.$/, "")}; live API: ${run.length} run case(s) pass` +
-        `${reports ? `, ${reports} report case(s) pass` : ""}; ${skipped.length} skip, owed by ${owed.join(", ") || "nobody"}`,
+        `${reports ? `, ${reports} report case(s) pass` : ""}` +
+        `${engineOnly.length ? `; ${engineOnly.length} proxy case(s) engine-only (${engineOnly.map((c) => c.id).join(", ")})` : ""}` +
+        `; ${skipped.length} skip, owed by ${owed.join(", ") || "nobody"}`,
     );
   });
 
