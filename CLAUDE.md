@@ -6,6 +6,10 @@
 - Specs for this repo: `docs/pcf/foundation/E1-data-and-engine/CLAUDE.md` (PCF data model and engine) and `docs/redesign/00-entity-map.md` (entities, endpoints, backend items B1–B8).
 - The full plans live in ESG-lite_FE under `docs/redesign/` and `docs/pcf/`.
 
+## End-to-end data workflow test — see ci/workflow/README.md
+- After finishing a lane (any module touching setup, entry, the engine, review or reports), run `bash ci/workflow/local.sh` with `production` merged in before asking for review; a red step blocks the PR. Put "Workflow test: N passed, M skipped" in the last PR body.
+- The lane that builds a module replaces that module's skipped step ("waits on S3-n / SE-n") with real checks. Expected figures are worked out by hand in `ci/workflow/scenario.cjs`, never read back from the engine.
+
 ## Smart Excel import (managers) — see docs/excel-import/
 - Site-wise only: one site per upload, one plan and batch per site; rows naming another site get `SITE_NOT_ALLOWED`, never reassigned.
 - The mapping model never decides scope: every site, category and name comes from the caller's import context and is re-checked by `buildWriterContext` at plan and commit. Mapping memory (`import_mapping_profile`) is keyed by company and read only through that context.

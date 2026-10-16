@@ -448,7 +448,7 @@
         }
       ],
       "expected_kgco2e": 11700,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-5",
       "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). The guidance has no separate Example 1.5; formula 1.5 is worked inside Example 1.4. This case is that example's spend part (raw materials by value); the mass part is ex-1.4. No FX or deflator: the example's spend and factors are both in USD of the same year."
     },
@@ -780,9 +780,9 @@
         }
       ],
       "expected_kgco2e": 7300,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-5",
-      "note": "Listed by S3-8 (runs once S3-5 spend.ts is merged) and by S3-5; S3-5 turns it on."
+      "note": "Listed by S3-8 and S3-5; S3-5 runs it (spend.ts, amounts already in the factors' USD: rate 1, no deflation)."
     },
     {
       "id": "ex-4.5",
