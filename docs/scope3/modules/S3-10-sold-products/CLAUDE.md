@@ -3,6 +3,8 @@
 > Module spec. Lane L6. Copy to `ESG-lite/src/scope3/soldProducts/CLAUDE.md` and `ESG-lite_FE/src/features/scope3/soldProducts/CLAUDE.md` as the first commit. PR titles `[S3-10 k/m] …` (1/2 ESG-lite, 2/2 ESG-lite_FE).
 > Depends on (merged): S3-1, S3-3 · Owns: `src/scope3/soldProducts/*`, `product_sale` table · Touches: `Product` (read), PCF BOM read model
 
+> Simple data entry (ESG-lite_FE `docs/simple-entry/`): a User never picks `@method`. SE-1 picks it out of sight when the form has one method and shows "Type of record" when it has several; SE-5 migrates these `@method` forms to `method_options` or a client-worded `method_by_choice` select.
+
 ## Job to be done
 A manager enters what the company sold in the year once (product, quantity, region) and ESGLite turns it into reviewable rows for processing by customers (Cat 10), lifetime use (Cat 11) and end-of-life disposal (Cat 12), using product data the client already keeps for PCF.
 
