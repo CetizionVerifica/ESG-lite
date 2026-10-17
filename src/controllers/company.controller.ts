@@ -131,6 +131,9 @@ export const getCompanyNameBySites = async (req: Request, res: Response) => {
     // backend's single definition instead of hardcoding its own copy.
     return res.status(200).json({
       companyName: site.company.name,
+      // SE-2 (simple data entry): how much of the calculation a User sees, and the spend currency default.
+      entry_detail: site.company.entry_detail,
+      default_currency: site.company.default_currency,
       fiscalYearStartMonth: FY_START_MONTH,
       fiscalYearRule: FISCAL_YEAR_RULE,
     });
