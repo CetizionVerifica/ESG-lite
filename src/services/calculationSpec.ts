@@ -6,9 +6,12 @@ import { ColumnConfig, CalculationSpec, MethodCalculation } from "../entities/Co
 // Most categories compute: one activity value × factor. Some categories
 // multiply SEVERAL form fields together before the factor is applied:
 //   - per_method: a dropdown picks the fields (Use of Sold Products —
-//     units sold × energy per use × lifetime uses, etc.)
+//     units sold × energy per use × lifetime uses, etc.), or, with
+//     `method_column: "@method"`, the row's calculation method does (S3-9:
+//     commuting distance_based / average_data / fuel_based)
 //   - per_unit:   the row's unit picks the fields (Transport — tonne.km is
 //     Weight × Distance, km is Distance alone)
+// A method may also divide by fields (`divide`, S3-9; first used by S3-11).
 //
 // The one-value heuristic in emission.controller.ts must NOT run for these
 // configs: with several numeric columns present it would silently pick one
@@ -33,10 +36,14 @@ export interface SpecComputationError {
 export type SpecComputation = SpecComputationOk | SpecComputationError;
 
 // "tonne.km", "Tonne KM", "tonne-km", "tonne_km", "tkm" → "tonne.km"
+// S3-8: "m³.day", "m3 day" → "m3.day"; "pallet day", "teu day"; "kWh" → "kwh"; "litres" → "litre".
+// Mirrored in ESG-lite_FE src/lib/emissions/emissionCalc.ts.
 export function normalizeUnitKey(unit: unknown): string {
-  let u = String(unit ?? "").trim().toLowerCase().replace(/[\s_\-]+/g, ".");
+  let u = String(unit ?? "").trim().toLowerCase().replace(/[\s_\-]+/g, ".").replace(/³/g, "3");
   if (u === "tkm" || u === "t.km" || u === "tonnes.km" || u === "tonne.kms") u = "tonne.km";
   if (u === "kms") u = "km";
+  if (u === "litres" || u === "liters" || u === "liter") u = "litre";
+  if (u === "pallets.day") u = "pallet.day";
   return u;
 }
 
@@ -68,6 +75,15 @@ function parsePositiveNumber(raw: unknown): number | null {
   return num;
 }
 
+/**
+ * `method_column` value meaning "the row's calculation method picks the field
+ * set" (S3-9, 01-contracts.md §6) instead of a select column. The method is
+ * the row's `method` (S3-3) when the caller passes one; until S3-3 gives rows
+ * that field, it travels in `activity_data["@method"]`, which the data-entry
+ * form and the commuting survey plan write.
+ */
+export const ROW_METHOD_COLUMN = "@method";
+
 // Select values reach us from three sources (form, bulk import, manager edit)
 // and only the Python engine trimmed them. Without this a row imported with a
 // trailing space in its method cell computes fine, then 400s on every later
@@ -76,12 +92,14 @@ function normalizeMethodKey(raw: unknown): string {
   return String(raw).trim();
 }
 
-// Which method applies to this row: the dropdown's value (per_method) or the
-// row's normalized unit (per_unit). Returns the method or an error message.
+// Which method applies to this row: the dropdown's value (per_method), the
+// row's own method (per_method with "@method") or the row's normalized unit
+// (per_unit). Returns the method or an error message.
 export function resolveSpecMethod(
   spec: CalculationSpec,
   activity_data: Record<string, unknown>,
   activity_data_unit?: unknown,
+  rowMethod?: string | null,
 ): { method: MethodCalculation; key: string } | { error: string } {
   if (spec.mode === "per_unit") {
     const key = normalizeUnitKey(activity_data_unit);
@@ -94,14 +112,19 @@ export function resolveSpecMethod(
     return { method, key };
   }
   const methodColumn = spec.method_column ?? "";
-  const methodValue = activity_data[methodColumn];
+  const byRow = methodColumn === ROW_METHOD_COLUMN;
+  const methodValue = byRow && rowMethod ? rowMethod : activity_data[methodColumn];
   const methodKey =
     methodValue === undefined || methodValue === null ? "" : normalizeMethodKey(methodValue);
   if (methodKey === "") {
-    return { error: `Please choose a value for "${methodColumn}".` };
+    return { error: byRow ? "Please choose a calculation method." : `Please choose a value for "${methodColumn}".` };
   }
   const method = spec.methods[methodKey];
   if (!method || !Array.isArray(method.multiply) || method.multiply.length === 0) {
+    if (byRow) {
+      const known = Object.keys(spec.methods).join(", ");
+      return { error: `The method "${methodKey}" is not configured for this category (expected one of: ${known}).` };
+    }
     return {
       error: `"${methodColumn}" has an option ("${methodKey}") this category is not configured to calculate. Ask a Superadmin to check the category's calculation settings.`,
     };
@@ -109,7 +132,7 @@ export function resolveSpecMethod(
   return { method, key: methodKey };
 }
 
-// Multiply the method's fields together. Every listed field must hold a
+// Multiply the method's fields together (then divide by its `divide` fields). Every listed field must hold a
 // number greater than zero — a missing weight or a zero distance makes the
 // whole row meaningless, so it errors in plain language instead of silently
 // computing with fewer fields. Fields listed under `percent` are entered as
@@ -118,8 +141,9 @@ export function computeSpecActivityValue(
   spec: CalculationSpec,
   activity_data: Record<string, unknown>,
   activity_data_unit?: unknown,
+  rowMethod?: string | null,
 ): SpecComputation {
-  const resolved = resolveSpecMethod(spec, activity_data, activity_data_unit);
+  const resolved = resolveSpecMethod(spec, activity_data, activity_data_unit, rowMethod);
   if ("error" in resolved) return { ok: false, message: resolved.error };
   const { method } = resolved;
   const unitKey = spec.mode === "per_unit" ? resolved.key : undefined;
@@ -154,6 +178,25 @@ export function computeSpecActivityValue(
       product *= value / 100;
     } else {
       product *= value;
+    }
+  }
+
+  // `divide` (S3-9 owns it, 01-contracts.md §6): occupancy (travellers ÷
+  // travellers per vehicle), survey scaling (÷ employees surveyed) and S3-11's
+  // leased-space shares (÷ building area × occupancy). Same rule as multiply:
+  // every field > 0 (0 or empty → FIELD_REQUIRED), percentages ≤ 100.
+  for (const fieldName of method.divide ?? []) {
+    const value = parsePositiveNumber(activity_data[fieldName]);
+    if (value === null) {
+      return { ok: false, message: `Please enter a number greater than 0 in "${fieldName}".` };
+    }
+    if (percentFields.has(fieldName)) {
+      if (value > 100) {
+        return { ok: false, message: `"${fieldName}" is a percentage — it cannot be more than 100.` };
+      }
+      product /= value / 100;
+    } else {
+      product /= value;
     }
   }
 

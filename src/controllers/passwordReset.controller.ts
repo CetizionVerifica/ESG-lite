@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { sendPasswordResetEmail } from "../services/emailService";
+import { accountMailProblem } from "../config/mailer";
 
 const userRepository = AppDataSource.getRepository(User);
 
@@ -18,6 +19,17 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Checked before the user lookup so the answer is the same for every
+    // address: without mail the link can't reach anyone, so say so instead
+    // of reporting a link as sent.
+    const mailProblem = accountMailProblem();
+    if (mailProblem) {
+      console.warn(`[Mail] Password reset not sent: ${mailProblem}`);
+      return res.status(503).json({
+        message: "Password reset email isn't set up on this server. Ask your administrator to reset your password.",
+      });
     }
 
     // Find user by email

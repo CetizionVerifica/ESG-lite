@@ -1,10 +1,14 @@
 import { Response } from "express";
-import { In } from "typeorm";
+import { Brackets, In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { UserRole } from "../types/type";
+
+/** A manager's team is the contributors (role User) on their sites; Admins, other managers and the team's own internal accounts are not theirs to manage. */
+const NOT_TEAM = "You can only manage people with the User role on your sites.";
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -23,7 +27,7 @@ const getManagerSites = async (managerId: number): Promise<Site[]> => {
 
 /**
  * GET /manager/users
- * List all users on the manager's own sites.
+ * List the contributors (role User) on the manager's own sites.
  */
 export const getManagerUsers = async (req: AuthRequest, res: Response) => {
   try {
@@ -36,23 +40,30 @@ export const getManagerUsers = async (req: AuthRequest, res: Response) => {
 
     const managerSiteIds = managerSites.map((s) => s.site_id);
 
-    // Find users assigned to any of the manager's sites (via single site or multi-site)
-    const allUsers = await userRepo.find({
-      relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
-      order: { user_id: "ASC" },
-    });
-
-    // Filter to users who share at least one site with the manager
-    const filteredUsers = allUsers.filter((u) => {
-      // Exclude the manager themselves
-      if (u.user_id === managerId) return false;
-
-      const userSiteIds = new Set<number>();
-      if (u.site?.site_id) userSiteIds.add(u.site.site_id);
-      for (const s of u.sites || []) userSiteIds.add(s.site_id);
-
-      return managerSiteIds.some((id) => userSiteIds.has(id));
-    });
+    // Contributors on any of the manager's sites (via single site or multi-site),
+    // found in the database rather than by loading every contributor.
+    const rows = await userRepo
+      .createQueryBuilder("user")
+      .leftJoin("user.site", "site")
+      .leftJoin("user.sites", "msite")
+      .where("user.role = :role", { role: UserRole.USER })
+      // Internal (PlanetPulse team) accounts are managed by a Superadmin, not the client.
+      .andWhere("user.is_internal = false")
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where("site.site_id IN (:...ids)", { ids: managerSiteIds }).orWhere("msite.site_id IN (:...ids)", { ids: managerSiteIds });
+        }),
+      )
+      .select("user.user_id", "user_id")
+      .distinct(true)
+      .getRawMany();
+    const filteredUsers = rows.length
+      ? await userRepo.find({
+          where: { user_id: In(rows.map((r) => r.user_id)) },
+          relations: ["site", "site.categories", "sites", "sites.categories", "categories"],
+          order: { user_id: "ASC" },
+        })
+      : [];
 
     // Build response with site categories info
     const result = filteredUsers.map((u) => {
@@ -126,6 +137,9 @@ export const getUserCategories = async (req: AuthRequest, res: Response) => {
     if (sharedSiteIds.length === 0) {
       return res.status(403).json({ message: "User is not on your sites" });
     }
+    if (targetUser.role !== UserRole.USER || targetUser.is_internal) {
+      return res.status(403).json({ message: NOT_TEAM });
+    }
 
     const userCategories = targetUser.categories || [];
     const userCategoryIds = new Set(userCategories.map((c) => c.category_id));
@@ -190,6 +204,9 @@ export const updateUserCategories = async (req: AuthRequest, res: Response) => {
     const sharedSiteIds = [...userSiteIds].filter((id) => managerSiteIds.has(id));
     if (sharedSiteIds.length === 0) {
       return res.status(403).json({ message: "User is not on your sites" });
+    }
+    if (targetUser.role !== UserRole.USER || targetUser.is_internal) {
+      return res.status(403).json({ message: NOT_TEAM });
     }
 
     // Validate that all category_ids belong to the user's sites

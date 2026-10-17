@@ -10,6 +10,7 @@ import {
   RowStateSchema,
   ToolInputs,
   parseImportRows,
+  withoutServerFields,
 } from "../../../imports/contracts";
 import { ImportError } from "../../../imports/errors";
 import { IMPORT_LIMITS } from "../../../imports/limits";
@@ -103,10 +104,10 @@ export const importTools: ToolDefinition<any>[] = [
       if (input.plan_id) {
         if (input.version === undefined) throw new ImportError("IMPORT_VALIDATION", [{ path: "version", message: "version is required when plan_id is given" }], "Send the plan's current version when appending with plan_id.");
         const plan = await loadPlanForTool(ctx, input.plan_id, input.company_id);
-        result = await plans.appendRows(user(ctx), plan.plan_id, { version: input.version, rows: parsed.rows }, totalLike);
+        result = await plans.appendRows(user(ctx), plan.plan_id, { version: input.version, rows: parsed.rows.map(withoutServerFields) }, totalLike);
         ctx.log("appended rows", { plan_id: plan.plan_id, rows: parsed.rows.length, version: result.version });
       } else {
-        result = await plans.createPlan(user(ctx), { source_name: input.source_name, channel: "mcp", company_id: input.company_id, rows: parsed.rows }, totalLike);
+        result = await plans.createPlan(user(ctx), { source_name: input.source_name, channel: "mcp", company_id: input.company_id, rows: parsed.rows.map(withoutServerFields) }, totalLike);
         ctx.setPlanId(result.plan_id);
         ctx.log("planned rows", { plan_id: result.plan_id, company_id: input.company_id, rows: parsed.rows.length });
       }
@@ -152,6 +153,7 @@ export const importTools: ToolDefinition<any>[] = [
       let body: z.infer<typeof PatchPlanBodySchema>;
       try {
         body = PatchPlanBodySchema.parse({ version: input.version, changes: input.changes, activity_matches: input.activity_matches });
+        body = { ...body, changes: body.changes?.map((c) => (c.set ? { ...c, set: withoutServerFields(c.set) } : c)) };
       } catch (err) {
         return validation(err);
       }
@@ -164,7 +166,7 @@ export const importTools: ToolDefinition<any>[] = [
     name: "commit_import",
     title: "Commit an import",
     description:
-      "Saves the plan's ready rows as one pending upload batch for the client's managers to approve, and returns the plan with its batch id. Before calling this, show the user the totals by category and by month and the number of rows with issues, and get an explicit yes. Pass the plan's current version; a repeat call with the same version returns the same batch and saves nothing twice.",
+      "Saves the plan's ready rows as one pending upload batch and returns the plan with its batch id. Each row is its own pending entry: in ESGLite under Approvals, a manager approves or rejects entries one at a time, or opens the batch's Review rows to see only this upload, or approves the batch's still-pending rows at once. Before calling this, show the user the totals by category and by month and the number of rows with issues, and get an explicit yes. Pass the plan's current version; a repeat call with the same version returns the same batch and saves nothing twice.",
     input: ToolInputs.commit_import.shape,
     scope: "imports:write",
     clientKey: null,

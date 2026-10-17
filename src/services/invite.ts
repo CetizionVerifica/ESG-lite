@@ -2,7 +2,7 @@ import crypto from "crypto";
 import bcrypt from "bcrypt";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
-import { getMg } from "../config/mailer";
+import { accountMailProblem } from "../config/mailer";
 import { sendInviteEmail } from "./emailService";
 
 /**
@@ -25,7 +25,11 @@ export type InviteResult = { sent: true; expiresAt: Date } | { sent: false; reas
  * with a reason the caller shows as a warning.
  */
 export const issueInvite = async (user: User, companyName?: string): Promise<InviteResult> => {
-  if (!getMg()) return { sent: false, reason: "Email isn't configured on this server, so the invite wasn't sent." };
+  const mailProblem = accountMailProblem();
+  if (mailProblem) {
+    console.warn(`[Mail] Invite not sent: ${mailProblem}`);
+    return { sent: false, reason: "Email isn't configured on this server, so the invite wasn't sent." };
+  }
 
   const repo = AppDataSource.getRepository(User);
   const token = crypto.randomBytes(32).toString("hex");

@@ -36,6 +36,13 @@ export const updateCompany = async (req: Request, res: Response) => {
   if ("mcp_enabled" in body && typeof body.mcp_enabled !== "boolean") {
     return res.status(400).json({ message: "mcp_enabled must be true or false" });
   }
+  if ("ai_import_enabled" in body && typeof body.ai_import_enabled !== "boolean") {
+    return res.status(400).json({ message: "ai_import_enabled must be true or false" });
+  }
+  // S3-15 part 2 (D9): drafts, submit and the month lock for this client.
+  if ("review_workflow_v2" in body && typeof body.review_workflow_v2 !== "boolean") {
+    return res.status(400).json({ message: "review_workflow_v2 must be true or false" });
+  }
   await repo.update(req.params.id, body);
   // Deactivating (or reactivating) a client takes effect on the next request.
   if ("status" in body) clearClientStatusCache();

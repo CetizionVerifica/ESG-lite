@@ -86,6 +86,8 @@ import {
   guardAuditEntity,
 } from "../middlewares/scope.middleware";
 import { auditReview, guardApprovedDelete } from "../middlewares/audit.middleware";
+import { guardPeriodOpen } from "../scope3/review/guard";
+import { deleteNothing, getHistory, postCheck, postNothing, postSubmit } from "../scope3/review/controller";
 
 const router = Router();
 
@@ -100,6 +102,9 @@ router.use(authenticate);
 
 // Contributor checklist for a month (redesign P02)
 router.get("/my-month", getMyMonth);
+// S3-15 part 2: "Nothing this month" for a site and category (review workflow v2).
+router.post("/my-month/nothing", postNothing);
+router.delete("/my-month/nothing", deleteNothing);
 
 // Get site by ID (user can access their own site's data)
 router.get("/sites/:id", guardSiteParam("id"), getSiteById);
@@ -111,7 +116,10 @@ router.get("/column-configs/site/:siteId/category/:categoryId", guardSiteParam("
 router.get("/emissions", getEmissions);
 router.get("/emissions/site/:siteId/category/:categoryId", getEmissionsBySiteAndCategory);
 router.get("/emissions/pending", getPendingEmissions);
-router.post("/emissions", guardBodySites("site_id"), createEmission);
+router.post("/emissions", guardBodySites("site_id"), guardPeriodOpen("create"), createEmission);
+// S3-15 part 2: submit own drafts; dry-run checks for the live panel (saves nothing).
+router.post("/emissions/submit", postSubmit);
+router.post("/emissions/check", postCheck);
 
 // Download emissions as Excel (must come before :id routes)
 router.get("/emissions/download", downloadEmissions);
@@ -119,23 +127,25 @@ router.get("/emissions/export", exportEmissions);
 router.get("/emissions/breakdown", getEmissionBreakdown);
 
 // Bulk routes must come BEFORE :id routes to avoid matching "bulk-approve" as an ID
-router.put("/emissions/bulk-approve", requireReviewer, guardEmissionIdsReview, auditReview("emission", "ids"), bulkApproveEmissions);
-router.put("/emissions/bulk-reject", requireReviewer, guardEmissionIdsReview, auditReview("emission", "ids"), bulkRejectEmissions);
-router.delete("/emissions/bulk-delete", guardEmissionIds, guardApprovedDelete("emission", "ids"), auditReview("emission", "ids"), bulkDeleteEmissions);
-router.put("/emissions/batch/:batchId/approve", requireReviewer, guardBatch(true), auditReview("emission", "batch"), approveEmissionsByBatch);
-router.put("/emissions/batch/:batchId/reject", requireReviewer, guardBatch(true), auditReview("emission", "batch"), rejectEmissionsByBatch);
-router.delete("/emissions/batch/:batchId", guardBatch(), guardApprovedDelete("emission", "batch"), auditReview("emission", "batch"), deleteEmissionsByBatch);
+// guardPeriodOpen (S3-15 part 2): 409 PERIOD_LOCKED for a row in a closed site-month.
+router.put("/emissions/bulk-approve", requireReviewer, guardEmissionIdsReview("approve"), guardPeriodOpen("ids"), auditReview("emission", "ids"), bulkApproveEmissions);
+router.put("/emissions/bulk-reject", requireReviewer, guardEmissionIdsReview("reject"), guardPeriodOpen("ids"), auditReview("emission", "ids"), bulkRejectEmissions);
+router.delete("/emissions/bulk-delete", guardEmissionIds, guardPeriodOpen("ids"), guardApprovedDelete("emission", "ids"), auditReview("emission", "ids"), bulkDeleteEmissions);
+router.put("/emissions/batch/:batchId/approve", requireReviewer, guardBatch("approve"), guardPeriodOpen("batch"), auditReview("emission", "batch"), approveEmissionsByBatch);
+router.put("/emissions/batch/:batchId/reject", requireReviewer, guardBatch("reject"), guardPeriodOpen("batch"), auditReview("emission", "batch"), rejectEmissionsByBatch);
+router.delete("/emissions/batch/:batchId", guardBatch(), guardPeriodOpen("batch"), guardApprovedDelete("emission", "batch"), auditReview("emission", "batch"), deleteEmissionsByBatch);
 router.get("/emissions/batches", guardQuerySites("siteIds"), getEmissionBatches);
 
 // Manager edit routes (must come BEFORE :id routes)
-router.put("/emissions/manager-edit/:id", requireReviewer, guardEmissionParam(), managerUpdateEmission);
+router.put("/emissions/manager-edit/:id", requireReviewer, guardEmissionParam(), guardPeriodOpen("param"), managerUpdateEmission);
 
 // Routes with :id parameter
 router.get("/emissions/:id/factor", guardEmissionParam(), getEmissionFactorForEmission);
-router.put("/emissions/:id/approve", requireReviewer, guardEmissionReview(), auditReview("emission", "param"), approveEmission);
-router.put("/emissions/:id/reject", requireReviewer, guardEmissionReview(), auditReview("emission", "param"), rejectEmission);
-router.put("/emissions/:id", guardEmissionParam(), updateEmission);
-router.delete("/emissions/:id", guardEmissionParam(), guardApprovedDelete("emission", "param"), auditReview("emission", "param"), deleteEmission);
+router.get("/emissions/:id/history", guardEmissionParam(), getHistory); // S3-15: the row's last N months
+router.put("/emissions/:id/approve", requireReviewer, guardEmissionReview("id", "approve"), guardPeriodOpen("param"), auditReview("emission", "param"), approveEmission);
+router.put("/emissions/:id/reject", requireReviewer, guardEmissionReview("id", "reject"), guardPeriodOpen("param"), auditReview("emission", "param"), rejectEmission);
+router.put("/emissions/:id", guardEmissionParam(), guardPeriodOpen("param"), updateEmission);
+router.delete("/emissions/:id", guardEmissionParam(), guardPeriodOpen("param"), guardApprovedDelete("emission", "param"), auditReview("emission", "param"), deleteEmission);
 
 // Emission factor routes
 router.get("/emission-factors/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getEmissionFactorsBySiteAndCategory);

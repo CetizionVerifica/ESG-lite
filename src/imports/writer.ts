@@ -54,6 +54,8 @@ export interface BatchCommittedEvent {
   upload_batch_id: string;
   company_id: number;
   created_by: number;
+  /** The user who committed the plan (may differ from its creator). Optional: the internal python route predates it. */
+  committed_by?: number;
   channel: ImportChannel;
   source_name: string;
   site_ids: number[];

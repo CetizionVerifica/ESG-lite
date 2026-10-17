@@ -3,7 +3,6 @@ import * as XLSX from "xlsx";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { AppDataSource } from "../config/data-source";
-import { Emission, EmissionStatus } from "../entities/Emission";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { Company } from "../entities/Company";
@@ -18,12 +17,10 @@ import {
   type HistoricalPlan,
   type HistoricalRow,
   filedMonths,
-  activityDataFor,
-  factorDenominator,
-  factorUnitToTonnes,
-  periodDate,
   planHistoricalRows,
 } from "../services/historicalImport";
+import { engineResults, insertHistoricalRows } from "../services/historicalEngine";
+import { SCOPE_INVALID_MESSAGE } from "../utils/categoryScope";
 
 // Users created by this import get a random password that nobody sees; they
 // set their own through "Forgot password". A shared fixed password would let
@@ -61,31 +58,17 @@ interface ExcelRow {
   email?: string;
 }
 
-const normUnit = (u: unknown) => String(u ?? "").toLowerCase().replace(/\s/g, "");
-const sameUnit = (a: unknown, b: unknown) => normUnit(a) !== "" && normUnit(a) === normUnit(b);
-
-const monthToNumber: Record<string, number> = {
-  January: 0,
-  February: 1,
-  March: 2,
-  April: 3,
-  May: 4,
-  June: 5,
-  July: 6,
-  August: 7,
-  September: 8,
-  October: 9,
-  November: 10,
-  December: 11,
-};
-
 const PREVIEW_ROWS = 100;
 const positiveInt = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
-/** The plan for this sheet, read through `m` (inside the import's transaction, or the pool for a preview). */
+/**
+ * The plan for this sheet, read through `m` (inside the import's transaction,
+ * or the pool for a preview). Totals come from the engine (S3-4), with the
+ * prepared entries the import then writes.
+ */
 const planFor = async (m: EntityManager, rows: HistoricalRow[], siteId: number, categoryId: number) => {
   const existing: FiledEntry[] = await m.query(
     `SELECT date_of_reporting, reporting_period, year_type FROM emission WHERE site_id = $1 AND category_id = $2`,
@@ -99,7 +82,17 @@ const planFor = async (m: EntityManager, rows: HistoricalRow[], siteId: number, 
         )
       : [],
   );
-  return planHistoricalRows(rows, filedMonths(existing), existingEmails);
+  const { results, entries } = await engineResults(m, rows, siteId, categoryId);
+  return { plan: planHistoricalRows(rows, filedMonths(existing), existingEmails, results), entries };
+};
+
+/** The audit line for a historical import's rows. */
+const auditFor = async (m: EntityManager, req: Request, source: string) => {
+  const userId = Number((req as Request & { user?: { userId?: number } }).user?.userId) || null;
+  if (!userId) return null;
+  const user = await m.getRepository(User).findOne({ where: { user_id: userId } });
+  const who = user ? [user.name, user.last_name].filter(Boolean).join(" ") : `user ${userId}`;
+  return { changed_by: userId, reason: `Imported via Historical import by ${who} (${source})` };
 };
 
 /**
@@ -152,7 +145,7 @@ const uploadHistorical = async (req: Request, res: Response) => {
   });
 
   if (commit !== "true") {
-    const plan = await planFor(AppDataSource.manager, rows, siteId, categoryId);
+    const { plan } = await planFor(AppDataSource.manager, rows, siteId, categoryId);
     return res.json({
       dryRun: true,
       summary: summaryOf(plan),
@@ -168,7 +161,7 @@ const uploadHistorical = async (req: Request, res: Response) => {
   // months the first one filed instead of saving them twice.
   const { plan, created } = await AppDataSource.transaction(async (m) => {
     await m.query(`SELECT pg_advisory_xact_lock($1, $2)`, [siteId, categoryId]);
-    const plan = await planFor(m, rows, siteId, categoryId);
+    const { plan, entries } = await planFor(m, rows, siteId, categoryId);
     const newUsers: User[] = [];
     for (const person of plan.people.filter((p) => !p.exists)) {
       newUsers.push(
@@ -183,23 +176,9 @@ const uploadHistorical = async (req: Request, res: Response) => {
         ),
       );
     }
-    const repo = m.getRepository(Emission);
-    for (const p of plan.rows.filter((r) => r.status === "import")) {
-      const row = rows[p.row - 1];
-      await repo.save(
-        repo.create({
-          activity_data: activityDataFor(row),
-          total_emission: p.total!,
-          unit: "tCO2e",
-          activity_data_unit: p.unit,
-          date_of_reporting: periodDate(p.period!),
-          status: EmissionStatus.PENDING,
-          site,
-          category,
-          review_comment: row.notes ? String(row.notes) : undefined,
-        }),
-      );
-    }
+    // Every total, unit check and FERA twin comes from the engine (S3-4), which
+    // also stores the review checks of the rows it inserts (S3-15).
+    await insertHistoricalRows(m, plan, entries, rows, await auditFor(m, req, req.file!.originalname || "historical sheet"));
     return { plan, created: newUsers };
   });
 
@@ -260,7 +239,6 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "No data rows found in Excel file" });
     }
 
-    const emissionRepo = AppDataSource.getRepository(Emission);
     const siteRepo = AppDataSource.getRepository(Site);
     const categoryRepo = AppDataSource.getRepository(Category);
     const companyRepo = AppDataSource.getRepository(Company);
@@ -298,15 +276,14 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
       await siteRepo.save(site);
     }
 
-    // Find or create category
-    let category = await categoryRepo.findOne({ where: { category_name: categoryName } });
-
+    // An unknown category is refused, never created with a guessed scope (S3-4):
+    // add it on the Categories page with its scope first.
+    const category = await categoryRepo.findOne({ where: { category_name: categoryName } });
     if (!category) {
-      category = categoryRepo.create({
-        category_name: categoryName,
-        scope: "Scope 1",
+      return res.status(400).json({
+        message: `No category named "${categoryName}". Add it with its scope on the Categories page first. ${SCOPE_INVALID_MESSAGE}`,
+        code: "SCOPE_INVALID",
       });
-      await categoryRepo.save(category);
     }
 
     // Link category to site if not already linked
@@ -353,97 +330,19 @@ export const uploadEmissionsExcel = async (req: Request, res: Response) => {
       }
     }
 
-    // Process emissions
-    let emissionsCreated = 0;
-    let emissionsSkipped = 0;
+    // Process emissions through the engine (S3-4), with the same month rules
+    // as the historical import: months already filed and repeated months are
+    // skipped, and so is any row the engine refuses (no factor, units that
+    // don't convert). The sheet's own factor and total are never used.
+    const historical = rows as unknown as HistoricalRow[];
+    const { plan, emissionsCreated } = await AppDataSource.transaction(async (m) => {
+      await m.query(`SELECT pg_advisory_xact_lock($1, $2)`, [site!.site_id, category.category_id]);
+      const { plan, entries } = await planFor(m, historical, site!.site_id, category.category_id);
+      const created = await insertHistoricalRows(m, plan, entries, historical, await auditFor(m, req, req.file!.originalname || "uploaded sheet"));
+      return { plan, emissionsCreated: created };
+    });
+    const emissionsSkipped = plan.toSkip;
 
-    for (const row of rows) {
-      try {
-        const year = parseInt(row.year);
-        const monthNum = monthToNumber[row.month];
-
-        if (isNaN(year) || monthNum === undefined) {
-          emissionsSkipped++;
-          continue;
-        }
-
-        const dateOfReporting = new Date(year, monthNum, 15);
-
-        // Include emission_category for frontend display (using fuelType as the category name)
-        const activityData = {
-          emission_category: row.fuelType, // Maps to Emission Category column in frontend
-          "Activity Data": row.activity,   // Maps to "Activity Data" column in ColumnConfig
-          activity_value: row.activity,    // Alternative field name
-          equipment: row.equipment,
-          fuelState: row.fuelState,
-          fuelType: row.fuelType,
-          activity: row.activity,
-          emissionFactor: row.emissionFactor,
-          emissionFactorUnit: row.emissionFactorUnit,
-          source: row.source || "Unknown",
-          frequency: row.frequency || "monthly",
-          currency: row.currency,
-          spend: row.spend,
-        };
-
-        // Recompute the total from activity x factor rather than trusting the
-        // file's calculatedEmission (audit F-05). Only when the file has no usable
-        // activity/factor/unit do we fall back to its value: these rows have no
-        // category-level factor to look up (fuelType is free text) and they are
-        // stored as Pending, so a manager still reviews them before they count.
-        // The activity unit must be the factor's denominator ("kWh" with
-        // "kgCO2e/kWh"); otherwise kWh x tCO2e/MWh would be off by 1000.
-        const activity = Number(row.activity);
-        const factor = Number(row.emissionFactor);
-        const toTonnes = factorUnitToTonnes(row.emissionFactorUnit);
-        const canCompute =
-          row.activity != null && row.emissionFactor != null && Number.isFinite(activity) && Number.isFinite(factor) &&
-          toTonnes !== null && sameUnit(row.unit, factorDenominator(row.emissionFactorUnit));
-        const totalEmission = canCompute ? Math.round(activity * factor * toTonnes! * 100) / 100 : row.calculatedEmission;
-        if (!canCompute) {
-          log.warn("Upload", "Row total taken from file: no usable activity, factor, or matching units", {
-            year: row.year,
-            month: row.month,
-            unit: row.unit,
-            emissionFactorUnit: row.emissionFactorUnit,
-          });
-        }
-        // Always set status to PENDING for uploaded data (requires manual approval)
-        const status = EmissionStatus.PENDING;
-
-        // Check for existing emission
-        const existingEmission = await emissionRepo.findOne({
-          where: {
-            site: { site_id: site.site_id },
-            category: { category_id: category.category_id },
-            date_of_reporting: dateOfReporting,
-          },
-        });
-
-        if (existingEmission) {
-          emissionsSkipped++;
-          continue;
-        }
-
-        const emission = emissionRepo.create({
-          activity_data: activityData,
-          total_emission: totalEmission,
-          unit: "tCO2e",
-          activity_data_unit: row.unit,
-          date_of_reporting: dateOfReporting,
-          status,
-          site,
-          category,
-          review_comment: row.notes || undefined,
-        });
-
-        await emissionRepo.save(emission);
-        emissionsCreated++;
-      } catch (error) {
-        console.error("Error processing row:", error);
-        emissionsSkipped++;
-      }
-    }
 
     log.info("Upload", "Excel upload complete", {
       totalRows: rows.length,

@@ -7,9 +7,9 @@ const assert = require("node:assert/strict");
 const path = require("path");
 
 const { FactorIndex, MappingIndex, resolveActivity, suggestNames, targetYearFor, planMatchFor } = require(path.resolve("dist/services/emissionWrite/resolve.js"));
-const { computeTotal, feraTwinFor, totalFor } = require(path.resolve("dist/services/emissionWrite/compute.js"));
+const { computeTotal, feraGap, feraTwinFor, totalFor } = require(path.resolve("dist/services/emissionWrite/compute.js"));
 const { toStoredPeriod, monthsCovered } = require(path.resolve("dist/services/emissionWrite/period.js"));
-const { planModeConflicts, planIdentity, findDuplicate } = require(path.resolve("dist/services/emissionWrite/checks.js"));
+const { planModeConflicts, planIdentity, findDuplicate, isLowConfidenceAiMatch } = require(path.resolve("dist/services/emissionWrite/checks.js"));
 const { getConversionFactor, unitsMatchExact } = require(path.resolve("dist/services/emissionWrite/units.js"));
 
 const factor = (id, name, year, value, unit, global = name) => ({
@@ -87,7 +87,7 @@ test("totals use the typed-entry expression and rounding", () => {
   assert.equal(totalFor(1.25, index.find("Grid Electricity", 2024).factor), 0.89); // 1.25 × 708 / 1000 = 0.885 → 0.89
   assert.equal(totalFor(0.001, index.find("Grid Electricity", 2024).factor), 0); // tiny totals round to 0 but stay rows
   const direct = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", activity_value: "1000" }, "litre");
-  assert.deepEqual(direct, { ok: true, computed: { activityValue: 1000, activity_unit: "litre", total: 2680 } });
+  assert.deepEqual(direct, { ok: true, computed: { activityValue: 1000, activity_unit: "litre", total: 2680, total_kgco2e: "2680000.0000" } });
   const converted = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", quantity: "500" }, "gallon");
   assert.equal(converted.ok, true);
   assert.equal(converted.computed.conversion, 3.78541);
@@ -98,7 +98,23 @@ test("totals use the typed-entry expression and rounding", () => {
   assert.equal(bad.issue.message, 'Unit mismatch: Expected "litre" but received "kg". No conversion available.');
   assert.deepEqual(bad.issue.extra, { expected_unit: "litre", received_unit: "kg" });
   const zero = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", activity_value: "0" }, "litre");
-  assert.deepEqual(zero, { ok: true, computed: { activityValue: 0, activity_unit: "litre", total: 0 } });
+  assert.deepEqual(zero, { ok: true, computed: { activityValue: 0, activity_unit: "litre", total: 0, total_kgco2e: "0.0000" } });
+});
+
+test("S3-4: total_kgco2e keeps 4 dp where the tCO2e total rounds to 0.01 t (D5)", () => {
+  const grid = index.find("Grid Electricity", 2024).factor; // 708 kg/kWh
+  const tiny = computeTotal(ctx(), grid, { emission_category: "Grid Electricity", activity_value: "0.001" }, "kwh");
+  assert.equal(tiny.computed.total, 0); // 0.000708 t rounds away, as before
+  assert.equal(tiny.computed.total_kgco2e, "0.7080"); // the kg column keeps it
+  const half = computeTotal(ctx(), grid, { emission_category: "Grid Electricity", activity_value: "1.25" }, "kwh");
+  assert.deepEqual([half.computed.total, half.computed.total_kgco2e], [0.89, "885.0000"]); // never rounded before multiplying
+  const converted = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", quantity: "500" }, "gallon");
+  assert.equal(converted.computed.total_kgco2e, (Math.round(500 * 3.78541 * 2680 * 10000) / 10000).toFixed(4));
+  const fera = feraTwinFor(
+    ctx({ fera: { category_id: 9, factors: new FactorIndex([factor(20, "Diesel", 2024, 610.5, "litre")]) } }),
+    "Diesel", { emission_category: "Diesel", activity_value: "3" }, "litre", 2024,
+  );
+  assert.deepEqual([fera.total, fera.total_kgco2e], [1.83, "1831.5000"]);
 });
 
 test("spec categories multiply their fields and report missing or invalid fields", () => {
@@ -141,8 +157,50 @@ test("unit helpers behave as before", () => {
   assert.equal(getConversionFactor("MWh", "kwh"), 1000);
   assert.equal(getConversionFactor("ton", "kg"), 1000);
   assert.equal(getConversionFactor("kg", "litre"), null);
-  assert.equal(unitsMatchExact(null, "kwh"), true);
   assert.equal(unitsMatchExact("kWh ", "kwh"), true);
+  // S3-4: a missing unit on either side is no longer a match.
+  assert.equal(unitsMatchExact(null, "kwh"), false);
+  assert.equal(unitsMatchExact("kwh", ""), false);
+});
+
+test("S3-4: why a FERA twin is missing, in words (feraGap)", () => {
+  const fera = (factors) => ctx({ fera: { category_id: 9, factors: new FactorIndex(factors) } });
+  // Glochem's real case: the FERA factor is "Natural Gas", the fuel "Natural gas".
+  const gas = fera([factor(40, "Natural Gas", 2021, 0.3, "cubic meter")]);
+  assert.equal(feraGap(gas, "Natural gas", "cubic meter", 2021), 'the 2021 FERA factor is named "Natural Gas", not "Natural gas" (FERA names must match exactly)');
+  assert.equal(feraGap(gas, "Natural gas", "cubic meter", 2019), 'there is no 2019 FERA factor for "Natural gas"');
+  // LSHS: fuel per litre, FERA per kWh.
+  const lshs = fera([factor(41, "LSHS", 2021, 0.5, "kwh")]);
+  assert.equal(feraGap(lshs, "LSHS", "litre", 2021), `"litre" can't be converted to the FERA factor unit "kwh"`);
+  assert.equal(feraGap(lshs, "Refrigerant R32", "kg", 2021), null, "no FERA factors at all for the activity: FERA does not apply");
+  assert.equal(feraGap(ctx(), "LSHS", "litre", 2021), null, "no FERA category: FERA does not apply");
+});
+
+test("S3-4: forms offer only currencies the table converts", () => {
+  const { CONVERTIBLE_CURRENCIES } = require(path.resolve("dist/services/emissionWrite/units.js"));
+  const { getDefaultExtraFieldsByName } = require(path.resolve("dist/utils/defaultExtraFields.js"));
+  for (const c of CONVERTIBLE_CURRENCIES) {
+    assert.ok(CONVERTIBLE_CURRENCIES.some((o) => o !== c && getConversionFactor(c, o)), `${c} converts to another currency`);
+  }
+  for (const name of ["Purchased Goods and Services", "Capital Goods"]) {
+    const currency = (getDefaultExtraFieldsByName(name) || []).find((f) => f.key === "currency");
+    if (currency) assert.deepEqual(currency.options.filter((o) => !CONVERTIBLE_CURRENCIES.includes(o)), [], `${name}: no unconvertible currency`);
+  }
+});
+
+test("S3-4: a factor with no unit is UNIT_REQUIRED, never applied unchecked", () => {
+  const noUnit = factor(30, "Mystery fuel", 2024, 1000, "");
+  const r = computeTotal(ctx(), noUnit, { emission_category: "Mystery fuel", activity_value: "10" }, "litre");
+  assert.equal(r.ok, false);
+  assert.equal(r.issue.code, "UNIT_REQUIRED");
+  assert.match(r.issue.message, /"Mystery fuel" has no unit/);
+  const nullUnit = computeTotal(ctx(), { ...noUnit, denominator_unit: null }, { emission_category: "Mystery fuel", activity_value: "10" }, "litre");
+  assert.equal(nullUnit.issue.code, "UNIT_REQUIRED");
+  // No FERA twin without a unit on both sides.
+  const fera = (unit) => ({ fera: { category_id: 9, factors: new FactorIndex([factor(21, "Diesel", 2024, 610.5, unit)]) } });
+  assert.equal(feraTwinFor(ctx(fera("litre")), "Diesel", { emission_category: "Diesel", activity_value: "3" }, null, 2024), null);
+  assert.equal(feraTwinFor(ctx(fera("")), "Diesel", { emission_category: "Diesel", activity_value: "3" }, "litre", 2024), null);
+  assert.notEqual(feraTwinFor(ctx(fera("litre")), "Diesel", { emission_category: "Diesel", activity_value: "3" }, "litre", 2024), null);
 });
 
 test("periods map to stored columns; future months and unstarted years are invalid", () => {
@@ -187,3 +245,31 @@ test("duplicate identity uses the month, the activity and the spec's identity co
 function pick(m) {
   return m ? { id: m.factor.emission_factor_id, fallback: m.fallback_year } : null;
 }
+
+test("unit spellings from client sheets resolve to the canonical unit; existing conversions are unchanged", () => {
+  const { getConversionFactor, unitsMatchExact } = require(path.resolve("dist/services/emissionWrite/units.js"));
+  // Indian records: metric tonne, city-gas standard cubic metre, litre abbreviations
+  assert.equal(getConversionFactor("MT", "tonne"), 1);
+  assert.equal(getConversionFactor("MT", "kg"), 1000);
+  assert.equal(getConversionFactor("SCM", "Cubic meter"), 1);
+  assert.equal(getConversionFactor("Ltr", "litre"), 1);
+  assert.equal(getConversionFactor("Ltrs", "kl"), 0.001);
+  assert.ok(unitsMatchExact("Litres", "litre"));
+  assert.ok(unitsMatchExact("kgs", "Kg"));
+  // unchanged
+  assert.equal(getConversionFactor("kwh", "mwh"), 0.001);
+  assert.equal(getConversionFactor("tonne", "kg"), 1000);
+  assert.equal(getConversionFactor("litre", "kg"), null);
+  assert.ok(!unitsMatchExact("kwh", "mwh"));
+});
+
+test("a confirmed AI match below 0.8 is a low-confidence match; profile, rules and rows without meta are not", () => {
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.6 }), true);
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.79 }), true);
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.8 }), false, "the threshold itself is confident enough");
+  assert.equal(isLowConfidenceAiMatch({ source: "llm", confidence: 0.9 }), false);
+  assert.equal(isLowConfidenceAiMatch({ source: "rules", confidence: 0.5 }), false);
+  assert.equal(isLowConfidenceAiMatch({ source: "profile", confidence: 0.5 }), false);
+  assert.equal(isLowConfidenceAiMatch(undefined), false, "Claude and API rows carry no meta");
+  assert.equal(isLowConfidenceAiMatch(null), false);
+});

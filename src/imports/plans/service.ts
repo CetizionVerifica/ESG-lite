@@ -12,6 +12,9 @@ import { IMPORT_LIMITS, PLAN_EXPIRY_MS } from "../limits";
 import { emitBatchCommitted, WriterContext } from "../writer";
 import { buildWriterContext, isMcpEnabled, TokenUser } from "./scope";
 import { getEmissionWriter } from "./writerRegistry";
+import { normalizeName } from "../../services/emissionWrite/resolve";
+import { validatePlanMapping } from "../profiles/service";
+import type { MappingProposal } from "../mapping";
 
 /**
  * Import plans (docs/mcp-import/backend/IM2-import-plans-api/CLAUDE.md).
@@ -250,11 +253,14 @@ const assertChannelAllowed = async (ctx: WriterContext, channel: ImportChannel) 
 
 export const createPlan = async (
   user: TokenUser,
-  body: { source_name: string; channel: ImportChannel; company_id?: number; rows: ImportRow[] },
+  body: { source_name: string; channel: ImportChannel; company_id?: number; rows: ImportRow[]; mapping?: MappingProposal },
   totalLike: Set<string>,
 ) => {
   const ctx = await buildWriterContext(user, body.company_id);
   await assertChannelAllowed(ctx, body.channel);
+  // Smart import (XI3): a confirmed MappingProposal rides on a bulk_upload
+  // plan and is learned as a profile when the plan commits.
+  const mapping = await validatePlanMapping(ctx, body.channel, body.mapping);
   assertRowLimits(body.rows.length, 0);
   assertRowRefsUnique(body.rows, new Set());
   const drafts = await planRepo()
@@ -272,6 +278,7 @@ export const createPlan = async (
         source_name: body.source_name,
         status: "draft",
         version: 0,
+        mapping,
         expires_at: new Date(Date.now() + TTL_MS),
       }),
     );
@@ -364,7 +371,10 @@ export const patchPlan = async (
         if (!merged.success) {
           throw new ImportError("IMPORT_VALIDATION", merged.error.issues.slice(0, 20).map((i) => ({ path: [c.row_ref, ...i.path].join("."), message: i.message })));
         }
-        r.input = merged.data;
+        // A row the user corrected before commit is one the reviewer should
+        // look at again (XI5 "Needs attention"); the flag rides on meta, which
+        // only smart-import rows carry.
+        r.input = merged.data.meta ? { ...merged.data, meta: { ...merged.data.meta, edited: true } } : merged.data;
       }
       if (c.skip === true) r.state = "skipped";
       if (c.skip === false && r.state === "skipped") r.state = "issue";
@@ -383,6 +393,15 @@ export const patchPlan = async (
         .orUpdate(["factor_name"], ["plan_id", "site_id", "category_id", "sheet_name"])
         .execute();
       if (match.save_mapping) await saveMapping(m, ctx, plan, match);
+      // A corrected activity match changes how those rows resolve, so they
+      // are edited rows too (XI5 "Needs attention"), when they carry meta.
+      for (const r of rows) {
+        const input = r.input as ImportRow;
+        if (!input.meta || input.meta.edited || input.site_id !== match.site_id || input.category_id !== match.category_id) continue;
+        if (normalizeName(input.activity_name) !== normalizeName(match.sheet_name)) continue;
+        r.input = { ...input, meta: { ...input.meta, edited: true } };
+        await m.getRepository(ImportPlanRow).update({ id: r.id }, { input: r.input });
+      }
     }
     const totalLike = new Set([
       ...rows.filter((r) => (r.issues as RowIssue[]).some((i) => i.code === "CLIENT_TOTAL_IGNORED")).map((r) => r.row_ref),
@@ -395,12 +414,13 @@ export const patchPlan = async (
 };
 
 /**
- * `save_mapping` (decision D5): a Superadmin or the client's Admin may turn a
- * plan match into a P23 category mapping, so the sheet wording resolves on
- * every later import of that site × category. Other roles keep the match on
- * the plan only. The mapping is by name (no pinned factor id), so the year
- * fallback of the engine still applies. The site and category must be in the
- * caller's scope.
+ * `save_mapping` (decision D5, widened by the smart-import plan's decision 5
+ * on 2026-10-14): a Superadmin, the client's Admin, or a Manager for a site
+ * they hold may turn a plan match into a P23 category mapping, so the sheet
+ * wording resolves on every later import of that site × category. Users keep
+ * the match on the plan only. The mapping is by name (no pinned factor id),
+ * so the year fallback of the engine still applies. The site and category
+ * must be in the caller's scope (for a Manager: one of their user_sites).
  *
  * Only new mappings are written: where the company already has a mapping for
  * that site, category and sheet wording (made here or in the app, pinned or
@@ -411,7 +431,7 @@ export const patchPlan = async (
  * audit_log row (entity_type "category_mapping").
  */
 const saveMapping = async (m: EntityManager, ctx: WriterContext, plan: ImportPlan, match: ActivityMatch) => {
-  if (ctx.role !== UserRole.SUPERADMIN && ctx.role !== UserRole.ADMIN) return;
+  if (ctx.role !== UserRole.SUPERADMIN && ctx.role !== UserRole.ADMIN && ctx.role !== UserRole.MANAGER) return;
   if (!ctx.allowed_site_ids.includes(match.site_id) || !(ctx.allowed_category_ids_by_site[match.site_id] ?? []).includes(match.category_id)) {
     throw new ImportError("IMPORT_FORBIDDEN", { site_id: match.site_id, category_id: match.category_id });
   }
@@ -516,11 +536,15 @@ export const commitPlan = async (user: TokenUser, planId: string, body: { versio
         await m.getRepository(ImportPlanRow).update({ id: r.id }, { state: r.state, issues: r.issues, result: r.result });
       }
       await refreshSummary(m, plan, rows);
-      recheckFailure = new ImportError("IMPORT_PLAN_VERSION_CONFLICT", {
-        current_version: plan.version,
-        reason: "rows changed on re-check",
-        rows: newIssues.map((p) => ({ row_ref: p.row_ref, issues: p.issues })),
-      });
+      // S3-15 part 2: a month closed since the plan was made is its own refusal (PERIOD_LOCKED).
+      const closed = newIssues.filter((p) => p.issues.some((i) => i.code === "PERIOD_LOCKED")).map((p) => p.row_ref);
+      recheckFailure = closed.length
+        ? new ImportError("PERIOD_LOCKED", { current_version: plan.version, row_refs: closed })
+        : new ImportError("IMPORT_PLAN_VERSION_CONFLICT", {
+            current_version: plan.version,
+            reason: "rows changed on re-check",
+            rows: newIssues.map((p) => ({ row_ref: p.row_ref, issues: p.issues })),
+          });
       return plan;
     }
 
@@ -541,6 +565,7 @@ export const commitPlan = async (user: TokenUser, planId: string, body: { versio
       upload_batch_id,
       company_id: plan.company_id,
       created_by: plan.created_by ?? ctx.user_id, // creator deleted: the committing Superadmin
+      committed_by: ctx.user_id,
       channel: plan.channel,
       source_name: plan.source_name,
       site_ids: [...new Set(rechecked.map((p) => p.input.site_id))],

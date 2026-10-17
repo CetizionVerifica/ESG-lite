@@ -78,3 +78,21 @@ export const isMcpEnabled = async (companyId: number): Promise<boolean> => {
   const rows: { mcp_enabled: boolean }[] = await AppDataSource.query(`SELECT mcp_enabled FROM company WHERE company_id = $1`, [companyId]);
   return rows.length > 0 && rows[0].mcp_enabled === true;
 };
+
+let aiImportColumnKnown: boolean | null = null;
+
+/**
+ * `company.ai_import_enabled` (smart Excel import, XI0, migrate:ai-import).
+ * Reads as off until the migration has run, which is the documented default.
+ */
+export const isAiImportEnabled = async (companyId: number): Promise<boolean> => {
+  if (aiImportColumnKnown === null) {
+    const col = await AppDataSource.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'company' AND column_name = 'ai_import_enabled'`,
+    );
+    aiImportColumnKnown = col.length > 0;
+  }
+  if (!aiImportColumnKnown) return false;
+  const rows: { ai_import_enabled: boolean }[] = await AppDataSource.query(`SELECT ai_import_enabled FROM company WHERE company_id = $1`, [companyId]);
+  return rows.length > 0 && rows[0].ai_import_enabled === true;
+};

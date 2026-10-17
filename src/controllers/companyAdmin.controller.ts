@@ -65,6 +65,8 @@ export const getCompanyUsers = async (req: AuthRequest, res: Response) => {
       .leftJoin("user.site", "site")
       .leftJoin("user.sites", "msite")
       .where("user.role IN (:...roles)", { roles: MANAGEABLE_ROLES })
+      // The team's internal accounts are managed by a Superadmin, not the client.
+      .andWhere("user.is_internal = false")
       .andWhere(
         new Brackets((qb) => {
           qb.where("site.site_id IN (:...siteIds)", { siteIds }).orWhere(
@@ -248,7 +250,8 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
       relations: ["site", "sites", "categories"],
     });
 
-    if (!user || !userBelongsToCompany(user, scope.siteIds)) {
+    // Internal accounts are the team's, managed by a Superadmin only.
+    if (!user || user.is_internal || !userBelongsToCompany(user, scope.siteIds)) {
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -358,7 +361,8 @@ export const deleteCompanyUser = async (req: AuthRequest, res: Response) => {
       relations: ["site", "sites"],
     });
 
-    if (!user || !userBelongsToCompany(user, scope.siteIds)) {
+    // Internal accounts are the team's, managed by a Superadmin only.
+    if (!user || user.is_internal || !userBelongsToCompany(user, scope.siteIds)) {
       return res.status(404).json({ message: "User not found" });
     }
 

@@ -56,6 +56,14 @@ export class Company {
   @Column({ default: false })
   mcp_enabled!: boolean;
 
+  // "Smart import" for Managers and Admins (smart Excel import, XI0). Off by
+  // default: with it off POST /v1/excel/propose and the in-app smart flow
+  // answer AI_IMPORT_DISABLED_FOR_CLIENT. Superadmin toggles it through
+  // PUT /admin/companies/:id. Separate from mcp_enabled (Claude/MCP stays
+  // Superadmin only).
+  @Column({ default: false })
+  ai_import_enabled!: boolean;
+
   // When the client was onboarded (redesign P16 Console activity); NULL for
   // clients that predate migrate:company-created-at. Set by
   // stampCompanyOnboarded after a company is created. No default here and
@@ -63,6 +71,17 @@ export class Company {
   // database where the migration has not run yet.
   @Column({ type: "timestamp", nullable: true, select: false, insert: false, update: false })
   created_at?: Date | null;
+
+  // Scope 3 boundary approach (S3-1, D4): operational_control (default),
+  // financial_control or equity_share. Read by reports (S3-13).
+  @Column({ type: "varchar", length: 30, default: "operational_control" })
+  consolidation_approach!: string;
+
+  // Review workflow v2 (S3-15 part 2, D9): drafts, submit and the month lock.
+  // Off by default; Superadmin turns it on per client through PUT
+  // /admin/companies/:id. Off means today's behaviour exactly.
+  @Column({ default: false })
+  review_workflow_v2!: boolean;
 
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];

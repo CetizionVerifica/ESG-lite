@@ -5,6 +5,8 @@ import { IsNull } from "typeorm";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
+import { FACTOR_TYPES } from "../scope3/contracts/factor";
+import { eeioPriceProblem, factorTypeWarning, ghgCategoryOf, parseFactorMeta, unitMissing, UNIT_REQUIRED, withNewFactorDefaults } from "../scope3/factors/meta";
 
 const repo = AppDataSource.getRepository(EmissionFactor);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -65,6 +67,11 @@ export const getEmissionFactors = async (req: Request, res: Response) => {
     const search = (req.query.search as string)?.trim() || undefined;
     const companyId = req.query.company_id ? parseInt(req.query.company_id as string) : undefined;
     const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    // S3-2: ?factor_type=wtt, or ?factor_type=none for factors with no type yet.
+    const factorType = (req.query.factor_type as string | undefined)?.trim() || undefined;
+    if (factorType && factorType !== "none" && !(FACTOR_TYPES as readonly string[]).includes(factorType)) {
+      return res.status(400).json({ message: `factor_type must be one of ${FACTOR_TYPES.join(", ")} or none` });
+    }
 
     const qb = repo
       .createQueryBuilder("ef")
@@ -75,6 +82,10 @@ export const getEmissionFactors = async (req: Request, res: Response) => {
     if (categoryId) qb.andWhere("ef.category_id = :categoryId", { categoryId });
     if (companyId) qb.andWhere("site.company_id = :companyId", { companyId });
     if (year) qb.andWhere("ef.year = :year", { year });
+    // S3-5: the USEEIO library (site-less spend factors, listed by GET /scope3/spend/library) only with ?library=1.
+    if (req.query.library !== "1" && req.query.library !== "true") qb.andWhere("NOT (ef.site_id IS NULL AND ef.category_id IS NULL AND ef.factor_type IS NOT DISTINCT FROM 'eeio_spend')");
+    if (factorType === "none") qb.andWhere("ef.factor_type IS NULL");
+    else if (factorType) qb.andWhere("ef.factor_type = :factorType", { factorType });
     if (search) {
       qb.andWhere(
         "(ef.emission_category_name ILIKE :search OR ef.source ILIKE :search OR site.name ILIKE :search OR category.category_name ILIKE :search)",
@@ -137,6 +148,13 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
         message: "site_id, category_id, year, and factor_value are required",
       });
     }
+    if (unitMissing(denominator_unit)) {
+      return res.status(400).json({ code: UNIT_REQUIRED, message: "A factor needs a unit (what one unit of activity is, for example litre or kWh)." });
+    }
+    const meta = parseFactorMeta(req.body);
+    if (!meta.ok) return res.status(400).json({ message: meta.message, field: meta.field });
+    const eeio = eeioPriceProblem(meta.meta);
+    if (eeio && !eeio.ok) return res.status(400).json({ message: eeio.message, field: eeio.field });
 
     // Validate site exists
     const site = await siteRepo.findOne({ where: { site_id } });
@@ -179,6 +197,7 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
       denominator_unit: normalizeUnit(denominator_unit),
       source: source?.trim() || null,
       emission_category_name: emission_category_name?.trim() || null,
+      ...withNewFactorDefaults(meta.meta),
     });
 
     await repo.save(emissionFactor);
@@ -188,10 +207,12 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
       where: { emission_factor_id: emissionFactor.emission_factor_id },
       relations: ["site", "category"],
     });
+    const warning = factorTypeWarning(ghgCategoryOf(category), emissionFactor.factor_type);
 
     return res.status(201).json({
       message: "Emission factor created successfully",
       emissionFactor: savedFactor,
+      warnings: warning ? [warning] : [],
     });
   } catch (error) {
     console.error("Create emission factor error:", error);
@@ -205,6 +226,11 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
   try {
     const { id }: any = req.params;
     const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name } = req.body;
+    const meta = parseFactorMeta(req.body);
+    if (!meta.ok) return res.status(400).json({ message: meta.message, field: meta.field });
+    if (denominator_unit !== undefined && unitMissing(denominator_unit)) {
+      return res.status(400).json({ code: UNIT_REQUIRED, message: "A factor needs a unit (what one unit of activity is, for example litre or kWh)." });
+    }
 
     if (
       site_id === undefined &&
@@ -213,7 +239,8 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
       factor_value === undefined &&
       denominator_unit === undefined &&
       source === undefined &&
-      emission_category_name === undefined
+      emission_category_name === undefined &&
+      !Object.keys(meta.ok ? meta.meta : {}).length
     ) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -243,8 +270,9 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
     }
 
     // Validate category if provided
+    let category: Category | null = emissionFactor.category;
     if (category_id !== undefined) {
-      const category = await categoryRepo.findOne({ where: { category_id } });
+      category = await categoryRepo.findOne({ where: { category_id } });
       if (!category) {
         return res.status(400).json({
           message: "Category not found",
@@ -283,6 +311,11 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
     if (denominator_unit !== undefined) emissionFactor.denominator_unit = (normalizeUnit(denominator_unit) ?? null) as any;
     if (source !== undefined) emissionFactor.source = source?.trim() || null;
     if (emission_category_name !== undefined) emissionFactor.emission_category_name = emission_category_name?.trim() || null;
+    Object.assign(emissionFactor, meta.meta);
+    // Only when this edit touches the type or price fields: backfilled spend factors have no price yet.
+    const touchesPrice = ["factor_type", "price_base_year", "price_currency"].some((k) => k in meta.meta);
+    const eeio = touchesPrice ? eeioPriceProblem(emissionFactor) : null;
+    if (eeio && !eeio.ok) return res.status(400).json({ message: eeio.message, field: eeio.field });
 
     await repo.save(emissionFactor);
 
@@ -291,10 +324,12 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
       where: { emission_factor_id: emissionFactor.emission_factor_id },
       relations: ["site", "category"],
     });
+    const warning = factorTypeWarning(ghgCategoryOf(category), emissionFactor.factor_type);
 
     return res.status(200).json({
       message: "Emission factor updated successfully",
       emissionFactor: updatedFactor,
+      warnings: warning ? [warning] : [],
     });
   } catch (error) {
     console.error("Update emission factor error:", error);
@@ -421,14 +456,29 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
       created: 0,
       skipped: 0,
       errors: [] as string[],
+      // S3-2: FACTOR_TYPE_MISMATCH per created row (never blocks), with the row's index in `factors`.
+      warnings: [] as (ReturnType<typeof factorTypeWarning> & { index: number })[],
     };
 
-    for (const factor of factors) {
+    for (const [index, factor] of factors.entries()) {
       const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name } = factor;
 
       // Validate required fields
       if (!site_id || !category_id || !year || factor_value === undefined) {
         results.errors.push(`Missing required fields for row with year ${year || "unknown"}`);
+        results.skipped++;
+        continue;
+      }
+      if (unitMissing(denominator_unit)) {
+        results.errors.push(`${UNIT_REQUIRED}: no unit for "${emission_category_name || "N/A"}", year ${year}`);
+        results.skipped++;
+        continue;
+      }
+      const meta = parseFactorMeta(factor);
+      const metaProblem = meta.ok ? eeioPriceProblem(meta.meta) : meta;
+      if (!meta.ok || (metaProblem && !metaProblem.ok)) {
+        const message = metaProblem && !metaProblem.ok ? metaProblem.message : "";
+        results.errors.push(`${message} for "${emission_category_name || "N/A"}", year ${year}`);
         results.skipped++;
         continue;
       }
@@ -476,10 +526,13 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
         emission_category_name: emission_category_name?.trim() || null,
         global_category_name: global_category_name?.trim() || null,
         upload_batch_id,
+        ...withNewFactorDefaults(meta.meta),
       });
 
       await repo.save(emissionFactor);
       results.created++;
+      const warning = factorTypeWarning(ghgCategoryOf(category), emissionFactor.factor_type);
+      if (warning) results.warnings.push({ ...warning, index });
     }
 
     return res.status(201).json({
