@@ -74,6 +74,8 @@ Audit: `audit_log.entity_type` gains `kpi_value`, `kpi_setup`, `kpi_period_lock`
 | `GET /kpi/my?period=` | any | KPI-7 | what the caller owes: KPIs × sites × periods, with status, last value and due date |
 | `GET /kpi/values?kpi=&site=&from=&to=&status=` | any (scoped) | KPI-4 | values |
 | `PUT /kpi/values` | owner, Manager+, Admin (company level) | KPI-4/7 | upsert drafts `{items:[…]}`, per-item result |
+| `PUT /kpi/values` item `{id, …fields, reason}` | Manager (own sites), Superadmin | KPI-8 | a reviewer's edit of a pending value: stays pending, `reason` required (`KPI_REASON_REQUIRED`), audited `review_edit` |
+| `GET /user/audit-logs?entity_type=kpi_value&entity_id=` | as `GET /kpi/values` | KPI-8 | a value's history (the existing endpoint; KPI tenant rules, `KPI_TRACKING_OFF` when off) |
 | `POST /kpi/values/submit` | owner | KPI-7 | `{ids}` → `{submitted, refused:[{id, code}]}` |
 | `POST /kpi/values/:id/evidence`, `DELETE …/evidence/:eid` | owner, reviewer | KPI-4 | evidence |
 | `PUT /kpi/values/approve`, `/reject` | Manager, Superadmin | KPI-8 | `{ids, only_ready?, reason?}` |

@@ -227,6 +227,23 @@ export const KpiValueItemSchema = z
   .refine((i) => i.kpi_definition_id !== undefined || i.kpi_code !== undefined, { message: "Name the KPI (kpi_definition_id or kpi_code).", path: ["kpi_definition_id"] });
 export type KpiValueItem = z.infer<typeof KpiValueItemSchema>;
 
+/**
+ * KPI-8: a reviewer's edit of a pending value, as an item of `PUT /kpi/values`
+ * named by `id` (Manager of its site, or Superadmin). The value stays pending;
+ * `reason` is required (KPI_REASON_REQUIRED) and audited.
+ */
+export const KpiValueReviewEditSchema = z.object({
+  id: id,
+  value_numeric: z.number().finite().nullable().optional(),
+  value_text: z.string().max(10_000).nullable().optional(),
+  unit: unit.nullable().optional(),
+  breakdown: z.record(z.string().regex(/^[a-z0-9_]{1,40}$/), z.number().finite()).nullable().optional(),
+  is_estimate: z.boolean().optional(),
+  comment: z.string().trim().max(2000).nullable().optional(),
+  reason: optionalText(2000),
+});
+export type KpiValueReviewEdit = z.infer<typeof KpiValueReviewEditSchema>;
+
 export const KpiValuesPutSchema = z.object({ items: z.array(z.unknown()).min(1).max(500) });
 
 export const KpiIdsSchema = z.object({ ids: z.array(id).min(1).max(1000) });
