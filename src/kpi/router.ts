@@ -9,6 +9,7 @@
 import { Router } from "express";
 import { kpiStatus, requireKpiTracking } from "./guard";
 import { catalogueRouter, libraryRouter } from "./library/router";
+import valuesRouter from "./values/router";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.get("/status", kpiStatus); // KPI-1: {enabled, setup_completed}, answers 
 router.use(libraryRouter); // KPI-2: /kpi/library/* (Superadmin; not behind the switch)
 router.use(requireKpiTracking); // KPI-1: 403 KPI_TRACKING_OFF below this line
 router.use(catalogueRouter); // KPI-2: /kpi/catalogue
+router.use(valuesRouter); // KPI-4: /kpi/values, /kpi/values/submit, /kpi/values/:id/evidence
 
 export default router;

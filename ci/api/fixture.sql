@@ -11,6 +11,10 @@ END $$;
 -- Indexes that migrate:* scripts create and TypeORM's sync does not (synchronize: false in the entity).
 CREATE UNIQUE INDEX IF NOT EXISTS "notification_upload_batch_user_uq" ON "notification" ((meta->>'upload_batch_id'), user_id) WHERE type = 'UPLOAD_PENDING';
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_supplier_company_lower_name" ON "supplier" ("company_id", lower("name"));
+-- KPI-2 and KPI-4 (migrate:kpi-library, migrate:kpi-values).
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_definition_owner_code" ON "kpi_definition" ((COALESCE("company_id", 0)), "code");
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_value_company_site_kpi_period" ON "kpi_value" ("company_id", (COALESCE("site_id", 0)), "kpi_definition_id", "period_start", "frequency");
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_period_lock_company_site_year_period" ON "kpi_period_lock" ("company_id", (COALESCE("site_id", 0)), "year", (COALESCE("period", 0)));
 
 INSERT INTO company (company_id, name, address, contact_person) VALUES
   (1, 'CI Steel Co', '1 Test Road', 'CI'),

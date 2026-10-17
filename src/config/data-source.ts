@@ -44,6 +44,10 @@ import { KpiFramework } from "../entities/KpiFramework";
 import { KpiDefinition } from "../entities/KpiDefinition";
 import { KpiDisclosure } from "../entities/KpiDisclosure";
 import { KpiDisclosureMap } from "../entities/KpiDisclosureMap";
+// KPI-4: the KPI value store
+import { KpiValue } from "../entities/KpiValue";
+import { KpiValueEvidence } from "../entities/KpiValueEvidence";
+import { KpiPeriodLock } from "../entities/KpiPeriodLock";
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -112,6 +116,10 @@ const entities = [
     KpiDefinition,
     KpiDisclosure,
     KpiDisclosureMap,
+    // KPI-4
+    KpiValue,
+    KpiValueEvidence,
+    KpiPeriodLock,
 ];
 
 // Parse DATABASE_URL to extract connection parameters

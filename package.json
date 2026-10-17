@@ -53,6 +53,7 @@
     "migrate:kpi-switch": "ts-node src/scripts/addKpiSwitch.ts",
     "migrate:kpi-library": "ts-node src/scripts/migrateKpiLibrary.ts",
     "migrate:kpi-library-seed": "ts-node src/scripts/seedKpiLibrary.ts",
+    "migrate:kpi-values": "ts-node src/scripts/migrateKpiValues.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
