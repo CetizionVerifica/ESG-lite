@@ -24,6 +24,9 @@ export enum EmissionStatus {
   REJECTED = "rejected",
 }
 
+// S3-15: indexes created by migrate:scope3-review-checks (NO_DUPLICATE lookups, FERA partners).
+// Declared here so schema sync and schema-diff keep them instead of planning a DROP.
+@Index("IDX_emission_site_category_date", ["site", "category", "date_of_reporting", "pk_id"])
 @Entity()
 export class Emission {
   @PrimaryGeneratedColumn()
@@ -89,6 +92,7 @@ export class Emission {
   @Column({ type: "varchar", length: 2, nullable: true })
   year_type!: "CY" | "FY" | null;
 
+  @Index("IDX_emission_fera_linked_id")
   @Column({ nullable: true })
   fera_linked_id!: number;
 
