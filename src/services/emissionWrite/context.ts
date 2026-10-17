@@ -13,6 +13,7 @@ import { FactorIndex, MappingIndex } from "./resolve";
 import type { CategoryContext } from "./compute";
 import { methodUnits, offeredMethods } from "../../scope3/dq/methodOptions";
 import { SpendRateSource } from "../../scope3/spend/rates";
+import { NO_FORM_SETTINGS, readFormSettings, type FormSettings } from "../../forms/formConfig";
 
 export interface LoadedContext extends CategoryContext {
   mappings: MappingIndex;
@@ -20,6 +21,10 @@ export interface LoadedContext extends CategoryContext {
   company_id: number | null;
   /** S3-5: stored FX rates and deflators, shared by every row of the plan. */
   rates?: SpendRateSource;
+  /** SE-2: what the form fixes for the person entering data (src/forms/formConfig.ts). */
+  form?: FormSettings;
+  /** SE-2: the company's currency for a spend row whose row and form name none (INR for current clients). */
+  default_currency?: string | null;
 }
 
 export class ContextCache {
@@ -57,7 +62,8 @@ export class ContextCache {
     const feraCategory = site?.categories?.find((c) => c.category_name.toLowerCase() === "fera") ?? null;
     const configRepo = this.manager.getRepository(ColumnConfig);
     const [configs, spec, selectColumns, factors, feraFactors, unitRows] = await Promise.all([
-      configRepo.find({ where: { site: { site_id }, category: { category_id } }, order: { config_name: "ASC" } }),
+      // SE-2: with its columns, so a choice given by its label maps to a method too.
+      configRepo.find({ where: { site: { site_id }, category: { category_id } }, relations: ["columns"], order: { config_name: "ASC" } }),
       getCalculationSpec(configRepo, site_id, category_id),
       getSelectColumns(configRepo, site_id, category_id),
       FactorIndex.load(this.manager, site_id, category_id),
@@ -89,6 +95,9 @@ export class ContextCache {
       mappings,
       company_id,
       rates: this.spendRates,
+      // SE-2: the form's choice → method map, hidden-field defaults, fixed unit and currency.
+      form: configs[0] ? readFormSettings(configs[0], configs[0]) : NO_FORM_SETTINGS,
+      default_currency: site?.company?.default_currency ?? null,
     };
   }
 }

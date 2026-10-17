@@ -100,9 +100,15 @@ step("5 the client's switches start off: Smart import and Claude imports", async
   assert.deepEqual(r.rows[0], { ai_import_enabled: false, mcp_enabled: false });
 });
 
-pendingStep("5a default currency is INR and Users see the total only", "SE-2", () => hasColumn("company", "default_currency"), async () => {
+step("5a default currency is INR and Users see the total only (SE-2)", async () => {
   const r = await withDb((db) => db.query(`SELECT default_currency, entry_detail FROM company WHERE company_id = $1`, [S.companyId]));
   assert.deepEqual(r.rows[0], { default_currency: "INR", entry_detail: "total" });
+  // The session's company carries both, so the entry screens read them (SE-1).
+  const me = await call("GET", "/auth/me", S.admin);
+  ok(me);
+  const sites = me.json.user?.sites?.length ? me.json.user.sites : [me.json.user?.site].filter(Boolean);
+  assert.ok(sites.length > 0, JSON.stringify(me.json).slice(0, 300));
+  for (const s of sites) assert.deepEqual({ entry_detail: s.company?.entry_detail, default_currency: s.company?.default_currency }, { entry_detail: "total", default_currency: "INR" });
 });
 
 step("5b review workflow v2 (drafts and month lock) is off until the Superadmin turns it on", async () => {

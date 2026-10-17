@@ -160,6 +160,11 @@ const SCOPE_3 = "Scope 3";
  * `average_data` is the fallback rather than `unknown`: an activity figure
  * times a published factor *is* the average-data method. `unknown` is kept for
  * legacy rows that never recorded anything.
+ *
+ * SE-2 (src/forms/CLAUDE.md): the form's `method_by_choice` and the
+ * contributor rule are applied before this, in index.ts `prepareEntry`, which
+ * hands the choice's method in as `row.method` (and a contributor's overridden
+ * `@method` already replaced), so the order here is unchanged.
  */
 export const methodFor = (ctx: CategoryContext, row: Pick<EngineRow, "method" | "rowMethod" | "activity_unit">): Method | null => {
   if (ctx.scope !== SCOPE_3) return null;

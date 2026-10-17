@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinColu
 import { ColumnEntity as DynamicColumn } from "./Column";
 import { Category } from "./Category";
 import { Site } from "./Site";
-import type { MethodOptions } from "../scope3/contracts/schemas";
+import type { FieldSettings, FormCurrency, FormUnits, MethodByChoice, MethodOptions } from "../scope3/contracts/schemas";
 
 // Interface for dropdown option values
 export interface DropdownOptionValue {
@@ -135,6 +135,28 @@ export class ColumnConfig {
   // which also takes the bare method keys an early cut of this column stored.
   @Column({ type: "jsonb", nullable: true })
   method_options?: MethodOptions | null;
+
+  // Simple data entry SE-2 (migrate:entry-forms; ESG-lite_FE docs/simple-entry).
+  // The form decides, the server applies: what a User no longer chooses.
+  /** A select field whose choices pick the row's method: {column, map: {choiceId: method}}. */
+  @Column({ type: "jsonb", nullable: true })
+  method_by_choice?: MethodByChoice | null;
+
+  /** Per column name or extra-field key: label, help, default, hidden, readonly, required. */
+  @Column({ type: "jsonb", default: () => "'{}'" })
+  field_settings!: FieldSettings;
+
+  /** {fixed?}: a fixed unit hides the unit select. */
+  @Column({ type: "jsonb", nullable: true })
+  units?: FormUnits | null;
+
+  /** {fixed?}: a fixed currency; else the company's default_currency. */
+  @Column({ type: "jsonb", nullable: true })
+  currency?: FormCurrency | null;
+
+  /** Bumped when the form is published (SE-4). */
+  @Column({ type: "int", default: 1 })
+  version!: number;
 
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({

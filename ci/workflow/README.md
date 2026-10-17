@@ -40,7 +40,7 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | Step | Role | Checks |
 |---|---|---|
 | 0.1–0.3a | Superadmin | categories keep their GHG numbers (a Scope 1 category can't take one); country; USEEIO library loaded by the deploy; the deploy seeded the price index for the spend year |
-| 1–5b | Superadmin | onboarding creates the company, main site and Admin, who can sign in; Smart import, Claude imports and review workflow v2 start off (no month can be closed) |
+| 1–5b | Superadmin | onboarding creates the company, main site and Admin, who can sign in; Smart import, Claude imports and review workflow v2 start off (no month can be closed); default currency INR and Users see the total only, also in the session (SE-2) |
 | 6–7 | Superadmin | second site; categories assigned to both sites |
 | 9 | Admin | screening for FY 2026: 15 rows; a Category 7 headcount saved for FY (CY 2026 stays empty) gives the hand-worked commute estimate (not saved as a row); a Table II tick on Category 6 suggests Included; the suggestion is applied only by the Admin's own boundary change |
 | 10 | Admin | 15 boundary rows, 13–15 start Not relevant, an exclusion needs a reason, every category in use has its number and is Included, consolidation approach saved |
@@ -52,7 +52,7 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | 26–26d | Manager | approve, reject and pending rows (twins follow their parent); Scope 3 table per category (kg summed then rounded), statuses and reasons, GWP sets; Scope 1/2/3 totals; supplier coverage of Categories 1–2 and the top suppliers; another client sees nothing |
 | 24 | Admin | base year preview per category, only the Admin freezes it |
 | 29a–29e | Superadmin, User, Manager | review workflow v2 on: a User's August rows (and twins) are Drafts the Manager doesn't see; the month can't close while Drafts or missing categories are left; submit makes them Pending with one notification; "Nothing this month" and approval complete it; the Manager closes it; a closed month refuses writes with `PERIOD_LOCKED` until reopened with a reason |
-| skipped | — | 5a SE-2, 18 SE-4, 27 S3-16 |
+| skipped | — | 18 SE-4, 27 S3-16 |
 
 ## Every category (`categories.test.cjs`)
 

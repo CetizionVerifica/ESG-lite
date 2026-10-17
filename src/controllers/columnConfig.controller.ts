@@ -17,6 +17,10 @@ import { Unit } from "../entities/Unit";
 import { In } from "typeorm";
 import { generateColumnConfigProposal } from "../services/columnConfigGenerator";
 import { getDefaultExtraFieldsByName } from "../utils/defaultExtraFields";
+import { parseFormSettingsInput } from "../forms/formConfig";
+
+/** SE-2: the form settings a column-config write may carry (src/forms/formConfig.ts). */
+const FORM_SETTING_KEYS = ["method_by_choice", "field_settings", "units", "currency"] as const;
 
 const repo = AppDataSource.getRepository(ColumnConfig);
 const categoryRepo = AppDataSource.getRepository(Category);
@@ -212,6 +216,18 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       ? extra_fields
       : getDefaultExtraFieldsByName(category.category_name);
 
+    // SE-2: what the form fixes for the person entering data, checked against this form.
+    const formSettings = parseFormSettingsInput(req.body, {
+      columns,
+      extra_fields: validatedExtraFields,
+      column_options: validatedColumnOptions,
+      dependent_options: validatedDependentOptions,
+      method_options: methodOptions.value ?? null,
+    });
+    if (!formSettings.ok) {
+      return res.status(400).json({ message: formSettings.message, code: formSettings.code, field: formSettings.field });
+    }
+
     const columnConfig = repo.create({
       config_name: config_name.trim(),
       site: { site_id },
@@ -224,6 +240,7 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       extra_fields: validatedExtraFields,
       calculation: calculation && typeof calculation === "object" ? calculation : null,
       method_options: methodOptions.value ?? null,
+      ...formSettings.value,
     });
 
     await repo.save(columnConfig);
@@ -275,7 +292,8 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       emission_category_mapping === undefined &&
       extra_fields === undefined &&
       calculation === undefined &&
-      method_options === undefined
+      method_options === undefined &&
+      FORM_SETTING_KEYS.every((key) => req.body[key] === undefined)
     ) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -387,6 +405,14 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
       return res.status(400).json({ message: methodOptions.message, code: "FIELD_INVALID", field: methodOptions.field });
     }
     if (methodOptions.value !== undefined) columnConfig.method_options = methodOptions.value;
+
+    // SE-2: what the form fixes for the person entering data, checked against the form as it
+    // will be after this write (its columns, extra fields, choices and methods).
+    const formSettings = parseFormSettingsInput(req.body, columnConfig);
+    if (!formSettings.ok) {
+      return res.status(400).json({ message: formSettings.message, code: formSettings.code, field: formSettings.field });
+    }
+    Object.assign(columnConfig, formSettings.value);
 
     // Absent = keep the stored spec (config modals PUT without it); explicit null
     // clears. Anything that isn't an object is rejected rather than stored — the

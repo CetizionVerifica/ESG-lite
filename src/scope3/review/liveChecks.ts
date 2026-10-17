@@ -131,6 +131,8 @@ export async function liveChecks(manager: EntityManager, caller: Caller, rows: L
         period: { date_of_reporting: row.date_of_reporting, reporting_period, year_type },
         extra_data: {},
         ...quality.value,
+        // SE-2: as the save would (a User's row takes the method the form decides).
+        method_source: caller.role === UserRole.USER ? "contributor" : "caller",
       });
       if (prepared.ok) entry = prepared.entry;
       else issue = issueOf(prepared.issue.code, prepared.issue.message, prepared.issue.field);
