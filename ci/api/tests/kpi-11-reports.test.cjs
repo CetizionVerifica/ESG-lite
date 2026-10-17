@@ -41,7 +41,7 @@ const report = async (who, fw, qs = "") => {
   assert.equal(r.status, 200, JSON.stringify(r.json));
   return r.json;
 };
-const item = (rep, disclosure, code) => rep.report.rows.find((r) => r.code === disclosure)?.items.find((i) => i.code === code);
+const item = (rep, disclosure, code) => rep.rows.find((r) => r.code === disclosure)?.items.find((i) => i.code === code);
 
 test.before(async () => {
   for (const name of ["migrateKpiLibrary", "seedKpiLibrary", "migrateKpiValues", "migrateKpiSetup", "migrateKpiTargets"]) {
@@ -85,13 +85,17 @@ test.after(async () => {
 
 test("JSON: approved values only, in each framework's unit, with the previous year, omissions and the audit trail", async () => {
   const gri = await report("manager", "GRI");
-  const m = gri.report;
+  const m = gri;
   assert.deepEqual([m.framework, m.version, m.year, m.label, m.previous_label, m.company.name], ["GRI", "GRI 2021+", 2026, "2026", "2025", "CI Steel Co"]);
   assert.deepEqual(m.sites.map((s) => s.site_id), [1, 2]);
   const w = item(gri, "303-3", "WATER_WITHDRAWAL");
   assert.deepEqual([w.value, w.previous, w.unit, w.complete, w.missing_sites, w.value_ids, w.evidence_count], [1.2, 1, "ML", false, [2], [ids.w1], 1], "1,200 kL = 1.2 ML; site 2 is pending");
-  assert.ok(m.pending.value_ids.includes(ids.w2));
-  assert.equal(m.pending.count, 1);
+  assert.ok(m.pending_ids.includes(ids.w2));
+  assert.equal(m.pending_count, 1);
+  const row = m.rows.find((r) => r.code === "303-3");
+  assert.deepEqual([row.value, row.previous, row.unit, row.fit, row.requirement, row.kpi_definition_ids, row.value_ids, row.evidence_count, row.sites], [1.2, 1, "ML", "exact", "required", [ids.WATER_WITHDRAWAL], [ids.w1], 1, [1]]);
+  const om = m.omissions.find((o) => o.code === "401-1");
+  assert.deepEqual([om.kind, om.reason_kind, om.esrs_topic], ["not_tracked", "not_tracked", null]);
   assert.equal(m.omissions.find((o) => o.code === "401-1").reason, "Not tracked in ESGLite");
   const trail = gri.audit_trail.find((a) => a.value_id === ids.w1);
   assert.deepEqual([trail.kpi_code, trail.site_name, trail.period_label, trail.value, trail.approved_by, trail.approved_by_name, trail.evidence], ["WATER_WITHDRAWAL", "CI Plant A", "2026", 1200, 2, "CI Manager", ["water-bill-2026.pdf"]]);
@@ -101,7 +105,7 @@ test("JSON: approved values only, in each framework's unit, with the previous ye
 
   const esrs = await report("admin", "esrs");
   assert.deepEqual([item(esrs, "E2-4", "AIR_NOX").value, item(esrs, "E2-4", "AIR_NOX").unit], [1500, "kg"], "1.5 t = 1,500 kg");
-  const e3 = esrs.report.omissions.find((o) => o.code === "E3-4");
+  const e3 = esrs.omissions.find((o) => o.code === "E3-4");
   assert.deepEqual([e3.reason_kind, e3.reason], ["not_material", "No water stress"]);
   const brsr = await report("manager", "BRSR");
   assert.deepEqual([item(brsr, "P6-E3", "WATER_WITHDRAWAL").value, item(brsr, "P6-E3", "WATER_WITHDRAWAL").unit], [1200, "kL"]);
@@ -129,6 +133,7 @@ test("XLSX for each framework: sheet names, headers, the audit trail", async () 
     assert.equal(r.status, 200);
     assert.equal(r.headers.get("content-type"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     assert.match(r.headers.get("content-disposition"), new RegExp(`attachment; filename="${fw}-CI-Steel-Co-2026.xlsx"`));
+    assert.equal(r.headers.get("access-control-expose-headers"), "Content-Disposition");
     return XLSX.read(r.buffer, { type: "buffer" });
   };
   const gri = await xlsx("GRI");
@@ -180,7 +185,7 @@ test("who may: Managers, Admins, the Superadmin; Users can't; tenant isolation; 
   assert.equal((await call("GET", "/kpi/reports/GRI", "manager")).json.code, "KPI_VALIDATION");
   assert.equal((await call("GET", "/kpi/reports/GRI?year=2026&format=docx", "manager")).status, 400);
   const site2 = await report("manager", "GRI", "&sites=2");
-  assert.deepEqual(site2.report.sites.map((s) => s.site_id), [2]);
+  assert.deepEqual(site2.sites.map((s) => s.site_id), [2]);
   assert.equal(item(site2, "303-3", "WATER_WITHDRAWAL")?.value ?? null, null, "site 2's water is only pending");
   const notSetUp = await call("GET", "/kpi/reports/GRI?year=2026", "otherManager");
   assert.deepEqual([notSetUp.status, notSetUp.json.code], [409, "KPI_SETUP_INCOMPLETE"]);

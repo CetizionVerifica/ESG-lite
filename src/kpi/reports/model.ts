@@ -99,6 +99,16 @@ export interface ReportRow {
   source_url: string | null;
   status: "reported" | "partial";
   items: ReportItem[];
+  /** Row summary (the first approved item, which leads by fit; every item's ids). */
+  value: number | null;
+  text: string | null;
+  previous: number | null;
+  unit: string | null;
+  fit: string;
+  kpi_definition_ids: number[];
+  value_ids: number[];
+  evidence_count: number;
+  sites: Array<number | null>;
 }
 
 export type OmissionKind = "not_material" | "excluded" | "missing" | "not_tracked";
@@ -113,6 +123,8 @@ export interface ReportOmission {
   core: boolean;
   esrs_topic: string | null;
   reason_kind: OmissionKind;
+  /** The same as reason_kind. */
+  kind: OmissionKind;
   reason: string;
 }
 
@@ -152,7 +164,7 @@ export function buildReportModel(input: ReportInput): ReportModel {
     if (d.requirement === "if_material" && d.esrs_topic) {
       const m = material.get(d.esrs_topic);
       if (!m?.material) {
-        omissions.push({ ...base, reason_kind: "not_material", reason: m ? m.reason || "Not material." : "Materiality not assessed." });
+        omissions.push({ ...base, reason_kind: "not_material", kind: "not_material", reason: m ? m.reason || "Not material." : "Materiality not assessed." });
         continue;
       }
     }
@@ -204,12 +216,27 @@ export function buildReportModel(input: ReportInput): ReportModel {
     }
     if (items.some((i) => i.status === "approved")) {
       const done = items.every((i) => i.status === "excluded" || (i.status === "approved" && i.complete));
-      rows.push({ ...base, source_url: d.source_url ?? null, status: done ? "reported" : "partial", items });
+      const lead = items.find((i) => i.status === "approved")!;
+      rows.push({
+        ...base,
+        source_url: d.source_url ?? null,
+        status: done ? "reported" : "partial",
+        items,
+        value: lead.value,
+        text: lead.text,
+        previous: lead.previous,
+        unit: lead.unit,
+        fit: lead.fit,
+        kpi_definition_ids: items.map((i) => i.kpi_definition_id),
+        value_ids: [...new Set(items.flatMap((i) => i.value_ids))].sort((a, b) => a - b),
+        evidence_count: items.reduce((n, i) => n + i.evidence_count, 0),
+        sites: [...new Set(items.flatMap((i) => i.sites))],
+      });
       continue;
     }
-    if (items.some((i) => i.status === "missing")) omissions.push({ ...base, reason_kind: "missing", reason: `No approved value for ${label}.` });
-    else if (items.length && items.every((i) => i.status === "excluded")) omissions.push({ ...base, reason_kind: "excluded", reason: [...new Set(items.map((i) => i.reason as string))].join("; ") });
-    else omissions.push({ ...base, reason_kind: "not_tracked", reason: NOT_TRACKED_TEXT });
+    if (items.some((i) => i.status === "missing")) omissions.push({ ...base, reason_kind: "missing", kind: "missing", reason: `No approved value for ${label}.` });
+    else if (items.length && items.every((i) => i.status === "excluded")) omissions.push({ ...base, reason_kind: "excluded", kind: "excluded", reason: [...new Set(items.map((i) => i.reason as string))].join("; ") });
+    else omissions.push({ ...base, reason_kind: "not_tracked", kind: "not_tracked", reason: NOT_TRACKED_TEXT });
   }
   return {
     framework: input.framework.code,

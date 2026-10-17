@@ -1,7 +1,8 @@
 /**
  * KPI-11 route, behind requireKpiTracking (01-contracts §3):
  *   GET /kpi/reports/:framework?year=&sites=&format=json|xlsx|pdf
- *     json  → {report, audit_trail}
+ *     json  → the model at the top level (framework, version, year, …, rows, omissions) plus
+ *             pending_count, pending_ids and audit_trail
  *     xlsx  → the framework's workbook (GRI content index, BRSR tables or ESRS datapoints,
  *             plus "Audit trail")
  *     pdf   → the GRI content index (GRI only; else 400 KPI_VALIDATION)
@@ -24,7 +25,8 @@ const router = Router();
 router.get("/reports/:framework", handle("framework report", async (req, res) => {
   const { model, audit_trail, format } = await loadReport(kpiCaller(req as KpiRequest), String(req.params.framework), req.query);
   const base = `${model.framework}-${fileSafe(model.company.name)}-${fileSafe(model.label)}`;
-  if (format === "json") return res.json({ report: model, audit_trail });
+  if (format === "json") return res.json({ ...model, pending_count: model.pending.count, pending_ids: model.pending.value_ids, audit_trail });
+  res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
   if (format === "pdf") {
     if (model.framework !== "GRI") throw new KpiError("KPI_VALIDATION", { issues: [{ path: "format", message: "PDF is for the GRI content index only." }] });
     const pdf = await griPdf(model, audit_trail);
