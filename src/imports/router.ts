@@ -7,10 +7,12 @@
 import { Router } from "express";
 import plansRouter from "./plans/router";
 import contextRouter from "./context/router";
+import profilesRouter from "./profiles/router";
 
 const importsRouter = Router();
 
 importsRouter.use(plansRouter); // IM2
 importsRouter.use(contextRouter); // IM3
+importsRouter.use(profilesRouter); // XI3
 
 export default importsRouter;

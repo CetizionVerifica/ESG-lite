@@ -7,9 +7,39 @@ import cloudinary from "../config/cloudinary";
 import { destroyStoredFile, uniqueFileName } from "../utils/storedFiles";
 import { Readable } from "stream";
 import { accessibleSiteIds } from "../utils/companyScope";
+import { refreshChecksSafely } from "../scope3/review/service";
 import { EntityManager, In } from "typeorm";
+import { refreshDqForEvidenceSafely } from "../scope3/dq/evidence";
+import { logLockedEvidence, othersDraftIds } from "../scope3/review/evidence";
+
+// S3-15 part 2: document → entry pairs, for the closed-month evidence log.
+const evidencePairs = async (documentIds: number[]): Promise<Array<{ document_id: number; emission_id: number }>> => {
+  if (!documentIds.length) return [];
+  const rows: Array<{ document_id: number; emission_id: number }> = await AppDataSource.query(
+    "SELECT document_id, emission_id FROM emission_document WHERE document_id = ANY($1) AND emission_id IS NOT NULL",
+    [documentIds],
+  );
+  return rows.map((r) => ({ document_id: Number(r.document_id), emission_id: Number(r.emission_id) }));
+};
 
 const documentRepo = AppDataSource.getRepository(EmissionDocument);
+// S3-15: EVIDENCE_ATTACHED reads the documents linked to an entry.
+const emissionIdsOfDocuments = async (documentIds: number[]): Promise<number[]> => {
+  if (!documentIds.length) return [];
+  const rows: Array<{ emission_id: number | null }> = await AppDataSource.query(
+    "SELECT DISTINCT emission_id FROM emission_document WHERE document_id = ANY($1) AND emission_id IS NOT NULL",
+    [documentIds],
+  );
+  return rows.map((r) => Number(r.emission_id));
+};
+// S3-15's checks and S3-3's data quality both read the documents on an entry,
+// so an evidence change refreshes the two together.
+const refreshEvidenceChecks = async (emissionIds: Array<number | string | null | undefined>) => {
+  const ids = emissionIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  await refreshChecksSafely(AppDataSource.manager, ids);
+  await refreshDqForEvidenceSafely(AppDataSource.manager, ids);
+};
+
 const emissionRepo = AppDataSource.getRepository(Emission);
 
 // Documents a caller may read: those on an entry at one of their sites, plus
@@ -89,8 +119,8 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
       });
       const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-      // Another company's entry reads as not found.
-      if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
+      // Another company's entry, or someone else's Draft (S3-15 part 2), reads as not found.
+      if (!emission || (allowed && !allowed.has(emission.site?.site_id)) || (await othersDraftIds(AppDataSource.manager, [emission.pk_id], req.user?.userId)).size) {
         return res.status(404).json({
           message: "Emission not found",
         });
@@ -124,6 +154,8 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
     });
 
     await documentRepo.save(document);
+    if (emission_id) await refreshEvidenceChecks([emission_id]);
+    if (emission_id) await logLockedEvidence(AppDataSource.manager, [{ document_id: document.document_id, emission_id: Number(emission_id) }], "evidence_added", userId);
 
     const savedDocument = await documentRepo.findOne({
       where: { document_id: document.document_id },
@@ -163,8 +195,8 @@ export const uploadMultipleDocuments = async (req: AuthRequest, res: Response) =
       });
       const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-      // Another company's entry reads as not found.
-      if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
+      // Another company's entry, or someone else's Draft (S3-15 part 2), reads as not found.
+      if (!emission || (allowed && !allowed.has(emission.site?.site_id)) || (await othersDraftIds(AppDataSource.manager, [emission.pk_id], req.user?.userId)).size) {
         return res.status(404).json({
           message: "Emission not found",
         });
@@ -199,6 +231,10 @@ export const uploadMultipleDocuments = async (req: AuthRequest, res: Response) =
 
       await documentRepo.save(document);
       uploadedDocuments.push(document);
+    }
+    if (emission_id) await refreshEvidenceChecks([emission_id]);
+    if (emission_id) {
+      await logLockedEvidence(AppDataSource.manager, uploadedDocuments.map((d) => ({ document_id: d.document_id, emission_id: Number(emission_id) })), "evidence_added", userId);
     }
 
     const savedDocuments = await documentRepo.find({
@@ -323,6 +359,11 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
       document.description = description;
     }
 
+    const previousEmissionIds = emission_id !== undefined ? await emissionIdsOfDocuments([document.document_id]) : [];
+    // S3-15 part 2: someone else's Draft's evidence isn't the caller's to move.
+    if ((await othersDraftIds(AppDataSource.manager, previousEmissionIds, req.user?.userId)).size) {
+      return res.status(404).json({ message: "Document not found" });
+    }
     if (emission_id !== undefined) {
       if (emission_id === null) {
         document.emission = null as any;
@@ -333,7 +374,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
         });
         const allowed = emission ? await accessibleSiteIds(req.user!.userId, req.user!.role) : null;
 
-        if (!emission || (allowed && !allowed.has(emission.site?.site_id))) {
+        if (!emission || (allowed && !allowed.has(emission.site?.site_id)) || (await othersDraftIds(AppDataSource.manager, [emission.pk_id], req.user?.userId)).size) {
           return res.status(404).json({
             message: "Emission not found",
           });
@@ -343,6 +384,14 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     }
 
     await documentRepo.save(document);
+    if (emission_id !== undefined) await refreshEvidenceChecks([...previousEmissionIds, emission_id]);
+    if (emission_id !== undefined) {
+      const moved = previousEmissionIds.filter((e) => Number(e) !== Number(emission_id));
+      await logLockedEvidence(AppDataSource.manager, moved.map((e) => ({ document_id: document.document_id, emission_id: e })), "evidence_removed", req.user?.userId);
+      if (emission_id !== null && !previousEmissionIds.includes(Number(emission_id))) {
+        await logLockedEvidence(AppDataSource.manager, [{ document_id: document.document_id, emission_id: Number(emission_id) }], "evidence_added", req.user?.userId);
+      }
+    }
 
     const updatedDocument = await documentRepo.findOne({
       where: { document_id: document.document_id },
@@ -376,7 +425,15 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const linkedEmissions = await emissionIdsOfDocuments([document.document_id]);
+    // S3-15 part 2: evidence on someone else's Draft doesn't exist for the caller.
+    if ((await othersDraftIds(AppDataSource.manager, linkedEmissions, req.user?.userId)).size) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+    const pairs = await evidencePairs([document.document_id]);
     const { filesDeleted } = await deleteDocumentRows([document.document_id]);
+    await refreshEvidenceChecks(linkedEmissions);
+    await logLockedEvidence(AppDataSource.manager, pairs, "evidence_removed", req.user?.userId);
     // The document's own file goes once no other document links it; an
     // AI-service invoice's file is handled by deleteDocumentRows.
     await removeDeletedDocumentFiles(ownFiles([document]));
@@ -407,11 +464,20 @@ export const bulkDeleteDocuments = async (req: AuthRequest, res: Response) => {
 
     // Find all documents to get their Cloudinary public IDs. Only the
     // caller's documents are deleted; other ids are ignored like unknown ones.
-    const documents = await documentRepo.find({
+    const found = await documentRepo.find({
       where: await scopedDocumentWhere(req, { document_id: In(ids.map((id: unknown) => Number(id)).filter(Number.isInteger)) }),
     });
+    // S3-15 part 2: evidence on someone else's Draft is ignored like an unknown id.
+    const foundPairs = await evidencePairs(found.map((d) => d.document_id));
+    const hiddenEntries = await othersDraftIds(AppDataSource.manager, foundPairs.map((p) => p.emission_id), req.user?.userId);
+    const hiddenDocs = new Set(foundPairs.filter((p) => hiddenEntries.has(p.emission_id)).map((p) => p.document_id));
+    const documents = found.filter((d) => !hiddenDocs.has(d.document_id));
+    const pairs = foundPairs.filter((p) => !hiddenDocs.has(p.document_id));
 
+    const linkedEmissions = await emissionIdsOfDocuments(documents.map((d) => d.document_id));
     const { affected, filesDeleted } = await deleteDocumentRows(documents.map((d) => d.document_id));
+    await refreshEvidenceChecks(linkedEmissions);
+    await logLockedEvidence(AppDataSource.manager, pairs, "evidence_removed", req.user?.userId);
     await removeDeletedDocumentFiles(ownFiles(documents));
 
     return res.status(200).json({
@@ -609,6 +675,7 @@ export const linkInvoiceDocuments = async (req: AuthRequest, res: Response) => {
 
     const allowed = await accessibleSiteIds(userId, req.user?.role);
 
+    const created: number[] = [];
     const documents = await AppDataSource.transaction(async (m) => {
       if (!(await invoiceTablePresent(m))) throw new LinkError(404, "Invoice not found");
       const [invoice] = await m.query(
@@ -627,6 +694,8 @@ export const linkInvoiceDocuments = async (req: AuthRequest, res: Response) => {
         relations: ["site"],
       });
       if (emissions.length !== emissionIds.length) throw new LinkError(404, "One or more emissions not found");
+      // S3-15 part 2: someone else's Draft reads as not found.
+      if ((await othersDraftIds(m, emissionIds, userId)).size) throw new LinkError(404, "One or more emissions not found");
       if (allowed && emissions.some((e) => !allowed.has(e.site?.site_id))) {
         throw new LinkError(403, "You do not have access to one or more of these emissions");
       }
@@ -641,6 +710,7 @@ export const linkInvoiceDocuments = async (req: AuthRequest, res: Response) => {
           where: { ai_invoice_id: invoiceId, emission: { pk_id: emission.pk_id } },
         });
         if (!doc) {
+          created.push(emission.pk_id);
           doc = await docRepo.save(
             docRepo.create({
               file_name: invoice.file_name,
@@ -673,6 +743,13 @@ export const linkInvoiceDocuments = async (req: AuthRequest, res: Response) => {
       return out;
     });
 
+    await refreshEvidenceChecks(emissionIds);
+    await logLockedEvidence(
+      AppDataSource.manager,
+      documents.filter((d) => created.includes(d.emission_id)).map((d) => ({ document_id: d.document_id, emission_id: d.emission_id })),
+      "evidence_added",
+      userId,
+    );
     return res.status(201).json({ message: "Invoice linked", documents });
   } catch (error) {
     if (error instanceof LinkError) return res.status(error.status).json({ message: error.message });

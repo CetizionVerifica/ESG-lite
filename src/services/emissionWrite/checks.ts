@@ -9,12 +9,13 @@ import { findModeLockConflict, type ModeLockConflict, periodWindow, type YearTyp
 import { specIdentityMatches } from "../calculationSpec";
 import type { CalculationSpec } from "../../entities/ColumnConfig";
 import type { StoredPeriod } from "./period";
+import { IMPORT_LIMITS } from "../../imports/limits";
 
 export class CheckCache {
   private readonly modeLocks = new Map<string, Promise<ModeLockConflict | null>>();
   private readonly existing = new Map<string, Promise<Emission[]>>();
 
-  constructor(private readonly manager: EntityManager) {}
+  constructor(readonly manager: EntityManager) {}
 
   /** The typed-entry mode lock, one query per site × category × period window. */
   modeLock(site_id: number, category_id: number, p: StoredPeriod): Promise<ModeLockConflict | null> {
@@ -129,3 +130,14 @@ export const modeLockMessage = (c: ModeLockConflict, period: "monthly" | "yearly
   }
   return `This category already has a yearly batch covering ${c.window.start} – ${c.window.end}. Delete the yearly data first, or file this entry under a different period.`;
 };
+
+/**
+ * A row the AI matched below the confirmation threshold keeps a
+ * LOW_CONFIDENCE_MATCH warning after the uploader confirms it, so the
+ * approver still sees it in "Needs attention" (Shyam, 2026-10-14). Only the
+ * model's own matches count: profile and rules matches are not flagged, and
+ * rows without meta (Claude, API, plain bulk upload) never are. A warning
+ * only: the row still commits.
+ */
+export const isLowConfidenceAiMatch = (meta: { source?: string; confidence?: number } | null | undefined): boolean =>
+  !!meta && meta.source === "llm" && typeof meta.confidence === "number" && meta.confidence < IMPORT_LIMITS.MAPPING_CONFIRM_BELOW;

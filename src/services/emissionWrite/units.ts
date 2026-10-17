@@ -63,15 +63,68 @@ async function refreshCurrencyRates(): Promise<void> {
 void refreshCurrencyRates();
 setInterval(refreshCurrencyRates, 12 * 60 * 60 * 1000).unref?.();
 
+/**
+ * Other spellings of the same unit, as client sheets and bills write them
+ * ("MT" for a metric tonne and "SCM" for a city-gas cubic metre on Indian
+ * records, "Ltr" for a litre). Read as the canonical unit before comparing or
+ * converting, so a unit that used to be refused as not convertible now
+ * resolves; nothing that converted before changes.
+ */
+export const UNIT_ALIASES: Record<string, string> = {
+  mt: "tonne",
+  "m.t.": "tonne",
+  "metric ton": "tonne",
+  "metric tons": "tonne",
+  "metric tonne": "tonne",
+  "metric tonnes": "tonne",
+  scm: "cubic meter",
+  sm3: "cubic meter",
+  "sm³": "cubic meter",
+  m3: "cubic meter",
+  "m³": "cubic meter",
+  "cubic metre": "cubic meter",
+  "cubic meters": "cubic meter",
+  "cubic metres": "cubic meter",
+  ltr: "litre",
+  ltrs: "litre",
+  lt: "litre",
+  lts: "litre",
+  l: "litre",
+  litres: "litre",
+  liter: "litre",
+  liters: "litre",
+  kgs: "kg",
+  kilogram: "kg",
+  kilograms: "kg",
+};
+
+/**
+ * The currencies the conversion table converts (S3-4). Forms offer only these:
+ * GBP, BHD, SAR and AED were offered but had no rate. S3-5 replaces this with
+ * a real FX source (FX_RATE_FALLBACK when a rate is missing).
+ */
+export const CONVERTIBLE_CURRENCIES = ["INR", "USD", "EUR"] as const;
+
+export const canonicalUnit = (unit: string | null | undefined): string => {
+  const u = (unit ?? "").toLowerCase().trim();
+  return UNIT_ALIASES[u] ?? u;
+};
+
 // Get conversion factor between two units
 export const getConversionFactor = (fromUnit: string, toUnit: string): number | null => {
-  const from = fromUnit?.toLowerCase().trim();
-  const to = toUnit?.toLowerCase().trim();
+  const from = canonicalUnit(fromUnit);
+  const to = canonicalUnit(toUnit);
+  if (from && from === to) return 1;
   return unitConversions[from]?.[to] || null;
 };
 
-// Check if units match (handles null/undefined like frontend)
+/**
+ * Whether two units are the same unit. A missing unit on either side is no
+ * longer a match (S3-4): a factor with no unit is UNIT_REQUIRED (computeTotal),
+ * and a missing activity unit is the form's unit only when the form has a
+ * single one (prepareEntry fills it in before any matching).
+ */
 export const unitsMatchExact = (unit1: string | null | undefined, unit2: string | null | undefined): boolean => {
-  if (!unit1 || !unit2) return true; // Treat null/undefined as match (like frontend)
-  return unit1.toLowerCase().trim() === unit2.toLowerCase().trim();
+  if (!unit1 || !unit2) return false;
+  return canonicalUnit(unit1) === canonicalUnit(unit2);
 };

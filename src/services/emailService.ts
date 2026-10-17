@@ -1,6 +1,6 @@
 // import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import { getMg, MAILGUN_DOMAIN } from "../config/mailer";
+import { getMg, MAILGUN_DOMAIN, MAIL_FROM, frontendBaseUrl } from "../config/mailer";
 
 dotenv.config();
 
@@ -25,6 +25,7 @@ interface EmailOptions {
 
 
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
+    if (!getMg()) throw new Error("Email isn't configured on this server (MAILGUN_API_KEY is not set)");
     try {
         await sendEmailForApprove({
             to: options.to,
@@ -43,7 +44,7 @@ export const sendPasswordResetEmail = async (
     resetToken: string,
     userName?: string,
 ): Promise<void> => {
-    const frontendUrl = (process.env.FRONTEND_URL || "").replace(/\/+$/, "");
+    const frontendUrl = frontendBaseUrl();
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     const html = `
@@ -118,7 +119,7 @@ export const sendEmailForApprove = async ({ to, subject, html }: EmailPayload) =
         return;
     }
     return client.messages.create(MAILGUN_DOMAIN, {
-        from: `Carbon Lens <mail@mail.carbon-lens.com>`,
+        from: MAIL_FROM,
         to: [to],
         subject,
         html,
@@ -132,7 +133,7 @@ export const sendInviteEmail = async (
     companyName: string | undefined,
     validDays: number,
 ): Promise<void> => {
-    const frontendUrl = (process.env.FRONTEND_URL || "").replace(/\/+$/, "");
+    const frontendUrl = frontendBaseUrl();
     const inviteUrl = `${frontendUrl}/reset-password?token=${inviteToken}&invite=1`;
     const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
     const greeting = userName ? ` ${esc(userName)}` : "";

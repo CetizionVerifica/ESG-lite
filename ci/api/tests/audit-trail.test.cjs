@@ -35,6 +35,41 @@ test("approve and reject write an audit row, FERA twin included", async () => {
   }
 });
 
+test("the history API returns the reason given for a review", async () => {
+  try {
+    assert.equal((await call("PUT", "/user/emissions/2/approve", "manager", { comment: "Checked against the bill" })).status, 200);
+    const r = await call("GET", "/user/audit-logs?entity_type=emission&entity_id=2", "manager");
+    assert.equal(r.status, 200);
+    const [entry] = r.json;
+    assert.equal(entry.action, "approve");
+    assert.equal(entry.reason, "Checked against the bill");
+
+    // A reject's comment comes back too, as the newest entry.
+    await q("UPDATE emission SET status='pending', reviewed_by=NULL, reviewed_at=NULL WHERE pk_id IN (2, 5)");
+    assert.equal((await call("PUT", "/user/emissions/2/reject", "manager", { comment: "Wrong meter reading" })).status, 200);
+    const after = await call("GET", "/user/audit-logs?entity_type=emission&entity_id=2", "manager");
+    assert.equal(after.status, 200);
+    assert.equal(after.json[0].action, "reject");
+    assert.equal(after.json[0].reason, "Wrong meter reading");
+  } finally {
+    await q("UPDATE emission SET status='pending', reviewed_by=NULL, reviewed_at=NULL, review_comment=NULL WHERE pk_id IN (2, 5)");
+    await clearAudit("emission", [2, 5]);
+  }
+});
+
+test("history entries written in the same instant come back newest (highest id) first", async () => {
+  try {
+    await q(`INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, reason, changed_by, changed_at)
+             VALUES ('emission', 2, 'manager_edit', '{}', 'first', 2, '2025-10-01T10:00:00Z'),
+                    ('emission', 2, 'manager_edit', '{}', 'second', 2, '2025-10-01T10:00:00Z')`);
+    const r = await call("GET", "/user/audit-logs?entity_type=emission&entity_id=2", "manager");
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json.map((e) => e.reason), ["second", "first"]);
+  } finally {
+    await clearAudit("emission", [2]);
+  }
+});
+
 test("a refused review writes no audit row", async () => {
   assert.equal((await call("PUT", "/user/emissions/1/approve", "manager", {})).status, 400); // already approved
   assert.equal((await auditRows("emission", 1)).length, 0);
@@ -244,33 +279,99 @@ test("a date-only manager edit of a row without category or unit keeps its total
   }
 });
 
-test("legacy Excel import computes the total from activity x factor, not the file's calculatedEmission", async () => {
-  const XLSX = require("xlsx");
-  const sheet = XLSX.utils.json_to_sheet([
-    { year: "2018", month: "March", fuelType: "Diesel", unit: "litre", activity: 400, emissionFactor: 2.5, emissionFactorUnit: "kg CO₂e/litre", calculatedEmission: 999 },
-    // Activity in kWh, factor per MWh: no conversion here, so the file's value is kept.
-    { year: "2018", month: "April", fuelType: "Grid", unit: "kWh", activity: 2000, emissionFactor: 1, emissionFactorUnit: "tCO2e/MWh", calculatedEmission: 2 },
-  ]);
-  const book = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(book, sheet, "Sheet1");
-  const form = new FormData();
-  form.append(
-    "file",
-    new Blob([XLSX.write(book, { type: "buffer", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-    "import.xlsx",
-  );
-  form.append("siteName", "CI Plant A");
-  form.append("categoryName", "Stationary Combustion");
+test("a manager edit with an empty, zero or negative amount is refused and keeps the entry as it was", async () => {
+  const [before] = await q("SELECT activity_data, total_emission, activity_data_unit, emission_factor_snapshot FROM emission WHERE pk_id=1");
+  await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (901, 'Diesel', 2.68, 'litre', 2024, 1, 1)");
+  await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id=1");
   try {
-    const r = await call("POST", "/admin/upload/emissions", "superadmin", form);
-    assert.equal(r.status, 200);
-    assert.equal(r.json.summary.emissionsCreated, 2);
-    const [row] = await q("SELECT total_emission FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-03-01' AND date_of_reporting < '2018-04-01'");
-    assert.equal(Number(row.total_emission), 1); // 400 x 2.5 kg = 1 t
-    const [kwh] = await q("SELECT total_emission FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-04-01' AND date_of_reporting < '2018-05-01'");
-    assert.equal(Number(kwh.total_emission), 2); // not 2000
+    for (const amount of ["", 0, "0", -50]) {
+      const r = await call("PUT", "/user/emissions/manager-edit/1", "manager", {
+        activity_data: { activity_value: amount, emission_category: "Diesel" }, reason: "Meter re-read",
+      });
+      assert.equal(r.status, 400, `amount ${JSON.stringify(amount)}: ${JSON.stringify(r.json).slice(0, 400)}`);
+      assert.match(r.json.message, /greater than 0/);
+    }
+    const [row] = await q("SELECT activity_data, total_emission FROM emission WHERE pk_id=1");
+    assert.equal(Number(row.total_emission), Number(before.total_emission));
+    assert.deepEqual(row.activity_data, before.activity_data);
+    assert.equal((await auditRows("emission", 1)).length, 0);
   } finally {
+    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4 WHERE pk_id=1",
+      [before.activity_data, before.total_emission, before.activity_data_unit, before.emission_factor_snapshot]);
+    await q("DELETE FROM emission_factors WHERE emission_factor_id = 901");
+    await clearAudit("emission", [1]);
+  }
+});
+
+test("a manager edit can't move an entry into a period filed the other way (mode lock)", async () => {
+  // Site 1, category 2: row 2 is monthly (Sep 2025), row 13 is a yearly CY 2024 batch.
+  const before = await q("SELECT pk_id, date_of_reporting FROM emission WHERE pk_id IN (2, 13) ORDER BY pk_id");
+  try {
+    const intoYearly = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong year" });
+    assert.equal(intoYearly.status, 409);
+    assert.equal(intoYearly.json.mode_lock, true);
+    assert.match(intoYearly.json.message, /yearly batch covering 2024-01-01 – 2024-12-31/);
+
+    const midYear = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong date" });
+    assert.equal(midYear.status, 400);
+    assert.match(midYear.json.message, /Dec 31|31 Dec|December/i);
+
+    const overMonthly = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2025-12-31", reason: "Wrong year" });
+    assert.equal(overMonthly.status, 409);
+    assert.match(overMonthly.json.message, /monthly entr/);
+
+    const rows = await q("SELECT pk_id, date_of_reporting FROM emission WHERE pk_id IN (2, 13) ORDER BY pk_id");
+    assert.deepEqual(rows.map((r) => new Date(r.date_of_reporting).toISOString()), before.map((b) => new Date(b.date_of_reporting).toISOString()));
+    assert.equal((await auditRows("emission", 2)).length + (await auditRows("emission", 13)).length, 0);
+
+    // Another month that no yearly batch covers still saves.
+    const ok = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "2025-08-31", reason: "Wrong month" });
+    assert.equal(ok.status, 200);
+  } finally {
+    for (const b of before) await q("UPDATE emission SET date_of_reporting=$2 WHERE pk_id=$1", [b.pk_id, b.date_of_reporting]);
+    await clearAudit("emission", [2, 13]);
+  }
+});
+
+test("legacy Excel import: totals from the engine and the site's factor, never the sheet's; unknown categories refused (S3-4)", async () => {
+  const XLSX = require("xlsx");
+  const upload = (rows, categoryName = "Stationary Combustion") => {
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), "Sheet1");
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob([XLSX.write(book, { type: "buffer", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      "import.xlsx",
+    );
+    form.append("siteName", "CI Plant A");
+    form.append("categoryName", categoryName);
+    return call("POST", "/admin/upload/emissions", "superadmin", form);
+  };
+  // The site's 2017 Diesel factor applies to 2018 rows (reporting year − 1).
+  await q(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (9928, 'Diesel', 2.6, 'litre', 2017, 1, 1)`);
+  try {
+    const r = await upload([
+      { year: "2018", month: "March", fuelType: "Diesel", unit: "litre", activity: 400, emissionFactor: 2.5, emissionFactorUnit: "kg CO₂e/litre", calculatedEmission: 999 },
+      // No Grid factor for this site and category: refused, not stored with the sheet's 2 t.
+      { year: "2018", month: "April", fuelType: "Grid", unit: "kWh", activity: 2000, emissionFactor: 1, emissionFactorUnit: "tCO2e/MWh", calculatedEmission: 2 },
+    ]);
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([r.json.summary.emissionsCreated, r.json.summary.emissionsSkipped], [1, 1]);
+    const rows = await q("SELECT total_emission, total_kgco2e, extra_data->'import'->>'channel' AS channel FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01'");
+    assert.deepEqual(rows.map((x) => [Number(x.total_emission), x.total_kgco2e, x.channel]), [[1.04, "1040.0000", "historical"]]); // 400 x 2.6 kg, not 999 nor 400 x 2.5
+    const [audit] = await auditRows("emission", (await q("SELECT pk_id FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-03-01' AND date_of_reporting < '2018-04-01'"))[0].pk_id);
+    assert.match(audit.reason, /Imported via Historical import by CI Superadmin \(import.xlsx\)/);
+
+    // An unknown category is refused, never created as "Scope 1".
+    const unknown = await upload([{ year: "2018", month: "May", fuelType: "Diesel", unit: "litre", activity: 1 }], "Mystery Category");
+    assert.equal(unknown.status, 400);
+    assert.equal(unknown.json.code, "SCOPE_INVALID");
+    assert.equal((await q(`SELECT 1 FROM category WHERE category_name = 'Mystery Category'`)).length, 0);
+  } finally {
+    await q("DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id::text IN (SELECT pk_id::text FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01')");
     await q("DELETE FROM emission WHERE site_id = 1 AND date_of_reporting >= '2018-01-01' AND date_of_reporting < '2019-01-01'");
+    await q("DELETE FROM emission_factors WHERE emission_factor_id = 9928");
   }
 });
 
@@ -321,5 +422,51 @@ test("a FERA factor in a unit that cannot be converted gives no twin total from 
     }
     await q("DELETE FROM emission_factors WHERE emission_factor_id IN (903, 904)");
     await clearAudit("emission", [1, 5]);
+  }
+});
+
+test("a manager edit can't move an entry into a period that hasn't started", async () => {
+  // Row 2: monthly, site 1 / category 2. Row 13: a yearly CY 2024 batch.
+  const before = await q("SELECT pk_id, date_of_reporting FROM emission WHERE pk_id IN (2, 13) ORDER BY pk_id");
+  const now = new Date();
+  const nextMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0)).toISOString().slice(0, 10);
+  try {
+    const month = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: nextMonthEnd, reason: "Wrong month" });
+    assert.equal(month.status, 400);
+    assert.match(month.json.message, /is in the future/);
+    const year = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: `${now.getUTCFullYear() + 1}-12-31`, reason: "Wrong year" });
+    assert.equal(year.status, 400);
+    assert.match(year.json.message, /has not started yet/);
+    const rows = await q("SELECT pk_id, date_of_reporting FROM emission WHERE pk_id IN (2, 13) ORDER BY pk_id");
+    assert.deepEqual(rows.map((r) => new Date(r.date_of_reporting).toISOString()), before.map((b) => new Date(b.date_of_reporting).toISOString()));
+  } finally {
+    for (const b of before) await q("UPDATE emission SET date_of_reporting=$2 WHERE pk_id=$1", [b.pk_id, b.date_of_reporting]);
+    await clearAudit("emission", [2, 13]);
+  }
+});
+
+test("a contributor's update with an empty, zero or negative amount is refused and keeps the total; a future month too", async () => {
+  await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (901, 'Diesel', 2.68, 'litre', 2024, 1, 1)");
+  await q(`INSERT INTO emission (pk_id, activity_data, activity_data_unit, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, created_at)
+           VALUES (990, '{"activity_value": 100, "emission_category": "Diesel"}', 'litre', 0.27, 'tCO2e', '2025-06-30', 'pending', 1, 1, 1, 'monthly', now())`);
+  try {
+    for (const amount of ["", 0, "0", -50]) {
+      const r = await call("PUT", "/user/emissions/990", "user", { activity_data: { activity_value: amount, emission_category: "Diesel" } });
+      assert.equal(r.status, 400, `amount ${JSON.stringify(amount)}: ${JSON.stringify(r.json)}`);
+    }
+    const now = new Date();
+    const future = await call("PUT", "/user/emissions/990", "user", { date_of_reporting: `${now.getUTCFullYear() + 1}-01-31` });
+    assert.equal(future.status, 400);
+    assert.match(future.json.message, /is in the future/);
+    const [kept] = await q("SELECT total_emission, activity_data FROM emission WHERE pk_id = 990");
+    assert.equal(Number(kept.total_emission), 0.27);
+    assert.equal(kept.activity_data.activity_value, 100);
+    const ok = await call("PUT", "/user/emissions/990", "user", { activity_data: { activity_value: 200, emission_category: "Diesel" } });
+    assert.equal(ok.status, 200, JSON.stringify(ok.json));
+    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id = 990"))[0].total_emission), 0.54);
+  } finally {
+    await q("DELETE FROM emission WHERE pk_id = 990");
+    await q("DELETE FROM emission_factors WHERE emission_factor_id = 901");
+    await clearAudit("emission", [990]);
   }
 });

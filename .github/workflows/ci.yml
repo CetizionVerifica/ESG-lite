@@ -1,4 +1,4 @@
-# Safety checks for every change headed to redesign/integration or main.
+# Safety checks for every change headed to production or main.
 #
 # Nothing here can reach production: there are no repository secrets in this
 # file (ci/check_ci_isolation.py enforces that), every database step talks to
@@ -8,10 +8,10 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, redesign/integration]
+    branches: [main, production]
     types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
-    branches: [main, redesign/integration]
+    branches: [main, production]
 
 permissions:
   contents: read
@@ -49,6 +49,8 @@ jobs:
       - run: npm run build
       - name: Unit tests (PCF engine, golden pilot)
         run: npm run test:unit
+      - name: Scope 3 golden cases (worked examples, in memory)
+        run: npm run test:scope3-golden
 
   data-safety:
     name: Data safety
@@ -100,7 +102,9 @@ jobs:
         run: |
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_migrate'
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_golden'
+          psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_golden_v2'
           psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_api'
+          psql -h localhost -U postgres -d ci_bootstrap -c 'CREATE DATABASE ci_seeded'
 
       - name: Build the schema production has today (base branch entities)
         env:
@@ -125,9 +129,32 @@ jobs:
           DB_NAME: ci_migrate
         run: node ci/schema-diff.cjs
 
+      # An empty database hides migrations that load an entity before the column
+      # it declares exists (S3-3's method_options): with no rows they never query
+      # it. This runs the deploy's migrate-all on the base schema with the base
+      # branch's API fixture (companies, sites, forms, entries) in it, twice, like
+      # npm start.
+      - name: migrate-all on the base schema with data in it (twice)
+        env:
+          DB_NAME: ci_seeded
+          PGPASSWORD: postgres
+        run: |
+          node ci/schema-sync.cjs "${{ github.event_name == 'pull_request' && '.ci-base/dist' || 'dist' }}"
+          PGOPTIONS="-c client_min_messages=warning" psql -v ON_ERROR_STOP=1 -q -h localhost -U postgres -d ci_seeded -f "${{ github.event_name == 'pull_request' && '.ci-base/ci/api/fixture.sql' || 'ci/api/fixture.sql' }}"
+          node scripts/migrate-all.cjs
+          node scripts/migrate-all.cjs
+
       - name: Calculation results match the locked snapshot
         env:
           DB_NAME: ci_golden
+        run: |
+          node ci/schema-sync.cjs dist
+          node ci/golden/run.cjs
+
+      - name: Calculation results match the snapshot with review workflow v2 on (S3-15)
+        env:
+          DB_NAME: ci_golden_v2
+          GOLDEN_REVIEW_V2: "1"
         run: |
           node ci/schema-sync.cjs dist
           node ci/golden/run.cjs

@@ -20,6 +20,8 @@ import { buildVariety } from "./variety";
 import { writeNarrative } from "./ai-narrative";
 import { computeGhgTables, computeGhgByFuelType, getPeriodRange, type GhgFilters, type Frequency } from "./ghg-data";
 import type { Block, Report } from "./types";
+import { baseYearSummary } from "../scope3/baseYear/service"; // S3-14
+import { computeScope3, consolidationLabel, hasScope3, gwpText, scope3Blocks, type Scope3BaseYearSummary, type Scope3Report } from "./ghg-scope3";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const fmt1 = (n: number) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 });
@@ -88,6 +90,26 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     .findOne({ where: { company_id: companyId } })
     .catch(() => null);
   const companyName = company?.name ?? `Company ${companyId}`;
+
+  // S3-13: Scope 3 by GHG Protocol category, boundary approach and GWP sets.
+  let scope3: Scope3Report | null = null;
+  try {
+    // Scope 1/2-only reports stay as they were: the Scope 3 pages only when the report has Scope 3.
+    const computed = await computeScope3(filters, companyId);
+    scope3 = hasScope3(computed) ? computed : null;
+  } catch (e: any) {
+    console.error("GHG report: Scope 3 section skipped:", e?.code ?? e?.message ?? e);
+  }
+  // S3-14: the company's frozen Scope 3 base year and approved recalculations (null = none set).
+  let scope3BaseYear: Scope3BaseYearSummary | null = null;
+  if (scope3) {
+    try {
+      scope3BaseYear = await baseYearSummary(companyId);
+    } catch (e: any) {
+      console.error("GHG report: Scope 3 base year skipped:", e?.code ?? e?.message ?? e);
+    }
+  }
+  const boundaryText = consolidationLabel(scope3?.consolidation_approach ?? company?.consolidation_approach);
 
   // Period labels reflect the CY/FY filter AND the selected month/quarter, so a
   // narrowed report never describes itself as covering the whole year.
@@ -227,7 +249,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     },
     meta: [
       { label: "Sites covered", value: siteCount },
-      { label: "Boundary", value: "Operational control" },
+      { label: "Boundary", value: boundaryText },
       { label: "Standard", value: "GHG Protocol Corporate" },
       { label: "Issued", value: new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }) },
     ],
@@ -389,6 +411,9 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
       });
     }
 
+    // ---- 03 Scope 3 by category, boundary, methodology, data quality, base year (S3-13) ----
+    if (scope3) B.push(...scope3Blocks(scope3, scope3BaseYear, source));
+
     // ---- 04 Findings and recommended actions ----
     B.push({ type: "section", kicker: "04 · Findings and recommended actions", title: topScope ? `The findings point to ${scopeWhat[topScope.scope] ?? topScope.scope} as the first priority.` : "What the data shows, and where to act first." });
     const findings: { value: string; text: string }[] = [];
@@ -443,9 +468,9 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   });
   B.push({
     type: "notes", items: [
-      { heading: "Boundary and scopes", body: `Operational control approach across ${siteCount} selected site(s). Scope 1 covers direct combustion and fugitive sources; Scope 2 covers purchased electricity; Scope 3 covers value-chain categories where data exists.` },
+      { heading: "Boundary and scopes", body: `${boundaryText} approach across ${siteCount} selected site(s). Scope 1 covers direct combustion and fugitive sources; Scope 2 covers purchased electricity; Scope 3 covers value-chain categories where data exists.` },
       { heading: "Exclusions", body: "Sites without entered data are flagged above and excluded from totals rather than estimated. Renewable energy is reported separately and never netted from totals." },
-      { heading: "Calculation", body: "Recorded activity data multiplied by the emission factor assigned to each category, restricted to approved entries, reported in tonnes of CO₂-equivalent." },
+      { heading: "Calculation", body: `Recorded activity data multiplied by the emission factor assigned to each category, restricted to approved entries, reported in tonnes of CO₂-equivalent${scope3?.gwp_sets.length ? ` using 100-year GWP values from IPCC ${gwpText(scope3.gwp_sets)}` : ""}.${scope3 ? " Scope 3 methods, data sources and data quality are set out per category in section 03." : ""}` },
       prevTotal > 0
         ? { heading: "Comparisons", body: `${compLabel} figures use the same sites, categories and period, so changes reflect activity rather than a change of scope.` }
         : { heading: "Comparisons", body: `No approved data exists for ${compLabel}, so this report shows no year-on-year change.` },

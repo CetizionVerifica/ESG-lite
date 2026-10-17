@@ -3,13 +3,14 @@ import * as XLSX from "xlsx";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { AppDataSource } from "../config/data-source";
-import { Emission, EmissionStatus } from "../entities/Emission";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { Company } from "../entities/Company";
 import { Country } from "../entities/Country";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
+import { filedMonths, planHistoricalRows, type FiledEntry, type HistoricalRow } from "../services/historicalImport";
+import { engineResults, insertHistoricalRows } from "../services/historicalEngine";
 
 // Default password for seeded users (they should change this on first login)
 // Seeded users get a random password; they set their own with "Forgot password".
@@ -47,21 +48,6 @@ interface ExcelRow {
 }
 
 // Month name to number mapping
-const monthToNumber: Record<string, number> = {
-  January: 0,
-  February: 1,
-  March: 2,
-  April: 3,
-  May: 4,
-  June: 5,
-  July: 6,
-  August: 7,
-  September: 8,
-  October: 9,
-  November: 10,
-  December: 11,
-};
-
 async function seedEmissionsFromExcel() {
   // Get command line arguments
   const args = process.argv.slice(2);
@@ -103,7 +89,6 @@ async function seedEmissionsFromExcel() {
   await AppDataSource.initialize();
   console.log("✅ Database connected\n");
 
-  const emissionRepo = AppDataSource.getRepository(Emission);
   const siteRepo = AppDataSource.getRepository(Site);
   const categoryRepo = AppDataSource.getRepository(Category);
   const companyRepo = AppDataSource.getRepository(Company);
@@ -143,16 +128,12 @@ async function seedEmissionsFromExcel() {
     await siteRepo.save(site);
   }
 
-  // Find or create category
-  let category = await categoryRepo.findOne({ where: { category_name: categoryName } });
-
+  // An unknown category is refused, never created with a guessed scope (S3-4).
+  const category = await categoryRepo.findOne({ where: { category_name: categoryName } });
   if (!category) {
-    console.log(`🏗️ Creating new category: ${categoryName}`);
-    category = categoryRepo.create({
-      category_name: categoryName,
-      scope: "Scope 1", // Stationary Combustion is typically Scope 1
-    });
-    await categoryRepo.save(category);
+    console.error(`❌ SCOPE_INVALID: no category named "${categoryName}". Add it with its scope (Scope 1, 2, 3 or none) first.`);
+    await AppDataSource.destroy();
+    process.exit(1);
   }
 
   // Link category to site if not already linked
@@ -226,94 +207,34 @@ async function seedEmissionsFromExcel() {
     console.log(`   🔑 New users set their password with "Forgot password" on the sign-in page.`);
   }
 
-  // Process each row and create emissions
-  let successCount = 0;
-  let skipCount = 0;
-
-  for (const row of rows) {
-    try {
-      // Construct date from year and month
-      const year = parseInt(row.year);
-      const monthNum = monthToNumber[row.month];
-
-      if (isNaN(year) || monthNum === undefined) {
-        console.log(`⚠️ Skipping row with invalid date: year=${row.year}, month=${row.month}`);
-        skipCount++;
-        continue;
-      }
-
-      // Use the 15th of the month as the reporting date
-      const dateOfReporting = new Date(year, monthNum, 15);
-
-      // Build activity_data JSON
-      // Include emission_category for frontend display (using fuelType as the category name)
-      const activityData = {
-        emission_category: row.fuelType, // Maps to Emission Category column in frontend
-        "Activity Data": row.activity,   // Maps to "Activity Data" column in ColumnConfig
-        activity_value: row.activity,    // Alternative field name
-        equipment: row.equipment,
-        fuelState: row.fuelState,
-        fuelType: row.fuelType,
-        activity: row.activity,
-        emissionFactor: row.emissionFactor,
-        emissionFactorUnit: row.emissionFactorUnit,
-        source: row.source || "Unknown",
-        frequency: row.frequency || "monthly",
-        currency: row.currency,
-        spend: row.spend,
-      };
-
-      // Use calculatedEmission directly (already in tCO2e)
-      const totalEmission = row.calculatedEmission;
-
-      // Always set status to PENDING for seeded data (requires manual approval)
-      const status = EmissionStatus.PENDING;
-
-      // Check if this emission already exists (based on site, category, date, and equipment)
-      const existingEmission = await emissionRepo.findOne({
-        where: {
-          site: { site_id: site.site_id },
-          category: { category_id: category.category_id },
-          date_of_reporting: dateOfReporting,
-        },
-      });
-
-      if (existingEmission) {
-        console.log(`⚠️ Emission for ${row.month} ${row.year} already exists, skipping...`);
-        skipCount++;
-        continue;
-      }
-
-      // Find the user who created this emission (if email exists in the row)
-      let createdByUser: User | null = null;
-      if (row.email && row.email.trim()) {
-        const email = row.email.trim().toLowerCase();
-        createdByUser = await userRepo.findOne({ where: { email } });
-      }
-
-      // Create emission
-      const emission = emissionRepo.create({
-        activity_data: activityData,
-        total_emission: totalEmission,
-        unit: "tCO2e",
-        activity_data_unit: row.unit,
-        date_of_reporting: dateOfReporting,
-        status,
-        site,
-        category,
-        review_comment: row.notes || undefined,
-        created_by: createdByUser || undefined,
-      });
-
-      await emissionRepo.save(emission);
-      const creatorInfo = createdByUser ? ` (by ${createdByUser.name})` : "";
-      console.log(`✅ Created emission for ${row.month} ${row.year}: ${totalEmission.toFixed(4)} tCO2e${creatorInfo}`);
-      successCount++;
-    } catch (error) {
-      console.error(`❌ Error processing row:`, error);
-      skipCount++;
+  // Every total comes from the emission write service (S3-4): the site's
+  // factor for the year, the unit check and the FERA twin, as a typed entry.
+  // Months already filed, repeated months and rows the engine refuses are
+  // skipped with the reason; the sheet's calculatedEmission is never stored.
+  const historical = rows as unknown as HistoricalRow[];
+  const usersByEmail = new Map<string, number>();
+  for (const r of historical) {
+    const email = String(r.email ?? "").trim().toLowerCase();
+    if (email && !usersByEmail.has(email)) {
+      const u = await userRepo.findOne({ where: { email } });
+      if (u) usersByEmail.set(email, u.user_id);
     }
   }
+  const { plan, successCount } = await AppDataSource.transaction(async (m) => {
+    const existing: FiledEntry[] = await m.query(
+      `SELECT date_of_reporting, reporting_period, year_type FROM emission WHERE site_id = $1 AND category_id = $2`,
+      [site.site_id, category.category_id],
+    );
+    const { results, entries } = await engineResults(m, historical, site.site_id, category.category_id);
+    const plan = planHistoricalRows(historical, filedMonths(existing), new Set(usersByEmail.keys()), results);
+    const successCount = await insertHistoricalRows(m, plan, entries, historical, null, (r) => usersByEmail.get(String(r.email ?? "").trim().toLowerCase()) ?? null);
+    return { plan, successCount };
+  });
+  for (const p of plan.rows) {
+    if (p.status === "import") console.log(`✅ ${p.period}: ${p.total!.toFixed(2)} tCO2e${p.warnings?.length ? ` (${p.warnings.join(" ")})` : ""}`);
+    else console.log(`⚠️ Row ${p.row} skipped: ${p.reason}`);
+  }
+  const skipCount = plan.toSkip;
 
   console.log(`\n📊 Summary:`);
   console.log(`   ✅ Successfully created: ${successCount} emissions`);

@@ -43,5 +43,40 @@ MCP-09, MCP-10, MCP-11, MCP-22 (golden).
 - `DISTANCE_REQUIRED` (D6): no `activity_value`, no spec, and a field name that looks like a place without one that looks like a distance.
 - `insertRows` plans the ready rows again inside the caller's transaction, under the caller's `WriterContext`: scope (`IMPORT_FORBIDDEN` for a site or category outside it), mode lock, duplicates against saved rows and totals are checked against the database as it is at commit time, never trusted from an earlier plan. A row that no longer computes throws `IMPORT_PLAN_HAS_ISSUES` with its `row_ref`; a row whose factor id, total or twin total differs from the plan's result (a factor edited or a mapping moved meanwhile) throws the same code with `details.reason = "PLAN_STALE"`, so what the user confirmed is what gets stored; either error rolls the transaction back. The plan's activity resolution is kept (passed as plan matches), so a confirmed match never re-resolves differently. Imported rows store `extra_data.import = { channel, row_ref }` and `extra_data.notes`; each row (and its twin) gets an `audit_log` row, action `import`, reason "Imported via Claude | Bulk upload | API by <name> (batch <id>, <source>)".
 - Deliberate change on the typed path: the parent and its FERA twin are written in one transaction. Every reason to skip the twin (no FERA category, no factor for the year, unconvertible unit, mode lock on the FERA category, no quantity) is decided in `prepareEntry` before anything is written, so the only twin failure left is a database fault during the save, which now rolls the parent back too instead of leaving a parent whose twin insert failed half-way (before: the twin was saved after the parent in its own try/catch).
-- Not changed: `updateEmission`, `managerUpdateEmission`, `getEmissionFactorForEmission` still call `findEmissionFactorForCategory` directly (follow-up).
+- Edits (S3-4): `updateEmission`, `managerUpdateEmission` and the FERA twin recalculation use `prepareEntry` (factor, unit check, kgCO₂e, snapshot, warnings, twin); `getEmissionFactorForEmission` (a read for the factor panel) still calls `findEmissionFactorForCategory`.
 - Tests: `ci/unit/im1-engine.test.cjs` (no database), `ci/api/tests/im1-parity.test.cjs` (typed vs planned totals, issues, `insertRows` on company 2 / site 3, cleaned up after). Golden snapshot unchanged.
+
+## Scope 3 methods (S3)
+
+
+> Layer spec. Appended by S3-0 to `ESG-lite/src/services/emissionWrite/CLAUDE.md` under a "## Scope 3 methods (S3)" heading. Read it before changing anything in this folder.
+
+### After S3-0
+- `compute.ts` only dispatches: `computeRow(ctx, row)` picks `methods/<method>.ts` (`01-contracts.md` §6). Today's behaviour is `methods/activity.ts` plus `methods/spec.ts` plus `methods/fera.ts`, moved without any change. The golden suite must stay byte-identical in the S3-0 PR.
+- Each method file exports `compute(ctx, row): ComputedRow | EngineError` and is owned by exactly one module: activity/spec → S3-0, spend → S3-5, supplier/hybrid → S3-6, fera → S3-7, proxy → S3-12. Other modules (S3-8, S3-9, S3-10, S3-11) add units, specs and factor rows, not new method files, unless their spec says so.
+
+### Rules
+1. **Same path for every channel.** Typed entries, bulk upload, smart import, Claude/MCP and (after S3-4) the historical import go through `planRows → prepareEntry → insertRows`.
+2. **The snapshot is the audit trail.** Every new row stores the full `FactorSnapshot` (§6), `method`, `dq`, `data_type`. A spend row also stores `fx`, and a supplier row stores `supplier_id` and the `supplier_factor` id in the snapshot.
+3. **Totals:** `total_emission` stays tCO₂e at 2 dp. `total_kgco2e` is written beside it at 4 dp (D5). Never round before multiplying.
+4. **Warnings never block** (`01-contracts.md` §7). Errors block the row only, never the whole batch, except for the existing all-or-nothing import plan rules.
+5. **FE mirror:** when a method changes, update `ESG-lite_FE/src/lib/emissions/emissionCalc.ts` in the FE PR of the same module, so the preview matches. The FE never sends a total (`CLIENT_TOTAL_IGNORED` stays).
+6. **Edits:** `updateEmission`, `managerUpdateEmission` and the FERA recalculation move onto `computeRow` in S3-4, so edits get methods and DQ too.
+
+### As built (S3-0, 2026-10-15)
+- `methods/activity.ts` (`compute`, `applyFactor`, `totalFor`), `methods/spec.ts` and `methods/fera.ts` (`feraTwinFor`) hold the old `compute.ts` bodies unchanged. `spend`, `supplier`, `hybrid` and `proxy` re-export activity's `compute` with a TODO naming their module.
+- `compute.ts` keeps the types and `factorSnapshot`, adds `computeRow(ctx, row)` (spec category → spec; `row.proxy` → proxy; `row.method` spend_based / supplier_specific / hybrid → their file; else activity) and keeps `computeTotal` as a wrapper, so `index.ts` is unchanged. Rows carry no method yet; the form's `method_options[0]` fallback comes with S3-3.
+- `Computed` gains optional `total_kgco2e`, `method`, `dq`, `data_type`, all unset. Golden snapshot byte-identical before and after (sha256 of the LF file `bd2f996f…`).
+- Tests: `ci/unit/scope3-engine-split.test.cjs`.
+
+### As built (S3-8, 2026-10-16)
+- `methodFor` (compute.ts): row `method` → `@method` → **the first offered method whose `method_options` units hold the row's unit** (`methodForUnit`, unit keys via `normalizeUnitKey`; `context.ts` loads `method_units`) → `method_options[0]` → `average_data`. It only labels the row (method, DQ, data_type); `methodFileFor` and the spend default in index.ts are unchanged, so no total moves.
+- `transportWarnings.ts`: `ESTIMATED_DISTANCE` and `TRANSPORT_PAID_BY_MISMATCH` (warnings, never block).
+
+
+### As built (S3-6, 2026-10-16)
+- `methods/supplier.ts`: quantity (converted with `units.ts`) × the supplier's `kgco2e_per_unit`. The figure is chosen before the engine runs by `pickSupplierFactor` (`src/scope3/suppliers/engineInput.ts`): the row's `supplier_factor_id`, else the newest figure up to the reporting year whose item matches the activity name, else the supplier's only item. Snapshot `{factor_type: "supplier", supplier_id, supplier_factor_id, item, factor_value, denominator_unit, boundary, reference_year, gwp_set, source}`.
+- `methods/hybrid.ts`: the supplier's Scope 1+2 — from `energy` input lines when the row has any, else the facility data allocated by mass or economic value with `src/scope3/suppliers/allocate.ts` (the PCF rule) — plus the `extra_data.inputs[]` lines × factors of the same site × category. Snapshot `components[]`; the total is their sum.
+- `compute.ts`: supplier-specific and hybrid rows dispatch before the spec check (§6 rule 2; no stored row carried either method, so nothing moved). `EngineRow.factor` may be null for them (the activity needs no factor of its own). A method may return `snapshot`, `supplier_id` and `quality` (the DQ inputs to read instead of the row factor; never stored). The supplier figure's evidence counts as the row's for reliability and `data_type`.
+- `index.ts`: `EntryInput.supplier_id` / `supplier_factor_id`; `prepareSupplier` loads the supplier inside the site's company only (another company's id → `FIELD_INVALID`) and resolves the hybrid lines; `insertEntry` stores `emission.supplier_id` and the method's snapshot (`entryFactorSnapshot`). Edits of supplier and hybrid rows recalculate from the same supplier and figure.
+- Imports: the row shape has no supplier field yet, so a supplier-specific or hybrid import row gets `FIELD_REQUIRED` (supplier_id); typed entries carry it.

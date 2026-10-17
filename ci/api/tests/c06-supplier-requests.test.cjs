@@ -118,7 +118,8 @@ test("the supplier link opens, accepts a typed value or a file, and closes", asy
   const token = tokenOf(res.json.link);
 
   assert.equal((await call("GET", "/public/supplier-requests/nope")).status, 404);
-  assert.equal((await call("GET", `/public/supplier-requests/${token.slice(0, -1)}x`)).status, 404);
+  const wrongToken = token.slice(0, -1) + (token.endsWith("x") ? "y" : "x");
+  assert.equal((await call("GET", `/public/supplier-requests/${wrongToken}`)).status, 404);
 
   const open = await call("GET", `/public/supplier-requests/${token}`);
   assert.equal(open.status, 200, JSON.stringify(open.json));

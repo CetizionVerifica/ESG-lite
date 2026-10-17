@@ -86,7 +86,9 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       .where("site.site_id IN (:...siteIds)", { siteIds })
       .andWhere("emission.date_of_reporting >= :startDate", { startDate })
       .andWhere("emission.date_of_reporting <= :endDate", { endDate })
-      .andWhere("LOWER(category.category_name) != :fera", { fera: "fera" });
+      .andWhere("LOWER(category.category_name) != :fera", { fera: "fera" })
+      // S3-15 part 2: a Draft is exported only to the person who saved it.
+      .andWhere(`(emission.status::text <> 'draft' OR emission."created_by" = :draftOwner)`, { draftOwner: Number(req.user?.userId) || 0 });
     if (wholeYear) {
       qb.andWhere("(emission.reporting_period IS DISTINCT FROM 'yearly' OR emission.year_type = :yearType)", { yearType });
     }
@@ -120,9 +122,11 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       .andWhere("e.site_id IN (:...siteIds)", { siteIds })
       .getMany();
 
-    const feraMap = new Map<number, Emission>();
+    // Parent id → its FERA total: the upstream twin plus, for a Scope 2 row,
+    // the T&D-loss twin (S3-7), both linked to the parent.
+    const feraMap = new Map<number, number>();
     for (const fe of feraEmissions) {
-      if (fe.fera_linked_id) feraMap.set(fe.fera_linked_id, fe);
+      if (fe.fera_linked_id) feraMap.set(fe.fera_linked_id, (feraMap.get(fe.fera_linked_id) ?? 0) + Number(fe.total_emission || 0));
     }
 
     // Flatten activity_data keys to find all unique keys across emissions
@@ -173,7 +177,7 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
     // Data rows
     const dataRows = emissions.map((e, idx) => {
       const ad = e.activity_data || {};
-      const feraEntry = feraMap.get(e.pk_id);
+      const feraTotal = feraMap.get(e.pk_id);
 
       return [
         idx + 1,
@@ -182,7 +186,8 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
         ...activityKeysList.map((key) => ad[key] ?? ""),
         e.activity_data_unit || "",
         Number(e.total_emission),
-        feraEntry ? Number(feraEntry.total_emission) : "",
+        // Summed raw, as the Emission column; the 1e8 rounding only strips float noise from adding the twins.
+        feraTotal !== undefined ? Math.round(feraTotal * 1e8) / 1e8 : "",
         e.date_of_reporting
           ? new Date(e.date_of_reporting).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
           : "",
@@ -201,8 +206,7 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
     const feraColIdx = headers.indexOf("FERA (tCO2e)");
     const totalEmission = emissions.reduce((sum, e) => sum + Number(e.total_emission || 0), 0);
     const totalFera = emissions.reduce((sum, e) => {
-      const fe = feraMap.get(e.pk_id);
-      return sum + (fe ? Number(fe.total_emission || 0) : 0);
+      return sum + (feraMap.get(e.pk_id) ?? 0);
     }, 0);
 
     const totalsRow = new Array(headers.length).fill("");

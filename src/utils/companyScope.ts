@@ -134,3 +134,16 @@ export const siteFilterSql = (column: string, siteIds: number[]): string =>
   siteIds.length ? `${column} IN (:...scopedSiteIds)` : "1 = 0";
 
 export const SITE_ACCESS_DENIED = { message: "You do not have access to one or more of these sites" };
+
+/**
+ * A person works for one client, so their sites must all belong to one
+ * company: a mix would show them (and let them enter) another client's data.
+ * A site without a company counts as its own. Sites must be loaded with their
+ * company. Returns the 400 message, or null.
+ */
+export const mixedCompaniesError = (sites: Site[]): string | null => {
+  const names = new Map<number, string>();
+  for (const site of sites) names.set(site.company?.company_id ?? 0, site.company?.name ?? "no client");
+  if (names.size <= 1) return null;
+  return `A person's sites must all belong to one client. These sites belong to ${names.size} clients: ${[...names.values()].join(", ")}.`;
+};

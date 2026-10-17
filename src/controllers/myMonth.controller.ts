@@ -6,8 +6,11 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
 import { periodWindow, yearlyCoversDateSql, YearType } from "../services/reportingPeriod";
 import { CONTRIBUTOR_RELATIONS, contributorSiteCategories, monthBounds } from "../services/contributorObligations";
+import { lockedSiteMonths } from "../scope3/review/periodLock";
 
-type CategoryStatus = "todo" | "pending" | "approved" | "rejected" | "covered";
+// S3-15 part 2 adds "draft" (saved, not submitted) and "nothing" ("Nothing
+// this month") for clients with the review workflow v2 switch on.
+type CategoryStatus = "todo" | "draft" | "pending" | "approved" | "rejected" | "covered" | "nothing";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -56,6 +59,12 @@ export const previousMonth = (timeZone?: string | null, now: Date = new Date()):
  * months they cover, a batch that is not fully approved shows its real status
  * (pending/rejected, with rejections) but adds no tCO2e, so summing months
  * never counts a batch twice.
+ *
+ * Review workflow v2 (S3-15 part 2), only for a company with the switch on:
+ * `review_workflow_v2: true`; per site `locked`; per category `entries.draft`,
+ * `nothing` and the statuses `draft` (after `rejected`) and `nothing` (nothing
+ * filed, marked "Nothing this month"); `summary.draft`. With the switch off
+ * the response is exactly as before. Drafts never add to `total_emission`.
  */
 export const getMyMonth = async (req: AuthRequest, res: Response) => {
   try {
@@ -120,12 +129,43 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
             .getRawMany()
         : [];
 
-    const summary = { total: 0, due: 0, done: 0, pending: 0, rejected: 0 };
+    const summary: Record<string, number> = { total: 0, due: 0, done: 0, pending: 0, rejected: 0 };
+
+    // S3-15 part 2: the switch, "Nothing this month" markers and closed months, for the sites of
+    // companies with review workflow v2 on (none of it shows otherwise).
+    const v2Sites = new Set<number>(
+      siteIds.length
+        ? (
+            (await AppDataSource.query(
+              `SELECT s.site_id FROM site s JOIN company c ON c.company_id = s.company_id WHERE s.site_id = ANY($1::int[]) AND c.review_workflow_v2 = true`,
+              [siteIds],
+            )) as Array<{ site_id: number }>
+          ).map((r) => Number(r.site_id))
+        : [],
+    );
+    const v2 = v2Sites.size > 0;
+    const nothingMarks = new Set<string>(
+      v2
+        ? (
+            (await AppDataSource.query(`SELECT site_id, category_id FROM nothing_this_month WHERE site_id = ANY($1::int[]) AND period = $2::date`, [
+              [...v2Sites],
+              monthStart,
+            ])) as Array<{ site_id: number; category_id: number }>
+          ).map((r) => `${r.site_id}:${r.category_id}`)
+        : [],
+    );
+    const lockedSites = new Set<number>(
+      v2 ? (await lockedSiteMonths(AppDataSource.manager, [...v2Sites].map((site_id) => ({ site_id, year, month: monthNum })))).map((l) => l.site_id) : [],
+    );
+    if (v2) summary.draft = 0;
 
     const result = siteCategories.map(({ site, categories }) => ({
       site_id: site.site_id,
       name: site.name,
+      ...(v2Sites.has(site.site_id) ? { locked: lockedSites.has(site.site_id) } : {}),
       categories: categories.map((category) => {
+        const on = v2Sites.has(site.site_id);
+        const nothing = on && nothingMarks.has(`${site.site_id}:${category.category_id}`);
         const mine = rows.filter((r) => r.site_id === site.site_id && r.category_id === category.category_id);
         const monthly = mine.filter((r) => r.reporting_period !== "yearly");
         const yearly = mine.filter((r) => r.reporting_period === "yearly");
@@ -138,18 +178,22 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
         // tCO2e of a yearly batch belongs to its period-end month only.
         const counted = monthly.length ? monthly : yearlyDueNow;
 
-        const counts = {
+        const counts: Record<string, number> = {
           total: entries.length,
           pending: entries.filter((r) => r.status === "pending").length,
           approved: entries.filter((r) => r.status === "approved").length,
           rejected: entries.filter((r) => r.status === "rejected").length,
         };
+        const drafts = entries.filter((r) => r.status === "draft").length;
+        if (on) counts.draft = drafts;
 
         let status: CategoryStatus;
         if (counts.rejected) status = "rejected";
+        else if (on && drafts) status = "draft";
         else if (counts.pending) status = "pending";
         else if (counts.approved) status = "approved";
         else if (!monthly.length && yearly.length) status = "covered";
+        else if (nothing) status = "nothing";
         else status = "todo";
 
         const yearlyRow = !monthly.length ? yearly[0] : undefined;
@@ -157,8 +201,9 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
 
         summary.total++;
         if (status === "todo") summary.due++;
-        else if (status === "approved" || status === "covered") summary.done++;
+        else if (status === "approved" || status === "covered" || status === "nothing") summary.done++;
         else if (status === "pending") summary.pending++;
+        else if (status === "draft") summary.draft++;
         else summary.rejected++;
 
         return {
@@ -172,9 +217,10 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
             ? periodWindow(yearlyRow.year_type as YearType, new Date(`${yearlyRow.date_of_reporting}T00:00:00Z`))
             : null,
           entries: counts,
-          // tCO2e of entries that still count (pending + approved)
+          ...(on ? { nothing } : {}),
+          // tCO2e of entries that still count (pending + approved; never a Draft)
           total_emission: counted
-            .filter((r) => r.status !== "rejected")
+            .filter((r) => r.status !== "rejected" && r.status !== "draft")
             .reduce((sum, r) => sum + Number(r.total_emission || 0), 0),
           last_entry_at: entries.length
             ? entries.map((r) => new Date(r.created_at).toISOString()).sort().pop()
@@ -191,7 +237,7 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
       }),
     }));
 
-    return res.json({ month: monthParam, ...deadlines(year, monthNum), summary, sites: result });
+    return res.json({ month: monthParam, ...deadlines(year, monthNum), ...(v2 ? { review_workflow_v2: true } : {}), summary, sites: result });
   } catch (error) {
     console.error("My month error:", error);
     return res.status(500).json({ message: "Internal server error" });

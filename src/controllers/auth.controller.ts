@@ -10,6 +10,7 @@ import { UserRole } from "../types/type";
 import { log } from "../utils/logger";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { filterUserSiteCategories } from "../utils/filterUserCategories";
+import { mixedCompaniesError } from "../utils/companyScope";
 
 // Relations needed to build the session user (sites + their categories + grants).
 const SESSION_USER_RELATIONS = [
@@ -160,7 +161,11 @@ export const register = async (req: Request, res: Response) => {
 
   // For managers and users, use siteIds array for multiple sites
   if ((role === UserRole.MANAGER || role === UserRole.USER) && siteIds && Array.isArray(siteIds)) {
-    const sites = await siteRepo.findBy({ site_id: In(siteIds) });
+    const sites = await siteRepo.find({ where: { site_id: In(siteIds) }, relations: ["company"] });
+    const mixed = mixedCompaniesError(sites);
+    if (mixed) {
+      return res.status(400).json({ message: mixed });
+    }
 
     const user = userRepo.create({
       email,
