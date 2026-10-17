@@ -23,7 +23,9 @@ const rowKg = (c, r) => {
   const own = r.supplier.factor ? r.quantity * (r.share ?? 1) * c.factors[r.supplier.factor].kgco2e_per_unit : 0;
   return own + (r.supplier.lines ?? []).reduce((s, l) => s + l.quantity * c.factors[l.factor].kgco2e_per_unit, 0);
 };
-const rowsKg = (c) => c.rows.reduce((s, r) => s + rowKg(c, r), 0);
+// A coverage proxy (S3-12) scales the known kg to the missing share: × (100 − c) / c.
+const proxyScale = (c) => (c.proxy?.basis === "coverage" ? (100 - c.proxy.coverage_pct) / c.proxy.coverage_pct : 1);
+const rowsKg = (c) => c.rows.reduce((s, r) => s + rowKg(c, r), 0) * proxyScale(c);
 
 test("at least 15 worked examples with figures, unique ids, each owned and skipped or run", () => {
   assert.ok(cases.filter((c) => c.id.startsWith("ex-") && c.expected_kgco2e !== null).length >= 15);

@@ -34,6 +34,8 @@ import { MethodSchema, methodLabel, type Method } from "../../scope3/contracts/g
 import { ROW_METHOD_COLUMN } from "../calculationSpec";
 import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
 import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
+import type { Proxy } from "../../scope3/contracts/schemas";
+import { surveyProxy } from "../../scope3/screening/proxyRows";
 import {
   loadSupplier,
   parseHybridLines,
@@ -74,6 +76,8 @@ export interface EntryInput {
   dq?: ManualDqInput | null;
   /** S3-5: the row's saved `fx`, so a recalculation with the same currency and date reuses its rate. */
   storedFx?: EmissionFx | null;
+  /** S3-12: how an estimated row was made (`emission.proxy`, ProxySchema); set by src/scope3/screening and survey rows only. */
+  proxy?: Proxy | null;
   /**
    * S3-6: the supplier the goods came from (one of the site's company), and
    * for the supplier-specific method the figure to use when the supplier has
@@ -317,6 +321,8 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
       reportingYear: reportingYearFor(input.period.date_of_reporting),
       manualDq: input.dq ? manualDqFrom(input.dq) : null,
       spend,
+      // S3-12: a proxy row (a survey sample) scores completeness 3; its total is its form's own.
+      proxy: input.proxy ?? undefined,
       supplier: prep.engine,
     });
     if (!result.ok) return result;
@@ -425,6 +431,7 @@ export const insertEntry = async (
     // S3-6: the supplier the goods came from, when the entry names one.
     supplier: entry.supplier_id ? ({ supplier_id: entry.supplier_id } as any) : null,
     fx: entry.computed?.fx ?? null,
+    proxy: input.proxy ?? null,
     // S3-3: null on Scope 1 and Scope 2 rows, where a method means nothing.
     method: entry.computed?.method ?? null,
     dq: entry.computed?.dq ?? null,
@@ -645,6 +652,8 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
       method: row.method ?? null,
       is_estimate: row.is_estimate,
       dq: row.dq ?? null,
+      // S3-12: a survey-scaled row is a proxy (basis sample), so plan and commit score it alike.
+      proxy: row.survey ? surveyProxy(row.survey) : null,
     });
     if (!result.ok) {
       errors.push(issue(result.issue.code, result.issue.message, result.issue.field));
@@ -767,7 +776,9 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
     if (row.survey) extra_data.survey = row.survey; // S3-9 commuting survey scaling
-    const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
+    // S3-12: a survey row is a proxy too (basis sample), as the backfill writes for older rows.
+    const proxy = row.survey ? surveyProxy(row.survey) : null;
+    const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data, proxy } }, batch, audit, { deferChecks: true });
     inserted += 1;
     ids.push(emission.pk_id);
     for (const twin of [fera, tdLoss]) {

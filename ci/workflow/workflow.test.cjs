@@ -129,9 +129,46 @@ step("7 Superadmin assigns the categories each site reports", async () => {
 
 // ── Phase 3 · Scope 3 boundary (client Admin) ──────────────────────────────
 
-pendingStep("9 the Admin screens the 15 categories", "S3-12", async () => (await call("GET", `/scope3/screening?year=${SC.REPORT_YEAR}`, S.admin)).status !== 404, async () => {
-  const r = await call("GET", `/scope3/screening?year=${SC.REPORT_YEAR}`, S.admin);
+step("9 the Admin screens the 15 categories: a headcount estimate for Category 7, a Table II tick, a suggestion applied by hand", async () => {
+  const q = `/scope3/screening?year=${SC.REPORT_YEAR}&year_type=${SC.YEAR_TYPE}`;
+  const rowsOfClient = async () => Number((await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id = ANY($1)`, [siteIds()]))).rows[0].n);
+  const before = await rowsOfClient();
+
+  const first = await call("GET", q, S.admin);
+  ok(first);
+  assert.equal(first.json.categories.length, 15);
+  assert.equal(first.json.can_edit, true);
+  assert.deepEqual(first.json.period, { start: `${SC.YEAR}-04-01`, end: `${SC.REPORT_YEAR}-03-31` }, "FY 2026 is April 2025 to March 2026");
+  const c2 = first.json.categories.find((c) => c.n === 2);
+  assert.deepEqual([c2.recorded_tco2e, c2.estimate_tco2e, c2.suggestion.status, c2.suggestion.reason], [0, null, "not_relevant", `No activity in this category in ${SC.REPORT_YEAR}`]);
+
+  // The Admin gives the headcount; the estimate is the hand-worked commute, shown but never saved.
+  // Inputs are kept per year type: this client screens its financial year (FY), not calendar 2026.
+  ok(await call("PUT", "/scope3/screening/inputs", S.admin, { year: SC.REPORT_YEAR, year_type: SC.YEAR_TYPE, inputs: [{ ghg_category: 7, basis: "headcount", amount: SC.SCREENING.headcount }] }));
+  const calendar = (await call("GET", `/scope3/screening?year=${SC.REPORT_YEAR}&year_type=CY`, S.admin)).json.categories.find((c) => c.n === 7);
+  assert.equal(calendar.estimate_tco2e, null, "CY 2026 doesn't see the FY 2026 headcount");
+  // Table II "Stakeholders" on Category 6 goes through the boundary (S3-1), status and reason unchanged.
+  const six = first.json.categories.find((c) => c.n === SC.SCREENING.tick.n);
+  ok(await call("PUT", `/scope3/categories/${six.n}`, S.admin, { status: six.status, reason: six.reason, relevance: { [SC.SCREENING.tick.key]: true } }));
+
+  const r = await call("GET", q, S.admin);
   ok(r);
+  const c7 = r.json.categories.find((c) => c.n === 7);
+  assert.equal(c7.estimate_tco2e, tonnes(SC.screeningKg()), "120 employees × 15 km × 2 × 230 days × 0.16725 kg");
+  assert.equal(c7.basis, "headcount");
+  assert.equal(c7.share_pct, 100, "the only sized category");
+  assert.equal(c7.suggestion.status, "included");
+  assert.equal(r.json.totals.estimate_tco2e, tonnes(SC.screeningKg()));
+  const c6 = r.json.categories.find((c) => c.n === SC.SCREENING.tick.n);
+  assert.deepEqual(c6.relevance, { [SC.SCREENING.tick.key]: true });
+  assert.deepEqual([c6.status, c6.suggestion.status, c6.suggestion.reason], [six.status, "included", "Relevant: stakeholders"]);
+  assert.equal(await rowsOfClient(), before, "a screening estimate is never saved as an emission row");
+
+  // Nothing changes without the Admin's click: Apply sends the suggestion, reason edited, through the boundary.
+  assert.notEqual(c7.status, "included", "the suggestion alone changed nothing");
+  ok(await call("PUT", "/scope3/categories/7", S.admin, { status: c7.suggestion.status, reason: `${c7.suggestion.reason}; refine with a commuting survey` }));
+  const applied = (await call("GET", q, S.admin)).json.categories.find((c) => c.n === 7);
+  assert.equal(applied.status, "included");
 });
 
 step("10 the Admin sets the boundary: 15 categories, reasons for exclusions, no Unmapped category", async () => {

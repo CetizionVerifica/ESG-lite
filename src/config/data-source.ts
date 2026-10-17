@@ -35,6 +35,7 @@ import { OauthToken } from "../entities/OauthToken";
 import { CompanyScope3Category } from "../entities/CompanyScope3Category";
 import { CategoryGhgMapProposal } from "../entities/CategoryGhgMapProposal";
 import { Investment } from "../entities/Investment";
+import { Scope3ScreeningInput } from "../entities/Scope3ScreeningInput";
 import { FxRate } from "../entities/FxRate";
 import { PriceDeflator } from "../entities/PriceDeflator";
 import { CompanyBaseYear } from "../entities/CompanyBaseYear"; // S3-14
@@ -87,6 +88,7 @@ const entities = [
     CompanyScope3Category,
     CategoryGhgMapProposal,
     Investment, // S3-11
+    Scope3ScreeningInput, // S3-12
     FxRate, // S3-5
     PriceDeflator, // S3-5
     CompanyBaseYear, // S3-14

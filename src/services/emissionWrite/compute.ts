@@ -265,7 +265,9 @@ export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult 
       ...computed,
       method,
       dq,
-      data_type: dataTypeFor({ method, hasEvidence }),
+      // A method file's own word wins here too: a proxy row is secondary data
+      // whatever method its sources used (S3-12, guidance L1289-1291).
+      data_type: result.computed.data_type ?? dataTypeFor({ method, hasEvidence }),
     },
   };
 };

@@ -59,6 +59,14 @@ export const BOUNDARY_STATUSES = ["included", "excluded", "not_relevant", "scree
 export const BoundaryStatusSchema = z.enum(BOUNDARY_STATUSES);
 export type BoundaryStatus = z.infer<typeof BoundaryStatusSchema>;
 
+/**
+ * Scope 3 Standard Table 6.1 / guidance Table II relevance criteria (L1149-1173),
+ * the keys `company_scope3_category.relevance` may tick. `spend_analysis` is
+ * Table II "spending or revenue analysis" (S3-12; S3-0 follow-up carried in ESG-lite #169).
+ */
+export const RELEVANCE_KEYS = ["size", "influence", "risk", "stakeholders", "outsourcing", "sector_guidance", "spend_analysis", "other"] as const;
+export type RelevanceKey = (typeof RELEVANCE_KEYS)[number];
+
 /** Table II relevance criteria ticks, criterion → ticked. */
 export const RelevanceSchema = z.record(z.string(), z.boolean());
 
@@ -160,12 +168,35 @@ export const FxSchema = z.object({
   fallback: z.literal(true).optional(),
 });
 
-/** `emission.proxy` (S3-12). */
-export const ProxySchema = z.object({
-  basis: text(200),
-  coverage_pct: z.number().min(0).max(100),
-  from: z.string().max(200),
-});
+/**
+ * `emission.proxy` (S3-12): how an extrapolated or proxy row was made.
+ *   coverage   the known rows cover `coverage_pct` (1–99) of the activity; scaled up to 100 %
+ *   intensity  kg per unit of output at sites with data × output at sites without
+ *   sample     a survey sample scaled to the whole population (S3-9 commuting; `coverage_pct` = respondents share)
+ * `from` holds the ids of the emission rows it was made from (empty for a survey).
+ */
+export const PROXY_BASES = ["coverage", "intensity", "sample"] as const;
+export const ProxyBasisSchema = z.enum(PROXY_BASES);
+export type ProxyBasis = z.infer<typeof ProxyBasisSchema>;
+
+/** Plain label per basis, for reports and the UI (never print the raw key). */
+export const PROXY_BASIS_LABELS: Record<ProxyBasis, string> = {
+  coverage: "Scaled up from the share of activity with data",
+  intensity: "Intensity per unit of output at sites with data",
+  sample: "Commuting survey scaled to all employees",
+};
+
+export const ProxySchema = z
+  .object({
+    basis: ProxyBasisSchema,
+    coverage_pct: z.number().gt(0).max(100).optional(),
+    from: z.array(id).max(10_000),
+  })
+  .refine((p) => p.basis !== "coverage" || (p.coverage_pct !== undefined && p.coverage_pct >= 1 && p.coverage_pct <= 99), {
+    message: "coverage_pct from 1 to 99 is required when basis is coverage",
+    path: ["coverage_pct"],
+  });
+export type Proxy = z.infer<typeof ProxySchema>;
 
 /** The new nullable `emission` columns, by owning module. */
 export const EmissionScope3FieldsSchema = z.object({
@@ -467,15 +498,19 @@ export const NothingThisMonthSchema = z.object({
 // §5 Screening (S3-12)
 // ---------------------------------------------------------------------------
 
-/** `GET /scope3/screening?year=`. */
-export const ScreeningQuerySchema = z.object({ year: z.coerce.number().int().min(1990).max(2100) });
+/** `GET /scope3/screening?year=&year_type=`; year_type defaults to CY (FY = April–March, named by the year it ends in). */
+export const ScreeningQuerySchema = z.object({
+  year: z.coerce.number().int().min(1990).max(2100),
+  year_type: yearType.default("CY"),
+});
 
 export const SCREENING_BASES = ["spend", "headcount", "revenue", "mass_sold", "other"] as const;
 
-/** `scope3_screening_input`; unique (company_id, year, ghg_category, basis). */
+/** `scope3_screening_input`; unique (company_id, year, year_type, ghg_category, basis). */
 export const ScreeningInputSchema = z.object({
   company_id: id,
   year,
+  year_type: yearType.default("CY"),
   ghg_category: GhgCategoryNumberSchema,
   basis: z.enum(SCREENING_BASES),
   amount: nonNegative,
@@ -486,11 +521,37 @@ export const ScreeningInputSchema = z.object({
   updated_at: z.string().optional(),
 });
 
-/** `PUT /scope3/screening/inputs`. */
+/** `PUT /scope3/screening/inputs`; year_type defaults to CY, as before it was part of the key. */
 export const PutScreeningInputsBodySchema = z.object({
   year,
-  inputs: z.array(ScreeningInputSchema.omit({ company_id: true, year: true, updated_by: true, updated_at: true })),
+  year_type: yearType.default("CY"),
+  inputs: z.array(ScreeningInputSchema.omit({ company_id: true, year: true, year_type: true, updated_by: true, updated_at: true })),
 });
+
+/** Below this confidence (0–100) the UI asks the Admin to confirm a suggested sector. */
+export const SECTOR_CONFIRM_BELOW = 80;
+
+/**
+ * `POST /scope3/screening/sector-suggestions` (S3-12, Admin and Superadmin): one
+ * spend line, sent to python_AI_service `/v1/scope3/eeio-sector` with the USEEIO
+ * library. Limits match the AI service's `EeioLine`. S3-0 follow-up carried in ESG-lite #169.
+ */
+export const SectorSuggestionsBodySchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  supplier: z.string().trim().max(200).nullable().optional(),
+  amount: z.number().min(0),
+  currency,
+});
+
+/** Its answer: up to 3 library sectors; `available: false` when the AI service can't answer (never an error). */
+export const SectorSuggestionsResponseSchema = z.object({
+  available: z.boolean(),
+  suggestions: z
+    .array(z.object({ code: z.string(), name: z.string(), confidence: z.number().min(0).max(100), needs_confirmation: z.boolean() }))
+    .max(3),
+  confirm_below: z.number(),
+});
+export type SectorSuggestionsResponse = z.infer<typeof SectorSuggestionsResponseSchema>;
 
 /** `POST /scope3/extrapolate` (`EXTRAPOLATION_BASIS_INVALID` for coverage outside 1–99, no source rows, no production). */
 export const ExtrapolateBodySchema = z.object({

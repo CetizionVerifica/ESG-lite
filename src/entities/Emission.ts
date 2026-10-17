@@ -17,6 +17,7 @@ import type { Method } from "../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../scope3/contracts/dq";
 import type { RowChecks } from "../scope3/contracts/checks";
 import type { Gas } from "../scope3/contracts/factor";
+import type { Proxy } from "../scope3/contracts/schemas";
 import { Supplier } from "./Supplier";
 
 export enum EmissionStatus {
@@ -150,6 +151,11 @@ export class Emission {
   @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
   biogenic_kg!: string | null;
 
+  // S3-12 (contracts §4): how an extrapolated or proxy row was made
+  // ({basis, coverage_pct, from}); null on every measured row. Written only by
+  // src/scope3/screening (extrapolate, the S3-9 survey backfill) and survey rows on commit.
+  @Column({ type: "jsonb", nullable: true })
+  proxy!: Proxy | null;
   // S3-6 · which supplier this row's goods came from, when it is known
   // (migrate:scope3-suppliers). Set on Cat 1 and Cat 2 rows entered with a
   // supplier; the supplier-specific and hybrid methods read the supplier's
