@@ -34,6 +34,8 @@ export interface CategoryContext {
   category_id: number;
   category_name: string;
   scope: string | null;
+  /** The category's GHG Protocol Scope 3 number (S3-1), when it has one. */
+  ghg_category?: number | null;
   /** The site has this category assigned. */
   assigned: boolean;
   /** A column config exists for site × category. */

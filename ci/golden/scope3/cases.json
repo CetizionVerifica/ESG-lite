@@ -1554,9 +1554,9 @@
         }
       ],
       "expected_kgco2e": 2332500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
-      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). The guidance prints 2,242,500 because it writes the investee 4 term as 900,000; its own inputs give 990,000, so the exact total is 2,332,500 (S3-11). Runs once S3-5 spend.ts is merged."
+      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). The guidance prints 2,242,500 because it writes the investee 4 term as 900,000; its own inputs give 990,000, so the exact total is 2,332,500 (S3-11). Runs since S3-5 spend.ts merged."
     },
     {
       "id": "ex-10.1",

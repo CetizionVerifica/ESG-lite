@@ -165,11 +165,11 @@ export const feraFactorTypeWarning = (twin: FeraTwin | null): EngineIssue | null
 
 /**
  * The GHG Protocol Scope 3 number of the row's category: `category.ghg_category`
- * once S3-1 adds it, until then read from a Scope 3 category's name
+ * (S3-1, loaded by ContextCache), else read from a Scope 3 category's name
  * ("Upstream transportation and distribution" → 4).
  */
 export const ghgCategoryOfContext = (ctx: CategoryContext): number | null => {
-  const n = (ctx as { ghg_category?: number | null }).ghg_category;
+  const n = ctx.ghg_category;
   if (typeof n === "number") return n;
   return scopeNumber(ctx.scope) === 3 ? ghgNumberFromName(ctx.category_name) : null;
 };
