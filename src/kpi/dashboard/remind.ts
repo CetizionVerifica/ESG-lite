@@ -6,7 +6,8 @@
  * entry rule of values/service.ts and My KPIs). At most once a day per person
  * and item: a second call the same day sends nothing.
  *
- *   → {sent, notified: [user ids], already_today: [user ids]}
+ *   → {reminded, owner_name, message, sent (= reminded), notified: [user ids], already_today: [user ids]}
+ *     reminded false = everyone who owes it was already reminded today
  *
  * Refusals: a KPI that isn't the company's or a site outside the caller's
  * scope → 404; not selected → KPI_NOT_SELECTED; auto or calculated →
@@ -71,5 +72,15 @@ export async function remind(caller: KpiCaller, body: unknown) {
     });
     notified.push(userId);
   }
-  return { sent: notified.length > 0, notified, already_today: already };
+  const names: Row[] = await m.query(`SELECT NULLIF(TRIM(CONCAT(COALESCE(name, ''), ' ', COALESCE(last_name, ''))), '') AS name FROM "user" WHERE user_id = ANY($1::int[]) ORDER BY user_id`, [owners]);
+  const owner_name = names.map((n) => n.name).filter(Boolean).join(", ") || null;
+  const sent = notified.length > 0;
+  return {
+    reminded: sent,
+    owner_name,
+    message: sent ? `Reminder sent to ${owner_name ?? "the owner"}.` : `${owner_name ?? "The owner"} was already reminded today.`,
+    sent,
+    notified,
+    already_today: already,
+  };
 }

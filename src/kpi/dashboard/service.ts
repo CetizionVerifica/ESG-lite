@@ -147,6 +147,7 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
   const kpiInfo = new Map([...byId.values()].map((d) => [d.id, { selected: d.selected === true && d.active === true, reason_excluded: d.reason_excluded ?? null, state: states.get(d.id) }]));
   const coverageOut: Array<FrameworkCoverage & { gaps: number }> = [];
   const frameworkKpis = new Set<number>();
+  const frameworksOf = new Map<number, string[]>();
   for (const f of frameworks) {
     const disclosures: Row[] = await m.query(`SELECT id, code, title, section, requirement, esrs_topic FROM kpi_disclosure WHERE framework_id = $1 ORDER BY sort_key, code`, [f.framework_id]);
     const mappings: Row[] = await m.query(
@@ -163,13 +164,28 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
       material,
     });
     const answering = new Set(cov.disclosures.filter((d) => d.state !== "excluded").flatMap((d) => d.kpis));
-    for (const k of answering) frameworkKpis.add(k);
-    coverageOut.push({ ...cov, gaps: gaps.filter((g) => answering.has(g.kpi_definition_id)).length });
+    for (const k of answering) {
+      frameworkKpis.add(k);
+      frameworksOf.set(k, [...(frameworksOf.get(k) ?? []), f.code]);
+    }
+    coverageOut.push({
+      ...cov,
+      gaps: gaps.filter((g) => answering.has(g.kpi_definition_id)).length,
+      ...(f.code === "ESRS" ? { material_topics: [...material.entries()].map(([esrs_topic, v]) => ({ esrs_topic, material: v.material, reason: v.reason })) } : {}),
+    });
   }
 
   const topicOk = (d: Row) => !q.topic || d.topic === q.topic;
   const frameworkOk = (id: number) => !q.framework || frameworkKpis.has(id);
-  const gapsOut = gaps.filter((g) => topicOk(g) && frameworkOk(g.kpi_definition_id) && (scope.siteFilter === null || g.site_id === scope.siteFilter));
+  const gapsOut = gaps
+    .filter((g) => topicOk(g) && frameworkOk(g.kpi_definition_id) && (scope.siteFilter === null || g.site_id === scope.siteFilter))
+    .map((g) => ({
+      ...g,
+      frameworks: frameworksOf.get(g.kpi_definition_id) ?? [],
+      kpi: { id: g.kpi_definition_id, code: g.code, name: g.kpi_name },
+      site: g.site_id === null ? null : { id: g.site_id, name: g.site_name },
+      owner: g.owner_user_id === null ? null : { id: g.owner_user_id, name: g.owner_name },
+    }));
 
   // Cards: selected numeric KPIs.
   const targets = await targetsWithProgress(m, caller, {});
@@ -185,7 +201,7 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
       const series = lastPeriods(def, yearType, q.year, SERIES_LENGTH).map((p) => {
         const at = approved.filter((v) => v.kpi_definition_id === d.id && v.period_start === p.start && v.frequency === p.frequency);
         const pick = d.level === "company" ? at.filter((v) => v.site_id === null) : at.filter((v) => v.site_id !== null && (scope.siteFilter === null ? siteIds.includes(v.site_id) : v.site_id === scope.siteFilter));
-        return { period_start: p.start, label: p.label, value: pick.length ? combine(pick.map((v) => v.value), d.aggregation) : null };
+        return { period: p.label, period_start: p.start, label: p.label, value: pick.length ? combine(pick.map((v) => v.value), d.aggregation) : null };
       });
       const target =
         targets
@@ -209,7 +225,7 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
         pending,
         series,
         target: target
-          ? { id: target.id, target_year: target.target_year, target_value: target.target_value, direction: target.direction, progress_pct: target.progress.progress_pct, status: target.progress.status, achieved: target.progress.achieved }
+          ? { id: target.id, target_year: target.target_year, target_value: target.target_value, direction: target.direction, progress_pct: target.progress.progress_pct, status: target.progress.status, achieved: target.progress.achieved, label: target.label }
           : null,
       };
     });
@@ -229,6 +245,8 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
     gaps: gapsOut,
     cards,
     pending_not_in: {
+      count: pendingKpi.length,
+      value_ids: pendingKpi.slice(0, 200).map((v) => v.id),
       kpi_values: pendingKpi.length,
       kpi_value_ids: pendingKpi.slice(0, 200).map((v) => v.id),
       emission_rows: Number(emissions?.n ?? 0),

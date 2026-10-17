@@ -109,6 +109,8 @@ test("coverage per framework, worked by hand", async () => {
 
   // ESRS: GOV-1 required (women on the board isn't tracked); E3 not material with its reason; the other topics undecided.
   const esrs = fw(r, "ESRS");
+  assert.deepEqual(esrs.material_topics, [{ esrs_topic: "E3", material: false, reason: "No water stress at our sites" }]);
+  assert.equal(gri.material_topics, undefined);
   assert.deepEqual(pick(esrs), [1, 0, 0, 1, 0, 14, 0]);
   assert.deepEqual(esrs.excluded_disclosures.find((d) => d.code === "E3-4"), { disclosure_id: esrs.excluded_disclosures.find((d) => d.code === "E3-4").disclosure_id, code: "E3-4", title: esrs.excluded_disclosures.find((d) => d.code === "E3-4").title, reason_kind: "not_material", reason: "No water stress at our sites" });
 
@@ -126,6 +128,8 @@ test("gaps: nothing submitted for a period that has ended, with the owner; scope
   ].sort());
   const hc = r.gaps.find((x) => x.code === "HIGH_CONSEQUENCE_INJURIES" && x.site_id === 2);
   assert.deepEqual([hc.owner_user_id, hc.period_labels, hc.site_name, hc.link], [7, ["2025"], "CI Plant B", "/kpi?period=2025-12&site=2"]);
+  assert.deepEqual([hc.kpi, hc.site, hc.owner, hc.frameworks], [{ id: ids.HIGH_CONSEQUENCE_INJURIES, code: "HIGH_CONSEQUENCE_INJURIES", name: hc.kpi_name }, { id: 2, name: "CI Plant B" }, { id: 7, name: "CI Multi User" }, ["GRI", "BRSR"]]);
+  assert.deepEqual(r.gaps.find((x) => x.code === "REVENUE").frameworks, [], "revenue answers no counted disclosure");
   assert.deepEqual((await dash("manager", "&site=1")).gaps, [], "site 1 has everything it owes");
   assert.deepEqual((await dash("manager", "&site=2")).gaps.map((x) => x.code).sort(), ["HIGH_CONSEQUENCE_INJURIES", "RECORDABLE_INJURIES"]);
   assert.deepEqual((await dash("admin", "&topic=water")).gaps, []);
@@ -141,7 +145,8 @@ test("cards: the approved year figure, last year, 12 periods, weighted LTIFR, th
   assert.deepEqual(w.series.slice(-2).map((p) => [p.label, p.value]), [["2024", 2000], ["2025", 1500]]);
   assert.equal(w.series[0].label, "2014");
   // Target 2,000 → 1,000 by 2030: (1,500 − 2,000) / −1,000 = 50 %; the line is at 1,833.3 in 2025 → on track.
-  assert.deepEqual([w.target.target_year, w.target.progress_pct, w.target.status], [2030, 50, "on_track"]);
+  assert.deepEqual([w.target.target_year, w.target.progress_pct, w.target.status, w.target.label], [2030, 50, "on_track", "−50 % by 2030 from 2024"]);
+  assert.deepEqual(w.series.at(-1), { period: "2025", period_start: "2025-01-01", label: "2025", value: 1500 });
   const d = card("WATER_DISCHARGE");
   assert.deepEqual([d.value, d.status, d.pending], [400, "partial", 1], "the pending site isn't counted");
   assert.equal(card("LTIFR").value, 2.75, "(2 × 3m + 5 × 1m) / 4m hours");
@@ -153,7 +158,7 @@ test("cards: the approved year figure, last year, 12 periods, weighted LTIFR, th
   assert.ok(!s2.cards.some((c) => c.code === "REVENUE"), "company-level cards aren't per site");
   const [pendingRows] = await q(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id IN (1, 2) AND status::text = 'pending' AND date_of_reporting BETWEEN '2025-01-01' AND '2025-12-31'`);
   assert.ok(pendingRows.n >= 1, "row 9801 at least");
-  assert.deepEqual(r.pending_not_in, { kpi_values: 1, kpi_value_ids: r.pending_not_in.kpi_value_ids, emission_rows: pendingRows.n, link: "/data/approvals?view=kpi" });
+  assert.deepEqual(r.pending_not_in, { count: 1, value_ids: r.pending_not_in.kpi_value_ids, kpi_values: 1, kpi_value_ids: r.pending_not_in.kpi_value_ids, emission_rows: pendingRows.n, link: "/data/approvals?view=kpi" });
   assert.equal(r.pending_not_in.kpi_value_ids.length, 1);
 });
 
@@ -173,11 +178,11 @@ test("who sees it: Managers, Admins, the Superadmin; Users can't; tenant isolati
 test("remind: kpi_due to the owner, at most once a day per item", async () => {
   const remind = (who, body) => call("POST", "/kpi/dashboard/remind", who, body);
   const r = await remind("manager", { kpi: ids.HIGH_CONSEQUENCE_INJURIES, site: 2 });
-  assert.deepEqual(r.json, { sent: true, notified: [7], already_today: [] });
+  assert.deepEqual(r.json, { reminded: true, owner_name: "CI Multi User", message: "Reminder sent to CI Multi User.", sent: true, notified: [7], already_today: [] });
   const [n] = await q(`SELECT * FROM notification WHERE user_id = 7 AND type = 'kpi_due'`);
   assert.deepEqual([n.title, n.link, n.meta.kpi_definition_id, n.meta.site_id], ["Reminder: KPI values due", "/kpi?site=2", ids.HIGH_CONSEQUENCE_INJURIES, 2]);
   assert.match(n.message, /High-consequence|high-consequence|injur/i);
-  assert.deepEqual((await remind("admin", { kpi: ids.HIGH_CONSEQUENCE_INJURIES, site: 2 })).json, { sent: false, notified: [], already_today: [7] }, "once a day");
+  assert.deepEqual((await remind("admin", { kpi: ids.HIGH_CONSEQUENCE_INJURIES, site: 2 })).json, { reminded: false, owner_name: "CI Multi User", message: "CI Multi User was already reminded today.", sent: false, notified: [], already_today: [7] }, "once a day");
   assert.deepEqual((await remind("manager", { kpi: ids.RECORDABLE_INJURIES, site: 1 })).json.notified, [1, 7], "no assignment: the site's Users");
   assert.deepEqual((await remind("manager", { kpi: ids.REVENUE, site: null })).json.notified, [3], "company level: the Admins");
   assert.equal((await remind("manager", { kpi: ids.WATER_CONSUMPTION, site: 1 })).json.code, "KPI_AUTO_READ_ONLY");
