@@ -11,6 +11,7 @@ import { Emission } from "../entities/Emission";
 import { CheckCache, ContextCache, insertEntry, prepareEntry, type AuditInfo, type PreparedEntry } from "./emissionWrite";
 import { activityDataFor, rowPeriod, type EngineResult, type HistoricalPlan, type HistoricalRow } from "./historicalImport";
 import { refreshChecksSafely } from "../scope3/review/service";
+import { lockedSiteMonths, siteMonthOf } from "../scope3/review/periodLock";
 
 /** Stored as `extra_data.import.channel` on every row these paths write. */
 export const HISTORICAL_CHANNEL = "historical";
@@ -26,11 +27,19 @@ export const engineResults = async (
   const checks = new CheckCache(m);
   const results = new Map<number, EngineResult>();
   const entries = new Map<number, PreparedEntry>();
+  // S3-15 part 2: months closed for the site (review workflow v2) are skipped, never written.
+  const closed = new Set(
+    (await lockedSiteMonths(m, rows.map((r) => { const p = rowPeriod(r); return p ? siteMonthOf(siteId, `${p}-15`) : null; }))).map((p) => `${p.year}-${String(p.month).padStart(2, "0")}`),
+  );
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const row = i + 1;
     const period = rowPeriod(r);
     if (!period) continue;
+    if (closed.has(period)) {
+      results.set(row, { ok: false, reason: "This month is closed (PERIOD_LOCKED). Reopen it with a reason before importing into it." });
+      continue;
+    }
     // The quantity is the sheet's activity column, nothing else: a blank, 0 or
     // non-numeric activity is skipped here, so the engine's quantity pick never
     // falls through to spend or the sheet's own emissionFactor (S3-4).

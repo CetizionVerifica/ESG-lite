@@ -24,6 +24,8 @@ export const SCOPE3_ERRORS = {
   PERIOD_INCOMPLETE: { status: 422, message: "Some sites or categories in this period aren't complete yet." },
   BASE_YEAR_NO_DATA: { status: 422, message: "The base year has no approved data." },
   RECALCULATION_REASON_REQUIRED: { status: 400, message: "Give a reason for the recalculation." },
+  // S3-15 part 2: lock and "Nothing this month" exist only with company.review_workflow_v2 on (D9).
+  REVIEW_WORKFLOW_OFF: { status: 403, message: "Drafts and month locks aren't switched on for this client." },
 } as const;
 
 export type Scope3ErrorCode = keyof typeof SCOPE3_ERRORS;

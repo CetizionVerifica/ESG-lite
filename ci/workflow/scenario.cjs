@@ -108,6 +108,42 @@ const travelKg = () => TRAVEL.travellers * TRAVEL.distance_km * FLIGHT.kg_per_pk
 /** kg of the spend row once the copied factor value, base year and deflators are known. */
 const spendKg = ({ factor_value, base_index, spend_index }) => (SPEND.amount_inr / SPEND.inr_per_usd) * (base_index / spend_index) * factor_value;
 
+/**
+ * Scope 3 screening (S3-12, Phase 3): the Admin gives the headcount for
+ * Category 7. The screening estimate assumes every employee drives an average
+ * car (DEFRA 2025 "Car - Average car - Unknown fuel", 0.16725 kgCO₂e per
+ * vehicle.km) 15 km each way, 2 trips a day, 230 working days. It is shown,
+ * never saved as a row.
+ */
+const SCREENING = {
+  headcount: 120,
+  one_way_km: 15,
+  trips_per_day: 2,
+  working_days: 230,
+  car_kg_per_vkm: 0.16725,
+  tick: { n: 6, key: "stakeholders" }, // Table II "Stakeholders" on business travel
+};
+/** 120 × 15 × 2 × 230 = 828,000 vehicle.km × 0.16725 = 138,483 kg. */
+const screeningKg = () => SCREENING.headcount * SCREENING.one_way_km * SCREENING.trips_per_day * SCREENING.working_days * SCREENING.car_kg_per_vkm;
+
+/**
+ * Review workflow v2 (S3-15 parts 3–4), switched on after the reports are checked: the main
+ * site's User files August as Drafts, submits, marks the two Scope 3 categories "Nothing this
+ * month", and the Manager approves and closes the month. Factor year 2024 (Aug 2025 rows):
+ * diesel 300 l × 2.68 = 804 kg (3a: 300 × 0.61 = 183 kg); grid 10,000 kWh × 0.716 = 7,160 kg
+ * (3b: 1,000 kg, 3c: 500 kg).
+ */
+const REVIEW_V2 = {
+  year: YEAR,
+  month: 8,
+  period: `${YEAR}-08`,
+  late_date: `${YEAR}-08-20`,
+  entries: [
+    { ref: "v2-diesel-aug", cat: "fuel", date: `${YEAR}-08-31`, activity: "Diesel", value: 300, unit: "litre" },
+    { ref: "v2-grid-aug", cat: "electricity", date: `${YEAR}-08-31`, activity: "Grid electricity - India", value: 10000, unit: "kWh" },
+  ],
+};
+
 /** Boundary choices the client's Admin makes (Phase 3). */
 const BOUNDARY = {
   consolidation_approach: "operational_control",
@@ -117,4 +153,16 @@ const BOUNDARY = {
   ],
 };
 
-module.exports = { YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, BOUNDARY };
+/**
+ * S3-6: one supplier, its own cradle-to-gate product figure, and one Category 1
+ * purchase from it calculated with that figure ("Supplier's own figure").
+ * 2.5 t of ingot × 8.6 kgCO₂e/kg = 2,500 kg × 8.6 = 21,500 kgCO₂e = 21.5 tCO₂e.
+ */
+const SUPPLIER = {
+  name: "Gulf Smelter Co.",
+  country: "BH",
+  factor: { item: "P1020 aluminium ingot", unit: "kg", kgco2e_per_unit: 8.6, reference_year: YEAR, boundary: "cradle_to_gate" },
+  purchase: { date: `${YEAR}-07-31`, quantity: 2.5, unit: "tonne", kg: 2500 * 8.6 },
+};
+
+module.exports = { REVIEW_V2, SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };

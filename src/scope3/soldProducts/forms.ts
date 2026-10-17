@@ -24,7 +24,7 @@ import { EmissionFactor } from "../../entities/EmissionFactor";
 import { Unit } from "../../entities/Unit";
 import type { Site } from "../../entities/Site";
 import type { Category } from "../../entities/Category";
-import { AR6_FACTOR_YEARS, REFRIGERANT_FACTORS, SEED_AR4_SOURCE, type SoldProductCategory, formFields, isLegacyUseConfig, isStandardConfig, same, soldProductForm, standardHash } from "./configs";
+import { AR6_FACTOR_YEARS, REFRIGERANT_FACTORS, SEED_AR4_SOURCE, type SoldProductCategory, formFields, isLegacyUseConfig, isStandardConfig, methodOptionsFor, same, soldProductForm, standardHash } from "./configs";
 import { EOL_FACTORS, REFRIGERANT_AR6, type SeedFactor } from "./factors";
 
 export interface FormResult {
@@ -36,6 +36,8 @@ export interface FormResult {
   factors_marked: number;
   /** Category 11 seed refrigerant rows raised to AR6 (factor years 2025 and 2026). */
   factors_raised?: number;
+  /** 1 when the form's `method_options` (S3-3) was empty and has been written. */
+  methods_set?: number;
 }
 
 const stripHash = (c: unknown) => {
@@ -201,8 +203,16 @@ export async function ensureSoldProductForm(m: EntityManager, site_id: number, c
     units_added++;
   }
 
+  // S3-3: the methods the form offers, written only while the column is empty, so a
+  // Superadmin's own list is never replaced. WHERE kept on the UPDATE line for the data-safety check.
+  const [, methodsSet]: [unknown, number] = await m.query(
+    `UPDATE column_config SET method_options = $1::jsonb WHERE pk_id = $2 AND method_options IS NULL`,
+    [JSON.stringify(methodOptionsFor(n)), config.pk_id],
+  );
+  const methods_set = Number(methodsSet) || 0;
+
   const factors_raised = n === 11 ? await raiseSeedRefrigerantsToAr6(m, site_id, category_id) : 0;
   const factors_added = await ensureSeedFactors(m, site_id, category_id, n === 11 ? REFRIGERANT_AR6 : n === 12 ? EOL_FACTORS : []);
   const factors_marked = n === 11 ? await markAr4Refrigerants(m, site_id, category_id) : 0;
-  return { config: state, units_added, factors_added, factors_marked, factors_raised };
+  return { config: state, units_added, factors_added, factors_marked, factors_raised, methods_set };
 }

@@ -288,6 +288,18 @@ test("a Cat 4 row on a WTT-inclusive factor is flagged and keeps its total", asy
   assert.equal(res.json.emission.emission_factor_snapshot.includes_wtt, true);
 });
 
+test("the WTT flag reads the category's ghg_category, not only its name", async () => {
+  const [before] = await withDb(async (db) => (await db.query(`SELECT category_name, ghg_category FROM category WHERE category_id = $1`, [FREIGHT])).rows);
+  try {
+    await withDb((db) => db.query(`UPDATE category SET category_name = 'Inbound haulage S3-7', ghg_category = 4 WHERE category_id = $1`, [FREIGHT]));
+    const res = await call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id: FREIGHT, date_of_reporting: "2025-10-15", activity_data_unit: "tonne.km", activity_data: { emission_category: "HGV S3-7 summed", activity_value: "1000" } });
+    assert.equal(res.status, 201, JSON.stringify(res.json));
+    assert.deepEqual(res.json.warnings.map((w) => w.code), ["WTT_ALREADY_IN_FACTOR"], "a renamed Cat 4 category is still flagged");
+  } finally {
+    await withDb((db) => db.query(`UPDATE category SET category_name = $2, ghg_category = $3 WHERE category_id = $1`, [FREIGHT, before.category_name, before.ghg_category]));
+  }
+});
+
 test("migrate:scope3-fera-sub backfills old twins, and a second run changes nothing", async () => {
   const fuel = await typed(1, "2025-10-31", "litre", "Diesel S3-7", 10);
   const power = await typed(2, "2025-10-31", "kwh", "Grid US", 10);

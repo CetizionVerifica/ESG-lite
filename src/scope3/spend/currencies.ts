@@ -57,12 +57,13 @@ export const factorCurrency = (factor: { price_currency?: string | null; denomin
  * ISO 4217 codes a unit field may hold, supported or not. A list, not a
  * three-letter pattern: "kwh", "ton" and "kgs" are units, not currencies.
  */
-const KNOWN_CURRENCIES = new Set<string>([
+export const KNOWN_CURRENCY_CODES: readonly string[] = [
   ...SUPPORTED_CURRENCIES,
   "JPY", "CNY", "AUD", "CAD", "CHF", "SGD", "HKD", "NZD", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "RON", "BGN", "TRY",
   "ZAR", "BRL", "MXN", "KRW", "IDR", "MYR", "THB", "PHP", "VND", "PKR", "BDT", "LKR", "NPR", "QAR", "OMR", "KWD", "JOD",
   "EGP", "NGN", "KES", "ILS", "RUB", "UAH", "ARS", "CLP", "COP", "PEN", "TWD",
-]);
+];
+const KNOWN_CURRENCIES = new Set<string>(KNOWN_CURRENCY_CODES);
 
 /** The unit is an amount of money in some currency (supported or not). */
 export const looksLikeCurrency = (value: unknown): boolean => KNOWN_CURRENCIES.has(String(value ?? "").trim().toUpperCase());

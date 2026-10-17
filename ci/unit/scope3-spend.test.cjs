@@ -166,7 +166,10 @@ test("without loaded rates: same currency computes (golden cases), another curre
   // A spend method on a factor per kg with a kg quantity: the activity step, as before.
   const kg = computeRow(ctx, { factor: eeio({ factor_type: "cradle_to_gate", denominator_unit: "kg", price_currency: null }), activity_data: { activity_value: "10" }, activity_unit: "kg", method: "spend_based" });
   assert.equal(kg.ok, true);
-  assert.equal(kg.computed.method, undefined);
+  assert.equal(kg.computed.fx, undefined, "no rate: the spend file didn't price it");
+  // S3-3 records the method the row named (the spend file set none), and scores it as spend.
+  assert.equal(kg.computed.method, "spend_based");
+  assert.equal(kg.computed.dq.reliability, 3);
 });
 
 test("zero spend gives zero, never NaN", () => {
@@ -461,4 +464,24 @@ test("the purchase date is never the quantity; the amount spent only on a row as
   // An older form whose "Spent value" column is its quantity keeps it.
   assert.equal(pickActivityValue({ spent_value: "500" }, new Set()), 500);
   assert.equal(pickActivityValue({ "@method": "spend_based", spent_value: "500", weight: "3" }, new Set()), 3);
+});
+
+// ── S3-3 on spend rows ──────────────────────────────────────────────────────
+test("S3-3: a priced spend row records spend_based with its data quality; Scope 1 and 2 rows record none", () => {
+  // No method sent: the spend quote picks the spend file, and the row is recorded as spend.
+  const row = computeRow({ ...ctx, site_country: "IN" }, { factor: eeio({ geography: "GLO" }), activity_data: {}, activity_unit: "INR", spend: quote(), reportingYear: 2026 });
+  assert.equal(row.ok, true);
+  assert.equal(row.computed.method, "spend_based");
+  assert.equal(row.computed.data_type, "secondary");
+  assert.deepEqual(
+    { technology: row.computed.dq.technology, reliability: row.computed.dq.reliability, source: row.computed.dq.source },
+    { technology: 3, reliability: 3, source: "auto" },
+  );
+  // The same row on a Scope 2 category: the same total, and no method, dq or data type.
+  const scope2 = computeRow({ ...ctx, scope: "Scope 2" }, { factor: eeio(), activity_data: {}, activity_unit: "INR", spend: quote() });
+  assert.equal(scope2.computed.total_kgco2e, row.computed.total_kgco2e);
+  assert.equal(scope2.computed.method, undefined);
+  assert.equal(scope2.computed.dq, undefined);
+  assert.equal(scope2.computed.data_type, undefined);
+  assert.ok(scope2.computed.fx, "the rate is still stored");
 });

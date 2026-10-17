@@ -105,9 +105,13 @@ pendingStep("5a default currency is INR and Users see the total only", "SE-2", (
   assert.deepEqual(r.rows[0], { default_currency: "INR", entry_detail: "total" });
 });
 
-pendingStep("5b review workflow v2 is off until the Superadmin turns it on", "S3-15 parts 3-4", () => hasColumn("company", "review_workflow_v2"), async () => {
+step("5b review workflow v2 (drafts and month lock) is off until the Superadmin turns it on", async () => {
   const r = await withDb((db) => db.query(`SELECT review_workflow_v2 FROM company WHERE company_id = $1`, [S.companyId]));
   assert.equal(r.rows[0].review_workflow_v2, false);
+  // Off means today's behaviour: no month can be closed (step 25 checks entries are Pending).
+  const lock = await call("POST", "/periods/lock", S.admin, { site_id: S.sites.main, year: SC.YEAR, month: 4 });
+  assert.equal(lock.status, 403);
+  assert.equal(lock.json.code, "REVIEW_WORKFLOW_OFF");
 });
 
 // ── Phase 2 · Sites and categories (Superadmin) ────────────────────────────
@@ -129,9 +133,46 @@ step("7 Superadmin assigns the categories each site reports", async () => {
 
 // ── Phase 3 · Scope 3 boundary (client Admin) ──────────────────────────────
 
-pendingStep("9 the Admin screens the 15 categories", "S3-12", async () => (await call("GET", `/scope3/screening?year=${SC.REPORT_YEAR}`, S.admin)).status !== 404, async () => {
-  const r = await call("GET", `/scope3/screening?year=${SC.REPORT_YEAR}`, S.admin);
+step("9 the Admin screens the 15 categories: a headcount estimate for Category 7, a Table II tick, a suggestion applied by hand", async () => {
+  const q = `/scope3/screening?year=${SC.REPORT_YEAR}&year_type=${SC.YEAR_TYPE}`;
+  const rowsOfClient = async () => Number((await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id = ANY($1)`, [siteIds()]))).rows[0].n);
+  const before = await rowsOfClient();
+
+  const first = await call("GET", q, S.admin);
+  ok(first);
+  assert.equal(first.json.categories.length, 15);
+  assert.equal(first.json.can_edit, true);
+  assert.deepEqual(first.json.period, { start: `${SC.YEAR}-04-01`, end: `${SC.REPORT_YEAR}-03-31` }, "FY 2026 is April 2025 to March 2026");
+  const c2 = first.json.categories.find((c) => c.n === 2);
+  assert.deepEqual([c2.recorded_tco2e, c2.estimate_tco2e, c2.suggestion.status, c2.suggestion.reason], [0, null, "not_relevant", `No activity in this category in ${SC.REPORT_YEAR}`]);
+
+  // The Admin gives the headcount; the estimate is the hand-worked commute, shown but never saved.
+  // Inputs are kept per year type: this client screens its financial year (FY), not calendar 2026.
+  ok(await call("PUT", "/scope3/screening/inputs", S.admin, { year: SC.REPORT_YEAR, year_type: SC.YEAR_TYPE, inputs: [{ ghg_category: 7, basis: "headcount", amount: SC.SCREENING.headcount }] }));
+  const calendar = (await call("GET", `/scope3/screening?year=${SC.REPORT_YEAR}&year_type=CY`, S.admin)).json.categories.find((c) => c.n === 7);
+  assert.equal(calendar.estimate_tco2e, null, "CY 2026 doesn't see the FY 2026 headcount");
+  // Table II "Stakeholders" on Category 6 goes through the boundary (S3-1), status and reason unchanged.
+  const six = first.json.categories.find((c) => c.n === SC.SCREENING.tick.n);
+  ok(await call("PUT", `/scope3/categories/${six.n}`, S.admin, { status: six.status, reason: six.reason, relevance: { [SC.SCREENING.tick.key]: true } }));
+
+  const r = await call("GET", q, S.admin);
   ok(r);
+  const c7 = r.json.categories.find((c) => c.n === 7);
+  assert.equal(c7.estimate_tco2e, tonnes(SC.screeningKg()), "120 employees × 15 km × 2 × 230 days × 0.16725 kg");
+  assert.equal(c7.basis, "headcount");
+  assert.equal(c7.share_pct, 100, "the only sized category");
+  assert.equal(c7.suggestion.status, "included");
+  assert.equal(r.json.totals.estimate_tco2e, tonnes(SC.screeningKg()));
+  const c6 = r.json.categories.find((c) => c.n === SC.SCREENING.tick.n);
+  assert.deepEqual(c6.relevance, { [SC.SCREENING.tick.key]: true });
+  assert.deepEqual([c6.status, c6.suggestion.status, c6.suggestion.reason], [six.status, "included", "Relevant: stakeholders"]);
+  assert.equal(await rowsOfClient(), before, "a screening estimate is never saved as an emission row");
+
+  // Nothing changes without the Admin's click: Apply sends the suggestion, reason edited, through the boundary.
+  assert.notEqual(c7.status, "included", "the suggestion alone changed nothing");
+  ok(await call("PUT", "/scope3/categories/7", S.admin, { status: c7.suggestion.status, reason: `${c7.suggestion.reason}; refine with a commuting survey` }));
+  const applied = (await call("GET", q, S.admin)).json.categories.find((c) => c.n === 7);
+  assert.equal(applied.status, "included");
 });
 
 step("10 the Admin sets the boundary: 15 categories, reasons for exclusions, no Unmapped category", async () => {
@@ -184,8 +225,24 @@ step("12 Superadmin copies the USEEIO sector to the main site for factor year 20
   assert.equal(r.json.copied, 1);
 });
 
-pendingStep("14 the Manager records a supplier and its own product figure", "S3-6", async () => (await call("GET", "/scope3/suppliers", S.admin)).status !== 404, async () => {
-  ok(await call("GET", "/scope3/suppliers", S.admin));
+step("14 the Manager records a supplier and its own product figure", async () => {
+  // The client Admin stands in for the Manager, who is invited in step 20 (suppliers are Manager and above).
+  const created = await call("POST", "/suppliers", S.admin, { name: SC.SUPPLIER.name, country: SC.SUPPLIER.country });
+  ok(created, 201);
+  const id = created.json.supplier_id ?? created.json.supplier?.supplier_id;
+  assert.ok(id, JSON.stringify(created.json));
+  // A figure that isn't cradle-to-gate needs an explicit confirmation (SUPPLIER_FACTOR_BOUNDARY).
+  const gate = await call("POST", `/suppliers/${id}/factors`, S.admin, { ...SC.SUPPLIER.factor, boundary: "gate_to_gate" });
+  assert.equal(gate.status, 422, JSON.stringify(gate.json));
+  ok(await call("POST", `/suppliers/${id}/factors`, S.admin, SC.SUPPLIER.factor), 201);
+  const factors = await call("GET", `/suppliers/${id}/factors`, S.admin);
+  ok(factors);
+  const list = Array.isArray(factors.json) ? factors.json : (factors.json.factors ?? factors.json.data ?? []);
+  assert.deepEqual(
+    list.map((f) => [f.item, f.unit, Number(f.kgco2e_per_unit), f.reference_year, f.boundary]),
+    [[SC.SUPPLIER.factor.item, SC.SUPPLIER.factor.unit, SC.SUPPLIER.factor.kgco2e_per_unit, SC.SUPPLIER.factor.reference_year, "cradle_to_gate"]],
+  );
+  S.supplierId = id;
 });
 
 // ── Phase 5 · Data-entry forms (Superadmin) ────────────────────────────────
@@ -200,9 +257,21 @@ step("15a after the next deploy the sites have the standard Category 6 form and 
   assert.equal(factors.rows[0]?.v, SC.FLIGHT.kg_per_pkm);
 });
 
+// The methods the Category 6 form offers, most specific first, with the units each takes (01-contracts §6).
+const TRAVEL_METHODS = [
+  { method: "distance_based", units: ["passenger.km", "vehicle.km", "night"] },
+  { method: "fuel_based", units: ["litre"] },
+  { method: "spend_based", units: ["INR", "USD"] },
+];
+
 pendingStep("16-17 each Scope 3 form fixes its method for this client", "S3-3", () => hasColumn("column_config", "method_options"), async () => {
-  const r = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM column_config WHERE site_id = $1 AND method_options IS NOT NULL`, [S.sites.main]));
-  assert.ok(r.rows[0].n >= 1);
+  const forms = await withDb((db) => db.query(`SELECT pk_id FROM column_config WHERE site_id = $1 AND category_id = $2 ORDER BY pk_id`, [S.sites.main, S.cats.travel]));
+  assert.ok(forms.rows.length >= 1, "the standard Category 6 form is there (15a)");
+  for (const { pk_id } of forms.rows) ok(await call("PUT", `/admin/column-configs/${pk_id}`, S.sa, { method_options: TRAVEL_METHODS }));
+  const stored = await withDb((db) => db.query(`SELECT method_options FROM column_config WHERE pk_id = $1`, [forms.rows[0].pk_id]));
+  assert.deepEqual(stored.rows[0].method_options, TRAVEL_METHODS);
+  // Only a Superadmin sets a form's methods.
+  assert.equal((await call("PUT", `/admin/column-configs/${forms.rows[0].pk_id}`, S.admin, { method_options: TRAVEL_METHODS })).status, 403);
 });
 
 pendingStep("18 forms pass the form check and are published", "SE-4", async () => (await call("GET", "/admin/column-configs/0/check", S.sa)).status !== 404, async () => {});
@@ -289,9 +358,66 @@ step("25d people stay inside their own sites", async () => {
   assert.equal((await call("PUT", `/user/emissions/${S.rows[e.ref].id}/approve`, S.people.userMain)).status, 403, "a User can't approve");
 });
 
+step("25f a Category 1 purchase with the supplier's own figure: quantity × the supplier's figure, the supplier on the row", async () => {
+  const P = SC.SUPPLIER.purchase;
+  const r = await call("POST", "/user/emissions", S.people.userMain, {
+    site_id: S.sites.main,
+    category_id: S.cats.goods,
+    date_of_reporting: P.date,
+    activity_data_unit: P.unit,
+    activity_data: { emission_category: SC.SUPPLIER.factor.item, "@method": "supplier_specific", activity_value: String(P.quantity) },
+    supplier_id: S.supplierId,
+  });
+  ok(r, 201);
+  assert.equal(Number(r.json.emission.total_emission), tonnes(P.kg));
+  const row = await withDb((db) => db.query(`SELECT supplier_id, method, data_type, total_kgco2e::float8 AS kg, emission_factor_snapshot AS snap FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]));
+  const got = row.rows[0];
+  assert.equal(got.supplier_id, S.supplierId);
+  assert.equal(got.method, "supplier_specific");
+  assert.equal(got.kg, P.kg);
+  assert.equal(got.snap.factor_type, "supplier");
+  assert.equal(Number(got.snap.factor_value), SC.SUPPLIER.factor.kgco2e_per_unit);
+  assert.equal(got.snap.reference_year, SC.SUPPLIER.factor.reference_year);
+  // Another client's supplier id reads as unknown (tenant isolation through the engine). Another
+  // month, so the duplicate check doesn't answer first.
+  const other = await call("POST", "/user/emissions", S.people.userMain, {
+    site_id: S.sites.main,
+    category_id: S.cats.goods,
+    date_of_reporting: `${SC.YEAR}-08-31`,
+    activity_data_unit: P.unit,
+    activity_data: { emission_category: SC.SUPPLIER.factor.item, "@method": "supplier_specific", activity_value: "1" },
+    supplier_id: S.supplierId + 100000,
+  });
+  assert.equal(other.status, 400, JSON.stringify(other.json));
+  assert.equal(other.json.field, "supplier_id");
+  S.supplierKg = P.kg;
+  S.rows["supplier-jul"] = { id: r.json.emission.pk_id, twinIds: [] };
+});
+
 pendingStep("25e every new row records its method and data quality", "S3-3", () => hasColumn("emission", "method"), async () => {
-  const r = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id = ANY($1) AND (method IS NULL OR dq IS NULL)`, [siteIds()]));
+  // Scope 1 and Scope 2 rows carry no method; every Scope 3 row (twins included) has one and a quality.
+  const r = await withDb((db) =>
+    db.query(
+      `SELECT COUNT(*)::int AS n FROM emission e JOIN category c ON c.category_id = e.category_id
+        WHERE e.site_id = ANY($1) AND c.scope = 'Scope 3' AND (e.method IS NULL OR e.dq IS NULL OR e.data_type IS NULL)`,
+      [siteIds()],
+    ),
+  );
   assert.equal(r.rows[0].n, 0);
+  const notScope3 = await withDb((db) =>
+    db.query(
+      `SELECT COUNT(*)::int AS n FROM emission e JOIN category c ON c.category_id = e.category_id
+        WHERE e.site_id = ANY($1) AND c.scope <> 'Scope 3' AND e.method IS NOT NULL`,
+      [siteIds()],
+    ),
+  );
+  assert.equal(notScope3.rows[0].n, 0, "Scope 1 and 2 rows record no method");
+  const flight = await withDb((db) => db.query(`SELECT method, dq FROM emission WHERE pk_id = $1`, [S.rows[SC.TRAVEL.ref].id]));
+  assert.equal(flight.rows[0].method, "distance_based", "the form's first method");
+  assert.equal(flight.rows[0].dq.source, "auto");
+  const spend = await withDb((db) => db.query(`SELECT method, dq FROM emission WHERE pk_id = $1`, [S.rows["spend-jun"].id]));
+  assert.equal(spend.rows[0].method, "spend_based");
+  assert.equal(spend.rows[0].dq.reliability, 3, "spend data is poor on reliability (contracts §3)");
 });
 
 step("26 the Manager approves, rejects the wrong row and leaves one pending", async () => {
@@ -316,7 +442,7 @@ step("26 the Manager approves, rejects the wrong row and leaves one pending", as
 /** Approved kg by scope and by Scope 3 category, from the scenario alone. */
 function expectedTotals() {
   const approved = SC.ENTRIES.filter((e) => e.review === "approve");
-  const kg = { s1: 0, s2: 0, cat: { 1: S.spendKg, 3: 0, 6: SC.travelKg() } };
+  const kg = { s1: 0, s2: 0, cat: { 1: S.spendKg + S.supplierKg, 3: 0, 6: SC.travelKg() } };
   const t = { s1: 0, s2: 0, cat3: 0 }; // sums of stored 2-dp rows
   for (const e of approved) {
     const w = SC.expectedFor(e);
@@ -357,9 +483,21 @@ step("26b the GHG report's scope totals: Scope 1, 2 and 3 from approved rows onl
   assert.ok(totals, JSON.stringify(Object.keys(r.json)));
   assert.equal(r2(totals.scope1), r2(t.s1), "Scope 1");
   assert.equal(r2(totals.scope2), r2(t.s2), "Scope 2");
-  const s3rows = r2(t.cat3 + tonnes(S.spendKg) + tonnes(SC.travelKg()));
+  const s3rows = r2(t.cat3 + tonnes(S.spendKg) + tonnes(S.supplierKg) + tonnes(SC.travelKg()));
   assert.equal(r2(totals.scope3), s3rows, "Scope 3");
   assert.equal(r2(totals.total), r2(t.s1 + t.s2 + s3rows), "Total");
+});
+
+step("26d supplier coverage for reports: the share of Category 1 and 2 from supplier data, and the top suppliers", async () => {
+  const q = `year=${SC.REPORT_YEAR}&year_type=${SC.YEAR_TYPE}`;
+  const r = await call("GET", `/suppliers/coverage?${q}`, S.people.manager);
+  ok(r);
+  const all = S.spendKg + S.supplierKg;
+  assert.equal(r.json.cat12_tco2e, tonnes(all));
+  assert.equal(r.json.supplier_specific_tco2e, tonnes(S.supplierKg));
+  assert.equal(r.json.hybrid_tco2e, 0);
+  assert.equal(r.json.coverage_pct, Math.round((S.supplierKg / all) * 1000) / 10);
+  assert.deepEqual(r.json.top_suppliers.map((x) => [x.supplier_id, x.tco2e, x.rows]), [[S.supplierId, tonnes(S.supplierKg), 1]]);
 });
 
 step("26c tenant isolation: another client's Admin and Manager see none of this client's data", async () => {
@@ -390,6 +528,108 @@ step("24 the Admin freezes the base year: the preview shows the approved Scope 3
   const got = await call("GET", "/scope3/base-year", S.people.manager);
   ok(got);
   assert.equal(got.json.base_year?.base_year ?? got.json.base_year, SC.REPORT_YEAR);
+});
+
+// ── Review workflow v2 (S3-15 parts 3–4): drafts, submit, close the month ──
+
+const V2 = SC.REVIEW_V2;
+const v2Rows = {};
+const lockBody = () => ({ site_id: S.sites.main, year: V2.year, month: V2.month });
+
+step("29a the Superadmin turns review workflow v2 on; a User's entries are Drafts (twins too) the Manager doesn't see", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { review_workflow_v2: true }));
+  for (const e of V2.entries) {
+    const r = await call("POST", "/user/emissions", S.people.userMain, {
+      site_id: S.sites.main,
+      category_id: S.cats[e.cat],
+      date_of_reporting: e.date,
+      activity_data_unit: e.unit,
+      activity_data: { emission_category: e.activity, activity_value: String(e.value) },
+    });
+    ok(r, 201);
+    assert.equal(r.json.emission.status, "draft", e.ref);
+    assert.equal(Number(r.json.emission.total_emission), tonnes(SC.expectedFor(e).kg), `${e.ref} tCO₂e`);
+    const twins = await withDb((db) => db.query(`SELECT pk_id, status::text AS status FROM emission WHERE fera_linked_id = $1 OR pk_id = (SELECT fera_linked_id FROM emission WHERE pk_id = $1)`, [r.json.emission.pk_id]));
+    assert.equal(twins.rows.length, Object.keys(SC.expectedFor(e).twins).length, `${e.ref} twins`);
+    assert.ok(twins.rows.every((t) => t.status === "draft"), `${e.ref} twins are Drafts`);
+    v2Rows[e.ref] = r.json.emission.pk_id;
+  }
+  const list = await call("GET", `/user/emissions?siteId=${S.sites.main}&year=${V2.year}&month=${V2.month}&page=1&limit=50`, S.people.manager);
+  ok(list);
+  assert.equal(list.json.total, 0, "the Manager's list has none of the Drafts");
+  const mm = await call("GET", `/user/my-month?month=${V2.period}`, S.people.userMain);
+  ok(mm);
+  assert.equal(mm.json.review_workflow_v2, true);
+  const fuel = mm.json.sites.find((x) => x.site_id === S.sites.main).categories.find((c) => c.category_id === S.cats.fuel);
+  assert.equal(fuel.status, "draft");
+  assert.equal(fuel.total_emission, 0, "a Draft adds nothing to My month");
+});
+
+step("29b the Manager can't close the month while Drafts and missing categories are left", async () => {
+  const st = await call("GET", `/periods/lock?year=${V2.year}&month=${V2.month}&site_id=${S.sites.main}`, S.people.manager);
+  ok(st);
+  const left = Object.fromEntries(st.json.left.map((l) => [l.category_id, l.reason]));
+  assert.deepEqual(left, { [S.cats.fuel]: "draft", [S.cats.electricity]: "draft", [S.cats.travel]: "missing", [S.cats.goods]: "missing" });
+  const refused = await call("POST", "/periods/lock", S.people.manager, lockBody());
+  assert.equal(refused.status, 422);
+  assert.equal(refused.json.code, "PERIOD_INCOMPLETE");
+});
+
+step("29c the User submits the month and marks the rest Nothing this month; the Manager gets one notification", async () => {
+  const ids = Object.values(v2Rows);
+  const r = await call("POST", "/user/emissions/submit", S.people.userMain, { ids });
+  ok(r);
+  assert.deepEqual(r.json, { submitted: [...ids].sort((a, b) => a - b), refused: [] });
+  const statuses = await withDb((db) => db.query(`SELECT DISTINCT status::text AS s FROM emission WHERE site_id = $1 AND date_of_reporting = $2`, [S.sites.main, V2.entries[0].date]));
+  assert.deepEqual(statuses.rows.map((x) => x.s), ["pending"], "rows and twins are Pending");
+  const notes = await withDb((db) => db.query(`SELECT user_id FROM notification WHERE type = 'draft_submitted'`));
+  assert.deepEqual(notes.rows.map((n) => n.user_id), [S.people.manager.user.user_id]);
+  for (const cat of ["travel", "goods"]) {
+    ok(await call("POST", "/user/my-month/nothing", S.people.userMain, { site_id: S.sites.main, category_id: S.cats[cat], month: V2.period }));
+  }
+});
+
+step("29d the Manager approves and closes the month: every category done, the totals are the hand-worked ones", async () => {
+  ok(await call("PUT", "/user/emissions/bulk-approve", S.people.manager, { ids: Object.values(v2Rows) }));
+  const st = await call("GET", `/periods/lock?year=${V2.year}&month=${V2.month}&site_id=${S.sites.main}`, S.people.manager);
+  assert.deepEqual(st.json.left, []);
+  const states = Object.fromEntries(st.json.sites[0].categories.map((c) => [c.category_id, c.state]));
+  assert.deepEqual(states, { [S.cats.fuel]: "approved", [S.cats.electricity]: "approved", [S.cats.travel]: "nothing", [S.cats.goods]: "nothing" });
+  assert.equal(st.json.sites[0].scope3.find((c) => c.n === 3).data, true, "the twins are Category 3 data");
+  const lock = await call("POST", "/periods/lock", S.people.manager, lockBody());
+  ok(lock);
+  assert.equal(lock.json.sites[0].locked, true);
+  const mm = await call("GET", `/user/my-month?month=${V2.period}`, S.people.userMain);
+  const site = mm.json.sites.find((x) => x.site_id === S.sites.main);
+  assert.equal(site.locked, true);
+  for (const e of V2.entries) {
+    const c = site.categories.find((x) => x.category_id === S.cats[e.cat]);
+    assert.equal(c.status, "approved", e.ref);
+    assert.equal(c.total_emission, tonnes(SC.expectedFor(e).kg), `${e.ref} in My month`);
+  }
+  const audit = await withDb((db) => db.query(`SELECT action FROM audit_log WHERE entity_type = 'scope3_period_lock'`));
+  assert.deepEqual(audit.rows.map((a) => a.action), ["lock"]);
+});
+
+step("29e a closed month refuses every write (PERIOD_LOCKED); reopening needs a reason and opens it again", async () => {
+  const e = V2.entries[0];
+  const late = { site_id: S.sites.main, category_id: S.cats[e.cat], date_of_reporting: V2.late_date, activity_data_unit: e.unit, activity_data: { emission_category: e.activity, activity_value: "10" } };
+  const refused = await call("POST", "/user/emissions", S.people.userMain, late);
+  assert.equal(refused.status, 409);
+  assert.equal(refused.json.code, "PERIOD_LOCKED");
+  assert.equal((await call("DELETE", `/user/emissions/${v2Rows[e.ref]}`, S.people.manager)).json.code, "PERIOD_LOCKED");
+  assert.equal((await call("PUT", "/user/emissions/bulk-reject", S.people.manager, { ids: [v2Rows[e.ref]], comment: "late" })).json.code, "PERIOD_LOCKED");
+  const short = await call("POST", "/periods/unlock", S.people.manager, { ...lockBody(), reason: "oops" });
+  assert.equal(short.status, 400);
+  assert.equal(short.json.code, "UNLOCK_REASON_REQUIRED");
+  const reopened = await call("POST", "/periods/unlock", S.people.manager, { ...lockBody(), reason: "A late fuel invoice arrived" });
+  ok(reopened);
+  assert.equal(reopened.json.sites[0].locked, false);
+  assert.equal(reopened.json.sites[0].reopened.reason, "A late fuel invoice arrived");
+  const again = await call("POST", "/user/emissions", S.people.userMain, late);
+  ok(again, 201);
+  assert.equal(again.json.emission.status, "draft");
+  assert.equal(Number(again.json.emission.total_emission), tonnes(10 * SC.FACTORS.diesel.values[SC.factorYearOf(V2.late_date)]));
 });
 
 // ── Go-live checks still to come ───────────────────────────────────────────

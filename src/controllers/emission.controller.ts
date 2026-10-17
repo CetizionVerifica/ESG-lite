@@ -8,7 +8,8 @@ import { In, IsNull, Not, Or } from "typeorm";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
-import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
+import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, entryFactorSnapshot, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
+import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
 import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
@@ -37,6 +38,9 @@ import { pcfDataChanged } from "../pcf/staleness";
 import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
 import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
 import { checkKeysFor, refreshChecks, refreshChecksSafely } from "../scope3/review/service";
+import { parseRowQuality } from "../scope3/dq/input";
+import { METHOD_KEYS } from "../scope3/contracts/ghgCategory";
+import { draftTwinsOf, statusAfterUserEdit, statusForTypedEntry } from "../scope3/review/workflow";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -95,6 +99,10 @@ export const keepImportProvenance = (emission: { upload_batch_id?: string | null
 
 // S3-15: a pending row is ready when its stored review checks all pass; a
 // pending row without checks yet is held.
+// S3-15 part 2: a Draft is visible only to the person who saved it, never in
+// manager lists, exports or totals (nothing is a Draft with the switch off).
+const DRAFT_VISIBLE_SQL = (e: string) => `(${e}.status::text <> 'draft' OR ${e}."created_by" = :draftOwner)`;
+
 const READY_SQL = (e: string) => `(${e}.status = 'pending' AND (${e}.checks ->> 'ready') = 'true')`;
 const HELD_SQL = (e: string) => `(${e}.status = 'pending' AND COALESCE(${e}.checks ->> 'ready', 'false') <> 'true')`;
 
@@ -116,6 +124,19 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "ready must be 1 or 0" });
     }
     const readyFilter = readyParam === null ? null : readyParam === "1" || readyParam === "true";
+    // S3-3 method=<key>: rows calculated that way. An unknown key is refused
+    // rather than quietly matching nothing.
+    const methodFilter = typeof req.query.method === "string" ? req.query.method.trim() : "";
+    if (methodFilter && !(METHOD_KEYS as readonly string[]).includes(methodFilter)) {
+      return res.status(400).json({ message: `method must be one of ${METHOD_KEYS.join(", ")}` });
+    }
+    // S3-3 dq_max=<1|2|3>: rows whose overall data quality is at least that
+    // good (1 is best). A row with no data quality has none to meet, so it is
+    // left out rather than counted as good.
+    const dqMaxParam = req.query.dq_max === undefined ? null : String(req.query.dq_max);
+    if (dqMaxParam !== null && !["1", "2", "3"].includes(dqMaxParam)) {
+      return res.status(400).json({ message: "dq_max must be 1, 2 or 3" });
+    }
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     // categoryIds=1,2 (several) or the older categoryId=1.
     if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
@@ -144,7 +165,10 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       .leftJoinAndSelect("emission.site", "site")
       .leftJoinAndSelect("emission.category", "category")
       .leftJoinAndSelect("emission.reviewed_by", "reviewed_by")
-      .leftJoinAndSelect("emission.created_by", "created_by");
+      .leftJoinAndSelect("emission.created_by", "created_by")
+      // S3-6: the supplier the goods came from (id and name only).
+      .leftJoin("emission.supplier", "supplier")
+      .addSelect(["supplier.supplier_id", "supplier.name"]);
 
     if (searchParams) {
       qb.andWhere(emissionSearchSql({ e: "emission", c: "category", s: "site", u: "created_by" }), searchParams);
@@ -153,6 +177,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
     if (scopedSiteIds) {
       qb.andWhere(siteFilterSql("site.site_id", scopedSiteIds), { scopedSiteIds });
     }
+    qb.andWhere(DRAFT_VISIBLE_SQL("emission"), { draftOwner: Number(req.user?.userId) || 0 });
 
     if (categoryIds.length) {
       qb.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
@@ -171,6 +196,11 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       if (attention) qb.andWhere(attentionSql("emission"), { attentionBelow: ATTENTION_BELOW });
     }
     if (readyFilter !== null) qb.andWhere(readyFilter ? READY_SQL("emission") : HELD_SQL("emission"));
+
+    if (methodFilter) qb.andWhere("emission.method = :methodFilter", { methodFilter });
+    if (dqMaxParam !== null) {
+      qb.andWhere("(emission.dq->>'overall')::int <= :dqMax", { dqMax: Number(dqMaxParam) });
+    }
 
     if (date) {
       // Date format: YYYY-MM (e.g., 2024-01)
@@ -226,6 +256,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       if (scopedSiteIds) {
         summaryQb.andWhere(siteFilterSql("s.site_id", scopedSiteIds), { scopedSiteIds });
       }
+      summaryQb.andWhere(DRAFT_VISIBLE_SQL("emission"), { draftOwner: Number(req.user?.userId) || 0 });
       if (categoryIds.length) {
         summaryQb.andWhere("c.category_id IN (:...categoryIds)", { categoryIds });
       }
@@ -318,8 +349,8 @@ export const getEmissionBreakdown = async (req: AuthRequest, res: Response) => {
     if ((year !== undefined && !/^\d{4}$/.test(String(year))) || (month !== undefined && !/^(0?[1-9]|1[0-2])$/.test(String(month)))) {
       return res.status(400).json({ message: "year must be YYYY and month 1-12" });
     }
-    if (status !== undefined && !["pending", "approved", "rejected"].includes(String(status))) {
-      return res.status(400).json({ message: "status must be pending, approved or rejected" });
+    if (status !== undefined && !["pending", "approved", "rejected", "draft"].includes(String(status))) {
+      return res.status(400).json({ message: "status must be draft, pending, approved or rejected" });
     }
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     const scoped = await scopeSiteIds(req.user!.userId, req.user!.role, siteIds);
@@ -335,6 +366,7 @@ export const getEmissionBreakdown = async (req: AuthRequest, res: Response) => {
       .leftJoin("emission.created_by", "created_by")
       .where("category.category_id = :categoryId", { categoryId });
     if (scoped.siteIds) qb.andWhere(siteFilterSql("site.site_id", scoped.siteIds), { scopedSiteIds: scoped.siteIds });
+    qb.andWhere(DRAFT_VISIBLE_SQL("emission"), { draftOwner: Number(req.user?.userId) || 0 });
     if (status) qb.andWhere("emission.status = :status", { status: String(status) });
     if (year) qb.andWhere("EXTRACT(YEAR FROM emission.date_of_reporting) = :year", { year: parseInt(String(year)) });
     if (month) qb.andWhere("EXTRACT(MONTH FROM emission.date_of_reporting) = :month", { month: parseInt(String(month)) });
@@ -385,7 +417,8 @@ export const getEmissionsBySiteAndCategory = async (req: AuthRequest, res: Respo
       .leftJoinAndSelect("emission.reviewed_by", "reviewed_by")
       .leftJoinAndSelect("emission.created_by", "created_by")
       .where("site.site_id = :siteId", { siteId: parseInt(siteId) })
-      .andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId) });
+      .andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId) })
+      .andWhere(DRAFT_VISIBLE_SQL("emission"), { draftOwner: Number(req.user?.userId) || 0 });
 
     if (date) {
       // Date format: YYYY-MM (e.g., 2024-01)
@@ -417,6 +450,17 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     // `let`: per-unit spec categories replace a spelling variant ("Tonne KM")
     // with the canonical unit key so matching and storage stay consistent.
     let activity_data_unit = req.body.activity_data_unit;
+    // S3-3: how the contributor says the row was calculated, whether the
+    // figure is an estimate, and a data quality they judged by hand.
+    const quality = parseRowQuality(req.body);
+    if (!quality.ok) {
+      return res.status(400).json({ message: quality.message, code: "FIELD_INVALID", field: quality.field });
+    }
+    // S3-6: the supplier the goods came from, and the supplier figure to use.
+    const supplierRef = parseSupplierRef(req.body);
+    if (!supplierRef.ok) {
+      return res.status(400).json({ message: supplierRef.message, code: "FIELD_INVALID", field: supplierRef.field });
+    }
     const userId = req.user?.userId;
 
     if (!site_id || !category_id || !activity_data || !date_of_reporting) {
@@ -483,19 +527,21 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
             },
             relations: ["site", "category", "created_by"],
           });
+    // S3-15 part 2: someone else's Draft doesn't exist for the caller (never matched, never replaced).
+    const visibleExisting = existingEmissions.filter((e) => e.status !== EmissionStatus.DRAFT || Number(e.created_by?.user_id) === Number(userId));
 
     // If emission_category is provided, match on it too; otherwise match any entry
     // for that date. For spec categories the emission_category is the country/fuel/
     // gas — two different products in the same country are NOT duplicates, so the
     // spec's identity columns (e.g. Product Name) must match as well.
     const duplicate = activity_data.emission_category
-      ? existingEmissions.find(
+      ? visibleExisting.find(
           (e) =>
             e.activity_data?.emission_category === activity_data.emission_category &&
             (!calcSpec || specIdentityMatches(calcSpec, activity_data, e.activity_data))
         )
-      : existingEmissions.length > 0
-        ? existingEmissions[0]
+      : visibleExisting.length > 0
+        ? visibleExisting[0]
         : null;
 
     if (duplicate) {
@@ -549,11 +595,15 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         year_type: effectivePeriod === "yearly" ? year_type : null,
       },
       extra_data: extra_data || {},
+      ...quality.value,
+      ...supplierRef.value,
     });
     if (!prepared.ok) {
       return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
     }
-    const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
+    // S3-15 part 2: a User's entry is a Draft while the client's review workflow v2 is on.
+    const status = await statusForTypedEntry(AppDataSource.manager, req.user?.role, Number(site_id));
+    const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null, { status }));
 
     const savedEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -638,8 +688,9 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
         emission.activity_data_unit = activity_data_unit;
       }
 
-      // Reset status to pending when user edits the emission
-      emission.status = EmissionStatus.PENDING;
+      // Reset status to pending when user edits the emission. S3-15 part 2: with the
+      // review workflow on, a User's edit of a Sent back (or Draft) row leaves a Draft.
+      emission.status = await statusAfterUserEdit(AppDataSource.manager, req.user?.role, emission.site.site_id, oldStatus);
       emission.reviewed_by = null as any;
       emission.review_comment = null as any;
       emission.reviewed_at = null as any;
@@ -675,6 +726,8 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       updatedFeraEmission = await recalculateLinkedFera(emission, activity_data, feraTwin, feraSkipped);
     }
     const tdLossTwin = activity_data !== undefined ? await syncTdLossTwin(emission, activity_data) : null;
+    // S3-15 part 2: a twin shares its parent's status, so a Draft parent's twins are Drafts.
+    if (emission.status === EmissionStatus.DRAFT) await draftTwinsOf(AppDataSource.manager, emission.pk_id);
 
     // S3-15 review checks of the row, its twin and the next month (also where the row used to be).
     await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, emission.fera_linked_id, updatedFeraEmission?.pk_id, tdLossTwin?.pk_id].filter(Boolean) as number[], priorCheckKeys);
@@ -742,6 +795,11 @@ async function recalculateEntry(emission: Emission, activity_data: any, extra_da
   const category_id = emission.category.category_id;
   const ctx = await new ContextCache(AppDataSource.manager).context(site_id, category_id);
   const yearly = emission.reporting_period === "yearly";
+  // S3-6: a supplier-specific or hybrid row is recalculated the same way, from
+  // the same supplier (and figure); every other row as before.
+  const supplierRow = emission.method === "supplier_specific" || emission.method === "hybrid";
+  const [linked] = supplierRow ? await AppDataSource.query(`SELECT supplier_id FROM emission WHERE pk_id = $1`, [emission.pk_id]) : [];
+  const snapshotFactorId = Number((emission.emission_factor_snapshot as any)?.supplier_factor_id) || null;
   return prepareEntry(ctx, new CheckCache(AppDataSource.manager), {
     site_id,
     category_id,
@@ -755,12 +813,20 @@ async function recalculateEntry(emission: Emission, activity_data: any, extra_da
     extra_data: extra_data ?? {},
     // S3-5: a spend row keeps the rate it was saved with while its currency and purchase date don't change.
     storedFx: emission.fx,
+    ...(supplierRow
+      ? {
+          method: emission.method,
+          supplier_id: linked?.supplier_id ?? null,
+          supplier_factor_id: emission.method === "supplier_specific" ? snapshotFactorId : null,
+        }
+      : {}),
   });
 }
 
 /** Puts the engine's total, kgCO₂e total, snapshot and unit on an edited row; no factor means no total (audit F-05). */
 function applyComputed(emission: Emission, entry: PreparedEntry): void {
-  if (!entry.factor || !entry.computed) {
+  const snapshot = entryFactorSnapshot(entry);
+  if (!entry.computed || !snapshot) {
     emission.total_emission = 0;
     emission.total_kgco2e = "0.0000";
     emission.gas_kg = null;
@@ -773,7 +839,7 @@ function applyComputed(emission: Emission, entry: PreparedEntry): void {
   emission.total_kgco2e = entry.computed.total_kgco2e ?? null;
   emission.gas_kg = entry.computed.gas_kg ?? null;
   emission.biogenic_kg = entry.computed.biogenic_kg ?? null;
-  emission.emission_factor_snapshot = factorSnapshot(entry.factor, entry.computed.deflator) as any;
+  emission.emission_factor_snapshot = snapshot as any;
   emission.fx = entry.computed.fx ?? null;
   emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
 }
@@ -1389,11 +1455,13 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "batchId is required" });
     }
 
-    // Get all emission IDs in this batch
-    const batchEmissions = await repo.find({
-      where: { upload_batch_id: batchId },
-      select: ["pk_id"],
-    });
+    // Get all emission IDs in this batch. S3-15 part 2: someone else's Draft
+    // (an imported row its contributor is fixing) isn't the caller's to delete.
+    const callerId = Number((req as AuthRequest).user?.userId) || 0;
+    const batchEmissions: Array<{ pk_id: number }> = await AppDataSource.query(
+      `SELECT pk_id FROM emission WHERE upload_batch_id = $1 AND (status::text <> 'draft' OR created_by = $2)`,
+      [batchId, callerId],
+    );
 
     if (batchEmissions.length === 0) {
       return res.status(404).json({ message: "No emissions found for this batch" });
@@ -1416,7 +1484,13 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
     }
 
     const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
-    const result = await repo.delete({ upload_batch_id: batchId });
+    // The same rows as the SELECT above, by predicate: one parameter per row would break on a batch
+    // over Postgres's 65,535-parameter limit (see df1ce16).
+    const result = await repo
+      .createQueryBuilder()
+      .delete()
+      .where("upload_batch_id = :batchId AND (status::text <> 'draft' OR created_by = :callerId)", { batchId, callerId })
+      .execute();
     await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
     await refreshChecksSafely(AppDataSource.manager, [], priorKeys);
@@ -2894,7 +2968,8 @@ export const downloadEmissions = async (req: AuthRequest, res: Response) => {
       .leftJoinAndSelect("emission.site", "site")
       .leftJoinAndSelect("emission.category", "category")
       .leftJoinAndSelect("emission.created_by", "created_by")
-      .where("site.site_id = :siteId", { siteId: parseInt(siteId as string) });
+      .where("site.site_id = :siteId", { siteId: parseInt(siteId as string) })
+      .andWhere(DRAFT_VISIBLE_SQL("emission"), { draftOwner: Number(req.user?.userId) || 0 });
 
     if (categoryId) {
       qb.andWhere("category.category_id = :categoryId", { categoryId: parseInt(categoryId as string) });
@@ -3594,8 +3669,9 @@ export const getPeriodTotal = async (req: Request, res: Response) => {
         status: EmissionStatus.APPROVED,
       });
     } else {
-      qb.andWhere("emission.status != :rejected", {
-        rejected: EmissionStatus.REJECTED,
+      // S3-15 part 2: nor a Draft, which isn't submitted yet.
+      qb.andWhere("emission.status NOT IN (:...notEntered)", {
+        notEntered: [EmissionStatus.REJECTED, EmissionStatus.DRAFT],
       });
     }
 
