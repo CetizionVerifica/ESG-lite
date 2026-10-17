@@ -221,6 +221,7 @@ async function main() {
   const wttNames = factors.filter((f) => f.includes_wtt).map((f) => f.name);
   const flagged: unknown[] = wttNames.length
     ? await AppDataSource.query(
+        // data-loss-reviewed: the WHERE on the next line limits it to this module's own seeded factors (name, source "(S3-8)", category); only the includes_wtt flag changes, values and totals stay
         `UPDATE emission_factors SET includes_wtt = true
           WHERE emission_category_name = ANY($1) AND source LIKE '% (S3-8)' AND includes_wtt = false AND category_id = ANY($2)
           RETURNING emission_factor_id`,
