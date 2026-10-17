@@ -18,3 +18,29 @@ Script twice → no second change; dry run changes nothing; a seeded total diffe
 
 ## Done when
 No live form uses `@method` and no differences are logged on staging.
+
+## As built (2026-10-17)
+- **`src/forms/migrateForms.ts`** (pure): `planFormMigration(form, questionColumn)` → what to write, a reason the form can't be moved, or null (already in the new model).
+  - **"@method" formula, several methods**:
+    - Adds the library select "Record type" (created once, as SE-3's builder adds it), with the label "What does your record show?" (`field_settings`).
+    - Its answers' **ids are the method keys** and their labels describe the record ("Trip distance", "Fuel used", "Amount spent", "Average figures", "Waste by treatment", …). The formula keeps its keys; only `method_column` moves to the question.
+    - Also writes `method_by_choice` (answer → method) and `method_options`.
+  - **"@method" formula, one method**: only `method_options`. SE-2 fixes the method, and "@method" stays the row's.
+  - **`method_options` when the form has none**: the category's list from the module that wrote the standard form (travel 6/7, sold products 10–12, transport 4/9), kept to the formula's methods. When a method's units can't be told, the form is left as it is, with the reason logged.
+  - **Transport forms (per unit, Category 4/9) with no `method_options`**: S3-8's list, each method kept to the units the formula calculates. An older form with km and tonne.km gets `distance_based` only. Spend only with its fields.
+  - **Spend forms** ("spent_value" + "currency" extras) whose methods are bare keys: each method with its units (the currencies for spend, the form's units otherwise).
+- **Engine, "@method" as the answer** (`formConfig.ts methodByChoice`): a row with no answer whose "@method" names one of the question's answers has answered it. Today's screens and sheets, which send "@method", keep working on a moved form until SE-3's question reaches them; a builder-made question (answer ids that aren't method keys) keeps SE-2's rule. Found by the every-category workflow test.
+- **Engine** (`calculationSpec.ts resolveSpecMethod`): when the form's question has no answer on a row, the row's method (`method`, else `activity_data["@method"]`) picks the formula, if the formula has it. That is exactly what decided before, so rows saved before the move calculate the same. A form whose own column picks the formula (Use of sold products' "Method") is unaffected, because its keys aren't methods.
+- **`src/scripts/migrateEntryFormsData.ts`** (`migrate:entry-forms-data`, listed right after `migrate:scope3-transport`, the last migration that writes standard forms):
+  - The run is one transaction under an advisory lock. Every saved row of each changed form is calculated with the old and the new form, in memory (`prepareEntry`, as a recalculation does), and the results are compared by kgCO₂e and by refusal code.
+  - Any difference rolls the run back and logs `WARNING: form(s) … would calculate saved rows differently; nothing was changed`.
+  - Any error is logged too. The script always exits 0.
+  - `--dry-run` lists what it would change and rolls back.
+- **Standard forms:** the move breaks the S3-9/S3-10 `standard_hash`, so their migrations treat the form as customised and leave it. A site that gets a standard form later is moved by the same start's SE-5 run.
+- **Deviations:**
+  - The spec's file name `migrateEntryForms.ts` is SE-2's columns migration. SE-5 is `migrateEntryFormsData.ts`.
+  - **A one-method "@method" form keeps `method_column: "@method"`.** There is nothing to ask, and SE-2 fixes the method.
+  - **Old rows don't get an answer written.** Rows are never touched. They calculate from their "@method", and an edit in a screen that asks the question will ask it.
+- **Tests:**
+  - `ci/unit/se-5-migrate-forms.test.cjs` (6): the question, idempotence, one method, skips with reasons, transport units, spend units, and the engine fallback.
+  - `ci/api/tests/se-5-migrate-forms.test.cjs` (5): the real script on a real database. Covers rows saved with "@method", the dry run, the move with rows unwritten and a second run, a User answering and an old row edited, and a seeded difference rolled back and logged with exit 0.
