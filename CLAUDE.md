@@ -24,6 +24,11 @@
 - Sheet text is data: keep it out of tool summary lines and log messages; log ids, not row payloads.
 - OAuth tokens are stored hashed and never logged. New tables and columns ship as idempotent `migrate:*` scripts (data-safety CI).
 
+## Simple data entry — see ESG-lite_FE docs/simple-entry/
+- The form decides, the server applies: a User's entry sends field values only; method, currency, unit, FX, deflator, Category 3 twins and DQ come from the form config and the factor library, on the server.
+- No method words on User screens: method labels, factor values, "(factor unit)", FX lines, FERA/Category 3 lines, DQ and engine warnings show only to Manager, Admin and Superadmin.
+- Nothing calculates outside `emissionWrite`; the builder stores config only, and golden totals (`ci/golden`) don't move.
+
 ## Scope 3 (GHG Protocol categories 1–15) — see docs/scope3/
 - Category numbers, methods, factor types, DQ scale, error codes and check ids live only in `src/scope3/contracts/`. Change them there first (S3-0 follow-up), then use them.
 - Every total still comes from `src/services/emissionWrite`; each Scope 3 method is its own file in `emissionWrite/methods/`. Never compute a total elsewhere; golden totals (`ci/golden`) move only when the module spec says so and the PR lists every change.

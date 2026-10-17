@@ -36,7 +36,7 @@ ESGLite reports Scope 3 per GHG Protocol category (1–15). Each category is eit
 | S3-0 | — | `src/scope3/contracts/*`, `ci/golden/scope3/*`, `docs/scope3/*`, the root CLAUDE.md blocks | `package.json` scripts |
 | S3-1 | S3-0 | `src/scope3/taxonomy/*`, `src/scope3/boundary/*`, `Category` columns, `company_scope3_category`, FE `features/scope3/boundary/*` | `reference-data` Categories tab, `scripts/migrate-all.cjs` |
 | S3-2 | S3-0 | `EmissionFactor` columns, factor import/export, FE `emission-factors/*`, AI `excel_parser.py` sub-columns | `emissionWrite/compute.ts` snapshot |
-| S3-3 | S3-0 | `Emission.method/dq/data_type/is_estimate`, `src/scope3/dq/*`, `ColumnConfig.method_options`, FE `src/lib/scope3/dq.ts`, add-data method picker | `emissionWrite/index.ts`, `imports/contracts.ts` |
+| S3-3 | S3-0 | `Emission.method/dq/data_type/is_estimate`, `src/scope3/dq/*`, `ColumnConfig.method_options`, FE `src/lib/scope3/dq.ts` | `emissionWrite/index.ts`, `imports/contracts.ts` |
 | S3-4 | — | `emissionWrite/units.ts` null-unit rule, `historicalImport.ts`, `seedEmissionsFromExcel.ts`, scope validation in `category.controller.ts`, FE Findings S3 bug | `emissionWrite/resolve.ts` (warning only) |
 | S3-5 | S3-2, S3-3 | `src/services/fxRate.ts`, `src/scope3/spend/*` (deflator, EEIO), `Emission.fx` | `emissionWrite/compute.ts` spend branch |
 | S3-6 | S3-2, S3-3 | `src/scope3/suppliers/*`, `supplier` table, `Emission.supplier_id`, FE `features/scope3/suppliers/*` | `supplierRequest.controller.ts` (accept → corporate factor), `emissionWrite/compute.ts` supplier and hybrid branches |
