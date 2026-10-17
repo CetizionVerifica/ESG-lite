@@ -17,6 +17,7 @@ import type { Method } from "../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../scope3/contracts/dq";
 import type { RowChecks } from "../scope3/contracts/checks";
 import type { Gas } from "../scope3/contracts/factor";
+import { Supplier } from "./Supplier";
 
 export enum EmissionStatus {
   PENDING = "pending",
@@ -148,6 +149,14 @@ export class Emission {
 
   @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
   biogenic_kg!: string | null;
+
+  // S3-6 · which supplier this row's goods came from, when it is known
+  // (migrate:scope3-suppliers). Set on Cat 1 and Cat 2 rows entered with a
+  // supplier; the supplier-specific and hybrid methods read the supplier's
+  // own figures through it.
+  @ManyToOne(() => Supplier, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "supplier_id" })
+  supplier!: Supplier | null;
 
   // S3-3 · how the row was calculated and how good its data is
   // (docs/scope3/01-contracts.md §3, migrate:scope3-row-quality). The types

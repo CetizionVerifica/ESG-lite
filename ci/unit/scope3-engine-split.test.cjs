@@ -38,10 +38,19 @@ test("rows without a method compute as before: computeTotal = computeRow = activ
 
 test("the stub methods fall back to activity until their modules land", () => {
   const expected = activity.compute(ctx(), row());
-  for (const method of ["spend_based", "supplier_specific", "hybrid", "average_data", "distance_based"]) {
+  for (const method of ["spend_based", "average_data", "distance_based"]) {
     assert.deepEqual(engine.computeRow(ctx(), row({ method })), expected, method);
   }
   assert.deepEqual(engine.computeRow(ctx(), row({ proxy: { basis: "floor_area" } })), expected, "proxy");
+});
+
+test("S3-6: supplier-specific and hybrid are real methods; without the supplier's figures they refuse, never fall back", () => {
+  for (const method of ["supplier_specific", "hybrid"]) {
+    const r = engine.computeRow(ctx(), row({ method }));
+    assert.equal(r.ok, false, method);
+    assert.equal(r.issue.code, "FIELD_REQUIRED", method);
+    assert.equal(r.issue.field, "supplier_id", method);
+  }
 });
 
 test("spec categories always use the spec method, whatever the row's method", () => {
