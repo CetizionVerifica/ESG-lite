@@ -48,6 +48,13 @@ import { KpiDisclosureMap } from "../entities/KpiDisclosureMap";
 import { KpiValue } from "../entities/KpiValue";
 import { KpiValueEvidence } from "../entities/KpiValueEvidence";
 import { KpiPeriodLock } from "../entities/KpiPeriodLock";
+// KPI-3: company setup
+import { CompanyKpiSettings } from "../entities/CompanyKpiSettings";
+import { CompanyFramework } from "../entities/CompanyFramework";
+import { CompanyMaterialTopic } from "../entities/CompanyMaterialTopic";
+import { CompanyKpi } from "../entities/CompanyKpi";
+import { KpiAssignment } from "../entities/KpiAssignment";
+import { KpiTopicGrant } from "../entities/KpiTopicGrant";
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -120,6 +127,13 @@ const entities = [
     KpiValue,
     KpiValueEvidence,
     KpiPeriodLock,
+    // KPI-3
+    CompanyKpiSettings,
+    CompanyFramework,
+    CompanyMaterialTopic,
+    CompanyKpi,
+    KpiAssignment,
+    KpiTopicGrant,
 ];
 
 // Parse DATABASE_URL to extract connection parameters

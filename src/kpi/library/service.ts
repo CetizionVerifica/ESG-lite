@@ -111,15 +111,20 @@ const DEFINITION_KEYS = [
   "level", "default_frequency", "source", "auto_source", "formula", "breakdowns", "decimals", "active",
 ];
 
-/** Unit, value-type and formula checks on a whole (merged) definition. */
-async function checkDefinition(m: EntityManager, d: Row, selfId: number | null) {
+/**
+ * Unit, value-type and formula checks on a whole (merged) definition. A
+ * company's own KPI (`companyId` set, KPI-3) may name library KPIs and the
+ * company's other KPIs; a library KPI names library KPIs only.
+ */
+export async function checkDefinition(m: EntityManager, d: Row, selfId: number | null, companyId: number | null = null) {
   const problems = unitProblems({ unit_dimension: d.unit_dimension, canonical_unit: d.canonical_unit, allowed_units: d.allowed_units ?? [] });
   if (d.value_type === "percent" && d.canonical_unit !== "%") problems.push("A percent KPI is in %.");
   if (["yes_no", "choice", "text"].includes(d.value_type) && d.unit_dimension !== "none") problems.push("A yes/no, choice or text KPI has no unit dimension.");
   if (problems.length) throw new KpiError("KPI_UNIT_NOT_ALLOWED", { problems });
   if (d.source !== "formula" || !d.formula) return;
   const rows: Array<{ id: number; code: string; formula: string | null; source: string }> = await m.query(
-    `SELECT id, code, formula, source FROM kpi_definition WHERE company_id IS NULL`,
+    `SELECT id, code, formula, source FROM kpi_definition WHERE company_id IS NULL OR company_id = $1`,
+    [companyId ?? 0],
   );
   const known = new Set(rows.map((r) => r.code).concat(d.code));
   const formulas = new Map<string, string>();
@@ -322,14 +327,17 @@ export const libraryCoverage = async (): Promise<Row[]> => {
 };
 
 /**
- * GET /kpi/catalogue: the library as a company sees it. Active framework
- * versions, their disclosures, the active library KPIs plus the company's own,
- * and the mappings between them. TODO(KPI-3): only the versions the company
- * enabled (company_framework).
+ * GET /kpi/catalogue: the library as a company sees it. The framework versions
+ * the company enabled in KPI-3 setup (every active version until it enables
+ * one, so the setup wizard can show them), their disclosures, the active
+ * library KPIs plus the company's own, and the mappings between them.
  */
 export async function catalogue(companyId: number) {
   const m = db();
-  const frameworks: Row[] = await m.query(`SELECT id, code, version, name, source_url, default_for_new FROM kpi_framework WHERE active ORDER BY code, version`);
+  const enabled: Row[] = await m.query(`SELECT framework_id FROM company_framework WHERE company_id = $1`, [companyId]);
+  const frameworks: Row[] = enabled.length
+    ? await m.query(`SELECT id, code, version, name, source_url, default_for_new FROM kpi_framework WHERE id = ANY($1::int[]) ORDER BY code, version`, [enabled.map((r) => r.framework_id)])
+    : await m.query(`SELECT id, code, version, name, source_url, default_for_new FROM kpi_framework WHERE active ORDER BY code, version`);
   const fwIds = frameworks.map((f) => f.id);
   const disclosures: Row[] = await m.query(
     `SELECT id, framework_id, code, title, section, requirement, esrs_topic, source_url, sort_key FROM kpi_disclosure WHERE framework_id = ANY($1::int[]) ORDER BY framework_id, sort_key, code`,

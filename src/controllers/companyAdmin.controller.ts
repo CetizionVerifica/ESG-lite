@@ -14,6 +14,9 @@ import {
   sitesWithinCompany,
   collectSiteCategories,
 } from "../utils/companyScope";
+// KPI-3: the KPI topic grant field on the user update
+import { KpiError } from "../kpi/contracts/errors";
+import { parseKpiTopics, saveKpiTopics } from "../kpi/setup/topicGrants";
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -231,6 +234,7 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
 
     const { id }: any = req.params;
     const { name, email, password, role, site_id, site_ids } = req.body;
+    const kpiTopicsRaw = req.body?.kpi_topics; // KPI-3
 
     if (
       !name &&
@@ -238,7 +242,8 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
       !password &&
       !role &&
       site_id === undefined &&
-      site_ids === undefined
+      site_ids === undefined &&
+      kpiTopicsRaw === undefined
     ) {
       return res.status(400).json({
         message: "At least one field is required for update",
@@ -266,6 +271,17 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({
         message: `Company admin can only assign these roles: ${MANAGEABLE_ROLES.join(", ")}`,
       });
+    }
+
+    // KPI-3: validate the KPI topics before anything is saved.
+    let kpiTopics: ReturnType<typeof parseKpiTopics> | undefined;
+    if (kpiTopicsRaw !== undefined) {
+      try {
+        kpiTopics = parseKpiTopics(kpiTopicsRaw);
+      } catch (err) {
+        if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
+        throw err;
+      }
     }
 
     // Validate any site changes stay within the company.
@@ -331,6 +347,16 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // KPI-3: grants first, so a switched-off company's refusal changes nothing.
+    if (kpiTopics !== undefined) {
+      try {
+        await saveKpiTopics(scope.companyId, user.user_id, kpiTopics, Number(req.user?.userId) || 0);
+      } catch (err) {
+        if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
+        throw err;
+      }
+    }
+
     await userRepo.save(user);
 
     const updatedUser = await userRepo.findOne({
@@ -341,6 +367,7 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
     return res.status(200).json({
       message: "User updated successfully",
       user: updatedUser,
+      ...(kpiTopics !== undefined ? { kpi_topics: kpiTopics } : {}),
     });
   } catch (error) {
     console.error("Update company user error:", error);

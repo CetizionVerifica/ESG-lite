@@ -5,8 +5,9 @@
  *                               values to every role of the company); drafts only to their
  *                               author, Admins and the Superadmin
  *   upsertDrafts(caller, items) PUT /kpi/values: per item, in its own transaction:
- *                               KPI found (404 otherwise) → selected (TODO KPI-3) → not auto or
- *                               formula → level and site → scope and assignment → period start
+ *                               setup finished → KPI found (404 otherwise) → selected → not auto
+ *                               or formula → level and site → scope and assignment → frequency and
+ *                               year type are the company's → period start
  *                               → not locked → value, unit and breakdown → insert or update a
  *                               draft (a rejected value edited becomes a draft; pending and
  *                               approved values aren't editable) → audit
@@ -26,6 +27,7 @@ import { KpiError } from "../contracts/errors";
 import { KpiValueItemSchema, KpiValuesQuerySchema, type KpiValueItem } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
+import { assignmentFor, companyKpiRow, kpiSettings, setupCompleted, topicGrants } from "../setup/settings";
 import { isPeriodStart, monthRange, overlaps, periodOf, yearRange } from "./period";
 import { toCanonical } from "./units";
 
@@ -52,30 +54,35 @@ export async function findKpi(m: EntityManager, companyId: number, ref: { id?: n
   return rows[0];
 }
 
-/**
- * Whether the company selected this KPI. TODO(KPI-3): read company_kpi.selected;
- * until then every active library KPI and the company's own active KPIs count as selected.
- */
-export async function isKpiSelected(_m: EntityManager, _companyId: number, kpi: Row): Promise<boolean> {
-  return kpi.active === true;
+/** KPI_SETUP_INCOMPLETE until the company finished KPI-3 setup (01-contracts §4). */
+export async function assertSetupDone(m: EntityManager, companyId: number): Promise<void> {
+  if (!(await setupCompleted(m, companyId))) throw new KpiError("KPI_SETUP_INCOMPLETE");
 }
 
-/** The company's year type for KPIs. TODO(KPI-3): company_kpi_settings.year_type. */
-export async function companyKpiYearType(_m: EntityManager, _companyId: number): Promise<YearType> {
-  return "CY";
+/** Whether the company selected this KPI in setup (company_kpi.selected) and it is still active. */
+export async function isKpiSelected(m: EntityManager, companyId: number, kpi: Row): Promise<boolean> {
+  if (kpi.active !== true) return false;
+  return (await companyKpiRow(m, companyId, Number(kpi.id)))?.selected === true;
 }
 
-/** The KPI's frequency for this company. TODO(KPI-3): company_kpi.frequency override. */
-export async function companyKpiFrequency(_m: EntityManager, _companyId: number, kpi: Row): Promise<KpiFrequency> {
-  return kpi.default_frequency as KpiFrequency;
+/** The company's year type for KPIs (company_kpi_settings.year_type). */
+export async function companyKpiYearType(m: EntityManager, companyId: number): Promise<YearType> {
+  return (await kpiSettings(m, companyId)).year_type;
+}
+
+/** The KPI's frequency for this company: the company_kpi override, else the KPI's default. */
+export async function companyKpiFrequency(m: EntityManager, companyId: number, kpi: Row): Promise<KpiFrequency> {
+  return ((await companyKpiRow(m, companyId, Number(kpi.id)))?.frequency ?? kpi.default_frequency) as KpiFrequency;
 }
 
 /**
  * Whether the caller may enter this KPI on this site (null = company level).
- * Layer rule 2 and D4: Superadmin and Admin anything of the company; Managers
- * their sites and company-level values; Users their own sites, site-level only.
- * TODO(KPI-3): with kpi_assignment rows, a User writes only the KPI × site pairs
- * assigned to them (owner_user_id), and the topic grant (kpi_topic_grant) applies.
+ * Layer rule 2, D4 and KPI-3 assignments:
+ *   - Superadmin and Admin: anything of the company;
+ *   - the assigned owner (kpi_assignment.owner_user_id) of the KPI × site, whatever their role;
+ *   - Managers: their sites and company-level values;
+ *   - Users: with no assignment for the KPI × site, site-level KPIs on their own sites in their
+ *     KPI topics (kpi_topic_grant; none = every topic). A pair assigned to someone else isn't theirs.
  * Throws KPI_NOT_FOUND for another company's site, KPI_NOT_ASSIGNED otherwise.
  */
 export async function assertCanWrite(m: EntityManager, caller: KpiCaller, kpi: Row, siteId: number | null): Promise<void> {
@@ -84,12 +91,17 @@ export async function assertCanWrite(m: EntityManager, caller: KpiCaller, kpi: R
     if (!rows.length) throw new KpiError("KPI_NOT_FOUND", { site_id: siteId });
   }
   if (caller.role === UserRole.SUPERADMIN || caller.role === UserRole.ADMIN) return;
-  if (siteId === null) {
-    if (caller.role === UserRole.MANAGER) return;
-    throw new KpiError("KPI_NOT_ASSIGNED", { kpi: kpi.code, site_id: null });
+  const refuse = () => new KpiError("KPI_NOT_ASSIGNED", { kpi: kpi.code, site_id: siteId });
+  const assignment = await assignmentFor(m, caller.companyId, Number(kpi.id), siteId);
+  if (assignment && Number(assignment.owner_user_id) === caller.userId) return;
+  if (caller.role === UserRole.MANAGER) {
+    if (siteId === null || !caller.sites || caller.sites.has(siteId)) return;
+    throw refuse();
   }
-  if (!caller.sites || caller.sites.has(siteId)) return;
-  throw new KpiError("KPI_NOT_ASSIGNED", { kpi: kpi.code, site_id: siteId });
+  if (siteId === null || assignment) throw refuse();
+  if (caller.sites && !caller.sites.has(siteId)) throw refuse();
+  const grants = await topicGrants(m, caller.userId);
+  if (grants.size && !grants.has(kpi.topic)) throw refuse();
 }
 
 /** The calendar year of month `month` (1–12) inside reporting year `year`. */
@@ -108,14 +120,15 @@ export async function lockedPeriod(m: EntityManager, companyId: number, siteId: 
   });
 }
 
-/** A KPI that maps to a BRSR Core disclosure needs evidence to be submitted (D15). TODO(KPI-3): only when the company reports BRSR. */
-export async function needsEvidence(m: EntityManager, kpiId: number): Promise<boolean> {
+/** A KPI that maps to a BRSR Core disclosure of the BRSR version the company reports on needs evidence to be submitted (D15). */
+export async function needsEvidence(m: EntityManager, companyId: number, kpiId: number): Promise<boolean> {
   const rows: Row[] = await m.query(
     `SELECT 1 FROM kpi_disclosure_map mp
        JOIN kpi_disclosure ds ON ds.id = mp.disclosure_id AND ds.requirement = 'core'
-       JOIN kpi_framework f ON f.id = ds.framework_id AND f.code = 'BRSR' AND f.active
+       JOIN kpi_framework f ON f.id = ds.framework_id AND f.code = 'BRSR'
+       JOIN company_framework cf ON cf.framework_id = f.id AND cf.company_id = $2
       WHERE mp.kpi_definition_id = $1 LIMIT 1`,
-    [kpiId],
+    [kpiId, companyId],
   );
   return rows.length > 0;
 }
@@ -290,6 +303,7 @@ async function upsertOne(caller: KpiCaller, raw: unknown): Promise<ReturnType<ty
   const item = parse(KpiValueItemSchema, raw);
   return AppDataSource.transaction(async (m) => {
     await holdKpiLease(m, caller.companyId);
+    await assertSetupDone(m, caller.companyId);
     const kpi = await findKpi(m, caller.companyId, { id: item.kpi_definition_id, code: item.kpi_code });
     if (item.kpi_definition_id && item.kpi_code && kpi.code !== item.kpi_code) throw new KpiError("KPI_VALIDATION", { issues: [{ path: "kpi_code", message: "kpi_code and kpi_definition_id name different KPIs" }] });
     if (!(await isKpiSelected(m, caller.companyId, kpi))) throw new KpiError("KPI_NOT_SELECTED", { kpi: kpi.code });
@@ -297,8 +311,11 @@ async function upsertOne(caller: KpiCaller, raw: unknown): Promise<ReturnType<ty
     if ((kpi.level === "company") !== (item.site_id === null)) throw invalid("site_id", kpi.level === "company" ? "company_level_kpi" : "site_level_kpi");
     await assertCanWrite(m, caller, kpi, item.site_id);
 
-    const frequency = item.frequency ?? (await companyKpiFrequency(m, caller.companyId, kpi));
-    const yearType = item.year_type ?? (await companyKpiYearType(m, caller.companyId));
+    // The company's frequency and year type (KPI-3); an item may repeat them, never change them.
+    const frequency = await companyKpiFrequency(m, caller.companyId, kpi);
+    const yearType = await companyKpiYearType(m, caller.companyId);
+    if (item.frequency && item.frequency !== frequency) throw invalid("frequency", `company_frequency_${frequency}`);
+    if (item.year_type && item.year_type !== yearType) throw invalid("year_type", `company_year_type_${yearType}`);
     if (!isPeriodStart(item.period_start, frequency, yearType)) throw invalid("period_start", `start_of_a_${frequency}_period`);
     const period = periodOf(item.period_start, frequency, yearType);
     if (await lockedPeriod(m, caller.companyId, item.site_id, period)) throw new KpiError("KPI_PERIOD_LOCKED", { period: period.label });
@@ -364,12 +381,13 @@ export async function submit(caller: KpiCaller, ids: number[]): Promise<{ submit
     try {
       await AppDataSource.transaction(async (m) => {
         await holdKpiLease(m, caller.companyId);
+        await assertSetupDone(m, caller.companyId);
         const v = await loadVisibleValue(m, caller, id);
         const kpi = await findKpi(m, caller.companyId, { id: Number(v.kpi_definition_id) });
         await assertCanWrite(m, caller, kpi, v.site_id === null ? null : Number(v.site_id));
         if (v.status !== "draft") throw new KpiError("KPI_NOT_DRAFT");
         if (await lockedPeriod(m, caller.companyId, v.site_id === null ? null : Number(v.site_id), { start: day(v.period_start)!, end: day(v.period_end)! })) throw new KpiError("KPI_PERIOD_LOCKED");
-        if (await needsEvidence(m, kpi.id)) {
+        if (await needsEvidence(m, caller.companyId, kpi.id)) {
           const ev: Row[] = await m.query(`SELECT 1 FROM kpi_value_evidence WHERE kpi_value_id = $1 LIMIT 1`, [id]);
           if (!ev.length) throw new KpiError("KPI_EVIDENCE_REQUIRED");
         }

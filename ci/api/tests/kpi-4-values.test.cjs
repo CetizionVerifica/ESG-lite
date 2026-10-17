@@ -5,14 +5,17 @@
 // KPI_EVIDENCE_REQUIRED, KPI_VALIDATION, KPI_TRACKING_OFF), drafts hidden from
 // others, rejected → draft on edit, approved evidence rules, locks (CY and FY,
 // reopened), company-level values, roles, tenant isolation, audit rows, and
-// migrate:kpi-values running twice.
+// migrate:kpi-values running twice. KPI-3 wiring: setup must be finished
+// (KPI_SETUP_INCOMPLETE), only selected KPIs take values, an item's frequency
+// and year type are the company's, and BRSR Core evidence applies only to a
+// company that reports BRSR.
 //
 // Fixture: company 1 (sites 1, 2; user 1 on site 1, manager 2 on 1+2, admin 3,
 // multi user 7 on 1+2), company 2 (site 3; other user 4, other manager 6).
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { call, withDb } = require("../helpers.cjs");
-const { setSwitch, runScript } = require("./kpi-lib.cjs");
+const { setSwitch, runScript, setupCompany, clearSetup } = require("./kpi-lib.cjs");
 
 const wipe = () =>
   withDb(async (db) => {
@@ -24,16 +27,20 @@ const wipe = () =>
   });
 
 test.before(async () => {
-  for (const name of ["migrateKpiLibrary", "seedKpiLibrary", "migrateKpiValues"]) {
+  for (const name of ["migrateKpiLibrary", "seedKpiLibrary", "migrateKpiValues", "migrateKpiSetup"]) {
     const r = runScript(name);
     assert.equal(r.status, 0, r.stderr + r.stdout);
   }
   await wipe();
+  await clearSetup();
+  await setupCompany(1, { frequencies: { WATER_DISCHARGE: "quarterly" } });
+  await setupCompany(2, { frameworks: ["GRI"] });
   await setSwitch(1, true);
   await setSwitch(2, true);
 });
 test.after(async () => {
   await wipe();
+  await clearSetup();
   await setSwitch(1, false);
   await setSwitch(2, false);
 });
@@ -122,6 +129,25 @@ test("each refusal comes back per item, in order, without stopping the others", 
   assert.equal(pct.code, "KPI_VALUE_INVALID");
   assert.equal((await call("PUT", "/kpi/values", "user", {})).status, 400);
   assert.equal((await call("PUT", "/kpi/values", "user", { items: [] })).json.code, "KPI_VALIDATION");
+
+  // KPI-3: the company's frequency and year type; a KPI the company left out.
+  assert.deepEqual((await one("user", water({ frequency: "quarterly", period_start: "2026-07-01" }))).details, { field: "frequency", rule: "company_frequency_monthly" });
+  assert.deepEqual((await one("user", water({ year_type: "FY" }))).details, { field: "year_type", rule: "company_year_type_CY" });
+  await withDb((db) => db.query(`UPDATE company_kpi SET selected = false, reason_excluded = 'Not tracked here' WHERE company_id = 1 AND kpi_definition_id = (SELECT id FROM kpi_definition WHERE code = 'AIR_NOX')`));
+  assert.equal((await one("user", { kpi_code: "AIR_NOX", site_id: 1, period_start: "2026-01-01", value_numeric: 1 })).code, "KPI_NOT_SELECTED");
+  await withDb((db) => db.query(`UPDATE company_kpi SET selected = true, reason_excluded = NULL WHERE company_id = 1 AND kpi_definition_id = (SELECT id FROM kpi_definition WHERE code = 'AIR_NOX')`));
+});
+
+test("KPI-3: no values until setup is finished", async () => {
+  await withDb((db) => db.query(`UPDATE company_kpi_settings SET setup_completed_at = NULL WHERE company_id = 1`));
+  try {
+    assert.equal((await one("user", water())).code, "KPI_SETUP_INCOMPLETE");
+    const sub = await call("POST", "/kpi/values/submit", "user", { ids: [draftId] });
+    assert.deepEqual(sub.json.refused, [{ id: draftId, code: "KPI_SETUP_INCOMPLETE" }]);
+    assert.equal((await call("GET", "/kpi/values", "user")).status, 200, "reads still answer");
+  } finally {
+    await withDb((db) => db.query(`UPDATE company_kpi_settings SET setup_completed_at = now() WHERE company_id = 1`));
+  }
 });
 
 test("drafts are seen by their author, Admins and the Superadmin only; reads are scoped", async () => {
@@ -217,6 +243,11 @@ test("BRSR Core needs evidence to submit; evidence add, list and remove", async 
   const actions = (await audits(id)).map((a) => a.action);
   assert.deepEqual(actions, ["create", "evidence_added", "evidence_added", "evidence_removed", "submit", "evidence_removed_after_approval"]);
   assert.equal((await one("user", { kpi_code: "WASTE_GENERATED", site_id: 1, period_start: "2026-01-01", value_numeric: 1 })).code, "KPI_NOT_DRAFT", "approved isn't editable");
+
+  // KPI-3: company 2 reports GRI only, so BRSR Core evidence isn't required there.
+  const other = await one("otherUser", water({ site_id: 3, period_start: "2026-02-01" }));
+  assert.equal(other.ok, true, JSON.stringify(other));
+  assert.deepEqual((await call("POST", "/kpi/values/submit", "otherUser", { ids: [other.value.id] })).json, { submitted: [other.value.id], refused: [] });
 });
 
 test("locks: a closed month refuses writes and submits; overlapping quarters too; FY years; a reopened lock lets them through", async () => {
@@ -225,7 +256,7 @@ test("locks: a closed month refuses writes and submits; overlapping quarters too
   await withDb((db) => db.query(`INSERT INTO kpi_period_lock (company_id, site_id, year, period, year_type, locked_by) VALUES (1, NULL, 2026, 9, 'CY', 2)`));
   assert.equal((await one("user", { kpi_code: "LOST_TIME_INJURIES", site_id: 1, period_start: "2026-09-01", value_numeric: 2 })).code, "KPI_PERIOD_LOCKED");
   assert.equal((await one("admin", { kpi_code: "LOST_TIME_INJURIES", site_id: 2, period_start: "2026-09-01", value_numeric: 2 })).code, "KPI_PERIOD_LOCKED", "every site");
-  assert.equal((await one("user", water({ period_start: "2026-07-01", frequency: "quarterly", value_numeric: 3000 }))).code, "KPI_PERIOD_LOCKED", "Q3 overlaps September");
+  assert.equal((await one("user", { kpi_code: "WATER_DISCHARGE", site_id: 1, period_start: "2026-07-01", frequency: "quarterly", value_numeric: 3000 })).code, "KPI_PERIOD_LOCKED", "Q3 overlaps September (discharge is quarterly for this company)");
   assert.equal((await one("user", { kpi_code: "LOST_TIME_INJURIES", site_id: 1, period_start: "2026-10-01", value_numeric: 2 })).ok, true);
   assert.deepEqual((await call("POST", "/kpi/values/submit", "user", { ids: [draft.value.id] })).json.refused, [{ id: draft.value.id, code: "KPI_PERIOD_LOCKED" }]);
   // Evidence on a locked period is still allowed: it changes no figure.
@@ -272,11 +303,14 @@ test("a company's own KPI is invisible to other companies", async () => {
     ).rows[0].id,
   );
   try {
+    assert.equal((await one("otherUser", { kpi_definition_id: own, site_id: 3, period_start: "2026-01-01", value_numeric: 1 })).code, "KPI_NOT_SELECTED", "not selected in company 2's setup yet");
+    await withDb((db) => db.query(`INSERT INTO company_kpi (company_id, kpi_definition_id, selected) VALUES (2, $1, true)`, [own]));
     assert.equal((await one("user", { kpi_definition_id: own, site_id: 1, period_start: "2026-01-01", value_numeric: 1 })).code, "KPI_NOT_FOUND");
     assert.equal((await one("otherUser", { kpi_definition_id: own, site_id: 3, period_start: "2026-01-01", value_numeric: 1 })).ok, true);
   } finally {
     await withDb(async (db) => {
       await db.query(`DELETE FROM kpi_value WHERE kpi_definition_id = $1`, [own]);
+      await db.query(`DELETE FROM company_kpi WHERE kpi_definition_id = $1`, [own]);
       await db.query(`DELETE FROM kpi_definition WHERE id = $1`, [own]);
     });
   }

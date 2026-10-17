@@ -103,8 +103,11 @@ export const requireKpiSuperadmin = (req: AuthRequest, res: Response, next: Next
   next();
 };
 
-/** Whether the company finished KPI setup. TODO(KPI-3): read company_kpi_settings.setup_completed_at. */
-export const kpiSetupCompleted = async (_companyId: number): Promise<boolean> => false;
+/** Whether the company finished KPI setup (KPI-3: company_kpi_settings.setup_completed_at). */
+export const kpiSetupCompleted = async (companyId: number): Promise<boolean> => {
+  const rows: unknown[] = await AppDataSource.query(`SELECT 1 FROM company_kpi_settings WHERE company_id = $1 AND setup_completed_at IS NOT NULL`, [companyId]);
+  return rows.length > 0;
+};
 
 /** GET /kpi/status: any role of the company; answers even when the switch is off. */
 export const kpiStatus = handle("status", async (req, res) => {
