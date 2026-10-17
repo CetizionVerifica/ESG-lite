@@ -92,6 +92,8 @@ test("an Admin sets a company target from the approved baseline; progress is wor
     [t.progress.current_year, t.progress.current_value, t.progress.progress_pct, t.progress.expected_value, t.progress.status, t.progress.achieved],
     [2025, 1575, 62.5, 1740, "on_track", false],
   );
+  assert.deepEqual([t.progress_pct, t.status, t.label, t.kpi_name, t.site_name], [62.5, "on_track", "−20 % by 2030 from 2024", t.kpi_name, null]);
+  assert.ok(t.kpi_name);
   assert.deepEqual(t.series.slice(0, 3).map((p) => [p.year, p.value, p.complete]), [[2024, 1800, true], [2025, 1575, false], [2026, null, false]]);
   assert.equal(t.series.length, 7, "2024–2030");
   const [audit] = await q(`SELECT action, changed_by, changed_fields FROM audit_log WHERE entity_type = 'kpi_target' AND entity_id = $1`, [t.id]);

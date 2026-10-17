@@ -69,8 +69,17 @@ export function annualPoints(def: Row & FigureDef, values: StoredValue[], byCode
   return out;
 }
 
+/** "−20 % by 2030 from 2024", "+15 % by 2028 from 2025", "Keep at 0 by 2030" (a value change when the baseline is 0). */
+export const targetLabel = (t: TargetLike, unit: string | null): string => {
+  if (t.direction === "maintain") return `Keep at ${t.baseline_value}${unit ? ` ${unit}` : ""} to ${t.target_year}`;
+  if (t.baseline_value === 0) return `${t.target_value}${unit ? ` ${unit}` : ""} by ${t.target_year}`;
+  const pct = Math.round(((t.target_value - t.baseline_value) / Math.abs(t.baseline_value)) * 1000) / 10;
+  return `${pct < 0 ? "−" : "+"}${Math.abs(pct)} % by ${t.target_year} from ${t.baseline_year}`;
+};
+
 const targetOut = (t: Row, def: Row | undefined, siteName: string | null, points: Array<{ year: number; value: number | null; complete: boolean }>) => {
   const like: TargetLike = { baseline_year: Number(t.baseline_year), baseline_value: Number(t.baseline_value), target_year: Number(t.target_year), target_value: Number(t.target_value), direction: t.direction };
+  const p = progress(like, points);
   return {
     id: Number(t.id),
     company_id: Number(t.company_id),
@@ -91,7 +100,11 @@ const targetOut = (t: Row, def: Row | undefined, siteName: string | null, points
     updated_by: num(t.updated_by),
     created_at: t.created_at,
     updated_at: t.updated_at,
-    progress: progress(like, points),
+    progress: p,
+    // Shortcuts the target list reads (the same as progress.progress_pct / progress.status).
+    progress_pct: p.progress_pct,
+    status: p.status,
+    label: targetLabel(like, def?.canonical_unit ?? null),
     series: points,
   };
 };
