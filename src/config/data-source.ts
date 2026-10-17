@@ -44,6 +44,8 @@ import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
 import { SupplierFactor } from "../entities/SupplierFactor";
 import { SupplierFacilityData } from "../entities/SupplierFacilityData";
+import { PeriodLock } from "../entities/PeriodLock"; // S3-15
+import { NothingThisMonth } from "../entities/NothingThisMonth"; // S3-15
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -98,6 +100,8 @@ const entities = [
     Supplier,
     SupplierFactor,
     SupplierFacilityData,
+    PeriodLock, // S3-15
+    NothingThisMonth, // S3-15
 ];
 
 // Parse DATABASE_URL to extract connection parameters

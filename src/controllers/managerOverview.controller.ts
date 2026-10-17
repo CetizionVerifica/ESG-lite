@@ -307,6 +307,8 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
       .addSelect("COUNT(*) FILTER (WHERE e.status = 'rejected')", "rejected")
       .addSelect("COALESCE(SUM(e.total_emission) FILTER (WHERE e.status = 'pending'), 0)", "pending_emission")
       .andWhere(countedSql, countedParams)
+      // S3-15 part 2: a Draft isn't submitted yet, so it is no entry for the manager.
+      .andWhere("e.status::text <> 'draft'")
       .groupBy("e.site_id")
       .getRawMany();
 
@@ -505,7 +507,7 @@ const submissionFor = async (month: string, siteIds: number[]) => {
                 WHERE s.site_id = COALESCE(u.site_id,
                   (SELECT us2.site_id FROM user_sites us2 WHERE us2.user_id = u.user_id ORDER BY us2.site_id LIMIT 1))) AS site_name,
               (SELECT COUNT(*) FROM emission e
-                WHERE e.created_by = u.user_id
+                WHERE e.created_by = u.user_id AND e.status::text <> 'draft'
                   AND e.date_of_reporting BETWEEN $2::date AND $3::date) AS submission_count
          FROM "user" u
         WHERE u.role = $4

@@ -10,7 +10,7 @@
  */
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
-import { Emission } from "../../entities/Emission";
+import { Emission, EmissionStatus } from "../../entities/Emission";
 import { EmissionFactor } from "../../entities/EmissionFactor";
 import { AuditLog } from "../../entities/AuditLog";
 import { User } from "../../entities/User";
@@ -27,6 +27,8 @@ import { estimatedDistanceWarning, paidByMismatchWarning } from "./transportWarn
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
+import { lockedSiteMonths, siteMonthOf } from "../../scope3/review/periodLock";
+import { lockPeriodsShared } from "../../scope3/review/periodLease";
 import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
 import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
@@ -404,11 +406,14 @@ export const insertEntry = async (
   entry: PreparedEntry,
   batch: BatchInfo | null,
   audit: AuditInfo | null,
-  opts: { deferChecks?: boolean } = {},
+  opts: { deferChecks?: boolean; status?: EmissionStatus } = {},
 ): Promise<{ emission: Emission; fera: Emission | null; tdLoss: Emission | null }> => {
   const repo = tx.getRepository(Emission);
   const { input } = entry;
   const base = {
+    // S3-15 part 2: a User's typed entry is a Draft with the review workflow on;
+    // everything else is Pending. The twins share the parent's status.
+    status: opts.status ?? EmissionStatus.PENDING,
     site: { site_id: input.site_id },
     category: { category_id: input.category_id },
     unit: "tCO2e",
@@ -625,6 +630,13 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
 
   // Pass 2: in-plan mode conflicts and duplicates.
   const planConflicts = planModeConflicts(work.map((w) => (w ? { site_id: w.row.site_id, category_id: w.row.category_id, period: w.period } : null)));
+  // S3-15 part 2: closed site-months (review workflow v2), one query for the plan. A yearly row
+  // belongs to its period-end month, the date it is stored with.
+  const siteMonths = work.map((w) => (w ? siteMonthOf(w.row.site_id, w.period.date_of_reporting) : null));
+  // Inside a commit transaction, hold the month-lock keys shared until it ends, so a month can't be
+  // locked between this check and the insert committing (periodLease.ts). A plan outside one only reads.
+  if (manager.queryRunner?.isTransactionActive) await lockPeriodsShared(manager, siteMonths);
+  const closed = new Set((await lockedSiteMonths(manager, siteMonths)).map((p) => `${p.site_id}:${p.year}:${p.month}`));
   const seenIdentity = new Map<string, string>();
 
   for (let i = 0; i < work.length; i++) {
@@ -633,6 +645,10 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     const { row, period, ctx, resolved, activity_data, issues } = w;
     const errors: RowIssue[] = [];
 
+    const sm = siteMonthOf(row.site_id, period.date_of_reporting);
+    if (sm && closed.has(`${sm.site_id}:${sm.year}:${sm.month}`)) {
+      errors.push(issue("PERIOD_LOCKED", `${period.date_of_reporting.slice(0, 7)} is closed for this site. Reopen it with a reason before importing into it.`, "period"));
+    }
     const planConflict = planConflicts.get(i);
     if (planConflict) errors.push(issue("MODE_LOCK", planConflict, "period"));
     else {
@@ -740,6 +756,9 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
 
   const forbidden = planned.filter((p) => p.issues.some((i) => i.code === "SITE_NOT_ALLOWED" || i.code === "CATEGORY_NOT_ASSIGNED")).map((p) => p.row_ref);
   if (forbidden.length) throw new ImportError("IMPORT_FORBIDDEN", { row_refs: forbidden });
+  // S3-15 part 2: a month closed since the plan was made refuses the commit (PERIOD_LOCKED).
+  const closedRows = planned.filter((p) => p.issues.some((i) => i.code === "PERIOD_LOCKED")).map((p) => p.row_ref);
+  if (closedRows.length) throw new ImportError("PERIOD_LOCKED", { row_refs: closedRows });
   const blocked = planned.filter((p) => p.state !== "ready").map((p) => p.row_ref);
   if (blocked.length) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: blocked });
 

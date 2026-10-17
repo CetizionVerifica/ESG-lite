@@ -86,7 +86,9 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
       .where("site.site_id IN (:...siteIds)", { siteIds })
       .andWhere("emission.date_of_reporting >= :startDate", { startDate })
       .andWhere("emission.date_of_reporting <= :endDate", { endDate })
-      .andWhere("LOWER(category.category_name) != :fera", { fera: "fera" });
+      .andWhere("LOWER(category.category_name) != :fera", { fera: "fera" })
+      // S3-15 part 2: a Draft is exported only to the person who saved it.
+      .andWhere(`(emission.status::text <> 'draft' OR emission."created_by" = :draftOwner)`, { draftOwner: Number(req.user?.userId) || 0 });
     if (wholeYear) {
       qb.andWhere("(emission.reporting_period IS DISTINCT FROM 'yearly' OR emission.year_type = :yearType)", { yearType });
     }

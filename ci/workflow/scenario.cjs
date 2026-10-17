@@ -126,6 +126,24 @@ const SCREENING = {
 /** 120 × 15 × 2 × 230 = 828,000 vehicle.km × 0.16725 = 138,483 kg. */
 const screeningKg = () => SCREENING.headcount * SCREENING.one_way_km * SCREENING.trips_per_day * SCREENING.working_days * SCREENING.car_kg_per_vkm;
 
+/**
+ * Review workflow v2 (S3-15 parts 3–4), switched on after the reports are checked: the main
+ * site's User files August as Drafts, submits, marks the two Scope 3 categories "Nothing this
+ * month", and the Manager approves and closes the month. Factor year 2024 (Aug 2025 rows):
+ * diesel 300 l × 2.68 = 804 kg (3a: 300 × 0.61 = 183 kg); grid 10,000 kWh × 0.716 = 7,160 kg
+ * (3b: 1,000 kg, 3c: 500 kg).
+ */
+const REVIEW_V2 = {
+  year: YEAR,
+  month: 8,
+  period: `${YEAR}-08`,
+  late_date: `${YEAR}-08-20`,
+  entries: [
+    { ref: "v2-diesel-aug", cat: "fuel", date: `${YEAR}-08-31`, activity: "Diesel", value: 300, unit: "litre" },
+    { ref: "v2-grid-aug", cat: "electricity", date: `${YEAR}-08-31`, activity: "Grid electricity - India", value: 10000, unit: "kWh" },
+  ],
+};
+
 /** Boundary choices the client's Admin makes (Phase 3). */
 const BOUNDARY = {
   consolidation_approach: "operational_control",
@@ -147,4 +165,4 @@ const SUPPLIER = {
   purchase: { date: `${YEAR}-07-31`, quantity: 2.5, unit: "tonne", kg: 2500 * 8.6 },
 };
 
-module.exports = { SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };
+module.exports = { REVIEW_V2, SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };

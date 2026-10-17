@@ -21,6 +21,9 @@ import type { Proxy } from "../scope3/contracts/schemas";
 import { Supplier } from "./Supplier";
 
 export enum EmissionStatus {
+  // S3-15 part 2: a contributor's saved, not yet submitted row (company.review_workflow_v2).
+  // migrate:scope3-review-workflow adds the value to emission_status_enum.
+  DRAFT = "draft",
   PENDING = "pending",
   APPROVED = "approved",
   REJECTED = "rejected",

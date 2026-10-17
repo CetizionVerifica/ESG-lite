@@ -30,6 +30,8 @@ export const IMPORT_ERRORS = {
   IMPORT_FORBIDDEN: { status: 403, message: "You are not allowed to do that." },
   MCP_DISABLED_FOR_CLIENT: { status: 403, message: "Claude imports are switched off for this client." },
   AI_IMPORT_DISABLED_FOR_CLIENT: { status: 403, message: "Smart import is switched off for this client." },
+  // S3-15 part 2: a row falls in a closed (locked) site-month; `details.row_refs` names them.
+  PERIOD_LOCKED: { status: 409, message: "Some rows fall in a closed month. Reopen it with a reason, or leave those rows out." },
   [CLIENT_INACTIVE_CODE]: { status: 403, message: CLIENT_INACTIVE_MESSAGE },
 } as const;
 
@@ -114,6 +116,8 @@ export const ROW_ISSUE_CODES = {
   // Transport and distribution (S3-8). Never block.
   ESTIMATED_DISTANCE: "warning",
   TRANSPORT_PAID_BY_MISMATCH: "warning",
+  // S3-15 part 2: the row's site and month are closed (period_lock, review workflow v2).
+  PERIOD_LOCKED: "error",
 } as const;
 
 export type RowIssueCode = keyof typeof ROW_ISSUE_CODES;

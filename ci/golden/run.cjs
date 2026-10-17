@@ -7,6 +7,8 @@
 //
 //   node ci/golden/run.cjs            # compare (CI)
 //   UPDATE_SNAPSHOT=1 node ci/golden/run.cjs   # rewrite after an INTENDED change
+//   GOLDEN_REVIEW_V2=1 node ci/golden/run.cjs  # the same snapshot with review workflow v2 on (S3-15):
+//                                              # the User's entries are Drafts, submitted, then approved
 //
 // A changed number is either a bug or a deliberate methodology change. For a
 // deliberate one, regenerate the snapshot and explain the change in the PR so
@@ -80,6 +82,8 @@ async function call(method, route, token, body) {
   const client = db();
   await client.connect();
   await client.query(fs.readFileSync(path.join(__dirname, "fixture.sql"), "utf8"));
+  const reviewV2 = process.env.GOLDEN_REVIEW_V2 === "1";
+  if (reviewV2) await client.query(`UPDATE company SET review_workflow_v2 = true`);
   await client.end();
 
   const logs = [];
@@ -102,6 +106,12 @@ async function call(method, route, token, body) {
       const res = await call("POST", "/user/emissions", userToken, entry.body);
       const created = res.json?.emission ?? res.json;
       const id = res.status < 300 ? created?.pk_id : undefined;
+      if (id && reviewV2) {
+        // S3-15: with the switch on a User's entry is a Draft; submitting it makes it Pending.
+        if (created.status !== "draft") throw new Error(`entry ${id} is ${created.status}, not draft, with review workflow v2 on`);
+        const submitted = await call("POST", "/user/emissions/submit", userToken, { ids: [id] });
+        if (submitted.status !== 200 || submitted.json?.submitted?.[0] !== id) throw new Error(`submit ${id} failed: ${JSON.stringify(submitted.json)}`);
+      }
       if (id) {
         const approved = await call("PUT", `/user/emissions/${id}/approve`, managerToken, {});
         if (approved.status !== 200) throw new Error(`approve ${id} failed: ${JSON.stringify(approved.json)}`);

@@ -97,6 +97,7 @@ test("every §7 error has a status and a message; warnings never carry a status"
     "SCOPE_INVALID", "GHG_CATEGORY_INVALID", "GHG_CATEGORY_REQUIRED", "EXCLUSION_REASON_REQUIRED", "UNIT_REQUIRED",
     "METHOD_NOT_ALLOWED", "CURRENCY_NOT_SUPPORTED", "SUPPLIER_FACTOR_BOUNDARY", "PERIOD_LOCKED", "UNLOCK_REASON_REQUIRED",
     "NOT_DRAFT", "EXTRAPOLATION_BASIS_INVALID", "PERIOD_INCOMPLETE", "BASE_YEAR_NO_DATA", "RECALCULATION_REASON_REQUIRED",
+    "REVIEW_WORKFLOW_OFF",
   ];
   assert.deepEqual([...errors.SCOPE3_ERROR_CODES].sort(), [...expected].sort());
   for (const code of expected) {
@@ -149,6 +150,18 @@ test("schemas: boundary reasons, GHG numbers only for Scope 3, spend factors, su
   assert.equal(ok(schemas.EolMixSchema, [{ treatment: "landfill", share: 0.6 }]), false);
 
   assert.equal(ok(schemas.SubmitEmissionsBodySchema, { ids: [] }), false);
+  // S3-15 part 2: live checks take saved ids or unsaved rows, never neither.
+  const live = { ref: "r1", site_id: 1, category_id: 2, activity_data: { emission_category: "Diesel", activity_value: "5" }, date_of_reporting: "2025-05-31" };
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { ids: [1, 2] }), true);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { rows: [live] }), true);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { rows: [{ ...live, id: 9, has_evidence: true, reporting_period: "yearly", year_type: "FY", method: null, activity_data_unit: null }] }), true);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, {}), false);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { rows: [] }), false);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { rows: Array.from({ length: schemas.LIVE_CHECK_MAX_ROWS + 1 }, () => live) }), false);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { rows: [{ ...live, date_of_reporting: "2025-02-30" }] }), false);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { rows: [{ ...live, ref: "" }] }), false);
+  assert.equal(ok(schemas.CheckEmissionsBodySchema, { ids: Array.from({ length: 201 }, (_, i) => i + 1) }), false);
+  assert.equal(ok(schemas.LiveCheckResultSchema, { ref: "r1", checks: { ready: false, held: ["NO_DUPLICATE"] }, issue: { code: "NO_FACTOR_FOR_YEAR", message: "x" } }), true);
   assert.equal(ok(schemas.UnlockPeriodBodySchema, { year: 2025, month: 9 }), false);
   assert.equal(ok(schemas.UnlockPeriodBodySchema, { year: 2025, month: 9, reason: "Late invoice" }), true);
   assert.equal(ok(schemas.FxRatesQuerySchema, { currency: "usd", date: "2025-09-30" }), false);
