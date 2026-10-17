@@ -55,6 +55,7 @@ import { CompanyMaterialTopic } from "../entities/CompanyMaterialTopic";
 import { CompanyKpi } from "../entities/CompanyKpi";
 import { KpiAssignment } from "../entities/KpiAssignment";
 import { KpiTopicGrant } from "../entities/KpiTopicGrant";
+import { KpiTarget } from "../entities/KpiTarget"; // KPI-9
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -134,6 +135,7 @@ const entities = [
     CompanyKpi,
     KpiAssignment,
     KpiTopicGrant,
+    KpiTarget,
 ];
 
 // Parse DATABASE_URL to extract connection parameters
