@@ -21,7 +21,7 @@ import type { ActivityMatch, ImportRow, PlannedRow, RowIssue, StrippedTotal } fr
 import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../../imports/writer";
 import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
-import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
+import { computeTotal, factorSnapshot, feraGap, feraTwinFor, methodForUnit, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
 import { estimatedDistanceWarning, paidByMismatchWarning } from "./transportWarnings";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
@@ -257,10 +257,12 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, rowIn
   // is ignored; on a form with several methods and no choice, today's rule (S3-3) stands.
   const atMethod = rowMethodOf(withDefaults.activity_data);
   const choice = methodByChoice(form, withDefaults.activity_data);
-  const named = namedMethodFor({ source: rowInput.method_source ?? "caller", named: rowInput.method ?? atMethod, choice, offered: ctx.method_options });
+  const named = namedMethodFor({ source: rowInput.method_source ?? "caller", named: rowInput.method ?? atMethod, choice, offered: ctx.method_options, hasChoiceMap: !!form.choice });
   // A contributor's own "@method" that the form overrides is replaced with the form's method, since
-  // the spec and the spend fields read "@method" too. A row without one gets none.
-  const formMethod = named ?? ctx.method_options?.[0] ?? null;
+  // the spec and the spend fields read "@method" too: the choice's, else the one the engine would
+  // pick for a row naming none (S3-8's method for the unit, then method_options[0]). A row without
+  // one gets none.
+  const formMethod = named ?? methodForUnit(ctx, rowInput.activity_data_unit || form.fixed_unit) ?? ctx.method_options?.[0] ?? null;
   const activity_data: Record<string, any> =
     contributor && atMethod && formMethod && atMethod !== formMethod ? { ...withDefaults.activity_data, [ROW_METHOD_COLUMN]: formMethod } : withDefaults.activity_data;
   // The method the engine is handed: the caller's `method`, or the choice's when it decided.

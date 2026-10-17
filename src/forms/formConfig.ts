@@ -138,9 +138,9 @@ export const methodByChoice = (settings: FormSettings, activity_data: Record<str
  *   recalculation. A method it names (`method`, else `@method`) wins; else the
  *   row's answer to the form's choice.
  * - `contributor`: a User's typed entry, edit or manual bulk upload. Where
- *   the form fixes the method, a method the row sends is ignored: the
- *   choice's method, else (a form with one method) that method, as for a row
- *   that names none. A form with several methods and no choice map fixes
+ *   the form fixes the method (a choice map, or one method), a method the row
+ *   sends is ignored: the choice's method, else the form's default as for a
+ *   row that names none (an answer the map doesn't name included). A form with several methods and no choice map fixes
  *   none, so the row keeps today's rule (S3-5's spend fields send one): a
  *   method the form offers is used, one it doesn't is refused
  *   (METHOD_NOT_ALLOWED, S3-3).
@@ -153,10 +153,12 @@ export const namedMethodFor = (p: {
   named: Method | null;
   choice: Method | null;
   offered: readonly Method[] | null | undefined;
+  /** The form has a choice map (`method_by_choice`): it fixes the method even for an answer it doesn't map. */
+  hasChoiceMap?: boolean;
 }): Method | null => {
   if (p.source !== "contributor") return p.named ?? p.choice;
   if (p.choice) return p.choice;
-  if (p.offered?.length === 1) return null;
+  if (p.hasChoiceMap || p.offered?.length === 1) return null;
   return p.named;
 };
 

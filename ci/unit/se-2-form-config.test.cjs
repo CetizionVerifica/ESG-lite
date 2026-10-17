@@ -81,6 +81,9 @@ test("namedMethodFor: importers name the method; for a User the form decides whe
   // Several methods, no choice map: the form fixes none, so today's rule (S3-3 refuses one it doesn't offer).
   assert.equal(user("distance_based", null), "distance_based");
   assert.equal(user("spend_based", null), "spend_based");
+  // A choice map fixes the method even for an answer it doesn't map: the row's own is ignored (null → the form's default).
+  assert.equal(form.namedMethodFor({ source: "contributor", named: "fuel_based", choice: null, offered, hasChoiceMap: true }), null);
+  assert.equal(form.namedMethodFor({ source: "caller", named: "fuel_based", choice: null, offered, hasChoiceMap: true }), "fuel_based");
   // No method_options at all (S3-9 "@method" forms): the row's own method, as before.
   assert.equal(user("distance_based", null, null), "distance_based");
 });
