@@ -71,7 +71,8 @@ export interface FormCheck extends CheckResult {
   version: number | null;
 }
 
-async function runCheck(manager: EntityManager, form: CheckInput["form"], site_id: number, category_id: number, year: number) {
+/** The check of any form (saved or not) against a site × category's factors and its client's currency. */
+export async function runCheck(manager: EntityManager, form: CheckInput["form"], site_id: number, category_id: number, year: number) {
   const [factors, currency] = await Promise.all([factorsOf(manager, site_id, category_id), companyCurrency(manager, site_id)]);
   return checkForm({ form, factors, year, companyDefaultCurrency: currency });
 }

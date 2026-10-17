@@ -43,6 +43,15 @@ import {
   getColumnConfigChecks,
 } from "../controllers/columnConfig.controller";
 import {
+  applyFormTemplate,
+  createFormTemplate,
+  deleteFormTemplate,
+  getFormTemplates,
+  previewFormTemplateApply,
+  renameFormTemplate,
+  seedFormTemplates,
+} from "../controllers/formTemplate.controller";
+import {
   getUnits,
   getUnitById,
   getUnitsBySiteAndCategory,
@@ -189,6 +198,14 @@ router.post("/column-configs/check", checkColumnConfigDraft);
 router.get("/column-configs/:id/check", checkColumnConfig);
 router.post("/column-configs/:id/publish", publishColumnConfig);
 router.get("/column-configs/:id/versions", getColumnConfigVersions);
+// SE-6 · form templates and copy
+router.get("/form-templates", getFormTemplates);
+router.post("/form-templates", createFormTemplate);
+router.post("/form-templates/apply/preview", previewFormTemplateApply);
+router.post("/form-templates/apply", applyFormTemplate);
+router.post("/form-templates/seed", seedFormTemplates);
+router.put("/form-templates/:id", renameFormTemplate);
+router.delete("/form-templates/:id", deleteFormTemplate);
 router.get("/column-configs/:id", getColumnConfigById);
 router.get("/column-configs/category/:categoryId", getColumnConfigsByCategory);
 router.get("/column-configs/site/:siteId", getColumnConfigsBySite);

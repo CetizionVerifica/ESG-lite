@@ -46,6 +46,7 @@ import { SupplierFactor } from "../entities/SupplierFactor";
 import { SupplierFacilityData } from "../entities/SupplierFacilityData";
 import { PeriodLock } from "../entities/PeriodLock"; // S3-15
 import { ColumnConfigVersion } from "../entities/ColumnConfigVersion"; // SE-4
+import { FormTemplate } from "../entities/FormTemplate"; // SE-6
 import { NothingThisMonth } from "../entities/NothingThisMonth"; // S3-15
 dotenv.config();
 
@@ -103,6 +104,7 @@ const entities = [
     SupplierFacilityData,
     PeriodLock, // S3-15
     ColumnConfigVersion, // SE-4
+    FormTemplate, // SE-6
     NothingThisMonth, // S3-15
 ];
 
