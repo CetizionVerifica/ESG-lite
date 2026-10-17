@@ -54,6 +54,33 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | 29a–29e | Superadmin, User, Manager | review workflow v2 on: a User's August rows (and twins) are Drafts the Manager doesn't see; the month can't close while Drafts or missing categories are left; submit makes them Pending with one notification; "Nothing this month" and approval complete it; the Manager closes it; a closed month refuses writes with `PERIOD_LOCKED` until reopened with a reason |
 | skipped | — | 5a SE-2, 18 SE-4, 27 S3-16 |
 
+## Every category (`categories.test.cjs`)
+
+Runs after the workflow on the same stack, for a second client that reports every Scope 1 and Scope 2
+source and all 15 Scope 3 categories. For each category the Superadmin sets up the client's own
+activities (or the deploy seeds the standard form), the User sees that activity in their list
+(`GET /user/emission-factors/site/:site/category/:category`), picks it and enters a month, and the
+stored tCO₂e, its Category 3 rows, the approval and both reports match the kg in `categories.scenario.cjs`.
+Each category is its own test, so one broken category doesn't hide the others.
+
+| Category | Entry | Hand-worked figure |
+|---|---|---|
+| Scope 1 stationary, mobile | litres (mobile in kl, converted), + 3a twin | litres × combustion factor |
+| Scope 1 refrigerants, process | kg leaked × GWP; kg of limestone against a per-tonne factor | |
+| Scope 2 electricity, steam | kWh, + 3b and 3c twins; steam in MWh against a per-kWh factor, + 3b | |
+| 1, 2 | average-data, tonnes against a per-kg factor | |
+| 3 | the twins of the Scope 1 and 2 rows | sum of the twins |
+| 4, 9 | S3-8's standard transport form: weight (t) × distance (km) in tonne.km | |
+| 5 | kg of waste against a per-tonne factor | |
+| 6, 7 | standard forms: hotel nights; commuting average-data | seeded DEFRA 2025 values |
+| 8 | lease form, sub-metered electricity × area share | |
+| 10, 11, 12 | sold-products forms: site-specific processing; refrigerant released (AR6); end of life | seeded AR6 / DEFRA values |
+| 13, 14, 15 | asset forms: tenant, franchise sample and investee reported emissions | identity factors |
+
+Spend, supplier-specific and hybrid rows are covered in the main workflow (Category 1 spend, step 14
+and 25f for S3-6's supplier figure); the waste standard form isn't built yet, so Category 5 keeps a
+plain waste-type row.
+
 Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-lite_FE, not here.
 
 ## Facts the test pins down (true on `production` today)
@@ -79,5 +106,6 @@ Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-
 - `run.cjs` boots the stack on the empty database and runs the test.
 - `workflow.test.cjs` the steps, numbered as in the onboarding workflow document.
 - `scenario.cjs` the client, its inputs and the hand-worked figures.
+- `categories.test.cjs` and `categories.scenario.cjs` every category, one row each.
 - `lib.cjs` sign-in, HTTP, database and redeploy helpers.
 - `local.sh` one command for a laptop.

@@ -102,11 +102,14 @@ async function waitForServer(server, logs) {
   let exitCode = 0;
   try {
     await waitForServer(server, logs);
-    const result = spawnSync(process.execPath, ["--test", "--test-concurrency=1", "--test-reporter=spec", path.join(__dirname, "workflow.test.cjs")], {
-      stdio: "inherit",
-      env: { ...process.env, API_BASE: BASE, JWT_SECRET: SECRET, WORKFLOW_ROOT: ROOT, TZ: "UTC" },
-    });
-    exitCode = result.status ?? 1;
+    // The onboarding workflow first, then every category on the same stack (each file is one client).
+    for (const file of ["workflow.test.cjs", "categories.test.cjs"]) {
+      const result = spawnSync(process.execPath, ["--test", "--test-concurrency=1", "--test-reporter=spec", path.join(__dirname, file)], {
+        stdio: "inherit",
+        env: { ...process.env, API_BASE: BASE, JWT_SECRET: SECRET, WORKFLOW_ROOT: ROOT, TZ: "UTC" },
+      });
+      if ((result.status ?? 1) !== 0) exitCode = result.status ?? 1;
+    }
     if (exitCode !== 0) console.error("--- server log (tail) ---\n" + logs.join("").slice(-8000));
   } catch (err) {
     console.error(err);
