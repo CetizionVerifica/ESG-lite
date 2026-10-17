@@ -382,9 +382,9 @@
         }
       ],
       "expected_kgco2e": 42400,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-6",
-      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Example 1.4 mixes two methods (54,100 kg in all). This case is its average-data part (semi-processed components by mass); the spend part is ex-1.5 (11,700 kg). 42,400 + 11,700 = 54,100."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Example 1.4 mixes two methods (54,100 kg in all). This case is its average-data part (semi-processed components by mass); the spend part is ex-1.5 (11,700 kg). 42,400 + 11,700 = 54,100. S3-6: run as the average-data rows of the combined example (each component × its cradle-to-gate factor through methods/activity.ts)."
     },
     {
       "id": "ex-1.5",

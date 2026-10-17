@@ -270,7 +270,16 @@ test("hybrid by mass: facility Scope 1+2 allocated by what was bought, plus the 
 
 test("hybrid by economic value: allocated by what was paid", async () => {
   const s = await createSupplier(`${TAG} Hybrid Value`);
-  await call("POST", `/suppliers/${s.supplier_id}/facility-data`, "manager", { year: 2024, scope12_tco2e: 200, output_qty: 1000000, output_unit: "USD", allocation_key: "economic" });
+  // Economic allocation needs the facility's output in a currency.
+  const notMoney = await call("POST", `/suppliers/${s.supplier_id}/facility-data`, "manager", { year: 2024, scope12_tco2e: 200, output_qty: 1000000, output_unit: "kg", allocation_key: "economic" });
+  assert.equal(notMoney.status, 400, JSON.stringify(notMoney.json));
+  assert.equal(notMoney.json.code, "SCOPE3_VALIDATION");
+  assert.equal(notMoney.json.details.field, "output_unit");
+  assert.equal((await call("GET", `/suppliers/${s.supplier_id}/facility-data`, "manager")).json.facility_data.length, 0, "nothing saved");
+  // A lower-case code is stored as the code.
+  const saved = await call("POST", `/suppliers/${s.supplier_id}/facility-data`, "manager", { year: 2024, scope12_tco2e: 200, output_qty: 1000000, output_unit: "usd", allocation_key: "economic" });
+  assert.equal(saved.status, 201, JSON.stringify(saved.json));
+  assert.equal(saved.json.output_unit, "USD");
   const missing = await enter("manager", { date_of_reporting: "2025-04-30", activity_data: { emission_category: "Aluminium ingot", activity_value: "2000" }, method: "hybrid", supplier_id: s.supplier_id });
   assert.equal(missing.status, 400);
   assert.equal(missing.json.code, "FIELD_REQUIRED");
@@ -435,6 +444,36 @@ test("C06 accept writes the PCF factor and a supplier_factor, linking the suppli
   assert.equal(ok2.status, 200, JSON.stringify(ok2.json));
   const created = await withDb((db) => db.query(`SELECT name, email, company_id FROM "supplier" WHERE supplier_id = $1`, [ok2.json.supplier_id]));
   assert.deepEqual(created.rows[0], { name: `${TAG} Brand New Supplier`, email: "pcf@new.example", company_id: 1 });
+  assert.equal(ok2.json.scope3_warning, null);
+
+  // A cradle-to-grave footprint taking a cradle-to-grave figure: PCF needs no confirmation, but the
+  // figure isn't cradle-to-gate, so no Scope 3 figure is written and the response says why.
+  await withDb((db) => db.query(`UPDATE pcf_study SET boundary = 'cradle_to_grave' WHERE pcf_study_id = $1`, [study.json.pcf_study_id]));
+  const graveAnswer = async (name) => {
+    const q = await ask({ supplier_name: name, supplier_email: "pcf@grave.example" });
+    assert.equal(q.status, 201, JSON.stringify(q.json));
+    const tk = q.json.link.split("/supplier/")[1];
+    const sub = await call("POST", `/public/supplier-requests/${tk}/submit`, null, { value_kgco2e: 12.4, unit: "kg", boundary: "cradle_to_grave" });
+    assert.equal(sub.status, 200, JSON.stringify(sub.json));
+    return q.json.request.supplier_request_id;
+  };
+  const before = await withDb((db) => db.query(`SELECT count(*)::int AS n FROM supplier_factor WHERE company_id = 1`));
+  const silent = await call("POST", `/pcf/supplier-requests/${await graveAnswer(`${TAG} Grave Metals`)}/accept`, "manager", {});
+  assert.equal(silent.status, 200, JSON.stringify(silent.json));
+  assert.ok(silent.json.material_factor_id, "PCF still takes the figure");
+  assert.equal(silent.json.supplier_factor_id, null);
+  assert.equal(silent.json.supplier_id, null);
+  assert.equal(silent.json.scope3_warning?.code, "SUPPLIER_FACTOR_BOUNDARY");
+  assert.equal(silent.json.scope3_warning.boundary, "cradle_to_grave");
+  assert.equal(silent.json.scope3_warning.confirm_with, "confirm_boundary");
+  const after = await withDb((db) => db.query(`SELECT count(*)::int AS n FROM supplier_factor WHERE company_id = 1`));
+  assert.equal(after.rows[0].n, before.rows[0].n, "no supplier_factor written");
+  // Confirming the boundary writes it, with the boundary it has.
+  const confirmed = await call("POST", `/pcf/supplier-requests/${await graveAnswer(`${TAG} Grave Metals Two`)}/accept`, "manager", { confirm_boundary: true });
+  assert.equal(confirmed.status, 200, JSON.stringify(confirmed.json));
+  assert.equal(confirmed.json.scope3_warning, null);
+  const written = await withDb((db) => db.query(`SELECT boundary FROM supplier_factor WHERE supplier_factor_id = $1`, [confirmed.json.supplier_factor_id]));
+  assert.equal(written.rows[0].boundary, "cradle_to_grave");
 });
 
 test("routing: @method and a form that offers the supplier's own figure first", async (t) => {
