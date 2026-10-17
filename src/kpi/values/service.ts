@@ -11,7 +11,8 @@
  *                               → not locked → value, unit and breakdown → insert or update a
  *                               draft (a rejected value edited becomes a draft; pending and
  *                               approved values aren't editable) → audit
- *   submit(caller, ids)         POST /kpi/values/submit: draft → pending
+ *   submit(caller, ids)         POST /kpi/values/submit: draft → pending, then the KPI-6
+ *                               dependants of the submitted KPIs recompute
  *
  * Every write holds the company's KPI lock key shared (`KPI_LOCK_CLASS`), so
  * KPI-8's period lock (which takes it exclusively) sees every write in flight.
@@ -27,6 +28,7 @@ import { KpiError } from "../contracts/errors";
 import { KpiValueItemSchema, KpiValuesQuerySchema, type KpiValueItem } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
+import { recomputeForValues } from "../formulas/recompute";
 import { assignmentFor, companyKpiRow, kpiSettings, setupCompleted, topicGrants } from "../setup/settings";
 import { isPeriodStart, monthRange, overlaps, periodOf, yearRange } from "./period";
 import { toCanonical } from "./units";
@@ -400,6 +402,8 @@ export async function submit(caller: KpiCaller, ids: number[]): Promise<{ submit
       refused.push({ id, code: err.code });
     }
   }
+  // KPI-6: submitted values are formula inputs now; their dependants recompute (never fails the submit).
+  if (submitted.length) await recomputeForValues(caller.companyId, submitted);
   return { submitted, refused: refused.sort((a, b) => a.id - b.id) };
 }
 

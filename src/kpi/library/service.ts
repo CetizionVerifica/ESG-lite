@@ -21,7 +21,7 @@ import {
 } from "../contracts/schemas";
 import { parse } from "../http";
 import { unitProblems } from "../values/units";
-import { formulaProblems } from "./formulaRefs";
+import { definitionProblems } from "../formulas/graph";
 
 type Row = Record<string, any>;
 const db = () => AppDataSource.manager;
@@ -121,17 +121,18 @@ export async function checkDefinition(m: EntityManager, d: Row, selfId: number |
   if (d.value_type === "percent" && d.canonical_unit !== "%") problems.push("A percent KPI is in %.");
   if (["yes_no", "choice", "text"].includes(d.value_type) && d.unit_dimension !== "none") problems.push("A yes/no, choice or text KPI has no unit dimension.");
   if (problems.length) throw new KpiError("KPI_UNIT_NOT_ALLOWED", { problems });
-  if (d.source !== "formula" || !d.formula) return;
-  const rows: Array<{ id: number; code: string; formula: string | null; source: string }> = await m.query(
-    `SELECT id, code, formula, source FROM kpi_definition WHERE company_id IS NULL OR company_id = $1`,
+  // KPI-6: syntax, known codes, units against the canonical unit, and cycles, across the
+  // library (and the company's own KPIs for a custom KPI). Only problems this save brings count.
+  const rows: Array<{ id: number; code: string; formula: string | null; source: string; canonical_unit: string | null }> = await m.query(
+    `SELECT id, code, formula, source, canonical_unit FROM kpi_definition WHERE company_id IS NULL OR company_id = $1`,
     [companyId ?? 0],
   );
-  const known = new Set(rows.map((r) => r.code).concat(d.code));
-  const formulas = new Map<string, string>();
-  for (const r of rows) if (r.id !== selfId && r.source === "formula" && r.formula) formulas.set(r.code, r.formula);
-  formulas.set(d.code, d.formula);
-  const found = formulaProblems(formulas, known).filter((p) => p.code === d.code || p.problem.includes(d.code));
-  if (found.length) throw new KpiError("KPI_FORMULA_INVALID", { problems: found.map((p) => p.problem) });
+  const defs = rows.filter((r) => r.id !== selfId).map((r) => ({ code: r.code, source: r.source, formula: r.formula, canonical_unit: r.canonical_unit }));
+  const found = definitionProblems({ code: d.code, source: d.source, formula: d.source === "formula" ? d.formula ?? null : null, canonical_unit: d.canonical_unit ?? null }, defs);
+  if (found.length) {
+    const position = found.find((p) => p.code === d.code && p.position !== undefined)?.position;
+    throw new KpiError("KPI_FORMULA_INVALID", position === undefined ? { problems: found.map((p) => p.problem) } : { problems: found.map((p) => p.problem), position });
+  }
 }
 
 export async function listDefinitions(query: unknown): Promise<Row[]> {

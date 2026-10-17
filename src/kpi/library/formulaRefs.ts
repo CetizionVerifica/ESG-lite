@@ -1,52 +1,29 @@
 /**
- * KPI-2 · the formula check the library can do before KPI-6 lands: a formula
- * uses only KPI codes, numbers, + − × ÷ and brackets, names KPIs that exist,
- * and doesn't loop back on itself. TODO(KPI-6): replace with the KPI-6 parser
- * (units across the formula, evaluation).
+ * KPI-2's formula helpers, now answered by the KPI-6 parser and graph
+ * (src/kpi/formulas): the seed's integrity check and older callers use them.
  */
-const ALLOWED = /^[A-Z0-9_+\-*/().\s]+$/;
-const CODE = /[A-Z][A-Z0-9_]*/g;
+import { formulaProblems as graphProblems } from "../formulas/graph";
+import { parseFormula, refsOf } from "../formulas/parse";
 
-/** The KPI codes a formula names, each once; null when it has other characters or unbalanced brackets. */
+/** The KPI codes a formula names, each once; null when it doesn't parse. */
 export const formulaRefs = (formula: string): string[] | null => {
-  if (!ALLOWED.test(formula)) return null;
-  let depth = 0;
-  for (const ch of formula) {
-    if (ch === "(") depth++;
-    if (ch === ")" && --depth < 0) return null;
+  try {
+    return [...new Set(refsOf(parseFormula(formula)).map((r) => r.code))];
+  } catch {
+    return null;
   }
-  if (depth !== 0) return null;
-  return [...new Set(formula.match(CODE) ?? [])];
 };
 
 /**
- * Problems with a set of formulas: unknown codes and cycles. `formulas` maps a
- * KPI code to its formula (formula KPIs only); `known` is every KPI code.
+ * Problems with a set of formulas: syntax, unknown codes and cycles (units are
+ * checked by KPI-6's `definitionProblems`, which knows each KPI's unit).
+ * `formulas` maps a KPI code to its formula (formula KPIs only); `known` is every KPI code.
  */
 export const formulaProblems = (formulas: Map<string, string>, known: Set<string>): Array<{ code: string; problem: string }> => {
-  const problems: Array<{ code: string; problem: string }> = [];
-  const refs = new Map<string, string[]>();
-  for (const [code, formula] of formulas) {
-    const r = formulaRefs(formula);
-    if (!r || !r.length) {
-      problems.push({ code, problem: "The formula can only use KPI codes, numbers, + - * / and brackets." });
-      continue;
-    }
-    for (const ref of r) if (!known.has(ref)) problems.push({ code, problem: `Unknown KPI ${ref}.` });
-    refs.set(code, r);
-  }
-  // Depth-first search for cycles.
-  const state = new Map<string, 1 | 2>();
-  const visit = (code: string, path: string[]): void => {
-    if (state.get(code) === 2) return;
-    if (state.get(code) === 1) {
-      problems.push({ code: path[0], problem: `The formula loops back: ${[...path, code].join(" → ")}.` });
-      return;
-    }
-    state.set(code, 1);
-    for (const next of refs.get(code) ?? []) if (refs.has(next)) visit(next, [...path, code]);
-    state.set(code, 2);
-  };
-  for (const code of refs.keys()) visit(code, []);
-  return problems;
+  const defs = [
+    ...[...known].filter((c) => !formulas.has(c)).map((code) => ({ code, source: "manual", formula: null, canonical_unit: null })),
+    ...[...formulas].map(([code, formula]) => ({ code, source: "formula", formula, canonical_unit: null })),
+  ];
+  // Without units every unit is "a plain number", so only syntax, unknown codes and cycles remain.
+  return graphProblems(defs).map(({ code, problem }) => ({ code, problem }));
 };

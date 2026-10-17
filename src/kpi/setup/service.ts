@@ -22,7 +22,7 @@ import { CustomKpiCreateSchema, KpiSetupPutSchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { checkDefinition, returned } from "../library/service";
-import { formulaRefs } from "../library/formulaRefs";
+import { formulaCodes } from "../formulas/parse";
 import { recommend, type Recommendation } from "./recommend";
 import { enabledFrameworks, kpiSettings, userSiteIds } from "./settings";
 
@@ -72,7 +72,7 @@ export async function recommendedFor(m: EntityManager, companyId: number, overri
     mappings: mappings.map((x) => ({ disclosure_id: Number(x.disclosure_id), kpi_definition_id: Number(x.kpi_definition_id) })),
     definitions: definitions.map((d) => ({ id: Number(d.id), code: d.code, source: d.source, formula: d.formula ?? null, active: d.active === true })),
     material: new Map(topics.map((t) => [t.esrs_topic as string, t.material === true])),
-    refsOf: (formula) => formulaRefs(formula) ?? [],
+    refsOf: formulaCodes,
   });
 }
 

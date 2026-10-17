@@ -1,0 +1,64 @@
+{
+  "about": "KPI-6 golden cases. Each case is worked by hand: inputs in each KPI's canonical unit, the expected value (null = no value) and why. Run by ci/unit/kpi-formulas.test.cjs against src/kpi/formulas (parse, unitOf, evaluate); the FE preview evaluator (src/lib/kpi/formula.ts) runs the same file for parity.",
+  "units": {
+    "GHG_SCOPE1": "tCO2e",
+    "GHG_SCOPE2_LB": "tCO2e",
+    "REVENUE": "INR crore",
+    "ENERGY_TOTAL": "GJ",
+    "ENERGY_RENEWABLE": "GJ",
+    "PRODUCTION_OUTPUT": "tonne",
+    "WATER_WITHDRAWAL": "kL",
+    "WATER_DISCHARGE": "kL",
+    "EMPLOYEES_TOTAL": "count"
+  },
+  "cases": [
+    {
+      "name": "GHG intensity per revenue",
+      "formula": "(GHG_SCOPE1 + GHG_SCOPE2_LB) / REVENUE",
+      "unit": "tCO2e per INR crore",
+      "inputs": { "GHG_SCOPE1": 1200, "GHG_SCOPE2_LB": 800, "REVENUE": 250 },
+      "working": "(1,200 + 800) tCO2e / 250 INR crore = 8 tCO2e per INR crore",
+      "expected": { "value": 8, "reason": null, "missing": [] }
+    },
+    {
+      "name": "Energy intensity per tonne produced",
+      "formula": "ENERGY_TOTAL / PRODUCTION_OUTPUT",
+      "unit": "GJ per tonne",
+      "inputs": { "ENERGY_TOTAL": 36108, "PRODUCTION_OUTPUT": 1200 },
+      "working": "36,108 GJ / 1,200 t = 30.09 GJ per tonne",
+      "expected": { "value": 30.09, "reason": null, "missing": [] }
+    },
+    {
+      "name": "Water consumption",
+      "formula": "WATER_WITHDRAWAL - WATER_DISCHARGE",
+      "unit": "kL",
+      "inputs": { "WATER_WITHDRAWAL": 1200, "WATER_DISCHARGE": 840 },
+      "working": "withdrawn 1,200 kL − discharged 840 kL = 360 kL",
+      "expected": { "value": 360, "reason": null, "missing": [] }
+    },
+    {
+      "name": "Women in the workforce in %",
+      "formula": "EMPLOYEES_TOTAL.female / EMPLOYEES_TOTAL * 100",
+      "unit": "%",
+      "inputs": { "EMPLOYEES_TOTAL": { "value": 480, "parts": { "male": 346, "female": 132, "other_gender": 2 } } },
+      "working": "132 women / 480 employees × 100 = 27.5 %",
+      "expected": { "value": 27.5, "reason": null, "missing": [] }
+    },
+    {
+      "name": "A missing input gives no value",
+      "formula": "(GHG_SCOPE1 + GHG_SCOPE2_LB) / REVENUE",
+      "unit": "tCO2e per INR crore",
+      "inputs": { "GHG_SCOPE1": 1200, "GHG_SCOPE2_LB": 800 },
+      "working": "revenue not entered yet: no value (never 0)",
+      "expected": { "value": null, "reason": "missing_inputs", "missing": ["REVENUE"] }
+    },
+    {
+      "name": "Division by zero",
+      "formula": "ENERGY_RENEWABLE / ENERGY_TOTAL * 100",
+      "unit": "%",
+      "inputs": { "ENERGY_RENEWABLE": 0, "ENERGY_TOTAL": 0 },
+      "working": "0 GJ / 0 GJ: no value",
+      "expected": { "value": null, "reason": "division_by_zero", "missing": [] }
+    }
+  ]
+}

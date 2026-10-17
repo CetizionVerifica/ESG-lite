@@ -132,7 +132,7 @@ test("create a KPI: 201 with an audit row; duplicate code, bad units, bad formul
 
 test("update a KPI: formula cycles refused; edited rows survive a re-seed, unedited rows are refreshed, nothing is deleted", async () => {
   const a = (await call("POST", "/kpi/library/definitions", "superadmin", def({ code: "TEST_A" }))).json.definition;
-  const b = await call("POST", "/kpi/library/definitions", "superadmin", def({ code: "TEST_B", source: "formula", formula: "TEST_A * 2", unit_dimension: "none", canonical_unit: "GJ x", allowed_units: ["GJ x"] }));
+  const b = await call("POST", "/kpi/library/definitions", "superadmin", def({ code: "TEST_B", source: "formula", formula: "TEST_A * 2", unit_dimension: "none", canonical_unit: "GJ", allowed_units: ["GJ"] }));
   assert.equal(b.status, 201, JSON.stringify(b.json));
   const loop = await call("PUT", `/kpi/library/definitions/${a.id}`, "superadmin", { source: "formula", formula: "TEST_B / 2", unit_dimension: "none", canonical_unit: "GJ", allowed_units: ["GJ"] });
   assert.equal(loop.status, 422, JSON.stringify(loop.json));
