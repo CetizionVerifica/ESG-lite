@@ -70,15 +70,16 @@ Each category is its own test, so one broken category doesn't hide the others.
 | Scope 2 electricity, steam | kWh, + 3b and 3c twins; steam in MWh against a per-kWh factor, + 3b | |
 | 1, 2 | average-data, tonnes against a per-kg factor | |
 | 3 | the twins of the Scope 1 and 2 rows | sum of the twins |
-| 4, 9 | tonne.km (9 in kg.km, converted) | |
+| 4, 9 | S3-8's standard transport form: weight (t) × distance (km) in tonne.km | |
 | 5 | kg of waste against a per-tonne factor | |
 | 6, 7 | standard forms: hotel nights; commuting average-data | seeded DEFRA 2025 values |
 | 8 | lease form, sub-metered electricity × area share | |
 | 10, 11, 12 | sold-products forms: site-specific processing; refrigerant released (AR6); end of life | seeded AR6 / DEFRA values |
 | 13, 14, 15 | asset forms: tenant, franchise sample and investee reported emissions | identity factors |
 
-Spend, supplier-specific and hybrid rows are covered in the workflow (Category 1 spend) or wait on
-S3-6; the transport and waste standard forms wait on S3-8. Those lanes add their rows to `ROWS`.
+Spend, supplier-specific and hybrid rows are covered in the main workflow (Category 1 spend, step 14
+and 25f for S3-6's supplier figure); the waste standard form isn't built yet, so Category 5 keeps a
+plain waste-type row.
 
 Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-lite_FE, not here.
 
