@@ -27,6 +27,7 @@ import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type Resolv
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
 import { lockedSiteMonths, siteMonthOf } from "../../scope3/review/periodLock";
+import { lockPeriodsShared } from "../../scope3/review/periodLease";
 import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
 import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
@@ -490,9 +491,11 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
   const planConflicts = planModeConflicts(work.map((w) => (w ? { site_id: w.row.site_id, category_id: w.row.category_id, period: w.period } : null)));
   // S3-15 part 2: closed site-months (review workflow v2), one query for the plan. A yearly row
   // belongs to its period-end month, the date it is stored with.
-  const closed = new Set(
-    (await lockedSiteMonths(manager, work.map((w) => (w ? siteMonthOf(w.row.site_id, w.period.date_of_reporting) : null)))).map((p) => `${p.site_id}:${p.year}:${p.month}`),
-  );
+  const siteMonths = work.map((w) => (w ? siteMonthOf(w.row.site_id, w.period.date_of_reporting) : null));
+  // Inside a commit transaction, hold the month-lock keys shared until it ends, so a month can't be
+  // locked between this check and the insert committing (periodLease.ts). A plan outside one only reads.
+  if (manager.queryRunner?.isTransactionActive) await lockPeriodsShared(manager, siteMonths);
+  const closed = new Set((await lockedSiteMonths(manager, siteMonths)).map((p) => `${p.site_id}:${p.year}:${p.month}`));
   const seenIdentity = new Map<string, string>();
 
   for (let i = 0; i < work.length; i++) {

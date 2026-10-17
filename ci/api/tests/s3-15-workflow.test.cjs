@@ -417,6 +417,7 @@ test("close month: what is left, PERIOD_INCOMPLETE while anything is, then the M
   assert.equal(lock.json.locked, true);
   assert.equal(lock.json.sites[0].locked, true);
   assert.equal(lock.json.sites[0].lock.locked_by, 3152);
+  assert.equal(lock.json.sites[0].lock.site_id, A, "the lock names its site, so Reopen sends it");
   assert.equal(lock.json.sites[0].categories[0].state, "approved");
   const audit = await q(`SELECT action, reason, changed_fields FROM audit_log WHERE entity_type = 'scope3_period_lock' AND entity_id IN (SELECT id FROM period_lock WHERE company_id = ${CO} AND site_id = ${A})`);
   assert.deepEqual(audit.map((a) => a.action), ["lock"]);
@@ -443,8 +444,48 @@ test("Nothing this month completes a category; the Admin then locks every site",
   const lock = await call("POST", "/periods/lock", "admin", { site_id: null, ...MAY });
   ok(lock);
   assert.deepEqual(lock.json.sites.map((s) => [s.site_id, s.locked]), [[A, true], [B, true]]);
+  assert.deepEqual(lock.json.sites.map((s) => s.lock.site_id), [A, B], "a company-wide lock is one row per site, each reopened on its own");
   // Clearing the marker in a closed month is a write too.
   locked(await call("DELETE", "/user/my-month/nothing", "managerB", { site_id: B, category_id: 1, month: "2025-05" }));
+});
+
+/** Settles with "pending" if `promise` hasn't settled within `ms`. */
+const settledWithin = (promise, ms) => Promise.race([promise.then(() => "settled", () => "settled"), new Promise((r) => setTimeout(() => r("pending"), ms))]);
+
+test("a lock waits for a write in flight, and a write waits for a lock in progress (periodLease.ts)", async () => {
+  // A write holding its lease (the shared month-lock key): POST /periods/lock waits until it's released.
+  await withDb(async (writer) => {
+    await writer.query(`SELECT pg_advisory_lock_shared(3150, $1)`, [CO]);
+    const lock = call("POST", "/periods/lock", "manager", { site_id: A, ...MAY }); // May is locked and complete: answers 200
+    assert.equal(await settledWithin(lock, 600), "pending", "the lock waits for the write");
+    await writer.query(`SELECT pg_advisory_unlock_shared(3150, $1)`, [CO]);
+    ok(await lock);
+  });
+
+  // A lock in progress (the exclusive key, as lockPeriod holds it): a write into the month waits, then sees the
+  // committed lock and answers PERIOD_LOCKED instead of landing in a closed month.
+  await withDb(async (locker) => {
+    await locker.query("BEGIN");
+    await locker.query(`SELECT pg_advisory_xact_lock(3150, $1)`, [CO]);
+    const write = call("POST", "/user/emissions", "user", entry(A, "2025-06-20", 1));
+    assert.equal(await settledWithin(write, 600), "pending", "the write waits for the lock");
+    await locker.query(`INSERT INTO period_lock (company_id, site_id, year, month, locked_by, locked_at) VALUES ($1, $2, 2025, 6, 3152, now())`, [CO, A]);
+    await locker.query("COMMIT");
+    locked(await write);
+  });
+  await q(`DELETE FROM period_lock WHERE company_id = $1 AND site_id = $2 AND year = 2025 AND month = 6`, [CO, A]);
+  assert.equal((await q(`SELECT count(*)::int AS n FROM emission WHERE site_id = $1 AND date_of_reporting = '2025-06-20'`, [A]))[0].n, 0, "nothing was written");
+
+  // A client without the review workflow (company 1, the fixture's CI manager) takes no lease: its writes never
+  // wait on a held key. The body is incomplete on purpose, so it passes the guard and is refused with nothing saved.
+  await withDb(async (locker) => {
+    await locker.query("BEGIN");
+    await locker.query(`SELECT pg_advisory_xact_lock(3150, 1)`);
+    const r = callAs("POST", "/user/emissions", "manager", { site_id: 1, date_of_reporting: "2025-06-20" });
+    assert.equal(await settledWithin(r, 3000), "settled", "another client's write is not held up");
+    assert.notEqual((await r).status, 409);
+    await locker.query("ROLLBACK");
+  });
 });
 
 test("PERIOD_LOCKED on every write path into a closed site-month", async () => {

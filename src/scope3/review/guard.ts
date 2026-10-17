@@ -16,6 +16,7 @@ import type { NextFunction, Response } from "express";
 import { AppDataSource } from "../../config/data-source";
 import type { AuthRequest } from "../../middlewares/auth.middleware";
 import { lockedSiteMonths, periodLockedError, siteMonthOf, siteMonthsOfBatch, siteMonthsOfRows, type SiteMonth } from "./periodLock";
+import { periodWriteLease } from "./periodLease";
 import { sendScope3Error } from "../contracts/errors";
 
 type Source = "create" | "param" | "ids" | "batch";
@@ -48,10 +49,19 @@ const periodsFor = async (req: AuthRequest, source: Source): Promise<Array<SiteM
   }
 };
 
-/** 409 PERIOD_LOCKED when the write touches a closed site-month. */
+/**
+ * 409 PERIOD_LOCKED when the write touches a closed site-month. The check runs
+ * under a write lease (periodLease.ts) held until the response ends, so a month
+ * can't be locked between this check and the write committing.
+ */
 export const guardPeriodOpen = (source: Source) => async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const locked = await lockedSiteMonths(AppDataSource.manager, await periodsFor(req, source));
+    const items = await periodsFor(req, source);
+    const lease = await periodWriteLease(items);
+    const release = () => void lease.release();
+    res.once("finish", release);
+    res.once("close", release);
+    const locked = await lockedSiteMonths(AppDataSource.manager, items);
     if (locked.length) return sendScope3Error(res, periodLockedError(locked));
     next();
   } catch (error) {

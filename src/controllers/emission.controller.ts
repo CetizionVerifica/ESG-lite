@@ -1461,7 +1461,13 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
     }
 
     const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
-    const result = await repo.delete({ pk_id: In(idsToDelete) });
+    // The same rows as the SELECT above, by predicate: one parameter per row would break on a batch
+    // over Postgres's 65,535-parameter limit (see df1ce16).
+    const result = await repo
+      .createQueryBuilder()
+      .delete()
+      .where("upload_batch_id = :batchId AND (status::text <> 'draft' OR created_by = :callerId)", { batchId, callerId })
+      .execute();
     await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
     await refreshChecksSafely(AppDataSource.manager, [], priorKeys);

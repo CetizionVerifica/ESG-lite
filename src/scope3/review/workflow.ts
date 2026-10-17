@@ -25,6 +25,7 @@ import type { RowChecks } from "../contracts/checks";
 import { lockedRowIds, lockedSiteMonths, siteMonthOf } from "./periodLock";
 import { computeChecksFor, refreshChecksSafely } from "./service";
 import { AccessError, type Caller } from "./lock";
+import { withPeriodWriteLease } from "./periodLease";
 
 const ints = (list: unknown[]): number[] => [...new Set(list.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
 
@@ -219,18 +220,22 @@ export async function setNothingThisMonth(caller: Caller, body: { site_id: numbe
     if (grants.length && !grants.some((g) => Number(g.category_id) === body.category_id)) throw new AccessError(403, "This category isn't yours to report.");
   }
   if (!(await reviewWorkflowOn(AppDataSource.manager, body.site_id))) throw new Scope3Error("REVIEW_WORKFLOW_OFF");
-  const locked = await lockedSiteMonths(AppDataSource.manager, [siteMonthOf(body.site_id, period)]);
-  if (locked.length) throw new Scope3Error("PERIOD_LOCKED", { periods: locked });
+  // Under a write lease (periodLease.ts): clearing a mark while the month is being locked would leave it incomplete.
+  const siteMonth = siteMonthOf(body.site_id, period);
+  await withPeriodWriteLease([siteMonth], async () => {
+    const locked = await lockedSiteMonths(AppDataSource.manager, [siteMonth]);
+    if (locked.length) throw new Scope3Error("PERIOD_LOCKED", { periods: locked });
 
-  if (nothing) {
-    await AppDataSource.query(
-      `INSERT INTO nothing_this_month (site_id, category_id, period, user_id) VALUES ($1, $2, $3::date, $4)
-       ON CONFLICT (site_id, category_id, period) DO NOTHING`,
-      [body.site_id, body.category_id, period, caller.userId],
-    );
-  } else {
-    await AppDataSource.query(`DELETE FROM nothing_this_month WHERE site_id = $1 AND category_id = $2 AND period = $3::date`, [body.site_id, body.category_id, period]);
-  }
+    if (nothing) {
+      await AppDataSource.query(
+        `INSERT INTO nothing_this_month (site_id, category_id, period, user_id) VALUES ($1, $2, $3::date, $4)
+         ON CONFLICT (site_id, category_id, period) DO NOTHING`,
+        [body.site_id, body.category_id, period, caller.userId],
+      );
+    } else {
+      await AppDataSource.query(`DELETE FROM nothing_this_month WHERE site_id = $1 AND category_id = $2 AND period = $3::date`, [body.site_id, body.category_id, period]);
+    }
+  });
   log.info("Scope3Review", nothing ? "Nothing this month set" : "Nothing this month cleared", { userId: caller.userId, siteId: body.site_id, categoryId: body.category_id, period });
   return { site_id: body.site_id, category_id: body.category_id, month: period, nothing };
 }

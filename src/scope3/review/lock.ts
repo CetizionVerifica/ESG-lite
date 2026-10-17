@@ -28,6 +28,7 @@ import { GHG_CATEGORIES } from "../contracts/ghgCategory";
 import { Scope3Error } from "../contracts/errors";
 import { UNLOCK_REASON_MIN, type PeriodCategoryState, type PeriodLeftReason } from "../contracts/schemas";
 import { log } from "../../utils/logger";
+import { PERIOD_LOCK_CLASS } from "./periodLease";
 
 /**
  * A refusal the §7 codes don't cover (validation, company, role, not found),
@@ -172,7 +173,8 @@ export interface PeriodSite {
   site_id: number;
   name: string;
   locked: boolean;
-  lock: { locked_at: string; locked_by: number; locked_by_name: string | null } | null;
+  /** The active lock: this site's own, or the company-wide one (`site_id` null) it sits under. */
+  lock: { site_id: number | null; locked_at: string; locked_by: number; locked_by_name: string | null } | null;
   reopened: { reopened_at: string; reopened_by: number | null; reopened_by_name: string | null; reason: string | null } | null;
   categories: PeriodCategory[];
   /** The 15 GHG Protocol categories: boundary status (S3-1) × whether this site has data for the month. */
@@ -289,7 +291,9 @@ export async function periodStatus(manager: EntityManager, scope: LockScope, yea
       site_id: site.site_id,
       name: site.name,
       locked: switchOn && !!active,
-      lock: active ? { locked_at: iso(active.locked_at)!, locked_by: Number(active.locked_by), locked_by_name: active.locked_by_name ?? null } : null,
+      lock: active
+        ? { site_id: active.site_id === null ? null : Number(active.site_id), locked_at: iso(active.locked_at)!, locked_by: Number(active.locked_by), locked_by_name: active.locked_by_name ?? null }
+        : null,
       reopened:
         !active && lastReopen
           ? { reopened_at: iso(lastReopen.reopened_at)!, reopened_by: lastReopen.reopened_by === null ? null : Number(lastReopen.reopened_by), reopened_by_name: lastReopen.reopened_by_name ?? null, reason: lastReopen.reopened_reason ?? null }
@@ -317,8 +321,8 @@ export async function periodStatus(manager: EntityManager, scope: LockScope, yea
 // POST /periods/lock and /periods/unlock
 // ---------------------------------------------------------------------------
 
-/** pg_advisory_xact_lock class for period locks, so two lock calls for one company queue. */
-const LOCK_CLASS = 3150;
+/** pg_advisory_xact_lock class for period locks, so two lock calls for one company queue; writes hold it shared (periodLease.ts). */
+const LOCK_CLASS = PERIOD_LOCK_CLASS;
 
 const auditLock = async (tx: EntityManager, id: number, action: "lock" | "unlock", siteId: number | null, period: string, userId: number, reason: string | null) =>
   tx.query(`INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, reason, changed_by) VALUES ('scope3_period_lock', $1, $2, $3, $4, $5)`, [
