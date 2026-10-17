@@ -111,5 +111,5 @@ export const KPI_AUDIT_ENTITY_TYPES = ["kpi_value", "kpi_setup", "kpi_period_loc
 export type KpiAuditEntityType = (typeof KPI_AUDIT_ENTITY_TYPES)[number];
 
 /** Notification kinds KPI code sends. */
-export const KPI_NOTIFICATION_KINDS = ["kpi_enabled", "kpi_due"] as const;
+export const KPI_NOTIFICATION_KINDS = ["kpi_enabled", "kpi_due", "kpi_assigned"] as const; // kpi_assigned: KPI-3 "Invite your team"
 export type KpiNotificationKind = (typeof KPI_NOTIFICATION_KINDS)[number];

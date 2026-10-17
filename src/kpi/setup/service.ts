@@ -23,6 +23,7 @@ import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { checkDefinition, returned } from "../library/service";
 import { formulaCodes } from "../formulas/parse";
+import { createNotification } from "../../services/notificationService";
 import { recommend, type Recommendation } from "./recommend";
 import { enabledFrameworks, kpiSettings, userSiteIds } from "./settings";
 
@@ -157,7 +158,11 @@ export async function getSetup(caller: KpiCaller) {
     material_topics: topics.map((t) => ({ company_id: companyId, esrs_topic: t.esrs_topic, material: t.material === true, reason: t.reason ?? null, decided_by: t.decided_by ?? null, decided_at: iso(t.decided_at) })),
     kpis,
     assignments: assignments.map((a) => ({ company_id: companyId, kpi_definition_id: Number(a.kpi_definition_id), site_id: a.site_id === null ? null : Number(a.site_id), owner_user_id: Number(a.owner_user_id), reviewer_user_id: a.reviewer_user_id === null ? null : Number(a.reviewer_user_id) })),
-    recommended: await recommendedFor(m, companyId),
+    // The FE reads ids; the reasons ride beside them.
+    ...(await (async () => {
+      const recs = await recommendedFor(m, companyId);
+      return { recommended: recs.map((r) => r.kpi_definition_id), recommended_reasons: recs };
+    })()),
     available_frameworks: available.map((f) => ({ id: Number(f.id), code: f.code, version: f.version, name: f.name, source_url: f.source_url, default_for_new: f.default_for_new === true })),
     sites: sites.map((x) => ({ site_id: Number(x.site_id), name: x.name })),
   };
@@ -259,10 +264,27 @@ async function saveMaterialTopics(m: EntityManager, caller: KpiCaller, topics: A
   if (Object.keys(changed).length) await auditSetup(m, companyId, "material_topics", changed, caller.userId);
 }
 
+/**
+ * The KPI step replaces the company's selection: listed KPIs are saved as
+ * sent; a KPI selected before and not listed is left out (a recommended one
+ * then needs to be listed with its reason).
+ */
 async function saveKpis(m: EntityManager, caller: KpiCaller, items: Array<{ kpi_definition_id: number; selected: boolean; frequency?: string | null; reason_excluded?: string | null }>) {
   const companyId = caller.companyId;
   const recommended = new Set((await recommendedFor(m, companyId)).map((r) => r.kpi_definition_id));
   const changed: Record<string, { old: unknown; new: unknown }> = {};
+  const listed = new Set(items.map((i) => i.kpi_definition_id));
+  const dropped: Row[] = await m.query(
+    `SELECT ck.kpi_definition_id, ck.frequency, d.code FROM company_kpi ck JOIN kpi_definition d ON d.id = ck.kpi_definition_id WHERE ck.company_id = $1 AND ck.selected`,
+    [companyId],
+  );
+  for (const d of dropped) {
+    const id = Number(d.kpi_definition_id);
+    if (listed.has(id)) continue;
+    if (recommended.has(id)) throw new KpiError("KPI_REASON_REQUIRED", { kpi_definition_id: id, kpi: d.code });
+    await m.query(`UPDATE company_kpi SET selected = false, reason_excluded = NULL, updated_by = $3, updated_at = now() WHERE company_id = $1 AND kpi_definition_id = $2`, [companyId, id, caller.userId || null]);
+    changed[d.code] = { old: { selected: true, frequency: d.frequency ?? null, reason_excluded: null }, new: { selected: false, frequency: d.frequency ?? null, reason_excluded: null } };
+  }
   for (const item of items) {
     const kpi = await visibleKpi(m, companyId, item.kpi_definition_id);
     const reason = item.selected ? null : (item.reason_excluded ?? "").trim() || null;
@@ -445,3 +467,36 @@ export async function createCustomKpi(caller: KpiCaller, raw: unknown) {
     return { ...row, mappings: saved };
   });
 }
+
+// ---------------------------------------------------------------------------
+// POST /kpi/setup/invite
+// ---------------------------------------------------------------------------
+
+/**
+ * "Invite your team" (05-ux S2): a `kpi_assigned` notification to every owner
+ * of an assignment of a selected KPI, once per person. Admin, Superadmin.
+ */
+export async function inviteTeam(caller: KpiCaller): Promise<{ notified: number }> {
+  assertSetupWriter(caller);
+  const m = AppDataSource.manager;
+  const owners: Row[] = await m.query(
+    `SELECT a.owner_user_id, COUNT(*)::int AS n FROM kpi_assignment a
+       JOIN company_kpi ck ON ck.company_id = a.company_id AND ck.kpi_definition_id = a.kpi_definition_id AND ck.selected
+       JOIN "user" u ON u.user_id = a.owner_user_id
+      WHERE a.company_id = $1 GROUP BY a.owner_user_id ORDER BY a.owner_user_id`,
+    [caller.companyId],
+  );
+  for (const o of owners) {
+    const n = Number(o.n);
+    await createNotification(
+      Number(o.owner_user_id),
+      "kpi_assigned",
+      "You have KPIs to enter",
+      `${n} KPI${n === 1 ? " is" : "s are"} assigned to you. Open My KPIs to see what's due.`,
+      "/kpi",
+    );
+  }
+  await auditSetup(m, caller.companyId, "invite", { notified: { old: null, new: owners.map((o) => Number(o.owner_user_id)) } }, caller.userId);
+  return { notified: owners.length };
+}
+

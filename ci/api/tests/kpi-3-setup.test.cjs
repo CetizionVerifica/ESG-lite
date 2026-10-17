@@ -56,6 +56,7 @@ test("before setup: defaults, every role reads, the pickers only for Admins, sta
     assert.deepEqual(r.json.kpis, []);
     assert.deepEqual(r.json.assignments, []);
     assert.deepEqual(r.json.recommended, []);
+    assert.deepEqual(r.json.recommended_reasons, []);
     assert.deepEqual(r.json.available_frameworks.map((f) => f.code), ["GRI", "BRSR", "ESRS"]);
     assert.deepEqual(r.json.sites.map((s) => s.site_id).sort(), [1, 2]);
     assert.equal("people" in r.json, who === "admin", who);
@@ -142,7 +143,8 @@ test("step 2: a topic marked not material needs a reason; the recommendation fol
   assert.equal(r.json.material_topics[1].reason, "Offices only; water use is negligible");
   assert.equal(r.json.material_topics[1].decided_by, 3);
 
-  const rec = new Map(r.json.recommended.map((x) => [x.code, x]));
+  const rec = new Map(r.json.recommended_reasons.map((x) => [x.code, x]));
+  assert.deepEqual(r.json.recommended, r.json.recommended_reasons.map((x) => x.kpi_definition_id), "recommended is the ids");
   assert.ok(rec.get("GHG_SCOPE1").reasons.some((x) => x.framework === "GRI" && x.disclosure === "305-1"));
   assert.ok(rec.get("GHG_SCOPE1").reasons.some((x) => x.framework === "ESRS"), "E1 is material");
   assert.ok(rec.get("WATER_WITHDRAWAL"), "GRI 303-3 is required");
@@ -154,7 +156,7 @@ test("step 2: a topic marked not material needs a reason; the recommendation fol
 });
 
 test("step 3: selecting KPIs; leaving out a recommended KPI needs a reason; frequency override; unknown KPI 404", async () => {
-  const recommended = (await call("GET", "/kpi/setup", "admin")).json.recommended;
+  const recommended = (await call("GET", "/kpi/setup", "admin")).json.recommended_reasons;
   const ghg1 = await kpiId("GHG_SCOPE1");
   const noReason = await put("admin", { kpis: [{ kpi_definition_id: ghg1, selected: false }] });
   assert.equal(noReason.status, 400);
@@ -176,14 +178,26 @@ test("step 3: selecting KPIs; leaving out a recommended KPI needs a reason; freq
   assert.equal(byCode.get("GHG_SCOPE1").level, "site");
   assert.deepEqual([byCode.get("WATER_RECYCLED").selected, byCode.get("WATER_RECYCLED").reason_excluded], [false, null], "not recommended, so no reason is needed");
 
+  // The step replaces the selection: a recommended KPI simply not listed needs its reason too.
+  const notListed = await put("admin", { kpis: items.filter((i) => i.kpi_definition_id !== ghg1) });
+  assert.equal(notListed.json.code, "KPI_REASON_REQUIRED");
+  assert.equal(notListed.json.details.kpi, "GHG_SCOPE1");
+  // A non-recommended KPI not listed is left out.
+  const lti = await kpiId("LOST_TIME_INJURIES");
+  const without = await put("admin", { kpis: [...items.filter((i) => i.kpi_definition_id !== lti && i.kpi_definition_id !== water), { kpi_definition_id: water, selected: true }] });
+  assert.equal(without.status, 200, JSON.stringify(without.json));
+  assert.equal(without.json.kpis.find((x) => x.code === "LOST_TIME_INJURIES").selected, false);
+  assert.equal(without.json.kpis.find((x) => x.code === "WATER_WITHDRAWAL").frequency, "quarterly", "an omitted frequency keeps the override");
+
   // A recommended KPI left out with a reason.
-  const out = await put("admin", { kpis: [{ kpi_definition_id: ghg1, selected: false, reason_excluded: "No combustion on site" }] });
+  const out = await put("admin", { kpis: [...items.filter((i) => i.kpi_definition_id !== ghg1), { kpi_definition_id: ghg1, selected: false, reason_excluded: "No combustion on site" }] });
   assert.equal(out.status, 200);
   const k = out.json.kpis.find((x) => x.code === "GHG_SCOPE1");
   assert.deepEqual([k.selected, k.reason_excluded], [false, "No combustion on site"]);
   const audit = (await audits()).filter((a) => a.action === "kpis").at(-1);
   assert.deepEqual(audit.changed_fields.GHG_SCOPE1.new, { selected: false, frequency: null, reason_excluded: "No combustion on site" });
-  await put("admin", { kpis: [{ kpi_definition_id: ghg1, selected: true }, { kpi_definition_id: water, selected: true }] });
+  const back = await put("admin", { kpis: items });
+  assert.equal(back.status, 200, JSON.stringify(back.json));
 });
 
 test("step 4: owners and reviewers; an owner outside the site or a reviewer who isn't the site's Manager is 422", async () => {
@@ -280,6 +294,21 @@ test("assignments and topic grants decide who enters: the owner, never another U
   assert.equal((await put("admin", { settings: { due_day: 10 } })).json.settings.due_day, 10);
 });
 
+test("invite: one kpi_assigned notification per owner of a selected KPI; Admins and Superadmins only", async () => {
+  await q(`DELETE FROM notification WHERE type = 'kpi_assigned'`);
+  for (const who of ["user", "manager"]) assert.equal((await call("POST", "/kpi/setup/invite", who)).json.code, "KPI_FORBIDDEN", who);
+  const r = await call("POST", "/kpi/setup/invite", "admin");
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const notes = await q(`SELECT user_id, title, link FROM notification WHERE type = 'kpi_assigned' ORDER BY user_id`);
+  const owners = [...new Set((await call("GET", "/kpi/setup", "admin")).json.assignments.map((a) => a.owner_user_id))].sort((a, b) => a - b);
+  assert.deepEqual(notes.map((n) => n.user_id), owners);
+  assert.equal(r.json.notified, owners.length);
+  assert.equal(notes[0].link, "/kpi");
+  assert.equal((await call("POST", "/kpi/setup/invite?company_id=1", "superadmin")).json.notified, owners.length);
+  assert.ok(!(await q(`SELECT 1 FROM notification WHERE type = 'kpi_assigned' AND user_id IN (4, 6)`)).length, "never another company's people");
+  await q(`DELETE FROM notification WHERE type = 'kpi_assigned'`);
+});
+
 test("custom KPIs: Admin adds one (code made from the name), optionally mapped, selected; validated like the library; invisible to other companies", async () => {
   const disclosure = (await q(`SELECT ds.id FROM kpi_disclosure ds JOIN kpi_framework f ON f.id = ds.framework_id WHERE f.code = 'GRI' AND ds.code = '303-3'`))[0].id;
   const body = {
@@ -326,7 +355,7 @@ test("custom KPIs: Admin adds one (code made from the name), optionally mapped, 
 test("switch off: every setup route answers KPI_TRACKING_OFF, and so does the topic grant", async () => {
   await setSwitch(1, false);
   try {
-    for (const [method, route, body] of [["GET", "/kpi/setup"], ["PUT", "/kpi/setup", { settings: { due_day: 5 } }], ["POST", "/kpi/setup/custom-kpis", {}]]) {
+    for (const [method, route, body] of [["GET", "/kpi/setup"], ["PUT", "/kpi/setup", { settings: { due_day: 5 } }], ["POST", "/kpi/setup/custom-kpis", {}], ["POST", "/kpi/setup/invite", {}]]) {
       for (const who of ["user", "manager", "admin"]) {
         const r = await call(method, route, who, body);
         assert.equal(r.status, 403, `${who} ${method} ${route}`);
