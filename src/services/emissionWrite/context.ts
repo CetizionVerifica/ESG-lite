@@ -11,7 +11,7 @@ import { getCalculationSpec } from "../calculationSpec";
 import { getSelectColumns } from "../activityValue";
 import { FactorIndex, MappingIndex } from "./resolve";
 import type { CategoryContext } from "./compute";
-import { offeredMethods } from "../../scope3/dq/methodOptions";
+import { methodUnits, offeredMethods } from "../../scope3/dq/methodOptions";
 import { SpendRateSource } from "../../scope3/spend/rates";
 
 export interface LoadedContext extends CategoryContext {
@@ -84,6 +84,8 @@ export class ContextCache {
       site_country: site?.country?.code ?? null,
       // `{method, units}` entries (or legacy bare keys) → the offered keys.
       method_options: configs[0]?.method_options ? offeredMethods(configs[0].method_options) : null,
+      // S3-8: each method's units as unit keys, so a row with no method records the one its unit belongs to.
+      method_units: configs[0]?.method_options ? methodUnits(configs[0].method_options) : null,
       mappings,
       company_id,
       rates: this.spendRates,

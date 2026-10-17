@@ -7,6 +7,7 @@
  * `methods/spec.ts` (categories with a spec) or `methods/activity.ts`, with
  * the same expressions as before, so stored numbers do not move (ci/golden).
  */
+import { normalizeUnitKey } from "../calculationSpec";
 import type { EmissionFactor } from "../../entities/EmissionFactor";
 import type { CalculationSpec } from "../../entities/ColumnConfig";
 import type { FactorIndex } from "./resolve";
@@ -55,6 +56,12 @@ export interface CategoryContext {
    * entries) with `offeredMethods`, so the engine only ever sees keys.
    */
   method_options?: Method[] | null;
+  /**
+   * S3-8: the units each offered method shows, as normalised unit keys
+   * (`normalizeUnitKey`), from the same `method_options` entries. A legacy bare
+   * key has none. Used only to pick the method a row records when it names none.
+   */
+  method_units?: Partial<Record<Method, string[]>> | null;
 }
 
 export interface EngineIssue {
@@ -156,7 +163,28 @@ const SCOPE_3 = "Scope 3";
  */
 export const methodFor = (ctx: CategoryContext, row: Pick<EngineRow, "method" | "rowMethod" | "activity_unit">): Method | null => {
   if (ctx.scope !== SCOPE_3) return null;
-  return row.method ?? row.rowMethod ?? ctx.method_options?.[0] ?? "average_data";
+  return row.method ?? row.rowMethod ?? methodForUnit(ctx, row.activity_unit) ?? ctx.method_options?.[0] ?? "average_data";
+};
+
+/**
+ * S3-8: the form's default method for a row that names none, read from its
+ * unit: the first offered method (in the form's order, most specific first)
+ * whose unit list holds the row's unit, both compared as `normalizeUnitKey`
+ * keys. So a Category 4 transport row in tonne.km records distance_based and
+ * one in litres fuel_based, where `method_options[0]` alone would call both
+ * fuel_based. When several methods list the unit (kWh is fuel_based and
+ * site_specific on the transport forms) the form's order decides, as it does
+ * for `method_options[0]`. Null when no method lists the unit, or the list has
+ * no units (legacy bare keys): the caller then falls back to
+ * `method_options[0]`, as before.
+ *
+ * Labels and data quality only: the method file is still picked from the
+ * method the caller sent (`methodFileFor`), so no total moves.
+ */
+export const methodForUnit = (ctx: CategoryContext, unit: unknown): Method | null => {
+  const key = normalizeUnitKey(unit);
+  if (!key || !ctx.method_options?.length || !ctx.method_units) return null;
+  return ctx.method_options.find((m) => ctx.method_units?.[m]?.includes(key)) ?? null;
 };
 
 /**

@@ -69,6 +69,11 @@ MCP-09, MCP-10, MCP-11, MCP-22 (golden).
 - `Computed` gains optional `total_kgco2e`, `method`, `dq`, `data_type`, all unset. Golden snapshot byte-identical before and after (sha256 of the LF file `bd2f996f…`).
 - Tests: `ci/unit/scope3-engine-split.test.cjs`.
 
+### As built (S3-8, 2026-10-16)
+- `methodFor` (compute.ts): row `method` → `@method` → **the first offered method whose `method_options` units hold the row's unit** (`methodForUnit`, unit keys via `normalizeUnitKey`; `context.ts` loads `method_units`) → `method_options[0]` → `average_data`. It only labels the row (method, DQ, data_type); `methodFileFor` and the spend default in index.ts are unchanged, so no total moves.
+- `transportWarnings.ts`: `ESTIMATED_DISTANCE` and `TRANSPORT_PAID_BY_MISMATCH` (warnings, never block).
+
+
 ### As built (S3-6, 2026-10-16)
 - `methods/supplier.ts`: quantity (converted with `units.ts`) × the supplier's `kgco2e_per_unit`. The figure is chosen before the engine runs by `pickSupplierFactor` (`src/scope3/suppliers/engineInput.ts`): the row's `supplier_factor_id`, else the newest figure up to the reporting year whose item matches the activity name, else the supplier's only item. Snapshot `{factor_type: "supplier", supplier_id, supplier_factor_id, item, factor_value, denominator_unit, boundary, reference_year, gwp_set, source}`.
 - `methods/hybrid.ts`: the supplier's Scope 1+2 — from `energy` input lines when the row has any, else the facility data allocated by mass or economic value with `src/scope3/suppliers/allocate.ts` (the PCF rule) — plus the `extra_data.inputs[]` lines × factors of the same site × category. Snapshot `components[]`; the total is their sum.
