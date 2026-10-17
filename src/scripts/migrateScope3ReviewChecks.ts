@@ -1,6 +1,8 @@
 // S3-15 part 1 (docs/scope3/modules/S3-15-review-workflow/CLAUDE.md):
 //
 //   emission.checks   jsonb, nullable   ({ready, held: CheckId[]})
+//   index on emission (site_id, category_id, date_of_reporting, pk_id) for NO_DUPLICATE
+//   index on emission (fera_linked_id) for FERA partners
 //
 //   npm run migrate:scope3-review-checks
 //
@@ -13,7 +15,13 @@ import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 import { computeChecksFor } from "../scope3/review/service";
 
-export const REVIEW_CHECKS_STATEMENTS = [`ALTER TABLE "emission" ADD COLUMN IF NOT EXISTS "checks" jsonb`];
+export const REVIEW_CHECKS_STATEMENTS = [
+  `ALTER TABLE "emission" ADD COLUMN IF NOT EXISTS "checks" jsonb`,
+  // NO_DUPLICATE looks up the first counted row on the same site, category and date (review/service.ts).
+  `CREATE INDEX IF NOT EXISTS "IDX_emission_site_category_date" ON "emission" ("site_id", "category_id", "date_of_reporting", "pk_id")`,
+  // FERA partners are found through fera_linked_id in both directions (review/service.ts pendingPartners).
+  `CREATE INDEX IF NOT EXISTS "IDX_emission_fera_linked_id" ON "emission" ("fera_linked_id")`,
+];
 
 const BATCH = 1000;
 

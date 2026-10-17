@@ -113,6 +113,9 @@ export const ROW_ISSUE_CODES = {
   DEFLATOR_FALLBACK_YEAR: "warning",
   // S3-3: the row named a method the form does not offer.
   METHOD_NOT_ALLOWED: "error",
+  // Transport and distribution (S3-8). Never block.
+  ESTIMATED_DISTANCE: "warning",
+  TRANSPORT_PAID_BY_MISMATCH: "warning",
   // S3-15 part 2: the row's site and month are closed (period_lock, review workflow v2).
   PERIOD_LOCKED: "error",
 } as const;

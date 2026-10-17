@@ -17,6 +17,8 @@ import type { Method } from "../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../scope3/contracts/dq";
 import type { RowChecks } from "../scope3/contracts/checks";
 import type { Gas } from "../scope3/contracts/factor";
+import type { Proxy } from "../scope3/contracts/schemas";
+import { Supplier } from "./Supplier";
 
 export enum EmissionStatus {
   // S3-15 part 2: a contributor's saved, not yet submitted row (company.review_workflow_v2).
@@ -27,6 +29,9 @@ export enum EmissionStatus {
   REJECTED = "rejected",
 }
 
+// S3-15: indexes created by migrate:scope3-review-checks (NO_DUPLICATE lookups, FERA partners).
+// Declared here so schema sync and schema-diff keep them instead of planning a DROP.
+@Index("IDX_emission_site_category_date", ["site", "category", "date_of_reporting", "pk_id"])
 @Entity()
 export class Emission {
   @PrimaryGeneratedColumn()
@@ -92,6 +97,7 @@ export class Emission {
   @Column({ type: "varchar", length: 2, nullable: true })
   year_type!: "CY" | "FY" | null;
 
+  @Index("IDX_emission_fera_linked_id")
   @Column({ nullable: true })
   fera_linked_id!: number;
 
@@ -147,6 +153,19 @@ export class Emission {
 
   @Column({ type: "numeric", precision: 18, scale: 4, nullable: true })
   biogenic_kg!: string | null;
+
+  // S3-12 (contracts §4): how an extrapolated or proxy row was made
+  // ({basis, coverage_pct, from}); null on every measured row. Written only by
+  // src/scope3/screening (extrapolate, the S3-9 survey backfill) and survey rows on commit.
+  @Column({ type: "jsonb", nullable: true })
+  proxy!: Proxy | null;
+  // S3-6 · which supplier this row's goods came from, when it is known
+  // (migrate:scope3-suppliers). Set on Cat 1 and Cat 2 rows entered with a
+  // supplier; the supplier-specific and hybrid methods read the supplier's
+  // own figures through it.
+  @ManyToOne(() => Supplier, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "supplier_id" })
+  supplier!: Supplier | null;
 
   // S3-3 · how the row was calculated and how good its data is
   // (docs/scope3/01-contracts.md §3, migrate:scope3-row-quality). The types

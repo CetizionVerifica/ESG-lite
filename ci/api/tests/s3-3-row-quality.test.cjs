@@ -417,7 +417,19 @@ test("attaching evidence lifts reliability, removing it lowers it again, and the
     { method: "supplier_specific", units: ["km"] },
     { method: "average_data", units: ["km"] },
   ]);
-  const row = await postRow({ date_of_reporting: "2026-11-30", method: "supplier_specific" });
+  // S3-6: the supplier-specific method calculates from a supplier's own
+  // figure, so the row names a supplier that has one (same unit and year as
+  // the factor, so the total and the other indicators read the same).
+  const supplierId = await withDb(async (db) => {
+    const { rows } = await db.query(`INSERT INTO "supplier" (company_id, name, country) VALUES (1, 'S3-3 evidence supplier', 'AE') RETURNING supplier_id`);
+    await db.query(
+      `INSERT INTO supplier_factor (company_id, supplier_id, item, unit, kgco2e_per_unit, reference_year, gwp_set) VALUES (1, $1, $2, 'km', 1, 2026, 'AR6')`,
+      [rows[0].supplier_id, S3_ACTIVITY],
+    );
+    return rows[0].supplier_id;
+  });
+  t.after(() => withDb((db) => db.query(`DELETE FROM "supplier" WHERE supplier_id = $1`, [supplierId])));
+  const row = await postRow({ date_of_reporting: "2026-11-30", method: "supplier_specific", supplier_id: supplierId });
   assert.equal(row.status, 201, JSON.stringify(row.json));
   const pk = row.json.emission.pk_id;
   created.push(pk);
