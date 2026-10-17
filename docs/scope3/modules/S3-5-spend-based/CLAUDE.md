@@ -37,7 +37,7 @@ A spend row is calculated with the exchange rate on the purchase date, adjusted 
 5. **Spend forms:** when a form's method is `spend_based`, `spent_value` plus `currency` become calculation fields. A form-config migration flips the `extra_fields` entries for Cat 1/2 forms that already have both.
 
 ### Frontend (ESG-lite_FE)
-1. Add data and bulk upload: the "From the amount spent" method shows Amount, Currency (only the supported list, from `GET /fx-rates/currencies`) and an optional Invoice date. The preview line reads "₹ 12,40,000 ≈ USD 13,950 (rate on 3 Sep 2026) × 0.42 kgCO₂e/USD (2022 USD, deflated)".
+1. Add data and bulk upload: the "From the amount spent" method shows Amount, Currency (only the supported list, from `GET /fx-rates/currencies`) and an optional Invoice date. The preview line reads "₹ 12,40,000 ≈ USD 13,950 (rate on 3 Sep 2026) × 0.42 kgCO₂e/USD (2022 USD, deflated)" and shows only when `showCalcDetail` is true (SE-1; a User sees the total). Currency is hidden when the form (`currency.fixed`) or the company (`default_currency`) fixes it (SE-2).
 2. Drawers: show the stored rate and date.
 
 ### AI service
