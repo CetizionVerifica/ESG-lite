@@ -17,7 +17,7 @@
  * row; this file only multiplies. The tCO₂e total is rounded at the end only.
  */
 import { ProxySchema } from "../../../scope3/contracts/schemas";
-import type { CategoryContext, ComputeResult, EngineRow } from "../compute";
+import type { CategoryContext, ComputeResult, FactorRow } from "../compute";
 import * as activity from "./activity";
 import * as specMethod from "./spec";
 import { pickActivityValue } from "../../activityValue";
@@ -28,7 +28,7 @@ export const coverageScale = (coveragePct: number): number => (100 - coveragePct
 /** kg → stored tCO₂e (2 dp) and kgCO₂e (4 dp). */
 const totals = (kg: number) => ({ total: Math.round((kg / 1000) * 100) / 100, total_kgco2e: (Math.round(kg * 10000) / 10000).toFixed(4) });
 
-export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
+export const compute = (ctx: CategoryContext, row: FactorRow): ComputeResult => {
   const parsed = ProxySchema.safeParse(row.proxy);
   if (!parsed.success) {
     return {

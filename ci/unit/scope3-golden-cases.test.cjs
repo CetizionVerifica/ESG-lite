@@ -13,9 +13,19 @@ const { cases, tolerance } = require(path.resolve("ci/golden/scope3/cases.json")
 /** The same rule as ci/golden/scope3/run.cjs, read from cases.json. */
 const within = (actual, expected) => Math.abs(actual - expected) <= Math.max(tolerance.kg, Math.abs(expected) * tolerance.relative);
 
+/**
+ * Plain arithmetic, independent of the engine. S3-6 rows with `supplier`
+ * multiply the quantity by the supplier's figure, or add up their hybrid
+ * input lines (none of the cases allocates facility data).
+ */
+const rowKg = (c, r) => {
+  if (!r.supplier) return r.quantity * (r.share ?? 1) * c.factors[r.factor].kgco2e_per_unit;
+  const own = r.supplier.factor ? r.quantity * (r.share ?? 1) * c.factors[r.supplier.factor].kgco2e_per_unit : 0;
+  return own + (r.supplier.lines ?? []).reduce((s, l) => s + l.quantity * c.factors[l.factor].kgco2e_per_unit, 0);
+};
 // A coverage proxy (S3-12) scales the known kg to the missing share: × (100 − c) / c.
 const proxyScale = (c) => (c.proxy?.basis === "coverage" ? (100 - c.proxy.coverage_pct) / c.proxy.coverage_pct : 1);
-const rowsKg = (c) => c.rows.reduce((s, r) => s + r.quantity * (r.share ?? 1) * c.factors[r.factor].kgco2e_per_unit, 0) * proxyScale(c);
+const rowsKg = (c) => c.rows.reduce((s, r) => s + rowKg(c, r), 0) * proxyScale(c);
 
 test("at least 15 worked examples with figures, unique ids, each owned and skipped or run", () => {
   assert.ok(cases.filter((c) => c.id.startsWith("ex-") && c.expected_kgco2e !== null).length >= 15);
