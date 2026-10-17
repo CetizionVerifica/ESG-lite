@@ -32,6 +32,7 @@ import { startEmailConsumer } from "./workers/emailConsumer";
 import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 import { startBaseYearScheduler } from "./scope3/baseYear/job"; // S3-14
+import { startKpiDueScheduler } from "./kpi/review/reminders"; // KPI-8
 import { logMailStatus } from "./config/mailer";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
@@ -149,6 +150,7 @@ connectWithRetry()
             console.log(`🚀 Server running on http://localhost:${port}`);
         });
         startBaseYearScheduler(); // S3-14: nightly Scope 3 base-year check
+        startKpiDueScheduler(); // KPI-8: daily kpi_due reminders (KPI_DUE_JOB=off turns it off)
 
         // Connect RabbitMQ in background (non-blocking)
         connectRabbitMQ()

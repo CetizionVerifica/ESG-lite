@@ -96,7 +96,7 @@ test("statuses group the items; last year's value; a sent-back value carries the
   assert.equal(find(await my("multiSiteUser"), "LOST_TIME_INJURIES", 1).value, null, "someone else's draft isn't shown");
   await call("POST", "/kpi/values/submit", "user", { ids: [id] });
   assert.deepEqual([find(await my("user"), "LOST_TIME_INJURIES", 1).group, find(await my("user"), "LOST_TIME_INJURIES", 1).status], ["done", "pending"]);
-  await q(`UPDATE kpi_value SET status = 'rejected', review_comment = 'Check the logbook' WHERE id = $1`, [id]);
+  assert.deepEqual((await call("PUT", "/kpi/values/reject", "manager", { ids: [id], reason: "Check the logbook" })).json, { updated: [id], refused: [] });
   lti = find(await my("user"), "LOST_TIME_INJURIES", 1);
   assert.deepEqual([lti.group, lti.value.review_comment], ["sent_back", "Check the logbook"]);
   // Last September, approved.

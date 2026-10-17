@@ -68,7 +68,7 @@ export const kpiTrackingEnabled = async (companyId: number): Promise<boolean> =>
 };
 
 /** The caller's sites inside `companyId` (null = all of them, Superadmin). */
-const callerSites = async (userId: number, role: string, companyId: number): Promise<Set<number> | null> => {
+export const callerSites = async (userId: number, role: string, companyId: number): Promise<Set<number> | null> => {
   const sites = await accessibleSiteIds(userId, role);
   if (!sites) return null;
   if (!sites.size) return sites;

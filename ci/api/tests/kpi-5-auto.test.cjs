@@ -178,12 +178,12 @@ test("calculated KPIs recompute after a refresh: pending while revenue waits for
   assert.equal(num(pending.value_canonical), Number(expected.toFixed(6)));
   assert.equal(pending.status, "pending");
   assert.equal(pending.comment, "Waiting for Revenue.");
-  // KPI-8 isn't built: approve in the database, then the refresh recomputes.
-  await q(`UPDATE kpi_value SET status = 'approved' WHERE id = $1`, [revenueId]);
-  const r = await refresh("manager");
-  assert.ok(r.formulas.written >= 1, JSON.stringify(r.formulas));
+  // KPI-8's approve recomputes the intensity at once (no refresh needed), and a refresh keeps it.
+  assert.deepEqual((await call("PUT", "/kpi/values/approve", "manager", { ids: [revenueId] })).json, { updated: [revenueId], refused: [] });
   const approved = await stored("GHG_INTENSITY_REVENUE", null, "2023-01-01");
   assert.deepEqual([approved.status, approved.comment, approved.id], ["approved", null, pending.id]);
+  await refresh("manager");
+  assert.deepEqual((await stored("GHG_INTENSITY_REVENUE", null, "2023-01-01")).status, "approved");
   const share = await stored("ENERGY_RENEWABLE_SHARE", null, "2023-01-01");
   assert.ok(share && share.status === "approved", "auto inputs only: approved at once");
 });
@@ -221,13 +221,14 @@ test("staleness after approve and delete, and production; a locked period is lef
   assert.deepEqual((await stored("TEST5_PRODUCTION", 9101, "2023-01-01")).checks?.held, ["KPI_AUTO_STALE"]);
   assert.equal((await stored("GHG_SCOPE1", 9101, "2023-01-01")).checks, null, "production doesn't touch emissions KPIs");
 
-  // Close March for site A: its energy stays as it was.
-  await q(`INSERT INTO kpi_period_lock (company_id, site_id, year, period, year_type, locked_by) VALUES (1, 9101, 2023, 3, 'CY', 2)`);
+  // Close March and December for site A: its March energy and its 2023 values (which end in December) stay as they were.
+  // A value belongs to the month its period ends in (KPI-8), so closing March alone wouldn't freeze the year.
+  await q(`INSERT INTO kpi_period_lock (company_id, site_id, year, period, year_type, locked_by) VALUES (1, 9101, 2023, 3, 'CY', 2), (1, 9101, 2023, 12, 'CY', 2)`);
   const r = await refresh("manager");
   assert.ok(r.locked >= 1, JSON.stringify(r));
   assert.equal(num((await stored("ENERGY_TOTAL", 9101, "2023-03-01")).value_canonical), 43.2, "locked: unchanged");
-  assert.equal(num((await stored("GHG_SCOPE2_LB", 9101, "2023-01-01")).value_canonical), 7.1, "the year overlaps the closed March: unchanged too");
-  assert.equal(num((await stored("TEST5_PRODUCTION", 9101, "2023-01-01")).value_canonical), 1200, "every 2023 value of site A overlaps March");
+  assert.equal(num((await stored("GHG_SCOPE2_LB", 9101, "2023-01-01")).value_canonical), 7.1, "the year ends in the closed December: unchanged too");
+  assert.equal(num((await stored("TEST5_PRODUCTION", 9101, "2023-01-01")).value_canonical), 1200, "every 2023 value of site A ends in December");
   await q(`UPDATE kpi_period_lock SET reopened_at = now(), reopened_by = 2 WHERE company_id = 1 AND site_id = 9101`);
   await refresh("manager");
   assert.equal(num((await stored("ENERGY_TOTAL", 9101, "2023-03-01")).value_canonical), 61.2, "reopened: refreshed (36 + 18 + 7.2)");

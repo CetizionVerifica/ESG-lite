@@ -13,6 +13,7 @@ import valuesRouter from "./values/router";
 import setupRouter from "./setup/router";
 import autoRouter from "./auto/router";
 import { myRouter } from "./values/my";
+import reviewRouter from "./review/router";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use(valuesRouter); // KPI-4: /kpi/values, /kpi/values/submit, /kpi/values
 router.use(setupRouter); // KPI-3: /kpi/setup, /kpi/setup/custom-kpis
 router.use(autoRouter); // KPI-5: /kpi/auto/refresh
 router.use(myRouter); // KPI-7 (backend part): /kpi/my
+router.use(reviewRouter); // KPI-8: /kpi/values/approve|reject, /kpi/periods/lock|unlock
 
 export default router;

@@ -53,7 +53,6 @@ const one = async (who, item, query) => {
   return r.json.results[0];
 };
 const audits = (id) => withDb(async (db) => (await db.query(`SELECT action, changed_fields, changed_by FROM audit_log WHERE entity_type = 'kpi_value' AND entity_id = $1 ORDER BY id`, [id])).rows);
-const setStatus = (id, status) => withDb((db) => db.query(`UPDATE kpi_value SET status = $2, review_comment = $3 WHERE id = $1`, [id, status, status === "rejected" ? "Please split by source" : null]));
 
 let draftId;
 
@@ -193,7 +192,8 @@ test("submit: draft → pending once; pending isn't editable; the Manager sees i
 });
 
 test("a rejected value edited by its contributor becomes a draft again", async () => {
-  await setStatus(draftId, "rejected");
+  const sentBack = await call("PUT", "/kpi/values/reject", "manager", { ids: [draftId], reason: "Please split by source" });
+  assert.deepEqual(sentBack.json, { updated: [draftId], refused: [] }, "KPI-8's reject");
   const r = await one("user", water({ value_numeric: 1250, breakdown: { groundwater: 700, surface: 550 } }));
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.value.status, "draft");
@@ -236,12 +236,13 @@ test("BRSR Core needs evidence to submit; evidence add, list and remove", async 
   assert.deepEqual(ok.json, { submitted: [id], refused: [] });
 
   // Approved: the contributor can't change evidence; a Manager can, and the removal is logged.
-  await setStatus(id, "approved");
+  const approved = await call("PUT", "/kpi/values/approve", "manager", { ids: [id] });
+  assert.deepEqual(approved.json, { updated: [id], refused: [] }, "KPI-8's approve");
   assert.equal((await call("POST", `/kpi/values/${id}/evidence`, "user", { document_url: "https://x.invalid/b.pdf", document_name: "b.pdf" })).json.code, "KPI_NOT_DRAFT");
   const mgr = await call("DELETE", `/kpi/values/${id}/evidence/${up.json.evidence.id}`, "manager");
   assert.equal(mgr.status, 200, JSON.stringify(mgr.json));
   const actions = (await audits(id)).map((a) => a.action);
-  assert.deepEqual(actions, ["create", "evidence_added", "evidence_added", "evidence_removed", "submit", "evidence_removed_after_approval"]);
+  assert.deepEqual(actions, ["create", "evidence_added", "evidence_added", "evidence_removed", "submit", "approve", "evidence_removed_after_approval"]);
   assert.equal((await one("user", { kpi_code: "WASTE_GENERATED", site_id: 1, period_start: "2026-01-01", value_numeric: 1 })).code, "KPI_NOT_DRAFT", "approved isn't editable");
 
   // KPI-3: company 2 reports GRI only, so BRSR Core evidence isn't required there.

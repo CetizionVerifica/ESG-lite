@@ -29,8 +29,10 @@ import { KpiValueItemSchema, KpiValuesQuerySchema, type KpiValueItem } from "../
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { recomputeForValues } from "../formulas/recompute";
+import { storeChecks } from "../review/checks";
+import { notifySubmitted } from "../review/notify";
 import { assignmentFor, companyKpiRow, kpiSettings, setupCompleted, topicGrants } from "../setup/settings";
-import { isPeriodStart, monthRange, overlaps, periodOf, yearRange, isoDay } from "./period";
+import { isPeriodStart, monthRange, periodOf, yearRange, isoDay } from "./period";
 import { toCanonical } from "./units";
 
 type Row = Record<string, any>;
@@ -109,7 +111,13 @@ export async function assertCanWrite(m: EntityManager, caller: KpiCaller, kpi: R
 /** The calendar year of month `month` (1–12) inside reporting year `year`. */
 export const lockMonthYear = (yearType: string, year: number, month: number) => (yearType === "FY" && month >= FY_START_MONTH ? year - 1 : year);
 
-/** Whether a value's period is in an active KPI lock for its site (or every site). */
+/**
+ * Whether a value's period is in an active KPI lock for its site (or every
+ * site). A value belongs to the period its own period ENDS in (since KPI-8, as
+ * My KPIs and the emissions lock read it): a September lock covers September,
+ * Q3 and an annual value ending in September, but not an annual value that
+ * ends in December, so closing a month never freezes the rest of the year.
+ */
 export async function lockedPeriod(m: EntityManager, companyId: number, siteId: number | null, period: { start: string; end: string }): Promise<boolean> {
   const locks: Row[] = await m.query(
     `SELECT year, period, year_type FROM kpi_period_lock
@@ -118,7 +126,7 @@ export async function lockedPeriod(m: EntityManager, companyId: number, siteId: 
   );
   return locks.some((l) => {
     const range = l.period ? monthRange(lockMonthYear(l.year_type, l.year, l.period), l.period) : yearRange(l.year_type as YearType, l.year);
-    return overlaps(range, period);
+    return range.start <= period.end && period.end <= range.end;
   });
 }
 
@@ -270,6 +278,8 @@ export async function listValues(caller: KpiCaller, query: unknown) {
   if (caller.sites) add("(v.site_id IS NULL OR v.site_id = ANY(?::int[]))", [...caller.sites]);
   if (!SEES_ALL_DRAFTS.has(caller.role)) add("(v.status <> 'draft' OR v.entered_by = ?)", caller.userId);
   const rows: Row[] = await m.query(`${VALUE_SELECT} WHERE ${where.join(" AND ")} ORDER BY v.period_start, d.code, v.site_id NULLS FIRST, v.id`, params);
+  // KPI-8: a pending value submitted before the checks existed gets them now.
+  for (const r of rows) if (r.status === "pending" && r.source === "manual" && !r.checks) r.checks = await storeChecks(m, Number(r.id));
   const ev = await evidenceFor(m, rows.map((r) => Number(r.id)));
   return { values: rows.map((r) => toValueOut(r, ev.get(Number(r.id)))) };
 }
@@ -395,6 +405,7 @@ export async function submit(caller: KpiCaller, ids: number[]): Promise<{ submit
         }
         await m.query(`UPDATE kpi_value SET status = 'pending', submitted_at = now(), updated_at = now() WHERE id = $1`, [id]);
         await auditValue(m, id, "submit", { status: { old: "draft", new: "pending" } }, caller.userId);
+        await storeChecks(m, id); // KPI-8: the review checks, as the value goes to review
       });
       submitted.push(id);
     } catch (err) {
@@ -404,6 +415,8 @@ export async function submit(caller: KpiCaller, ids: number[]): Promise<{ submit
   }
   // KPI-6: submitted values are formula inputs now; their dependants recompute (never fails the submit).
   if (submitted.length) await recomputeForValues(caller.companyId, submitted);
+  // KPI-8: one kpi_submitted per reviewer for this submit (never fails it).
+  if (submitted.length) await notifySubmitted(caller.companyId, submitted, caller.userId);
   return { submitted, refused: refused.sort((a, b) => a.id - b.id) };
 }
 

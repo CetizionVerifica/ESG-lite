@@ -16,9 +16,16 @@ import { KpiError } from "../contracts/errors";
 import { KpiEvidenceLinkSchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
+import { storeChecks } from "../review/checks";
 import { assertCanWrite, auditValue, findKpi, holdKpiLease, isReviewer, loadVisibleValue } from "./service";
 
 type Row = Record<string, any>;
+
+/** KPI-8: evidence decides KPI_EVIDENCE, so a value in review gets its checks again. */
+const recheck = async (m: import("typeorm").EntityManager, valueId: number) => {
+  const [v]: Row[] = await m.query(`SELECT status, source FROM kpi_value WHERE id = $1`, [valueId]);
+  if (v?.status === "pending" && v.source === "manual") await storeChecks(m, valueId);
+};
 
 export interface UploadedFile {
   buffer: Buffer;
@@ -65,6 +72,7 @@ export async function addEvidence(caller: KpiCaller, valueId: number, file: Uplo
       [valueId, doc.url, doc.name, doc.public_id, caller.userId || null],
     );
     await auditValue(m, valueId, "evidence_added", { evidence_id: { old: null, new: rows[0].id } }, caller.userId);
+    await recheck(m, valueId);
     return out(rows[0]);
   });
 }
@@ -77,6 +85,7 @@ export async function removeEvidence(caller: KpiCaller, valueId: number, evidenc
     if (!rows.length) throw new KpiError("KPI_NOT_FOUND");
     await m.query(`DELETE FROM kpi_value_evidence WHERE id = $1 AND kpi_value_id = $2`, [evidenceId, valueId]);
     await auditValue(m, valueId, v.status === "approved" ? "evidence_removed_after_approval" : "evidence_removed", { evidence_id: { old: evidenceId, new: null } }, caller.userId);
+    await recheck(m, valueId);
     return rows[0];
   });
   if (removed.public_id) {
