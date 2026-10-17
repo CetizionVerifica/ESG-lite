@@ -1,0 +1,26 @@
+[
+  {
+    "code": "GRI",
+    "version": "GRI 2021+",
+    "name": "GRI Standards (Universal Standards 2021 and topic standards in force)",
+    "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
+    "active": true,
+    "default_for_new": true
+  },
+  {
+    "code": "BRSR",
+    "version": "BRSR 2023",
+    "name": "Business Responsibility and Sustainability Report, SEBI format with BRSR Core",
+    "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+    "active": true,
+    "default_for_new": true
+  },
+  {
+    "code": "ESRS",
+    "version": "ESRS 2023",
+    "name": "European Sustainability Reporting Standards, set 1 (Delegated Regulation (EU) 2023/2772)",
+    "source_url": "https://eur-lex.europa.eu/eli/reg_del/2023/2772/oj",
+    "active": true,
+    "default_for_new": true
+  }
+]

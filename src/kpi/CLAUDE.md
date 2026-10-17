@@ -57,3 +57,10 @@ Entities: `src/entities/Kpi*.ts`. Migrations: `src/scripts/migrateKpi<Thing>.ts`
 - `src/kpi/http.ts`: `handle` (KpiError → `{code, message, details}`), `parse` (zod → `KPI_VALIDATION`).
 - In `router.ts`, `/status` and the library routes come before `router.use(requireKpiTracking)`. Unknown paths under `/kpi` answer `KPI_TRACKING_OFF` when off.
 - `setup_completed` is always false until KPI-3 (`kpiSetupCompleted`, TODO(KPI-3)).
+
+## KPI-2 as built
+- Tables `kpi_framework`, `kpi_definition`, `kpi_disclosure`, `kpi_disclosure_map` (migrate:kpi-library, `src/scripts/migrateKpiLibrary.ts`). Extra columns beyond 01-contracts §2: `edited_at` on all four (set by every Superadmin write; a re-seed never overwrites such a row), `kpi_disclosure.verified`, `kpi_framework.created_at`. KPI codes are unique per owner through the expression index `UQ_kpi_definition_owner_code` on `(COALESCE(company_id, 0), code)`.
+- Seeds in `data/kpi/` (frameworks.json, definitions.json, disclosures/<FW>-<version>.json, mappings.json), loaded by migrate:kpi-library-seed (`src/scripts/seedKpiLibrary.ts` → `src/kpi/library/seed.ts`): refuses a seed with integrity problems, adds missing rows, refreshes rows with `edited_at` null, keeps edited rows, never deletes. 58 KPIs, 64 disclosures (GRI 26, BRSR 23, ESRS 15, all verified against the official sources on 2026-10-17), 128 mappings.
+- Routes (`src/kpi/library/router.ts`): `/kpi/library/{frameworks,definitions,disclosures,mappings}` GET/POST/PUT `:id`, `GET /kpi/library/definitions/:id`, `GET /kpi/library/coverage` — Superadmin only (403 `KPI_FORBIDDEN`), before the switch. `GET /kpi/catalogue` behind it. Responses are wrapped: `{frameworks}`, `{definition}`, … No DELETE: retire with `active:false`.
+- Formula check before KPI-6: `library/formulaRefs.ts` (allowed characters, known codes, no cycles). TODO(KPI-6): the real parser.
+- The catalogue shows every active framework version until KPI-3 adds `company_framework` (TODO(KPI-3)).

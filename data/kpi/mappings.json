@@ -1,0 +1,1282 @@
+[
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-7",
+    "kpi": "EMPLOYEES_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-7",
+    "kpi": "EMPLOYEES_PERMANENT",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-7",
+    "kpi": "EMPLOYEES_TEMPORARY",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-8",
+    "kpi": "WORKERS_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-21",
+    "kpi": "PAY_RATIO_TOP_MEDIAN",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": "GRI uses the median of all employees excluding the highest-paid person; check your median follows the same rule."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-26",
+    "kpi": "COMPLAINTS_RECEIVED",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": "GRI 2-26 describes the mechanisms; the count supports it."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "302-1",
+    "kpi": "ENERGY_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "GJ",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "302-1",
+    "kpi": "ENERGY_RENEWABLE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "GJ",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "302-1",
+    "kpi": "ENERGY_NON_RENEWABLE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "GJ",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "302-3",
+    "kpi": "ENERGY_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "GJ per INR crore",
+    "note": "GRI lets you choose the denominator; ours is revenue."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "303-3",
+    "kpi": "WATER_WITHDRAWAL",
+    "fit": "exact",
+    "breakdown_key": "source",
+    "display_unit": "ML",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "303-4",
+    "kpi": "WATER_DISCHARGE",
+    "fit": "exact",
+    "breakdown_key": "destination",
+    "display_unit": "ML",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "303-5",
+    "kpi": "WATER_CONSUMPTION",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "ML",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-1",
+    "kpi": "GHG_SCOPE1",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-2",
+    "kpi": "GHG_SCOPE2_LB",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-2",
+    "kpi": "GHG_SCOPE2_MB",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-3",
+    "kpi": "GHG_SCOPE3",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-4",
+    "kpi": "GHG_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "tCO2e per INR crore",
+    "note": "GRI lets you choose the denominator and scopes; ours is Scope 1 and 2 location-based per revenue."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-7",
+    "kpi": "AIR_NOX",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-7",
+    "kpi": "AIR_SOX",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "305-7",
+    "kpi": "AIR_PM",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "306-3",
+    "kpi": "WASTE_GENERATED",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "306-3",
+    "kpi": "WASTE_HAZARDOUS",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "306-4",
+    "kpi": "WASTE_DIVERTED",
+    "fit": "exact",
+    "breakdown_key": "operation",
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "306-5",
+    "kpi": "WASTE_DISPOSED",
+    "fit": "exact",
+    "breakdown_key": "operation",
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "401-1",
+    "kpi": "NEW_HIRES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "401-1",
+    "kpi": "EMPLOYEES_LEFT",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "401-1",
+    "kpi": "EMPLOYEE_TURNOVER_RATE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "401-3",
+    "kpi": "PARENTAL_LEAVE_RETURN_RATE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "403-9",
+    "kpi": "FATALITIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "403-9",
+    "kpi": "HIGH_CONSEQUENCE_INJURIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "403-9",
+    "kpi": "RECORDABLE_INJURIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "403-9",
+    "kpi": "HOURS_WORKED",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "403-9",
+    "kpi": "LTIFR",
+    "fit": "derived",
+    "breakdown_key": null,
+    "display_unit": "per million hours",
+    "note": "GRI asks for the rate of recordable injuries; the lost-time rate is reported alongside it."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "403-10",
+    "kpi": "DAYS_LOST",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "days",
+    "note": "GRI 403-10 asks for cases of ill health; days lost support it."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "404-1",
+    "kpi": "TRAINING_HOURS_AVG",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "hours per employee",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "404-3",
+    "kpi": "PERFORMANCE_REVIEW_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "405-1",
+    "kpi": "WOMEN_ON_BOARD",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "405-1",
+    "kpi": "WOMEN_IN_WORKFORCE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "405-1",
+    "kpi": "EMPLOYEES_BY_AGE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "405-2",
+    "kpi": "GENDER_PAY_GAP",
+    "fit": "derived",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "GRI asks for the ratio of women's to men's pay; the gap is 100 % minus that ratio."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "406-1",
+    "kpi": "COMPLAINTS_RECEIVED",
+    "fit": "partial",
+    "breakdown_key": "type",
+    "display_unit": null,
+    "note": "Only the discrimination part of the breakdown answers 406-1."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-20a",
+    "kpi": "EMPLOYEES_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-20a",
+    "kpi": "EMPLOYEES_PERMANENT",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-20a",
+    "kpi": "EMPLOYEES_TEMPORARY",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-20a",
+    "kpi": "WORKERS_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-20b",
+    "kpi": "EMPLOYEES_DIFFERENTLY_ABLED",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-21",
+    "kpi": "WOMEN_ON_BOARD",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-21",
+    "kpi": "WOMEN_IN_MANAGEMENT",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "A-22",
+    "kpi": "EMPLOYEE_TURNOVER_RATE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E1c",
+    "kpi": "WELLBEING_SPEND_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E5",
+    "kpi": "PARENTAL_LEAVE_RETURN_RATE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E8",
+    "kpi": "EMPLOYEES_TRAINED_HS_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E9",
+    "kpi": "PERFORMANCE_REVIEW_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E11",
+    "kpi": "LTIFR",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "per million hours",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E11",
+    "kpi": "RECORDABLE_INJURIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E11",
+    "kpi": "FATALITIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E11",
+    "kpi": "HIGH_CONSEQUENCE_INJURIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P3-E13",
+    "kpi": "SAFETY_COMPLAINTS",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P5-E1",
+    "kpi": "EMPLOYEES_TRAINED_HR_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P5-E2",
+    "kpi": "MIN_WAGE_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P5-E3a",
+    "kpi": "MEDIAN_REMUNERATION",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "INR",
+    "note": "BRSR asks for medians of directors, key managerial personnel, employees and workers separately; this is the employees' median."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P5-E3b",
+    "kpi": "FEMALE_WAGES_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P5-E6",
+    "kpi": "COMPLAINTS_RECEIVED",
+    "fit": "exact",
+    "breakdown_key": "type",
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P5-E6",
+    "kpi": "COMPLAINTS_RESOLVED",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P5-E7",
+    "kpi": "POSH_COMPLAINTS",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E1",
+    "kpi": "ENERGY_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "GJ",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E1",
+    "kpi": "ENERGY_RENEWABLE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "GJ",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E1",
+    "kpi": "ENERGY_NON_RENEWABLE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "GJ",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E1",
+    "kpi": "ENERGY_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "GJ per INR crore",
+    "note": "BRSR asks for intensity per rupee of turnover; convert from per crore."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E3",
+    "kpi": "WATER_WITHDRAWAL",
+    "fit": "exact",
+    "breakdown_key": "source",
+    "display_unit": "kL",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E3",
+    "kpi": "WATER_CONSUMPTION",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "kL",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E3",
+    "kpi": "WATER_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "kL per INR crore",
+    "note": "BRSR asks for intensity per rupee of turnover; convert from per crore."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E4",
+    "kpi": "WATER_DISCHARGE",
+    "fit": "exact",
+    "breakdown_key": "destination",
+    "display_unit": "kL",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E6",
+    "kpi": "AIR_NOX",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E6",
+    "kpi": "AIR_SOX",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E6",
+    "kpi": "AIR_PM",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E7",
+    "kpi": "GHG_SCOPE1",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E7",
+    "kpi": "GHG_SCOPE2_LB",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E7",
+    "kpi": "GHG_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "tCO2e per INR crore",
+    "note": "BRSR asks for intensity per rupee of turnover; convert from per crore."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E9",
+    "kpi": "WASTE_GENERATED",
+    "fit": "exact",
+    "breakdown_key": "type",
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E9",
+    "kpi": "WASTE_DIVERTED",
+    "fit": "exact",
+    "breakdown_key": "operation",
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E9",
+    "kpi": "WASTE_DISPOSED",
+    "fit": "exact",
+    "breakdown_key": "operation",
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-E9",
+    "kpi": "WASTE_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "tonne per INR crore",
+    "note": "BRSR asks for intensity per rupee of turnover; convert from per crore."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P6-L2",
+    "kpi": "GHG_SCOPE3",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "GOV-1",
+    "kpi": "WOMEN_ON_BOARD",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "ESRS 2 asks for the ratio of women to men on the board; convert from the share."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-5",
+    "kpi": "ENERGY_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "MWh",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-5",
+    "kpi": "ENERGY_RENEWABLE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "MWh",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-5",
+    "kpi": "ENERGY_NON_RENEWABLE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "MWh",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-5",
+    "kpi": "ENERGY_RENEWABLE_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-5",
+    "kpi": "ENERGY_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "MWh per EUR million",
+    "note": "ESRS asks for energy intensity per net revenue (high climate impact sectors); convert units and currency."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-6",
+    "kpi": "GHG_SCOPE1",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-6",
+    "kpi": "GHG_SCOPE2_LB",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-6",
+    "kpi": "GHG_SCOPE2_MB",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-6",
+    "kpi": "GHG_SCOPE3",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tCO2e",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E1-6",
+    "kpi": "GHG_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "tCO2e per EUR million",
+    "note": "ESRS asks for total GHG (Scope 1, 2 and 3) per net revenue; ours covers Scope 1 and 2."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E2-4",
+    "kpi": "AIR_NOX",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "kg",
+    "note": "ESRS reports only pollutants above the E-PRTR thresholds, in kg."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E2-4",
+    "kpi": "AIR_SOX",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "kg",
+    "note": "ESRS reports only pollutants above the E-PRTR thresholds, in kg."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E2-4",
+    "kpi": "AIR_PM",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "kg",
+    "note": "ESRS reports only pollutants above the E-PRTR thresholds, in kg."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E3-4",
+    "kpi": "WATER_CONSUMPTION",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "m3",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E3-4",
+    "kpi": "WATER_RECYCLED",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "m3",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E3-4",
+    "kpi": "WATER_WITHDRAWAL",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "m3",
+    "note": "ESRS E3-4 centres on consumption; withdrawal supports the calculation."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E3-4",
+    "kpi": "WATER_DISCHARGE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "m3",
+    "note": "ESRS E3-4 centres on consumption; discharge supports the calculation."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E3-4",
+    "kpi": "WATER_INTENSITY_REVENUE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "m3 per EUR million",
+    "note": "ESRS asks for water intensity per net revenue; convert units and currency."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E5-5",
+    "kpi": "WASTE_GENERATED",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E5-5",
+    "kpi": "WASTE_HAZARDOUS",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E5-5",
+    "kpi": "WASTE_DIVERTED",
+    "fit": "exact",
+    "breakdown_key": "operation",
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "E5-5",
+    "kpi": "WASTE_DISPOSED",
+    "fit": "exact",
+    "breakdown_key": "operation",
+    "display_unit": "tonne",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-6",
+    "kpi": "EMPLOYEES_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-6",
+    "kpi": "EMPLOYEES_PERMANENT",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-6",
+    "kpi": "EMPLOYEES_TEMPORARY",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-6",
+    "kpi": "EMPLOYEES_LEFT",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-6",
+    "kpi": "EMPLOYEE_TURNOVER_RATE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-7",
+    "kpi": "WORKERS_TOTAL",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-9",
+    "kpi": "WOMEN_IN_MANAGEMENT",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-9",
+    "kpi": "EMPLOYEES_BY_AGE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-10",
+    "kpi": "MIN_WAGE_SHARE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "ESRS asks whether all employees are paid an adequate wage, which can be above the legal minimum."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-13",
+    "kpi": "TRAINING_HOURS_AVG",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "hours per employee",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-13",
+    "kpi": "PERFORMANCE_REVIEW_SHARE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-14",
+    "kpi": "FATALITIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-14",
+    "kpi": "RECORDABLE_INJURIES",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-14",
+    "kpi": "DAYS_LOST",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-14",
+    "kpi": "LTIFR",
+    "fit": "derived",
+    "breakdown_key": null,
+    "display_unit": "per million hours",
+    "note": "ESRS asks for the rate of recordable accidents per million hours; the lost-time rate is reported alongside it."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-14",
+    "kpi": "HOURS_WORKED",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-15",
+    "kpi": "PARENTAL_LEAVE_RETURN_RATE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "ESRS asks for the share of employees entitled to and taking family leave."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-16",
+    "kpi": "GENDER_PAY_GAP",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-16",
+    "kpi": "PAY_RATIO_TOP_MEDIAN",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "ratio",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "S1-17",
+    "kpi": "COMPLAINTS_RECEIVED",
+    "fit": "exact",
+    "breakdown_key": "type",
+    "display_unit": null,
+    "note": null
+  }
+]

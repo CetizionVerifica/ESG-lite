@@ -39,6 +39,11 @@ import { Scope3ScreeningInput } from "../entities/Scope3ScreeningInput";
 import { FxRate } from "../entities/FxRate";
 import { PriceDeflator } from "../entities/PriceDeflator";
 import { CompanyBaseYear } from "../entities/CompanyBaseYear"; // S3-14
+// KPI-2: the KPI library
+import { KpiFramework } from "../entities/KpiFramework";
+import { KpiDefinition } from "../entities/KpiDefinition";
+import { KpiDisclosure } from "../entities/KpiDisclosure";
+import { KpiDisclosureMap } from "../entities/KpiDisclosureMap";
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -102,6 +107,11 @@ const entities = [
     SupplierFacilityData,
     PeriodLock, // S3-15
     NothingThisMonth, // S3-15
+    // KPI-2
+    KpiFramework,
+    KpiDefinition,
+    KpiDisclosure,
+    KpiDisclosureMap,
 ];
 
 // Parse DATABASE_URL to extract connection parameters

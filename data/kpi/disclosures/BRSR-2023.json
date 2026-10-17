@@ -1,0 +1,236 @@
+{
+  "framework": "BRSR",
+  "version": "BRSR 2023",
+  "disclosures": [
+    {
+      "code": "A-20a",
+      "title": "Employees and workers at year end, by gender",
+      "section": "Section A · Employees",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 10,
+      "verified": true
+    },
+    {
+      "code": "A-20b",
+      "title": "Employees and workers with disabilities, by gender",
+      "section": "Section A · Employees",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 20,
+      "verified": true
+    },
+    {
+      "code": "A-21",
+      "title": "Women on the board and in key managerial roles",
+      "section": "Section A · Employees",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 30,
+      "verified": true
+    },
+    {
+      "code": "A-22",
+      "title": "Turnover rate of permanent employees and workers",
+      "section": "Section A · Employees",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 40,
+      "verified": true
+    },
+    {
+      "code": "P3-E1c",
+      "title": "Spending on employee and worker well-being as a share of revenue",
+      "section": "Principle 3 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 50,
+      "verified": true
+    },
+    {
+      "code": "P3-E5",
+      "title": "Return to work and retention after parental leave",
+      "section": "Principle 3 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 60,
+      "verified": true
+    },
+    {
+      "code": "P3-E8",
+      "title": "Training on health and safety and skill upgrades",
+      "section": "Principle 3 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 70,
+      "verified": true
+    },
+    {
+      "code": "P3-E9",
+      "title": "Performance and career development reviews",
+      "section": "Principle 3 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 80,
+      "verified": true
+    },
+    {
+      "code": "P3-E11",
+      "title": "Safety incidents: LTIFR, recordable injuries, high-consequence injuries, fatalities",
+      "section": "Principle 3 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 90,
+      "verified": true
+    },
+    {
+      "code": "P3-E13",
+      "title": "Complaints on working conditions and health and safety",
+      "section": "Principle 3 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 100,
+      "verified": true
+    },
+    {
+      "code": "P5-E1",
+      "title": "Employees and workers trained on human rights",
+      "section": "Principle 5 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 110,
+      "verified": true
+    },
+    {
+      "code": "P5-E2",
+      "title": "Minimum wages paid to employees and workers",
+      "section": "Principle 5 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 120,
+      "verified": true
+    },
+    {
+      "code": "P5-E3a",
+      "title": "Median pay of directors, key managerial personnel, employees and workers",
+      "section": "Principle 5 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 130,
+      "verified": true
+    },
+    {
+      "code": "P5-E3b",
+      "title": "Gross wages paid to women as a share of total wages",
+      "section": "Principle 5 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 140,
+      "verified": true
+    },
+    {
+      "code": "P5-E6",
+      "title": "Complaints on harassment, discrimination, child and forced labour, wages and other human rights",
+      "section": "Principle 5 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 150,
+      "verified": true
+    },
+    {
+      "code": "P5-E7",
+      "title": "Sexual harassment complaints under the POSH Act",
+      "section": "Principle 5 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 160,
+      "verified": true
+    },
+    {
+      "code": "P6-E1",
+      "title": "Energy consumed (renewable and non-renewable) and energy intensity",
+      "section": "Principle 6 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 170,
+      "verified": true
+    },
+    {
+      "code": "P6-E3",
+      "title": "Water withdrawn by source, water consumed and water intensity",
+      "section": "Principle 6 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 180,
+      "verified": true
+    },
+    {
+      "code": "P6-E4",
+      "title": "Water discharged by destination and treatment level",
+      "section": "Principle 6 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 190,
+      "verified": true
+    },
+    {
+      "code": "P6-E6",
+      "title": "Air emissions other than GHG (NOx, SOx, PM and others)",
+      "section": "Principle 6 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 200,
+      "verified": true
+    },
+    {
+      "code": "P6-E7",
+      "title": "Scope 1 and Scope 2 GHG emissions and intensity",
+      "section": "Principle 6 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 210,
+      "verified": true
+    },
+    {
+      "code": "P6-E9",
+      "title": "Waste generated, recovered and disposed, and waste intensity",
+      "section": "Principle 6 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 220,
+      "verified": true
+    },
+    {
+      "code": "P6-L2",
+      "title": "Scope 3 emissions and intensity",
+      "section": "Principle 6 · Leadership",
+      "requirement": "voluntary",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 230,
+      "verified": true
+    }
+  ]
+}

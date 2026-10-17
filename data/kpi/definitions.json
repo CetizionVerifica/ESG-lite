@@ -1,0 +1,1391 @@
+[
+  {
+    "code": "GHG_SCOPE1",
+    "name": "Scope 1 emissions",
+    "question": "What were the site's direct (Scope 1) greenhouse gas emissions?",
+    "help": "Filled from approved emission rows: fuel burnt on site, company vehicles, process and fugitive emissions.",
+    "topic": "climate",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tCO2e",
+    "allowed_units": [
+      "tCO2e",
+      "kgCO2e"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "auto",
+    "auto_source": "ghg_scope1",
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "GHG_SCOPE2_LB",
+    "name": "Scope 2 emissions (location-based)",
+    "question": "What were the site's indirect emissions from purchased energy, using grid-average factors?",
+    "help": "Filled from approved electricity, heat and steam rows with location-based factors.",
+    "topic": "climate",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tCO2e",
+    "allowed_units": [
+      "tCO2e",
+      "kgCO2e"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "auto",
+    "auto_source": "ghg_scope2_location",
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "GHG_SCOPE2_MB",
+    "name": "Scope 2 emissions (market-based)",
+    "question": "What were the site's indirect emissions from purchased energy, using supplier and contract factors?",
+    "help": "Filled from approved electricity, heat and steam rows with market-based factors (green tariffs, certificates).",
+    "topic": "climate",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tCO2e",
+    "allowed_units": [
+      "tCO2e",
+      "kgCO2e"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "auto",
+    "auto_source": "ghg_scope2_market",
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "GHG_SCOPE3",
+    "name": "Scope 3 emissions",
+    "question": "What were the value-chain (Scope 3) emissions?",
+    "help": "Filled from approved Scope 3 rows across the categories in the company's boundary.",
+    "topic": "climate",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tCO2e",
+    "allowed_units": [
+      "tCO2e",
+      "kgCO2e"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "auto",
+    "auto_source": "ghg_scope3_total",
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "GHG_INTENSITY_REVENUE",
+    "name": "GHG intensity per revenue",
+    "question": "How much Scope 1 and 2 emissions did the company emit per crore of revenue?",
+    "help": "Calculated: (Scope 1 + Scope 2 location-based) divided by revenue.",
+    "topic": "climate",
+    "value_type": "number",
+    "unit_dimension": "none",
+    "canonical_unit": "tCO2e per INR crore",
+    "allowed_units": [
+      "tCO2e per INR crore"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "formula",
+    "auto_source": null,
+    "formula": "(GHG_SCOPE1 + GHG_SCOPE2_LB) / REVENUE",
+    "breakdowns": null,
+    "decimals": 4
+  },
+  {
+    "code": "ENERGY_TOTAL",
+    "name": "Energy consumed",
+    "question": "How much energy did the site use in total?",
+    "help": "Filled from approved fuel and electricity rows: fuels burnt, electricity, heat, steam and cooling bought, and self-generated renewable energy used.",
+    "topic": "energy",
+    "value_type": "number",
+    "unit_dimension": "energy",
+    "canonical_unit": "GJ",
+    "allowed_units": [
+      "GJ",
+      "MJ",
+      "kWh",
+      "MWh",
+      "GWh",
+      "TJ"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "auto",
+    "auto_source": "energy_total",
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "ENERGY_RENEWABLE",
+    "name": "Renewable energy consumed",
+    "question": "How much of the site's energy came from renewable sources?",
+    "help": "Filled from approved rows for renewable electricity (own solar, green tariffs, certificates) and renewable fuels such as biomass.",
+    "topic": "energy",
+    "value_type": "number",
+    "unit_dimension": "energy",
+    "canonical_unit": "GJ",
+    "allowed_units": [
+      "GJ",
+      "MJ",
+      "kWh",
+      "MWh",
+      "GWh",
+      "TJ"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "auto",
+    "auto_source": "energy_renewable",
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "ENERGY_NON_RENEWABLE",
+    "name": "Non-renewable energy consumed",
+    "question": "How much of the site's energy came from fossil or other non-renewable sources?",
+    "help": "Filled from approved rows for fossil fuels and grid electricity that isn't backed by renewable certificates.",
+    "topic": "energy",
+    "value_type": "number",
+    "unit_dimension": "energy",
+    "canonical_unit": "GJ",
+    "allowed_units": [
+      "GJ",
+      "MJ",
+      "kWh",
+      "MWh",
+      "GWh",
+      "TJ"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "auto",
+    "auto_source": "energy_non_renewable",
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "ENERGY_INTENSITY_REVENUE",
+    "name": "Energy intensity per revenue",
+    "question": "How much energy did the company use per crore of revenue?",
+    "help": "Calculated: total energy consumed divided by revenue.",
+    "topic": "energy",
+    "value_type": "number",
+    "unit_dimension": "none",
+    "canonical_unit": "GJ per INR crore",
+    "allowed_units": [
+      "GJ per INR crore"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "formula",
+    "auto_source": null,
+    "formula": "ENERGY_TOTAL / REVENUE",
+    "breakdowns": null,
+    "decimals": 4
+  },
+  {
+    "code": "ENERGY_RENEWABLE_SHARE",
+    "name": "Share of renewable energy",
+    "question": "What share of the energy used came from renewable sources?",
+    "help": "Calculated: renewable energy divided by total energy, as a percentage.",
+    "topic": "energy",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "formula",
+    "auto_source": null,
+    "formula": "ENERGY_RENEWABLE / ENERGY_TOTAL * 100",
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "WATER_WITHDRAWAL",
+    "name": "Water withdrawn",
+    "question": "How much water did the site take in?",
+    "help": "What counts: municipal supply, borewells, rivers or lakes, tankers, rainwater stored and used. Not: water recycled on site.",
+    "topic": "water",
+    "value_type": "number",
+    "unit_dimension": "volume",
+    "canonical_unit": "kL",
+    "allowed_units": [
+      "kL",
+      "m3",
+      "litre",
+      "ML"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "source"
+      ],
+      "values": [
+        "surface",
+        "groundwater",
+        "seawater",
+        "third_party",
+        "produced"
+      ]
+    },
+    "decimals": 2
+  },
+  {
+    "code": "WATER_DISCHARGE",
+    "name": "Water discharged",
+    "question": "How much water left the site as effluent or discharge?",
+    "help": "What counts: treated or untreated water sent to sewers, rivers, the sea, groundwater or another company. Not: water that evaporated or went into products.",
+    "topic": "water",
+    "value_type": "number",
+    "unit_dimension": "volume",
+    "canonical_unit": "kL",
+    "allowed_units": [
+      "kL",
+      "m3",
+      "litre",
+      "ML"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "destination"
+      ],
+      "values": [
+        "surface",
+        "groundwater",
+        "seawater",
+        "third_party"
+      ]
+    },
+    "decimals": 2
+  },
+  {
+    "code": "WATER_CONSUMPTION",
+    "name": "Water consumed",
+    "question": "How much water did the site use up (withdrawn minus discharged)?",
+    "help": "Calculated: water withdrawn minus water discharged.",
+    "topic": "water",
+    "value_type": "number",
+    "unit_dimension": "volume",
+    "canonical_unit": "kL",
+    "allowed_units": [
+      "kL",
+      "m3",
+      "litre",
+      "ML"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "formula",
+    "auto_source": null,
+    "formula": "WATER_WITHDRAWAL - WATER_DISCHARGE",
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "WATER_INTENSITY_REVENUE",
+    "name": "Water intensity per revenue",
+    "question": "How much water did the company consume per crore of revenue?",
+    "help": "Calculated: water consumed divided by revenue.",
+    "topic": "water",
+    "value_type": "number",
+    "unit_dimension": "none",
+    "canonical_unit": "kL per INR crore",
+    "allowed_units": [
+      "kL per INR crore"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "formula",
+    "auto_source": null,
+    "formula": "WATER_CONSUMPTION / REVENUE",
+    "breakdowns": null,
+    "decimals": 4
+  },
+  {
+    "code": "WATER_RECYCLED",
+    "name": "Water recycled and reused",
+    "question": "How much water did the site treat and use again?",
+    "help": "What counts: water reused in processes, cooling or gardening after on-site treatment.",
+    "topic": "water",
+    "value_type": "number",
+    "unit_dimension": "volume",
+    "canonical_unit": "kL",
+    "allowed_units": [
+      "kL",
+      "m3",
+      "litre",
+      "ML"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "WASTE_GENERATED",
+    "name": "Waste generated",
+    "question": "How much waste did the site produce?",
+    "help": "What counts: all solid and liquid waste leaving the site, hazardous and non-hazardous. Split it by type when asked for BRSR.",
+    "topic": "waste",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tonne",
+    "allowed_units": [
+      "tonne",
+      "kg"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "type"
+      ],
+      "values": [
+        "plastic",
+        "e_waste",
+        "bio_medical",
+        "construction",
+        "battery",
+        "radioactive",
+        "other_hazardous",
+        "other_non_hazardous"
+      ]
+    },
+    "decimals": 2
+  },
+  {
+    "code": "WASTE_HAZARDOUS",
+    "name": "Hazardous waste generated",
+    "question": "How much of the site's waste was hazardous?",
+    "help": "What counts: waste classed as hazardous under local law, such as used oil, chemicals, e-waste and bio-medical waste.",
+    "topic": "waste",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tonne",
+    "allowed_units": [
+      "tonne",
+      "kg"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "WASTE_DIVERTED",
+    "name": "Waste recovered",
+    "question": "How much waste was sent for recycling, reuse or other recovery?",
+    "help": "What counts: waste recycled, prepared for reuse or otherwise recovered, by you or a contractor.",
+    "topic": "waste",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tonne",
+    "allowed_units": [
+      "tonne",
+      "kg"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "operation"
+      ],
+      "values": [
+        "recycling",
+        "reuse",
+        "other_recovery"
+      ]
+    },
+    "decimals": 2
+  },
+  {
+    "code": "WASTE_DISPOSED",
+    "name": "Waste disposed",
+    "question": "How much waste was incinerated, landfilled or otherwise disposed of?",
+    "help": "What counts: waste incinerated (with or without energy recovery), sent to landfill or otherwise disposed of.",
+    "topic": "waste",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tonne",
+    "allowed_units": [
+      "tonne",
+      "kg"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "operation"
+      ],
+      "values": [
+        "incineration",
+        "landfill",
+        "other_disposal"
+      ]
+    },
+    "decimals": 2
+  },
+  {
+    "code": "WASTE_INTENSITY_REVENUE",
+    "name": "Waste intensity per revenue",
+    "question": "How much waste did the company generate per crore of revenue?",
+    "help": "Calculated: waste generated divided by revenue.",
+    "topic": "waste",
+    "value_type": "number",
+    "unit_dimension": "none",
+    "canonical_unit": "tonne per INR crore",
+    "allowed_units": [
+      "tonne per INR crore"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "formula",
+    "auto_source": null,
+    "formula": "WASTE_GENERATED / REVENUE",
+    "breakdowns": null,
+    "decimals": 4
+  },
+  {
+    "code": "AIR_NOX",
+    "name": "NOx emissions",
+    "question": "How many tonnes of nitrogen oxides (NOx) did the site emit to air?",
+    "help": "From stack monitoring or calculations in your consent-to-operate reports.",
+    "topic": "pollution",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tonne",
+    "allowed_units": [
+      "tonne",
+      "kg"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 3
+  },
+  {
+    "code": "AIR_SOX",
+    "name": "SOx emissions",
+    "question": "How many tonnes of sulphur oxides (SOx) did the site emit to air?",
+    "help": "From stack monitoring or calculations in your consent-to-operate reports.",
+    "topic": "pollution",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tonne",
+    "allowed_units": [
+      "tonne",
+      "kg"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 3
+  },
+  {
+    "code": "AIR_PM",
+    "name": "Particulate matter emissions",
+    "question": "How many tonnes of particulate matter (PM) did the site emit to air?",
+    "help": "From stack monitoring or calculations in your consent-to-operate reports.",
+    "topic": "pollution",
+    "value_type": "number",
+    "unit_dimension": "mass",
+    "canonical_unit": "tonne",
+    "allowed_units": [
+      "tonne",
+      "kg"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 3
+  },
+  {
+    "code": "REVENUE",
+    "name": "Revenue",
+    "question": "What was the company's revenue from operations for the year?",
+    "help": "Use the audited figure from the financial statements (revenue from operations). Used to work out intensities.",
+    "topic": "governance",
+    "value_type": "currency",
+    "unit_dimension": "currency",
+    "canonical_unit": "INR crore",
+    "allowed_units": [
+      "INR crore",
+      "INR lakh",
+      "INR",
+      "INR million"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "HOURS_WORKED",
+    "name": "Hours worked",
+    "question": "How many hours did employees and workers work at the site?",
+    "help": "Total person-hours worked, including overtime. Used to work out injury rates.",
+    "topic": "health_safety",
+    "value_type": "number",
+    "unit_dimension": "time",
+    "canonical_unit": "hours",
+    "allowed_units": [
+      "hours"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "EMPLOYEES_TOTAL",
+    "name": "Employees",
+    "question": "How many employees did the company have at the end of the year?",
+    "help": "Headcount at year end, everyone on the payroll. Split by gender.",
+    "topic": "workforce",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "latest",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "gender"
+      ],
+      "values": [
+        "male",
+        "female",
+        "other_gender"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "EMPLOYEES_PERMANENT",
+    "name": "Permanent employees",
+    "question": "How many permanent employees did the company have at the end of the year?",
+    "help": "Headcount at year end of employees on permanent contracts. Split by gender.",
+    "topic": "workforce",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "latest",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "gender"
+      ],
+      "values": [
+        "male",
+        "female",
+        "other_gender"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "EMPLOYEES_TEMPORARY",
+    "name": "Temporary employees",
+    "question": "How many employees on fixed-term or temporary contracts did the company have at the end of the year?",
+    "help": "Headcount at year end of employees who are not permanent. Split by gender.",
+    "topic": "workforce",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "latest",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "gender"
+      ],
+      "values": [
+        "male",
+        "female",
+        "other_gender"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "WORKERS_TOTAL",
+    "name": "Workers who are not employees",
+    "question": "How many workers who aren't employees (contract labour, agency staff) worked for the company at the end of the year?",
+    "help": "Headcount at year end of people whose work you control but who are employed by someone else.",
+    "topic": "workforce",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "latest",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "gender"
+      ],
+      "values": [
+        "male",
+        "female",
+        "other_gender"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "EMPLOYEES_DIFFERENTLY_ABLED",
+    "name": "Employees with disabilities",
+    "question": "How many employees with disabilities did the company have at the end of the year?",
+    "help": "Headcount at year end of employees with a disability, as recorded under local law.",
+    "topic": "diversity",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "latest",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "NEW_HIRES",
+    "name": "New hires",
+    "question": "How many new employees joined during the year?",
+    "help": "Everyone who joined the payroll during the year. Split by gender.",
+    "topic": "workforce",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "gender"
+      ],
+      "values": [
+        "male",
+        "female",
+        "other_gender"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "EMPLOYEES_LEFT",
+    "name": "Employees who left",
+    "question": "How many employees left during the year?",
+    "help": "Everyone who left for any reason: resignation, dismissal, retirement or death.",
+    "topic": "workforce",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "gender"
+      ],
+      "values": [
+        "male",
+        "female",
+        "other_gender"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "EMPLOYEE_TURNOVER_RATE",
+    "name": "Employee turnover rate",
+    "question": "What share of permanent employees left during the year?",
+    "help": "Employees who left divided by the average number of permanent employees, as a percentage.",
+    "topic": "workforce",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "PARENTAL_LEAVE_RETURN_RATE",
+    "name": "Return to work after parental leave",
+    "question": "What share of employees who took parental leave came back to work?",
+    "help": "Employees who returned after their leave ended divided by those due to return, as a percentage.",
+    "topic": "workforce",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "WELLBEING_SPEND_SHARE",
+    "name": "Spending on employee well-being",
+    "question": "How much did the company spend on employee and worker well-being, as a share of revenue?",
+    "help": "Health and accident insurance, maternity and paternity benefits, day care and similar measures, divided by revenue.",
+    "topic": "workforce",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 3
+  },
+  {
+    "code": "LOST_TIME_INJURIES",
+    "name": "Lost-time injuries",
+    "question": "How many work injuries at the site led to time off work?",
+    "help": "Count each injury where the person couldn't work the next scheduled shift.",
+    "topic": "health_safety",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "LTIFR",
+    "name": "Lost-time injury frequency rate",
+    "question": "What was the site's lost-time injury frequency rate (per million hours worked)?",
+    "help": "Lost-time injuries times one million, divided by hours worked.",
+    "topic": "health_safety",
+    "value_type": "number",
+    "unit_dimension": "ratio",
+    "canonical_unit": "per million hours",
+    "allowed_units": [
+      "per million hours",
+      "per 200000 hours"
+    ],
+    "aggregation": "weighted_average",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 2
+  },
+  {
+    "code": "RECORDABLE_INJURIES",
+    "name": "Recordable work-related injuries",
+    "question": "How many recordable work-related injuries happened at the site?",
+    "help": "Injuries needing more than first aid: medical treatment, restricted work, time off, or worse.",
+    "topic": "health_safety",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "HIGH_CONSEQUENCE_INJURIES",
+    "name": "High-consequence injuries",
+    "question": "How many work injuries at the site were so serious the person couldn't fully recover within six months?",
+    "help": "Life-changing injuries, not counting deaths.",
+    "topic": "health_safety",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "FATALITIES",
+    "name": "Fatalities",
+    "question": "How many people died as a result of work-related injury or ill health at the site?",
+    "help": "Count employees and workers who aren't employees.",
+    "topic": "health_safety",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "monthly",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "DAYS_LOST",
+    "name": "Days lost to injury and ill health",
+    "question": "How many working days were lost to work-related injuries, ill health and deaths?",
+    "help": "Calendar days the people affected couldn't work, from the day after the incident.",
+    "topic": "health_safety",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "days",
+    "allowed_units": [
+      "days"
+    ],
+    "aggregation": "sum",
+    "level": "site",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "SAFETY_COMPLAINTS",
+    "name": "Complaints on working conditions and safety",
+    "question": "How many complaints about working conditions or health and safety did the company receive?",
+    "help": "Count complaints from employees and workers through any channel.",
+    "topic": "health_safety",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "TRAINING_HOURS_AVG",
+    "name": "Training hours per employee",
+    "question": "How many hours of training did an employee get on average?",
+    "help": "Total training hours divided by employees at year end.",
+    "topic": "training",
+    "value_type": "number",
+    "unit_dimension": "none",
+    "canonical_unit": "hours per employee",
+    "allowed_units": [
+      "hours per employee"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "EMPLOYEES_TRAINED_HS_SHARE",
+    "name": "Employees trained on health and safety",
+    "question": "What share of employees were trained on health and safety during the year?",
+    "help": "Employees who completed at least one health and safety training, as a percentage of all employees.",
+    "topic": "training",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "PERFORMANCE_REVIEW_SHARE",
+    "name": "Employees with performance reviews",
+    "question": "What share of employees had a performance and career development review during the year?",
+    "help": "Employees with a documented review, as a percentage of all employees.",
+    "topic": "training",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "EMPLOYEES_TRAINED_HR_SHARE",
+    "name": "Employees trained on human rights",
+    "question": "What share of employees were trained on human rights issues and policies?",
+    "help": "Employees who completed human rights training, as a percentage of all employees.",
+    "topic": "human_rights",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "WOMEN_IN_WORKFORCE",
+    "name": "Women in the workforce",
+    "question": "What share of employees are women?",
+    "help": "Women employees at year end divided by all employees, as a percentage.",
+    "topic": "diversity",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "WOMEN_ON_BOARD",
+    "name": "Women on the board",
+    "question": "What share of board members are women?",
+    "help": "Women directors at year end divided by all directors, as a percentage.",
+    "topic": "diversity",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "WOMEN_IN_MANAGEMENT",
+    "name": "Women in top management",
+    "question": "What share of top management (key managerial personnel) are women?",
+    "help": "Women in the top management level at year end divided by everyone at that level, as a percentage.",
+    "topic": "diversity",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "EMPLOYEES_BY_AGE",
+    "name": "Employees by age group",
+    "question": "How many employees were in each age group at the end of the year?",
+    "help": "Headcount at year end split into under 30, 30 to 50, and over 50.",
+    "topic": "diversity",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "latest",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "age"
+      ],
+      "values": [
+        "under_30",
+        "age_30_50",
+        "over_50"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "GENDER_PAY_GAP",
+    "name": "Gender pay gap",
+    "question": "By what percentage is women's average pay lower than men's?",
+    "help": "(Men's average gross hourly pay minus women's) divided by men's, as a percentage. Negative when women earn more.",
+    "topic": "diversity",
+    "value_type": "number",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "FEMALE_WAGES_SHARE",
+    "name": "Wages paid to women",
+    "question": "What share of total gross wages was paid to women?",
+    "help": "Gross wages paid to women divided by total gross wages, as a percentage.",
+    "topic": "diversity",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "MEDIAN_REMUNERATION",
+    "name": "Median pay of employees",
+    "question": "What was the median annual pay of employees?",
+    "help": "The middle value of annual gross pay across employees (not directors or key managerial personnel).",
+    "topic": "diversity",
+    "value_type": "currency",
+    "unit_dimension": "currency",
+    "canonical_unit": "INR",
+    "allowed_units": [
+      "INR",
+      "INR lakh"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "PAY_RATIO_TOP_MEDIAN",
+    "name": "Highest pay to median pay ratio",
+    "question": "How many times the median employee's pay did the highest-paid person earn?",
+    "help": "Annual total pay of the highest-paid individual divided by the median of everyone else.",
+    "topic": "diversity",
+    "value_type": "number",
+    "unit_dimension": "ratio",
+    "canonical_unit": "ratio",
+    "allowed_units": [
+      "ratio"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "MIN_WAGE_SHARE",
+    "name": "Employees paid at least minimum wage",
+    "question": "What share of employees were paid at least the minimum wage?",
+    "help": "Employees paid equal to or more than the applicable minimum wage, as a percentage.",
+    "topic": "human_rights",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "COMPLAINTS_RECEIVED",
+    "name": "Human rights complaints received",
+    "question": "How many complaints about discrimination, harassment, child or forced labour, wages or other human rights did the company receive?",
+    "help": "Count every complaint filed during the year, through any channel.",
+    "topic": "human_rights",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "type"
+      ],
+      "values": [
+        "sexual_harassment",
+        "discrimination",
+        "child_labour",
+        "forced_labour",
+        "wages",
+        "other"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "COMPLAINTS_RESOLVED",
+    "name": "Human rights complaints resolved",
+    "question": "How many of those complaints were resolved by the end of the year?",
+    "help": "Count complaints closed with an outcome during the year.",
+    "topic": "human_rights",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "POSH_COMPLAINTS",
+    "name": "Sexual harassment complaints",
+    "question": "How many sexual harassment complaints were filed under the workplace sexual harassment law?",
+    "help": "Complaints received by the internal committee during the year.",
+    "topic": "human_rights",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  }
+]
