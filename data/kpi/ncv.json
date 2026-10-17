@@ -1,0 +1,141 @@
+{
+  "about": "Net calorific values (NCV) for KPI-5's energy adapters: a fuel row's quantity in a mass or volume unit becomes energy (GJ) as quantity × density × NCV. Used only when the row's factor snapshot carries no NCV of its own. A fuel is found by the first entry (more specific names first) whose `match` words appear in the row's activity name (case-insensitive). A row whose fuel or unit isn't here is listed as skipped, never guessed.",
+  "ncv_source": "IPCC 2006 Guidelines for National Greenhouse Gas Inventories, Vol. 2 Energy, Chapter 1, Table 1.2 (default net calorific values, TJ/Gg = GJ/tonne).",
+  "ncv_source_url": "https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_1_Ch1_Introduction.pdf",
+  "density_source": "Typical densities at 15 °C, as used in the UK government (DESNZ/DEFRA) GHG conversion factors' fuel properties; check against the current year's 'Fuel properties' table before relying on litre-based energy figures.",
+  "density_source_url": "https://www.gov.uk/government/collections/government-conversion-factors-for-company-reporting",
+  "verified": false,
+  "fuels": [
+    {
+      "key": "biodiesel",
+      "match": [
+        "biodiesel"
+      ],
+      "ncv_gj_per_tonne": 27.0,
+      "density_kg_per_litre": 0.88
+    },
+    {
+      "key": "petcoke",
+      "match": [
+        "petroleum coke",
+        "petcoke",
+        "pet coke"
+      ],
+      "ncv_gj_per_tonne": 32.5
+    },
+    {
+      "key": "diesel",
+      "match": [
+        "diesel",
+        "gas oil",
+        "gasoil",
+        "hsd",
+        "high speed diesel"
+      ],
+      "ncv_gj_per_tonne": 43.0,
+      "density_kg_per_litre": 0.84
+    },
+    {
+      "key": "petrol",
+      "match": [
+        "petrol",
+        "gasoline",
+        "motor spirit"
+      ],
+      "ncv_gj_per_tonne": 44.3,
+      "density_kg_per_litre": 0.74
+    },
+    {
+      "key": "lpg",
+      "match": [
+        "lpg",
+        "liquefied petroleum gas",
+        "propane",
+        "butane"
+      ],
+      "ncv_gj_per_tonne": 47.3,
+      "density_kg_per_litre": 0.51
+    },
+    {
+      "key": "kerosene",
+      "match": [
+        "kerosene",
+        "paraffin",
+        "jet fuel",
+        "aviation turbine fuel",
+        "atf"
+      ],
+      "ncv_gj_per_tonne": 43.8,
+      "density_kg_per_litre": 0.8
+    },
+    {
+      "key": "fuel_oil",
+      "match": [
+        "furnace oil",
+        "fuel oil",
+        "residual fuel",
+        "heavy fuel oil",
+        "hfo",
+        "ldo",
+        "light diesel oil"
+      ],
+      "ncv_gj_per_tonne": 40.4,
+      "density_kg_per_litre": 0.94
+    },
+    {
+      "key": "natural_gas",
+      "match": [
+        "natural gas",
+        "png",
+        "cng",
+        "lng"
+      ],
+      "ncv_gj_per_tonne": 48.0,
+      "density_kg_per_m3": 0.75
+    },
+    {
+      "key": "naphtha",
+      "match": [
+        "naphtha"
+      ],
+      "ncv_gj_per_tonne": 44.5,
+      "density_kg_per_litre": 0.7
+    },
+    {
+      "key": "coke",
+      "match": [
+        "coke oven coke",
+        "met coke",
+        "coke"
+      ],
+      "ncv_gj_per_tonne": 28.2
+    },
+    {
+      "key": "lignite",
+      "match": [
+        "lignite",
+        "brown coal"
+      ],
+      "ncv_gj_per_tonne": 11.9
+    },
+    {
+      "key": "coal_bituminous",
+      "match": [
+        "bituminous coal",
+        "steam coal",
+        "coal"
+      ],
+      "ncv_gj_per_tonne": 25.8
+    },
+    {
+      "key": "wood",
+      "match": [
+        "wood",
+        "biomass",
+        "firewood",
+        "wood pellets"
+      ],
+      "ncv_gj_per_tonne": 15.6
+    }
+  ]
+}

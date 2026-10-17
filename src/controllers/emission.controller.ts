@@ -36,6 +36,7 @@ import {
   type GhgFilters,
 } from "../reporting/ghg-data";
 import { pcfDataChanged } from "../pcf/staleness";
+import { kpiSourceChanged } from "../kpi/auto/hook"; // KPI-5: auto KPI values follow approved rows
 import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
 import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
 import { checkKeysFor, refreshChecks, refreshChecksSafely } from "../scope3/review/service";
@@ -575,6 +576,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         .delete()
         .where("emission_id IN (:...ids)", { ids: idsToDelete })
         .execute();
+      await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
       await repo.delete(idsToDelete);
       await removeDeletedDocumentFiles(replacedFiles);
       await pcfDataChanged("emission", idsToDelete);
@@ -726,6 +728,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
 
     await repo.save(emission);
     await pcfDataChanged("emission", [emission.pk_id]);
+    await kpiSourceChanged("emission", [emission.pk_id]);
 
     // Recalculate linked FERA emission if activity data changed
     let updatedFeraEmission: Emission | null = null;
@@ -963,6 +966,7 @@ export const deleteEmission = async (req: Request, res: Response) => {
       .where("emission_id IN (:...ids)", { ids: idsToDelete })
       .execute();
 
+    await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
     await repo.delete(idsToDelete);
     await removeDeletedDocumentFiles(files);
     await pcfDataChanged("emission", idsToDelete);
@@ -1034,6 +1038,7 @@ export const bulkDeleteEmissions = async (req: Request, res: Response) => {
     const files: Awaited<ReturnType<typeof documentFilesForEmissions>> = [];
 
     const priorKeys = await checkKeysFor(AppDataSource.manager, idsArray);
+    await kpiSourceChanged("emission", idsArray); // KPI-5: before the rows go
     // Delete in chunks within a transaction
     await AppDataSource.transaction(async (manager) => {
       const docRepo = manager.getRepository(EmissionDocument);
@@ -1181,6 +1186,7 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
 
     // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
+    await kpiSourceChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1309,6 +1315,7 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
 
     // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
+    await kpiSourceChanged("emission", [...eligibleIds, ...feraIds]);
     // S3-15: rejected rows leave the month total the next month's threshold check reads.
     await refreshChecksSafely(AppDataSource.manager, [...eligibleIds, ...feraIds]);
 
@@ -1517,6 +1524,7 @@ export const deleteEmissionsByBatch = async (req: Request, res: Response) => {
     }
 
     const priorKeys = await checkKeysFor(AppDataSource.manager, idsToDelete);
+    await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
     // The same rows as the SELECT above, by predicate: one parameter per row would break on a batch
     // over Postgres's 65,535-parameter limit (see df1ce16).
     const result = await repo
@@ -1620,6 +1628,7 @@ export const approveEmission = async (req: AuthRequest, res: Response) => {
     }
 
     await pcfDataChanged("emission", [emission.pk_id, ...feraLinkedIds]);
+    await kpiSourceChanged("emission", [emission.pk_id, ...feraLinkedIds]);
 
     const fullEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
@@ -1733,6 +1742,7 @@ export const rejectEmission = async (req: AuthRequest, res: Response) => {
     }
 
     await pcfDataChanged("emission", [emission.pk_id, ...feraLinkedIds]);
+    await kpiSourceChanged("emission", [emission.pk_id, ...feraLinkedIds]);
     await refreshChecksSafely(AppDataSource.manager, [emission.pk_id, ...feraLinkedIds]);
 
     const fullEmission = await repo.findOne({
@@ -1877,6 +1887,7 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
 
     // Include the FERA cascade: approving a FERA row can approve its fuel or energy row.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
+    await kpiSourceChanged("emission", [...eligibleIds, ...feraIds]);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -2016,6 +2027,7 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
 
     // Include the FERA cascade: rejecting a row also rejects its linked FERA rows.
     await pcfDataChanged("emission", [...eligibleIds, ...feraIds]);
+    await kpiSourceChanged("emission", [...eligibleIds, ...feraIds]);
     // S3-15: rejected rows leave the month total the next month's threshold check reads.
     await refreshChecksSafely(AppDataSource.manager, [...eligibleIds, ...feraIds]);
 
@@ -3276,6 +3288,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     keepImportProvenance(emission, emission.extra_data, userId);
     await repo.save(emission);
     await pcfDataChanged("emission", [emission.pk_id]);
+    await kpiSourceChanged("emission", [emission.pk_id]);
 
     // Keep the FERA twin in step (audit F-07). A manager edit does not send
     // the row back to review, so the twin keeps the parent's review state.

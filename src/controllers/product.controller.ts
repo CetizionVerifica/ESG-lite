@@ -6,6 +6,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { ProductionData } from "../entities/ProductionData";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { pcfDataChanged } from "../pcf/staleness";
+import { kpiSourceChanged } from "../kpi/auto/hook"; // KPI-5
 
 const repo = AppDataSource.getRepository(Product);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -261,6 +262,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     // Footprints at the old site that used these rows are now out of date.
     if (movedIds.length) await pcfDataChanged("production", movedIds);
+    if (movedIds.length) await kpiSourceChanged("production", movedIds);
     // Footprints of this product are expressed per its declared unit.
     if (declaredChanged) await pcfDataChanged("product", [id]);
 
@@ -297,6 +299,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
     const productionIds: number[] = (
       await AppDataSource.query(`SELECT production_id FROM production_data WHERE product_id = $1`, [product.product_id])
     ).map((r: { production_id: number }) => r.production_id);
+    await kpiSourceChanged("production", productionIds); // KPI-5: before the rows go
     await repo.delete({ product_id: parseInt(id) });
     await pcfDataChanged("production", productionIds);
 

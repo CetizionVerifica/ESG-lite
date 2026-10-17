@@ -1,0 +1,5 @@
+{
+  "about": "Renewable energy for KPI-5's energy_renewable / energy_non_renewable split: a row is renewable when its category name or its activity name contains one of these words (case-insensitive). The category words are the GHG report's own (src/reporting/ghg.ts RENEW_RE). Everything else is non-renewable.",
+  "category_words": ["renew", "solar", "wind", "hydro", "geotherm"],
+  "activity_words": ["solar", "wind", "hydroelectric", "hydropower", "small hydro", "hydel", "geothermal", "biomass", "biogas", "biodiesel", "bioethanol", "wood", "green power", "green energy", "renewable"]
+}

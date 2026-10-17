@@ -11,6 +11,7 @@ import { kpiStatus, requireKpiTracking } from "./guard";
 import { catalogueRouter, libraryRouter } from "./library/router";
 import valuesRouter from "./values/router";
 import setupRouter from "./setup/router";
+import autoRouter from "./auto/router";
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use(requireKpiTracking); // KPI-1: 403 KPI_TRACKING_OFF below this line
 router.use(catalogueRouter); // KPI-2: /kpi/catalogue
 router.use(valuesRouter); // KPI-4: /kpi/values, /kpi/values/submit, /kpi/values/:id/evidence
 router.use(setupRouter); // KPI-3: /kpi/setup, /kpi/setup/custom-kpis
+router.use(autoRouter); // KPI-5: /kpi/auto/refresh
 
 export default router;

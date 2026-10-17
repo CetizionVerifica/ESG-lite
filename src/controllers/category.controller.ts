@@ -5,6 +5,7 @@ import { Category } from "../entities/Category";
 import { Site } from "../entities/Site";
 import { grantCategoriesToSiteUsers } from "../utils/siteCategorySync";
 import { pcfDataChanged } from "../pcf/staleness";
+import { kpiSourceChanged } from "../kpi/auto/hook"; // KPI-5
 import { normaliseScope, SCOPE_INVALID_MESSAGE } from "../utils/categoryScope";
 import { resolveCategoryGhgInput } from "../scope3/taxonomy/categoryInput";
 import { Scope3Error } from "../scope3/contracts/errors";
@@ -338,6 +339,7 @@ export const updateCategory = async (req: Request, res: Response) => {
     if (category.scope !== oldScope) {
       const rows: { pk_id: number }[] = await AppDataSource.query(`SELECT pk_id FROM emission WHERE category_id = $1`, [category.category_id]);
       await pcfDataChanged("emission", rows.map((r) => r.pk_id));
+      await kpiSourceChanged("emission", rows.map((r) => r.pk_id));
     }
 
     return res.status(200).json({
@@ -408,6 +410,7 @@ export const deleteCategory = async (req: Request, res: Response) => {
     }
 
     await pcfDataChanged("emission", emissionIds);
+    await kpiSourceChanged("emission", emissionIds);
 
     return res.status(200).json({
       message: "Category deleted successfully",

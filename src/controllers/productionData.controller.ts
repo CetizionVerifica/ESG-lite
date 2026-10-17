@@ -12,6 +12,7 @@ import { sendToQueue } from "../queues/emailProducer";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
 import { pcfDataChanged } from "../pcf/staleness";
+import { kpiSourceChanged } from "../kpi/auto/hook"; // KPI-5: auto KPI values follow approved rows
 
 const repo = AppDataSource.getRepository(ProductionData);
 const productRepo = AppDataSource.getRepository(Product);
@@ -233,6 +234,7 @@ export const updateProductionData = async (req: AuthRequest, res: Response) => {
 
     await repo.save(data);
     await pcfDataChanged("production", [data.production_id]);
+    await kpiSourceChanged("production", [data.production_id]);
 
     // Create audit log for user edit
     try {
@@ -618,6 +620,7 @@ export const approveProductionData = async (req: AuthRequest, res: Response) => 
 
     await repo.save(data);
     await pcfDataChanged("production", [data.production_id]);
+    await kpiSourceChanged("production", [data.production_id]);
 
     const updated = await repo.findOne({
       where: { production_id: data.production_id },
@@ -784,6 +787,7 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
       }
     );
     await pcfDataChanged("production", eligibleIds);
+    await kpiSourceChanged("production", eligibleIds);
 
     // Fetch manager details
     const userRepo = AppDataSource.getRepository(User);
@@ -1015,6 +1019,7 @@ export const managerUpdateProductionData = async (req: AuthRequest, res: Respons
 
     await repo.save(data);
     await pcfDataChanged("production", [data.production_id]);
+    await kpiSourceChanged("production", [data.production_id]);
 
     // Write audit log
     const auditRepo = AppDataSource.getRepository(AuditLog);

@@ -1,0 +1,44 @@
+{
+  "about": "KPI-5 golden cases, worked by hand. ci/api/tests/kpi-5-auto.test.cjs adds two sites to company 1 (9101 KPI-5 Plant A, 9102 KPI-5 Plant B), loads `categories` and `rows` (approved emission rows unless `status` says otherwise) into company 1 for CY 2023, refreshes, and checks each case against the hand figure AND against the GHG report's own JSON (POST /user/ghg/tables, GET /reports/ghg/scope3) for the same sites and period. Energy: 1,000 L diesel × 0.84 kg/L × 43.0 GJ/t (data/kpi/ncv.json) = 36.12 GJ; 10,000 kWh × 0.0036 = 36 GJ; 2,000 kWh renewable = 7.2 GJ.",
+  "year": 2023,
+  "categories": [
+    { "category_id": 9501, "category_name": "Fugitive Emissions", "scope": "Scope 1", "ghg_category": null },
+    { "category_id": 9506, "category_name": "Business Travel (KPI-5)", "scope": "Scope 3", "ghg_category": 6 },
+    { "category_id": 9505, "category_name": "Waste Generated (KPI-5)", "scope": "Scope 3", "ghg_category": 5 }
+  ],
+  "rows": [
+    { "key": "diesel_s1", "site_id": 9101, "category_id": 1, "date": "2023-03-31", "activity": { "activity_value": 1000, "emission_category": "Diesel" }, "unit": "litre", "tco2e": 2.68 },
+    { "key": "refrigerant_s1", "site_id": 9101, "category_id": 9501, "date": "2023-03-31", "activity": { "activity_value": 2, "emission_category": "R-410A" }, "unit": "kg", "tco2e": 4.17 },
+    { "key": "hydrogen_s1", "site_id": 9101, "category_id": 1, "date": "2023-03-31", "activity": { "activity_value": 50, "emission_category": "Hydrogen" }, "unit": "kg", "tco2e": 0 },
+    { "key": "grid_s1", "site_id": 9101, "category_id": 2, "date": "2023-03-31", "activity": { "activity_value": 10000 }, "unit": "kWh", "tco2e": 7.1 },
+    { "key": "grid_s1_pending", "site_id": 9101, "category_id": 2, "date": "2023-03-15", "activity": { "activity_value": 5000 }, "unit": "kWh", "tco2e": 3.55, "status": "pending" },
+    { "key": "solar_s1", "site_id": 9101, "category_id": 4, "date": "2023-03-31", "activity": { "activity_value": 2000 }, "unit": "kWh", "tco2e": 0 },
+    { "key": "travel_s1", "site_id": 9101, "category_id": 9506, "date": "2023-05-15", "activity": { "activity_value": 1200 }, "unit": "km", "tco2e": 0.25 },
+    { "key": "waste_s1", "site_id": 9101, "category_id": 9505, "date": "2023-06-30", "activity": { "activity_value": 3.5, "emission_category": "ETP Sludge - Landfill" }, "unit": "tonne", "tco2e": 1.6 },
+    { "key": "diesel_s2", "site_id": 9102, "category_id": 1, "date": "2023-07-31", "activity": { "activity_value": 500, "emission_category": "Diesel" }, "unit": "litre", "tco2e": 1.34 }
+  ],
+  "production": [
+    { "site_id": 9101, "quantity": 1200, "unit": "tonne", "start": "2023-01-01", "end": "2023-12-31", "status": "approved" },
+    { "site_id": 9101, "quantity": 99, "unit": "tonne", "start": "2023-01-01", "end": "2023-12-31", "status": "pending" }
+  ],
+  "cases": [
+    { "name": "Scope 1, site A, CY 2023 (diesel + refrigerant + hydrogen)", "kpi": "GHG_SCOPE1", "site_id": 9101, "period_start": "2023-01-01", "value": 6.85, "report": "tables.scope1" },
+    { "name": "Scope 1, site B", "kpi": "GHG_SCOPE1", "site_id": 9102, "period_start": "2023-01-01", "value": 1.34, "report": "tables.scope1" },
+    { "name": "Scope 2 location-based, site A (the pending row isn't in)", "kpi": "GHG_SCOPE2_LB", "site_id": 9101, "period_start": "2023-01-01", "value": 7.1, "report": "tables.scope2" },
+    { "name": "Scope 3 total, site A", "kpi": "GHG_SCOPE3", "site_id": 9101, "period_start": "2023-01-01", "value": 1.85, "report": "scope3.total_tco2e" },
+    { "name": "Scope 3 category 6, site A", "kpi": "TEST5_S3_CAT6", "site_id": 9101, "period_start": "2023-01-01", "value": 0.25, "report": "scope3.rows.6" },
+    { "name": "Energy, site A, March 2023: 1,000 L diesel + 10,000 kWh + 2,000 kWh solar", "kpi": "ENERGY_TOTAL", "site_id": 9101, "period_start": "2023-03-01", "value": 79.32, "skipped": 1 },
+    { "name": "Renewable energy, site A, March 2023", "kpi": "ENERGY_RENEWABLE", "site_id": 9101, "period_start": "2023-03-01", "value": 7.2 },
+    { "name": "Non-renewable energy, site A, March 2023", "kpi": "ENERGY_NON_RENEWABLE", "site_id": 9101, "period_start": "2023-03-01", "value": 72.12, "skipped": 1 },
+    { "name": "Energy, site B, July 2023: 500 L diesel", "kpi": "ENERGY_TOTAL", "site_id": 9102, "period_start": "2023-07-01", "value": 18.06 },
+    { "name": "Production output, site A (approved only)", "kpi": "TEST5_PRODUCTION", "site_id": 9101, "period_start": "2023-01-01", "value": 1200 },
+    { "name": "Waste, site A, with its disposal method", "kpi": "TEST5_WASTE", "site_id": 9101, "period_start": "2023-01-01", "value": 3.5, "breakdown": { "landfill": 3.5 } }
+  ],
+  "after_reject": {
+    "row": "diesel_s1",
+    "cases": [
+      { "kpi": "GHG_SCOPE1", "site_id": 9101, "period_start": "2023-01-01", "value": 4.17 },
+      { "kpi": "ENERGY_TOTAL", "site_id": 9101, "period_start": "2023-03-01", "value": 43.2 }
+    ]
+  }
+}
