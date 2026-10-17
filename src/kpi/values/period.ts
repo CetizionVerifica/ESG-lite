@@ -29,6 +29,17 @@ export interface KpiPeriod {
 }
 
 export const DEFAULT_DUE_DAY = 15;
+
+/**
+ * A Postgres `date` as `YYYY-MM-DD`. node-pg builds a `date` as local
+ * midnight, so `toISOString()` gives the day before anywhere east of UTC
+ * (IST: 2025-01-01 became 2024-12-31). Read it with the local getters.
+ */
+export const isoDay = (v: unknown): string | null => {
+  if (v == null) return null;
+  if (v instanceof Date) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+  return String(v).slice(0, 10);
+};
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
 const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;

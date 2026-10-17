@@ -27,6 +27,15 @@ test("CY periods: 12 months, 4 quarters, 1 year", () => {
   assert.deepEqual(period.periodsFor("annual", "CY", 2026).map((p) => [p.start, p.end, p.label]), [["2026-01-01", "2026-12-31", "2026"]]);
 });
 
+test("isoDay reads a Postgres date as the same calendar day in any time zone", () => {
+  // node-pg builds a \`date\` as local midnight; in IST toISOString() gave the day before.
+  assert.equal(period.isoDay(new Date(2025, 0, 1)), "2025-01-01");
+  assert.equal(period.isoDay(new Date(2024, 1, 29)), "2024-02-29");
+  assert.equal(period.isoDay("2025-12-31"), "2025-12-31");
+  assert.equal(period.isoDay("2025-12-31T00:00:00.000Z"), "2025-12-31");
+  assert.equal(period.isoDay(null), null);
+});
+
 test("FY periods: FY 2026 runs April 2025 to March 2026", () => {
   const months = period.periodsFor("monthly", "FY", 2026);
   assert.equal(months[0].start, "2025-04-01");

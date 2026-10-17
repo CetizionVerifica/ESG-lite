@@ -25,7 +25,7 @@ import { KpiError } from "../contracts/errors";
 import { kpiCaller, type KpiCaller, type KpiRequest } from "../guard";
 import { handle, parse } from "../http";
 import { kpiSettings, topicGrants } from "../setup/settings";
-import { dueDate, periodsFor, reportingYearOf, type KpiPeriod } from "./period";
+import { dueDate, periodsFor, reportingYearOf, type KpiPeriod, isoDay } from "./period";
 import { assertSetupDone, canSee, evidenceFor, needsEvidence, toValueOut } from "./service";
 
 type Row = Record<string, any>;
@@ -41,7 +41,7 @@ const lastMonth = () => {
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
 };
 
-const day = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+const day = (v: unknown) => isoDay(v) as string;
 const minusYear = (iso: string) => `${Number(iso.slice(0, 4)) - 1}${iso.slice(4)}`;
 
 /** The KPI period of `frequency` that ends in month `ym`, or null. */

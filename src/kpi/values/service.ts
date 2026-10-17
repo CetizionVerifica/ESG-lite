@@ -30,7 +30,7 @@ import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { recomputeForValues } from "../formulas/recompute";
 import { assignmentFor, companyKpiRow, kpiSettings, setupCompleted, topicGrants } from "../setup/settings";
-import { isPeriodStart, monthRange, overlaps, periodOf, yearRange } from "./period";
+import { isPeriodStart, monthRange, overlaps, periodOf, yearRange, isoDay } from "./period";
 import { toCanonical } from "./units";
 
 type Row = Record<string, any>;
@@ -195,7 +195,7 @@ export function checkValue(kpi: Row, item: KpiValueItem): CheckedValue {
 // ---------------------------------------------------------------------------
 
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-const day = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : (v as string | null));
+const day = (v: unknown) => isoDay(v);
 
 /** A kpi_value row as the API returns it (numbers as numbers, dates as YYYY-MM-DD). */
 export const toValueOut = (r: Row, evidence: Row[] = []) => ({

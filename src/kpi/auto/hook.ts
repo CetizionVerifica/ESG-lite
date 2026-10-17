@@ -14,7 +14,7 @@
  */
 import { AppDataSource } from "../../config/data-source";
 import type { YearType } from "../contracts/enums";
-import { reportingYearOf } from "../values/period";
+import { reportingYearOf, isoDay } from "../values/period";
 
 type Row = Record<string, any>;
 type Kind = "emission" | "production";
@@ -82,7 +82,7 @@ const job = (): Debouncer | null => {
   return debouncer;
 };
 
-const day = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+const day = (v: unknown) => isoDay(v) as string;
 
 /** The changed rows' companies (KPI tracking on), sites and date ranges. */
 const ENERGY = ["energy_total", "energy_renewable", "energy_non_renewable"];

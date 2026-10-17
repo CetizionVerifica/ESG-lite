@@ -22,7 +22,7 @@ import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import type { KpiFrequency, YearType } from "../contracts/enums";
 import { kpiSettings } from "../setup/settings";
-import { periodsFor, reportingYearOf } from "../values/period";
+import { periodsFor, reportingYearOf, isoDay } from "../values/period";
 import { removeSystemValue, writeSystemValue } from "../values/system";
 import { evaluate } from "./evaluate";
 import { dependantsOf, evaluationOrder } from "./graph";
@@ -53,7 +53,7 @@ export async function companyDefinitions(m: EntityManager, companyId: number): P
   }));
 }
 
-const day = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
+const day = (v: unknown) => isoDay(v) as string;
 
 async function loadValues(m: EntityManager, companyId: number, range: { start: string; end: string }): Promise<MemValue[]> {
   const rows: Row[] = await m.query(
