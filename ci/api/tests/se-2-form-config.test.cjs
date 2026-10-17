@@ -340,3 +340,51 @@ test("company 2's people can't change or read company 1's form or company settin
   // An id that isn't a form: 404 for the Superadmin, nothing stored.
   assert.equal((await putForm("superadmin", { units: { fixed: "km" } }, 999999)).status, 404);
 });
+
+test("a fixed unit is checked against the stored choice map, not only one sent with it", async () => {
+  // Stored: fuel_bill → fuel_based (litre only). Fixing km alone must be refused.
+  assert.equal((await putForm("superadmin", { method_by_choice: { column: "record_type", map: { fuel_bill: "fuel_based" } } })).status, 200);
+  try {
+    const r = await putForm("superadmin", { units: { fixed: "km" } });
+    assert.equal(r.status, 400, JSON.stringify(r.json));
+    assert.equal(r.json.code, "FORM_CHECK_FAILED");
+    assert.equal(r.json.field, "units.fixed");
+    assert.equal((await q(`SELECT units FROM column_config WHERE pk_id = $1`, [formId]))[0].units, null, "nothing stored");
+  } finally {
+    assert.equal((await putForm("superadmin", { method_by_choice: choice })).status, 200);
+  }
+});
+
+test("an edit stores what it calculated and keeps the row's method unless the choice answer changes", async () => {
+  // A Manager names fuel_based on a row whose choice is left empty (an importer may name one).
+  const r = await typed("manager", { record_type: "", "@method": "fuel_based", emission_category: "SE-2 HGV", activity_value: "100" }, "km", { method: "fuel_based", date_of_reporting: "2025-07-31" });
+  const first = await saved(r);
+  const id = r.json.emission.pk_id;
+  assert.equal(first.method, "fuel_based");
+  const row = async () => (await q(`SELECT method, activity_data, extra_data, total_emission::float8 AS total FROM emission WHERE pk_id = $1`, [id]))[0];
+
+  // The User changes the quantity only: the method, @method and the data calculated are what is stored.
+  const edit = await call("PUT", `/user/emissions/${id}`, "user", { activity_data: { record_type: "", "@method": "fuel_based", emission_category: "SE-2 HGV", activity_value: "200" } });
+  assert.equal(edit.status, 200, JSON.stringify(edit.json));
+  let now = await row();
+  assert.equal(now.method, "fuel_based", "a quantity edit doesn't move the row to another method");
+  assert.equal(now.activity_data["@method"], "fuel_based");
+  assert.equal(now.total, 0.2);
+  assert.equal(now.activity_data.Vehicle, "hgv", "the hidden default the total was worked out with is stored");
+  assert.equal(now.extra_data.paid_by, "We paid");
+
+  // A Manager's recalculation of the same data keeps it too.
+  const manager = await call("PUT", `/user/emissions/manager-edit/${id}`, "manager", { activity_data: now.activity_data });
+  assert.equal(manager.status, 200, JSON.stringify(manager.json));
+  now = await row();
+  assert.equal(now.method, "fuel_based");
+  assert.equal(now.activity_data["@method"], "fuel_based");
+
+  // The User answers the choice: the form decides, and what is stored agrees with it.
+  const answered = await call("PUT", `/user/emissions/${id}`, "user", { activity_data: { ...now.activity_data, record_type: "trip" } });
+  assert.equal(answered.status, 200, JSON.stringify(answered.json));
+  now = await row();
+  assert.equal(now.method, "distance_based");
+  assert.equal(now.activity_data["@method"], "distance_based");
+  assert.equal(now.total, 0.2);
+});

@@ -17,7 +17,7 @@ import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
-import type { MethodSource } from "../forms/formConfig";
+import { NO_FORM_SETTINGS, editKeepsMethod, type MethodSource } from "../forms/formConfig";
 import axios from "axios";
 import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
@@ -683,6 +683,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
     let warnings: EngineIssue[] = [];
     let feraTwin: FeraTwin | null = null;
     let feraSkipped: string | undefined;
+    let preparedExtra: Record<string, any> | null | undefined;
     if (activity_data !== undefined) {
       emission.activity_data = activity_data;
 
@@ -699,7 +700,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.reviewed_at = null as any;
 
       // The factor year follows the new reporting date when one is sent.
-      const prepared = await recalculateEntry(emission, activity_data, extra_data !== undefined ? extra_data : emission.extra_data, date_of_reporting, req.user?.role === UserRole.USER ? "contributor" : "caller");
+      const prepared = await recalculateEntry(emission, activity_data, extra_data !== undefined ? extra_data : emission.extra_data, date_of_reporting, req.user?.role === UserRole.USER ? "contributor" : "caller", oldActivityData);
       if (!prepared.ok) {
         return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
       }
@@ -712,10 +713,13 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       warnings = prepared.entry.warnings;
       feraTwin = prepared.entry.fera;
       feraSkipped = prepared.entry.feraSkipped;
+      // SE-2: store what was calculated (hidden defaults, a default currency, the form's @method).
+      preparedExtra = prepared.entry.input.extra_data;
     }
     if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
     const extraBefore = emission.extra_data;
-    if (extra_data !== undefined) emission.extra_data = extra_data;
+    if (preparedExtra !== undefined) emission.extra_data = preparedExtra as any;
+    else if (extra_data !== undefined) emission.extra_data = extra_data;
     if (activity_data !== undefined || date_of_reporting !== undefined || extra_data !== undefined) {
       keepImportProvenance(emission, extraBefore, req.user?.userId);
     }
@@ -726,9 +730,9 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
     // Recalculate linked FERA emission if activity data changed
     let updatedFeraEmission: Emission | null = null;
     if (activity_data !== undefined && emission.fera_linked_id) {
-      updatedFeraEmission = await recalculateLinkedFera(emission, activity_data, feraTwin, feraSkipped);
+      updatedFeraEmission = await recalculateLinkedFera(emission, emission.activity_data, feraTwin, feraSkipped);
     }
-    const tdLossTwin = activity_data !== undefined ? await syncTdLossTwin(emission, activity_data) : null;
+    const tdLossTwin = activity_data !== undefined ? await syncTdLossTwin(emission, emission.activity_data) : null;
     // S3-15 part 2: a twin shares its parent's status, so a Draft parent's twins are Drafts.
     if (emission.status === EmissionStatus.DRAFT) await draftTwinsOf(AppDataSource.manager, emission.pk_id);
 
@@ -799,6 +803,8 @@ async function recalculateEntry(
   extra_data: Record<string, any> | null | undefined,
   newDate?: string,
   methodSource: MethodSource = "caller",
+  /** The row's activity data before this edit: an edit keeps the stored method unless what decides it changed (SE-2). */
+  previous?: Record<string, any> | null,
 ): Promise<PrepareResult> {
   const site_id = emission.site.site_id;
   const category_id = emission.category.category_id;
@@ -809,10 +815,15 @@ async function recalculateEntry(
   const supplierRow = emission.method === "supplier_specific" || emission.method === "hybrid";
   const [linked] = supplierRow ? await AppDataSource.query(`SELECT supplier_id FROM emission WHERE pk_id = $1`, [emission.pk_id]) : [];
   const snapshotFactorId = Number((emission.emission_factor_snapshot as any)?.supplier_factor_id) || null;
+  // SE-2: a quantity or date edit doesn't move the row to another method (a User's edit on a
+  // choice form would otherwise take the choice's over the method an importer gave it).
+  const kept = supplierRow
+    ? null
+    : editKeepsMethod({ settings: ctx.form ?? NO_FORM_SETTINGS, offered: ctx.method_options, stored: emission.method, previous, next: activity_data ?? {}, source: methodSource });
   return prepareEntry(ctx, new CheckCache(AppDataSource.manager), {
     site_id,
     category_id,
-    activity_data,
+    activity_data: kept ? kept.activity_data : activity_data,
     activity_data_unit: emission.activity_data_unit,
     period: {
       date_of_reporting: ymd(newDate !== undefined ? newDate : emission.date_of_reporting),
@@ -822,20 +833,24 @@ async function recalculateEntry(
     extra_data: extra_data ?? {},
     // S3-5: a spend row keeps the rate it was saved with while its currency and purchase date don't change.
     storedFx: emission.fx,
-    // SE-2: a User's own edit takes the method the form decides; a reviewer's keeps the row's.
-    method_source: methodSource,
+    // SE-2: the kept method is named as an importer would; else a User's edit takes the method the form decides.
+    method_source: kept ? "caller" : methodSource,
     ...(supplierRow
       ? {
           method: emission.method,
           supplier_id: linked?.supplier_id ?? null,
           supplier_factor_id: emission.method === "supplier_specific" ? snapshotFactorId : null,
         }
-      : {}),
+      : kept
+        ? { method: kept.method }
+        : {}),
   });
 }
 
 /** Puts the engine's total, kgCO₂e total, snapshot and unit on an edited row; no factor means no total (audit F-05). */
 function applyComputed(emission: Emission, entry: PreparedEntry): void {
+  // SE-2: the data stored is the data calculated (hidden defaults, a default currency, the form's @method).
+  emission.activity_data = entry.input.activity_data;
   const snapshot = entryFactorSnapshot(entry);
   if (!entry.computed || !snapshot) {
     emission.total_emission = 0;
@@ -853,6 +868,13 @@ function applyComputed(emission: Emission, entry: PreparedEntry): void {
   emission.emission_factor_snapshot = snapshot as any;
   emission.fx = entry.computed.fx ?? null;
   emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
+  // SE-2: a row that had a method records the one it was calculated with, with its quality.
+  const method = entry.computed.method;
+  if (method && emission.method && emission.method !== "unknown" && method !== emission.method) {
+    emission.method = method;
+    if (entry.computed.dq) emission.dq = entry.computed.dq;
+    if (entry.computed.data_type) emission.data_type = entry.computed.data_type;
+  }
 }
 
 /**
@@ -3224,11 +3246,12 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     let feraTwin: FeraTwin | null = null;
     let feraSkipped: string | undefined;
     if (activity_data !== undefined) {
+      const previousActivity = emission.activity_data;
       emission.activity_data = activity_data;
 
       // Same engine as a new entry (S3-4); the new date is already applied,
       // so the factor year follows it.
-      const prepared = await recalculateEntry(emission, activity_data, emission.extra_data);
+      const prepared = await recalculateEntry(emission, activity_data, emission.extra_data, undefined, "caller", previousActivity);
       if (!prepared.ok) {
         // Saving would keep the old total next to the new values.
         return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
@@ -3242,6 +3265,8 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
         }
       } else {
         applyComputed(emission, entry);
+        // SE-2: store what was calculated (hidden defaults, a default currency).
+        emission.extra_data = (entry.input.extra_data ?? emission.extra_data) as any;
       }
       warnings = entry.warnings;
       feraTwin = entry.fera;
@@ -3262,7 +3287,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       const [twinBefore] = emission.fera_linked_id
         ? await repo.query(`SELECT total_emission, status FROM emission WHERE pk_id = $1`, [emission.fera_linked_id])
         : await repo.query(`SELECT total_emission, status FROM emission WHERE fera_linked_id = $1 AND scope3_sub IS DISTINCT FROM '3c_td_losses' LIMIT 1`, [emission.pk_id]);
-      feraEmission = await recalculateLinkedFera(emission, activity_data, feraTwin, feraSkipped);
+      feraEmission = await recalculateLinkedFera(emission, emission.activity_data, feraTwin, feraSkipped);
       if (feraEmission && (feraEmission as Emission & { recalcSkipped?: boolean }).recalcSkipped) {
         // The twin couldn't be recalculated and went back to review.
         changedFields.fera_status = { old: twinBefore?.status ?? null, new: EmissionStatus.PENDING };
@@ -3279,7 +3304,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
         feraEmission = await repo.findOne({ where: { pk_id: feraEmission.pk_id } });
       }
       // The T&D-loss twin (S3-7) follows the parent's new numbers and review state.
-      tdLossTwin = await syncTdLossTwin(emission, activity_data);
+      tdLossTwin = await syncTdLossTwin(emission, emission.activity_data);
     }
     if (Number(oldTotal) !== Number(emission.total_emission)) {
       changedFields.total_emission = { old: oldTotal, new: emission.total_emission };
