@@ -75,7 +75,8 @@ async function openBridge() {
 
 function toolResultBlocks(content) {
   const blocks = content.filter((b) => b && b.type === "text" && typeof b.text === "string").map((b) => ({ type: "text", text: b.text }));
-  return blocks.length ? blocks : [{ type: "text", text: "" }];
+  // The Messages API refuses an empty text block, so a tool result with no text gets a short note.
+  return blocks.length ? blocks : [{ type: "text", text: "(the tool returned no text)" }];
 }
 
 function workbookText(file) {
