@@ -49,6 +49,31 @@ test("stays inside the caller's sites", async () => {
   assert.equal((await breakdown("categoryId=1&siteIds=3", "user")).status, 403);
 });
 
+test("a spend row's consumption is its amount spent, in its currency", () => {
+  const { computeBreakdown } = require(path.join(__dirname, "../../../dist/services/emissionBreakdown.js"));
+  const groups = computeBreakdown(
+    [
+      // Category 1 rows from the amount spent (S3-5), as the spend form saves them.
+      { activity_data: { emission_category: "Analytical Laboratory Instrument Manufacturing", "@method": "spend_based", spent_value: "1000", currency: "EUR" }, activity_data_unit: "EUR", total_emission: 0.09 },
+      { activity_data: { emission_category: "Other Heavy and Civil Engineering Construction", "@method": "spend_based", spent_value: "1,000", currency: "USD" }, activity_data_unit: "USD", total_emission: 0.2 },
+      // An older Category 1 form's "Spent value".
+      { activity_data: { emission_category: "AMC Charges", "Spent value": "2500" }, activity_data_unit: "USD", total_emission: 1 },
+      // An older form's informational "Spent value" never replaces the row's own quantity (a number column).
+      { activity_data: { emission_category: "Steel", weight: "20", "Spent value": "5000" }, activity_data_unit: "tonne", total_emission: 40 },
+    ],
+    ["weight"],
+  );
+  assert.deepEqual(
+    groups.map((g) => [g.emission_category, g.consumption, g.unit]),
+    [
+      ["Steel", 20, "tonne"],
+      ["AMC Charges", 2500, "USD"],
+      ["Other Heavy and Civil Engineering Construction", 1000, "USD"],
+      ["Analytical Laboratory Instrument Manufacturing", 1000, "EUR"],
+    ],
+  );
+});
+
 test("groups by emission category case-insensitively, with units", () => {
   const { computeBreakdown } = require(path.join(__dirname, "../../../dist/services/emissionBreakdown.js"));
   const groups = computeBreakdown(

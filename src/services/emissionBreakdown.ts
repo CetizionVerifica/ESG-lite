@@ -25,6 +25,10 @@ export const MIXED_UNIT = "mixed";
 // One field, not the sum of the numbers: same priority as the reporting layer
 // and the create/update controllers.
 const CONSUMPTION_KEYS = ["activity data", "activity_value", "value", "quantity", "amount", "consumption"];
+// A spend row's amount (S3-5: `spent_value`, "Spent value" on older Category 1 forms), in its currency, which
+// is the row's unit: a spend row has no other quantity. Read last, after the category's number columns, so an
+// older form's informational "Spent value" never replaces the row's own quantity.
+const SPEND_AMOUNT_KEYS = ["spent_value", "spent value"];
 
 function valueCI(data: Record<string, unknown>, key: string): unknown {
   if (data[key] !== undefined) return data[key];
@@ -39,9 +43,9 @@ const toNumber = (raw: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-/** The entry's activity value: a canonical key first, then the category's number columns. */
+/** The entry's activity value: a canonical key first, then the category's number columns, then a spend amount. */
 export function consumptionOf(data: Record<string, unknown>, numberColumns: string[]): number {
-  for (const key of [...CONSUMPTION_KEYS, ...numberColumns]) {
+  for (const key of [...CONSUMPTION_KEYS, ...numberColumns, ...SPEND_AMOUNT_KEYS]) {
     const n = toNumber(valueCI(data, key));
     if (n !== null) return n;
   }
