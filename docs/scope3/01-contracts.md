@@ -69,7 +69,7 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 |---|---|---|
 | `category.ghg_category` | smallint null, check 1–15, only when scope = 'Scope 3' | S3-1 |
 | `company.consolidation_approach` | varchar default `operational_control` (`equity_share`, `financial_control`) | S3-1 |
-| `company_scope3_category` | id, company_id, ghg_category, status (`included`, `excluded`, `not_relevant`, `screening`), reason text (required unless included), method_note text, relevance jsonb (Table II criteria ticks), updated_by, updated_at; unique (company_id, ghg_category) | S3-1 |
+| `company_scope3_category` | id, company_id, ghg_category, status (`included`, `excluded`, `not_relevant`, `screening`), reason text (required unless included), method_note text, relevance jsonb (Table II criteria ticks, keys `RELEVANCE_KEYS`: `size`, `influence`, `risk`, `stakeholders`, `outsourcing`, `sector_guidance`, `spend_analysis`, `other`), updated_by, updated_at; unique (company_id, ghg_category) | S3-1 |
 | `category_ghg_map_proposal` | category_id, company_id, proposed ghg_category, confidence, confirmed_by/at | S3-1 backfill |
 | `emission_factors.*` | §2 fields | S3-2 |
 | `emission.method` | varchar null (`Method`) | S3-3 |
@@ -77,7 +77,7 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `emission.data_type` | varchar null | S3-3 |
 | `emission.is_estimate` | boolean default false | S3-3 |
 | `emission.total_kgco2e` | numeric(18,4) null (written beside `total_emission`) | S3-4 |
-| `emission.fx` | jsonb null `{currency, to, rate, as_of, source, spend_date?}`: 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date it was looked up for | S3-5 |
+| `emission.fx` | jsonb null `{currency, to, rate, as_of, source, spend_date?, fallback?}`: 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date it was looked up for; `fallback: true` marks a stand-in rate (FX_RATE_FALLBACK: latest stored or live), which a recalculation quotes again once the purchase day is stored | S3-5 |
 | `fx_rate` | currency, date, rate_to_usd, source; unique (currency, date) | S3-5 |
 | `price_deflator` | country, year, index (any base, e.g. CPI-U 1982-84 = 100; only ratios index[base year] ÷ index[spend year] are used), source | S3-5 |
 | `supplier` | supplier_id, company_id, name, country, email null, created_by; unique (company_id, lower(name)) | S3-6 |
@@ -94,7 +94,7 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `product_sale` | id, company_id, product_id, period (date, first day of the month, like `emission.date`), quantity, unit, region | S3-10 |
 | `product.lifetime_uses`, `product.eol_mix` jsonb | null; `eol_mix` = `[{treatment, share}]`, shares summing to 1. `Product` gains columns although §4 of the plan lists it as read-only (allowed deviation) | S3-10 |
 | `emission.proxy` | jsonb null `{basis, coverage_pct, from}`: `basis` `coverage` \| `intensity` \| `sample`; `coverage_pct` 1–99, required only for `coverage` (optional share for the others, up to 100); `from` = the source emission row ids (empty for a survey). Plain label per basis: `PROXY_BASIS_LABELS`. Survey scaling is a proxy too: `{basis: "sample", coverage_pct, from: []}`; S3-9 keeps it in `extra_data.survey` until S3-12 merges and backfills | S3-12 |
-| `scope3_screening_input` | company_id, year, ghg_category, basis (`spend`, `headcount`, `revenue`, `mass_sold`, `other`), amount, currency, eeio_sector, note, updated_by/at; unique (company_id, year, ghg_category, basis) | S3-12 |
+| `scope3_screening_input` | company_id, year, year_type (`CY`, `FY`, default `CY`), ghg_category, basis (`spend`, `headcount`, `revenue`, `mass_sold`, `other`), amount, currency, eeio_sector, note, updated_by/at; unique (company_id, year, year_type, ghg_category, basis) | S3-12 |
 | `company_base_year` | company_id, base_year, scope, significance_pct default 5, policy_note, rationale text, year_type (`CY`, `FY`), snapshot jsonb (frozen base-year tCO₂e per category, with version and `frozen_at`) | S3-14 |
 | `recalculation_event` | id, company_id, reason (`methodology`, `data_quality`, `structural`, `error`), affected_years, delta_tco2e, approved_by, created_at, status (`proposed`, `approved`, `dismissed`), note, before/after jsonb | S3-14 |
 | `emission.status` | adds `draft`. It is a Postgres enum (`Emission.ts:15-19,42-47`), so the migration runs `ALTER TYPE … ADD VALUE 'draft'` outside a transaction | S3-15 |
@@ -115,8 +115,9 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `GET/POST/PUT /suppliers`, `GET /suppliers/:id/factors` | S3-6 | Manager+ on own company |
 | `POST /suppliers/:id/factors` | S3-6 | manual entry; supplier-request accept also writes here |
 | `GET /fx-rates?currency&date` | S3-5 | read only; filled by a daily job |
-| `GET /scope3/screening?year=` | S3-12 | estimate per category and suggested status |
-| `PUT /scope3/screening/inputs` | S3-12 | the `scope3_screening_input` rows; relevance ticks and "Apply suggestion" go through `PUT /scope3/categories/:n` |
+| `GET /scope3/screening?year=&year_type=` | S3-12 | estimate per category and suggested status (year_type defaults to CY) |
+| `PUT /scope3/screening/inputs` | S3-12 | `{year, year_type?, inputs}` (year_type defaults to CY): the `scope3_screening_input` rows; relevance ticks and "Apply suggestion" go through `PUT /scope3/categories/:n` |
+| `POST /scope3/screening/sector-suggestions` | S3-12 | Admin and Superadmin: `{description, supplier?, amount, currency}` → `{available, suggestions: [{code, name, confidence, needs_confirmation}] (≤ 3), confirm_below: 80}` via the AI route below; `available: false` when the AI service can't answer |
 | `POST /scope3/extrapolate` | S3-12 | body `{ghg_category, site_id, year, year_type, basis: "coverage" \| "intensity", coverage_pct?, source_filter?, output_site_ids?}`; creates proxy rows, Pending; `EXTRAPOLATION_BASIS_INVALID` for coverage outside 1–99, no source rows or no production |
 | `POST /v1/scope3/eeio-sector` (python_AI_service) | S3-12 | `{lines: [{description, supplier, amount, currency}], sectors: [{code, name}]}` → up to 3 `{code, confidence 0–100}` per line |
 | `POST /scope3/commuting/surveys` | S3-9 | `{site_id, year, year_type, total_employees, responses: [{ref, mode, one_way_km, days_per_week, weeks_per_year}]}` (≤ 20,000 responses) → an import plan |
@@ -169,7 +170,7 @@ S3-5 put `methodFileFor` in this order. A row carrying a spend quote (asked for 
 ## 7. Error and warning codes (add to `src/imports/errors.ts` style)
 
 Errors: `SCOPE_INVALID`, `GHG_CATEGORY_INVALID`, `GHG_CATEGORY_REQUIRED` (Scope 3 category with no number, after the backfill is confirmed), `EXCLUSION_REASON_REQUIRED`, `UNIT_REQUIRED` (a factor with no unit), `METHOD_NOT_ALLOWED`, `CURRENCY_NOT_SUPPORTED`, `SUPPLIER_FACTOR_BOUNDARY`, `PERIOD_LOCKED`, `UNLOCK_REASON_REQUIRED`, `NOT_DRAFT`, `EXTRAPOLATION_BASIS_INVALID`, `PERIOD_INCOMPLETE`, `BASE_YEAR_NO_DATA`, `RECALCULATION_REASON_REQUIRED`.
-Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
+Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `DEFLATOR_FALLBACK_YEAR` (spend year with no index yet: the latest earlier index was used), `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
 
 ## 8. Review check ids (S3-15, `review/checks.ts`)
 

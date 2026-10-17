@@ -59,6 +59,14 @@ export const BOUNDARY_STATUSES = ["included", "excluded", "not_relevant", "scree
 export const BoundaryStatusSchema = z.enum(BOUNDARY_STATUSES);
 export type BoundaryStatus = z.infer<typeof BoundaryStatusSchema>;
 
+/**
+ * Scope 3 Standard Table 6.1 / guidance Table II relevance criteria (L1149-1173),
+ * the keys `company_scope3_category.relevance` may tick. `spend_analysis` is
+ * Table II "spending or revenue analysis" (S3-12; S3-0 follow-up carried in ESG-lite #169).
+ */
+export const RELEVANCE_KEYS = ["size", "influence", "risk", "stakeholders", "outsourcing", "sector_guidance", "spend_analysis", "other"] as const;
+export type RelevanceKey = (typeof RELEVANCE_KEYS)[number];
+
 /** Table II relevance criteria ticks, criterion → ticked. */
 export const RelevanceSchema = z.record(z.string(), z.boolean());
 
@@ -146,8 +154,10 @@ export const FactorSnapshotScope3FieldsSchema = z.object({
 // §4 / §10 Emission columns (S3-3, S3-4, S3-5, S3-6, S3-7, S3-12, S3-15)
 // ---------------------------------------------------------------------------
 
-/** `emission.fx` (S3-5). */
-/** `emission.fx` (S3-5): 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date the rate was looked up for. */
+/**
+ * `emission.fx` (S3-5): 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date the rate was
+ * looked up for; `fallback` (only when true) marks a stand-in rate (FX_RATE_FALLBACK) that a recalculation quotes again.
+ */
 export const FxSchema = z.object({
   currency,
   to: currency,
@@ -155,6 +165,7 @@ export const FxSchema = z.object({
   as_of: isoDate,
   source: text(100),
   spend_date: isoDate.optional(),
+  fallback: z.literal(true).optional(),
 });
 
 /**
@@ -487,15 +498,19 @@ export const NothingThisMonthSchema = z.object({
 // §5 Screening (S3-12)
 // ---------------------------------------------------------------------------
 
-/** `GET /scope3/screening?year=`. */
-export const ScreeningQuerySchema = z.object({ year: z.coerce.number().int().min(1990).max(2100) });
+/** `GET /scope3/screening?year=&year_type=`; year_type defaults to CY (FY = April–March, named by the year it ends in). */
+export const ScreeningQuerySchema = z.object({
+  year: z.coerce.number().int().min(1990).max(2100),
+  year_type: yearType.default("CY"),
+});
 
 export const SCREENING_BASES = ["spend", "headcount", "revenue", "mass_sold", "other"] as const;
 
-/** `scope3_screening_input`; unique (company_id, year, ghg_category, basis). */
+/** `scope3_screening_input`; unique (company_id, year, year_type, ghg_category, basis). */
 export const ScreeningInputSchema = z.object({
   company_id: id,
   year,
+  year_type: yearType.default("CY"),
   ghg_category: GhgCategoryNumberSchema,
   basis: z.enum(SCREENING_BASES),
   amount: nonNegative,
@@ -506,11 +521,37 @@ export const ScreeningInputSchema = z.object({
   updated_at: z.string().optional(),
 });
 
-/** `PUT /scope3/screening/inputs`. */
+/** `PUT /scope3/screening/inputs`; year_type defaults to CY, as before it was part of the key. */
 export const PutScreeningInputsBodySchema = z.object({
   year,
-  inputs: z.array(ScreeningInputSchema.omit({ company_id: true, year: true, updated_by: true, updated_at: true })),
+  year_type: yearType.default("CY"),
+  inputs: z.array(ScreeningInputSchema.omit({ company_id: true, year: true, year_type: true, updated_by: true, updated_at: true })),
 });
+
+/** Below this confidence (0–100) the UI asks the Admin to confirm a suggested sector. */
+export const SECTOR_CONFIRM_BELOW = 80;
+
+/**
+ * `POST /scope3/screening/sector-suggestions` (S3-12, Admin and Superadmin): one
+ * spend line, sent to python_AI_service `/v1/scope3/eeio-sector` with the USEEIO
+ * library. Limits match the AI service's `EeioLine`. S3-0 follow-up carried in ESG-lite #169.
+ */
+export const SectorSuggestionsBodySchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  supplier: z.string().trim().max(200).nullable().optional(),
+  amount: z.number().min(0),
+  currency,
+});
+
+/** Its answer: up to 3 library sectors; `available: false` when the AI service can't answer (never an error). */
+export const SectorSuggestionsResponseSchema = z.object({
+  available: z.boolean(),
+  suggestions: z
+    .array(z.object({ code: z.string(), name: z.string(), confidence: z.number().min(0).max(100), needs_confirmation: z.boolean() }))
+    .max(3),
+  confirm_below: z.number(),
+});
+export type SectorSuggestionsResponse = z.infer<typeof SectorSuggestionsResponseSchema>;
 
 /** `POST /scope3/extrapolate` (`EXTRAPOLATION_BASIS_INVALID` for coverage outside 1–99, no source rows, no production). */
 export const ExtrapolateBodySchema = z.object({

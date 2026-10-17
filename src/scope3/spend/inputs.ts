@@ -3,8 +3,10 @@
  * date. Pure; no database.
  *
  * A row is calculated from the amount spent when its method says so (the
- * row's `method`, or `activity_data["@method"]` until S3-3 gives rows that
- * column, as S3-9 does) or when its factor is a spend (EEIO) factor. The
+ * row's `method` (S3-3), else `activity_data["@method"]` as S3-9 forms keep
+ * it, else the form's first offered method; emissionWrite/index.ts passes the
+ * one that applies as `rowMethod`), when its factor is a spend (EEIO) factor, or when
+ * its quantity is in a currency other than its factor's currency. The
  * amount is `spent_value` with `currency` (the form fields, wherever the
  * form keeps them: calculation fields or the older extra fields) on a row
  * that asks for the spend method, or else the row's quantity when its unit is
@@ -14,7 +16,7 @@
 import type { EmissionFactor } from "../../entities/EmissionFactor";
 import { pickActivityValue } from "../../services/activityValue";
 import { ROW_METHOD_COLUMN } from "../../services/calculationSpec";
-import { looksLikeCurrency } from "./currencies";
+import { factorCurrency, looksLikeCurrency } from "./currencies";
 
 export const SPEND_METHOD = "spend_based";
 
@@ -39,9 +41,30 @@ const field = (key: string, ...sources: Array<Record<string, unknown> | null | u
   return undefined;
 };
 
-/** The row asked for the spend method, or its factor is a spend factor. */
-export const isSpendRow = (activity_data: Record<string, unknown>, factor: Pick<EmissionFactor, "factor_type"> | null, rowMethod?: string | null): boolean =>
-  rowMethod === SPEND_METHOD || String(activity_data?.[ROW_METHOD_COLUMN] ?? "").trim() === SPEND_METHOD || factor?.factor_type === "eeio_spend";
+/**
+ * An amount in one currency on a factor priced in another (1,240,000 "INR" on
+ * a factor per USD with no factor type): it needs an exchange rate, so it takes
+ * the spend path and stores the rate it used, rather than a live rate from the
+ * unit table (units.ts) that is never stored. An amount already in the
+ * factor's currency ("USD" on a factor per USD) needs no rate and is left to
+ * the factor, as before.
+ */
+export const needsCurrencyConversion = (unit: string | null | undefined, factor: Pick<EmissionFactor, "price_currency" | "denominator_unit"> | null): boolean => {
+  if (!factor || !looksLikeCurrency(unit)) return false;
+  const to = factorCurrency(factor);
+  return !!to && String(unit).trim().toUpperCase() !== to;
+};
+
+/**
+ * The row asked for the spend method, its factor is a spend factor, or its
+ * amount is in a currency other than its factor's (needsCurrencyConversion).
+ */
+export const isSpendRow = (
+  activity_data: Record<string, unknown>,
+  factor: Pick<EmissionFactor, "factor_type" | "price_currency" | "denominator_unit"> | null,
+  rowMethod?: string | null,
+  unit?: string | null,
+): boolean => rowAsksForSpend(activity_data, rowMethod) || factor?.factor_type === "eeio_spend" || needsCurrencyConversion(unit, factor);
 
 /** The method named on the row itself (not inferred from the factor). */
 export const rowAsksForSpend = (activity_data: Record<string, unknown>, rowMethod?: string | null): boolean =>

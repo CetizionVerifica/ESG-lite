@@ -137,7 +137,7 @@ const CopySchema = z.object({
   site_id: z.number().int().positive(),
   category_id: z.number().int().positive(),
   factor_ids: z.array(z.number().int().positive()).min(1).max(500),
-  /** The factor year the copies get (the year the client reports); defaults to this year. Prices stay at the base year. */
+  /** The factor year the copies get; defaults to last year, the factor year this year's rows look up first (targetYearFor). Prices stay at the base year. */
   year: z.number().int().min(2000).max(2100).optional(),
 });
 

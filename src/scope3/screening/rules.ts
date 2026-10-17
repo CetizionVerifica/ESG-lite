@@ -11,15 +11,15 @@
  *   5. below 1 % of the screened total                      → excluded "Estimated below 1 % of Scope 3 (≈ x tCO₂e by spend screening, <year>)"
  *   6. anything else (1 % or more, outside the top 95 %)    → included
  */
-import type { BoundaryStatus } from "../contracts/schemas";
+import type { BoundaryStatus, RelevanceKey } from "../contracts/schemas";
 
 /** Categories that together make up this share of the screened total are suggested for inclusion. */
 export const TOP_SHARE_PCT = 95;
 /** A category below this share of the screened total, with no tick, is suggested for exclusion. */
 export const BELOW_SHARE_PCT = 1;
 
-/** Table II (L1149-1173) criteria, as stored in `company_scope3_category.relevance`, with their plain wording. */
-export const RELEVANCE_LABELS: Record<string, string> = {
+/** Table II (L1149-1173) criteria (`RELEVANCE_KEYS` in the contracts), with their plain wording. */
+export const RELEVANCE_LABELS: Record<RelevanceKey, string> = {
   size: "Size",
   influence: "Influence",
   risk: "Risk",
@@ -88,7 +88,7 @@ export function suggest(rows: RuleInput[], year: number): Map<number, Suggestion
   const { share, top } = shares(rows);
   const out = new Map<number, Suggestion>();
   for (const r of rows) {
-    const ticks = r.ticks.filter((k) => RELEVANCE_LABELS[k]);
+    const ticks = r.ticks.filter((k): k is RelevanceKey => k in RELEVANCE_LABELS);
     const size = r.size_tco2e;
     const p = share.get(r.n) ?? 0;
     if (ticks.length) {

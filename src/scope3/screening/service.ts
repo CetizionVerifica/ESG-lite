@@ -11,7 +11,7 @@
 import { z } from "zod";
 import { AppDataSource } from "../../config/data-source";
 import { GHG_CATEGORIES } from "../contracts/ghgCategory";
-import { PutScreeningInputsBodySchema, SCREENING_BASES } from "../contracts/schemas";
+import { PutScreeningInputsBodySchema, SCREENING_BASES, ScreeningQuerySchema } from "../contracts/schemas";
 import { BoundaryError } from "../boundary/errors";
 import { getBoundary } from "../boundary/service";
 import { isScope3Sql } from "../taxonomy/service";
@@ -27,14 +27,9 @@ export const yearRange = (year: number, yearType: YearType): { start: string; en
 
 const issuesOf = (issues: z.core.$ZodIssue[]) => issues.slice(0, 20).map((i) => ({ path: i.path.join("."), message: i.message }));
 
-const QuerySchema = z.object({
-  year: z.coerce.number().int().min(1990).max(2100),
-  year_type: z.enum(["CY", "FY"]).default("CY"),
-});
-
-/** `?year=&year_type=`, or 400. */
+/** `?year=&year_type=` (year_type defaults to CY), or 400. */
 export function parseScreeningQuery(query: unknown): { year: number; year_type: YearType } {
-  const parsed = QuerySchema.safeParse(query ?? {});
+  const parsed = ScreeningQuerySchema.safeParse(query ?? {});
   if (!parsed.success) throw new BoundaryError("SCOPE3_VALIDATION", { issues: issuesOf(parsed.error.issues) });
   return parsed.data;
 }
@@ -72,15 +67,15 @@ async function recordedByCategory(companyId: number, start: string, end: string)
   );
 }
 
-/** The company's screening inputs for a year. */
-async function inputsFor(companyId: number, year: number) {
+/** The company's screening inputs for a year and year type (CY 2026 and FY 2026 are separate). */
+async function inputsFor(companyId: number, year: number, yearType: YearType) {
   const rows: any[] = await AppDataSource.query(
     `SELECT i.ghg_category, i.basis, i.amount, i.currency, i.eeio_sector, i.note, i.updated_at, i.updated_by, u.name AS updated_by_name
        FROM scope3_screening_input i
        LEFT JOIN "user" u ON u.user_id = i.updated_by
-      WHERE i.company_id = $1 AND i.year = $2
+      WHERE i.company_id = $1 AND i.year = $2 AND i.year_type = $3
       ORDER BY i.ghg_category, i.basis`,
-    [companyId, year],
+    [companyId, year, yearType],
   );
   return rows.map((r) => ({
     ghg_category: Number(r.ghg_category),
@@ -125,7 +120,7 @@ export async function getScreening(companyId: number, query: unknown, caller: { 
   const { start, end } = yearRange(year, year_type);
   const boundary = await getBoundary(companyId);
   const recorded = await recordedByCategory(companyId, start, end);
-  const inputs = await inputsFor(companyId, year);
+  const inputs = await inputsFor(companyId, year, year_type);
   const estimator = new Estimator(AppDataSource.manager, year, year_type);
 
   const perCategory = await Promise.all(
@@ -220,15 +215,15 @@ export async function getScreening(companyId: number, query: unknown, caller: { 
 }
 
 /**
- * PUT /scope3/screening/inputs `{year, inputs: [{ghg_category, basis, amount, currency?, eeio_sector?, note?}]}`:
- * upserts one row per (company, year, category, basis). An amount of 0 clears
+ * PUT /scope3/screening/inputs `{year, year_type?, inputs: [{ghg_category, basis, amount, currency?, eeio_sector?, note?}]}`:
+ * upserts one row per (company, year, year_type, category, basis); year_type defaults to CY. An amount of 0 clears
  * a figure without deleting its history. Each change writes an audit row
  * (`scope3_screening_input`) with old and new values.
  */
 export async function putInputs(companyId: number, raw: unknown, userId: number) {
   const parsed = PutScreeningInputsBodySchema.safeParse(raw ?? {});
   if (!parsed.success) throw new BoundaryError("SCOPE3_VALIDATION", { issues: issuesOf(parsed.error.issues) });
-  const { year, inputs } = parsed.data;
+  const { year, year_type, inputs } = parsed.data;
   if (inputs.length > 75) throw new BoundaryError("SCOPE3_VALIDATION", { field: "inputs", reason: "at most 75 rows (15 categories × 5 bases)" });
   const keys = inputs.map((i) => `${i.ghg_category}:${i.basis}`);
   if (new Set(keys).size !== keys.length) throw new BoundaryError("SCOPE3_VALIDATION", { field: "inputs", reason: "a category and basis appear twice" });
@@ -248,8 +243,8 @@ export async function putInputs(companyId: number, raw: unknown, userId: number)
       };
       const [old]: any[] = await m.query(
         `SELECT id, amount, currency, eeio_sector, note FROM scope3_screening_input
-          WHERE company_id = $1 AND year = $2 AND ghg_category = $3 AND basis = $4 FOR UPDATE`,
-        [companyId, year, i.ghg_category, i.basis],
+          WHERE company_id = $1 AND year = $2 AND year_type = $3 AND ghg_category = $4 AND basis = $5 FOR UPDATE`,
+        [companyId, year, year_type, i.ghg_category, i.basis],
       );
       let id: number;
       const changed: Record<string, { old: unknown; new: unknown }> = {};
@@ -266,18 +261,18 @@ export async function putInputs(companyId: number, raw: unknown, userId: number)
         id = Number(old.id);
       } else {
         const [row]: any[] = await m.query(
-          `INSERT INTO scope3_screening_input (company_id, year, ghg_category, basis, amount, currency, eeio_sector, note, updated_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-          [companyId, year, i.ghg_category, i.basis, next.amount, next.currency, next.eeio_sector, next.note, userId || null],
+          `INSERT INTO scope3_screening_input (company_id, year, year_type, ghg_category, basis, amount, currency, eeio_sector, note, updated_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+          [companyId, year, year_type, i.ghg_category, i.basis, next.amount, next.currency, next.eeio_sector, next.note, userId || null],
         );
         id = Number(row.id);
         for (const k of ["amount", "currency", "eeio_sector", "note"] as const) if (next[k] !== null) changed[k] = { old: null, new: next[k] };
       }
       await m.query(
         `INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, reason, changed_by) VALUES ('scope3_screening_input', $1, $2, $3, $4, $5)`,
-        [id, old ? "update" : "create", JSON.stringify({ year: { old: year, new: year }, ghg_category: { old: i.ghg_category, new: i.ghg_category }, basis: { old: i.basis, new: i.basis }, ...changed }), null, userId || null],
+        [id, old ? "update" : "create", JSON.stringify({ year: { old: year, new: year }, year_type: { old: year_type, new: year_type }, ghg_category: { old: i.ghg_category, new: i.ghg_category }, basis: { old: i.basis, new: i.basis }, ...changed }), null, userId || null],
       );
     }
   });
-  return { company_id: companyId, year, inputs: await inputsFor(companyId, year) };
+  return { company_id: companyId, year, year_type, inputs: await inputsFor(companyId, year, year_type) };
 }

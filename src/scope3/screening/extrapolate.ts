@@ -13,8 +13,9 @@
  * `insertEntry` saves it. Sources are approved, measured rows of the GHG
  * category and year: never a proxy row (`emission.proxy`), never a survey row.
  * The row is Pending, yearly, `data_type` secondary and `is_estimate` true
- * (kept in `extra_data` until S3-3 adds the columns), and its `proxy` names
- * the source row ids. A second pending proxy for the same category, site,
+ * (the S3-3 columns; completeness scores 3 because the row carries a proxy),
+ * and its `proxy` names the source row ids. The method is the most common
+ * method of the sources (`emission.method`, else their `@method`). A second pending proxy for the same category, site,
  * year and basis is refused with `DUPLICATE_EXISTING` and the existing id.
  *
  * Roles: Manager and above, for sites they can access (Superadmin any site of
@@ -26,7 +27,7 @@ import type { EmissionFactor } from "../../entities/EmissionFactor";
 import { UserRole } from "../../types/type";
 import { accessibleSiteIds } from "../../utils/companyScope";
 import { computeRow, type CategoryContext } from "../../services/emissionWrite/compute";
-import { insertEntry, type PreparedEntry } from "../../services/emissionWrite/index";
+import { insertEntry, reportingYearFor, type PreparedEntry } from "../../services/emissionWrite/index";
 import { toStoredPeriod } from "../../services/emissionWrite/period";
 import { ROW_METHOD_COLUMN } from "../../services/calculationSpec";
 import { ExtrapolateBodySchema, PROXY_BASIS_LABELS, type Proxy } from "../contracts/schemas";
@@ -167,7 +168,7 @@ export async function extrapolate(companyId: number, caller: Caller, raw: unknow
       catFilter = `AND e.category_id = ANY($${params.length}::int[])`;
     }
     return AppDataSource.query(
-      `SELECT e.pk_id, e.site_id, ${kgSql} AS kg, e.activity_data ->> '${ROW_METHOD_COLUMN}' AS method
+      `SELECT e.pk_id, e.site_id, ${kgSql} AS kg, COALESCE(e.method, e.activity_data ->> '${ROW_METHOD_COLUMN}') AS method
          FROM emission e
          JOIN category c ON c.category_id = e.category_id
          JOIN site s ON s.site_id = e.site_id
@@ -238,7 +239,8 @@ export async function extrapolate(companyId: number, caller: Caller, raw: unknow
     ...(method ? { [ROW_METHOD_COLUMN]: method } : {}),
   };
   const ctx = ctxFor(body.site_id, categoryId, cat.category_name);
-  const result = computeRow(ctx, { factor, activity_data, activity_unit: unit, method, proxy });
+  // The DQ time rule compares the factor year with the year the row is reported in (S3-3).
+  const result = computeRow(ctx, { factor, activity_data, activity_unit: unit, method, proxy, reportingYear: reportingYearFor(period.period.date_of_reporting) });
   if (!result.ok) throw invalid("not_computable", { code: result.issue.code }, result.issue.message);
   const computed = result.computed;
 
@@ -260,17 +262,22 @@ export async function extrapolate(companyId: number, caller: Caller, raw: unknow
   };
   if (opts.dryRun) return { ...preview, dry_run: true };
 
-  const extra_data = { data_type: "secondary", is_estimate: true, extrapolation: { ...detail, basis: body.basis, formula: preview.formula } };
+  const extra_data = { extrapolation: { ...detail, basis: body.basis, formula: preview.formula } };
   const entry: PreparedEntry = {
-    input: { site_id: body.site_id, category_id: categoryId, activity_data, activity_data_unit: unit, period: period.period, extra_data, proxy },
+    input: { site_id: body.site_id, category_id: categoryId, activity_data, activity_data_unit: unit, period: period.period, extra_data, proxy, is_estimate: true },
     factor,
     computed,
     fera: null,
     tdLoss: null,
     warnings: [],
   };
+  // TODO(S3-15·2): refuse with PERIOD_LOCKED when the target site's year is locked
+  // (period_lock, contracts §4 and §7). The lock table and its check arrive with
+  // S3-15 part 2, which isn't on production; until then no lock is checked here.
   const saved = await AppDataSource.transaction(async (tx) => {
-    // Re-check the duplicate inside the transaction (two clicks at once).
+    // Re-check the duplicate inside the transaction (two clicks at once). FOR UPDATE
+    // locks nothing when no row exists yet, so serialise on the key first.
+    await tx.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`s3-12-proxy:${body.site_id}:${n}:${body.basis}:${start}`]);
     const [again]: any[] = await tx.query(
       `SELECT e.pk_id FROM emission e JOIN category c ON c.category_id = e.category_id
         WHERE e.site_id = $1 AND c.ghg_category = $2 AND e.status = 'pending' AND e.proxy ->> 'basis' = $3

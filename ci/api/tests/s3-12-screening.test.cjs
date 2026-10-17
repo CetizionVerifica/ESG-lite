@@ -32,11 +32,12 @@ const reset = () =>
     if (saved) await db.query(`UPDATE company_scope3_category SET relevance = $1 WHERE company_id = 1 AND ghg_category = 6`, [saved.relevance === null ? null : JSON.stringify(saved.relevance)]);
   });
 
-const insert = (db, id, kg, { status = "approved", site = 1, method = null, extra = {}, proxy = null, year = YEAR } = {}) =>
+// `method` goes in activity_data["@method"] (S3-9 forms); `methodColumn` in emission.method (S3-3).
+const insert = (db, id, kg, { status = "approved", site = 1, method = null, methodColumn = null, extra = {}, proxy = null, year = YEAR } = {}) =>
   db.query(
-    `INSERT INTO emission (pk_id, activity_data, total_emission, total_kgco2e, unit, date_of_reporting, status, category_id, site_id, extra_data, proxy)
-     VALUES ($1, $2, $3, $4, 'tCO2e', $5, $6, 3, $7, $8, $9)`,
-    [id, JSON.stringify({ activity_value: 1, ...(method ? { "@method": method } : {}) }), Math.round(kg / 10) / 100, kg.toFixed(4), `${year}-05-31`, status, site, JSON.stringify(extra), proxy && JSON.stringify(proxy)],
+    `INSERT INTO emission (pk_id, activity_data, total_emission, total_kgco2e, unit, date_of_reporting, status, category_id, site_id, extra_data, proxy, method)
+     VALUES ($1, $2, $3, $4, 'tCO2e', $5, $6, 3, $7, $8, $9, $10)`,
+    [id, JSON.stringify({ activity_value: 1, ...(method ? { "@method": method } : {}) }), Math.round(kg / 10) / 100, kg.toFixed(4), `${year}-05-31`, status, site, JSON.stringify(extra), proxy && JSON.stringify(proxy), methodColumn],
   );
 
 test.before(async () => {
@@ -47,7 +48,7 @@ test.before(async () => {
   await reset();
   await withDb(async (db) => {
     await db.query(`UPDATE category SET ghg_category = 6 WHERE category_id = 3`);
-    await insert(db, 81500, 600, { method: "distance_based" });
+    await insert(db, 81500, 600, { methodColumn: "distance_based" });
     await insert(db, 81501, 250, { method: "distance_based" });
     await insert(db, 81502, 50, { status: "pending", method: "spend_based" });
     await insert(db, 81503, 999, { status: "rejected" });
@@ -156,6 +157,28 @@ test("PUT inputs saves, upserts and audits; GET estimates spend × USEEIO and he
   assert.equal(await emissionCount(), before, "estimates are never saved as emission rows");
 });
 
+test("CY and FY inputs are separate: FY 2011 keeps its own headcount, CY (the default) keeps 12", async () => {
+  const fy = await call("PUT", "/scope3/screening/inputs", "admin", { year: YEAR, year_type: "FY", inputs: [{ ghg_category: 7, basis: "headcount", amount: 40 }] });
+  assert.equal(fy.status, 200, JSON.stringify(fy.json));
+  assert.equal(fy.json.year_type, "FY");
+  assert.deepEqual(fy.json.inputs.map((i) => [i.ghg_category, i.amount]), [[7, 40]], "only the FY figure");
+  const stored = await withDb((db) => db.query(`SELECT year_type, amount::float8 AS amount FROM scope3_screening_input WHERE company_id = 1 AND year = $1 AND ghg_category = 7 ORDER BY year_type`, [YEAR]));
+  assert.deepEqual(stored.rows, [{ year_type: "CY", amount: 12 }, { year_type: "FY", amount: 40 }]);
+
+  const commute = (n) => Math.round((n * 15 * 2 * 230 * 0.16725) / 10) / 100;
+  const gFy = await call("GET", `/scope3/screening?year=${YEAR}&year_type=FY`, "admin");
+  assert.equal(gFy.status, 200, JSON.stringify(gFy.json));
+  assert.equal(gFy.json.categories.find((c) => c.n === 7).estimate_tco2e, commute(40));
+  assert.equal(gFy.json.categories.find((c) => c.n === 6).inputs.length, 0, "the CY spend figure is not FY's");
+  const gCy = await call("GET", `/scope3/screening?year=${YEAR}`, "admin");
+  assert.equal(gCy.json.year_type, "CY");
+  assert.equal(gCy.json.categories.find((c) => c.n === 7).estimate_tco2e, commute(12));
+  assert.equal((await call("GET", `/scope3/screening?year=${YEAR}&year_type=QY`, "admin")).status, 400);
+  assert.equal((await call("PUT", "/scope3/screening/inputs", "admin", { year: YEAR, year_type: "QY", inputs: [] })).status, 400);
+  const audit = await withDb((db) => db.query(`SELECT changed_fields FROM audit_log WHERE entity_type = 'scope3_screening_input' ORDER BY id DESC LIMIT 1`));
+  assert.deepEqual(audit.rows[0].changed_fields.year_type, { old: "FY", new: "FY" });
+});
+
 test("Sector suggestions: Admin only, validated, and unavailable AI is not an error", async () => {
   const line = { description: "Flights to Mumbai", amount: 1200, currency: "USD" };
   assert.equal((await call("POST", "/scope3/screening/sector-suggestions", "manager", line)).status, 403);
@@ -226,8 +249,11 @@ test("extrapolate coverage: dry run saves nothing; the row is Pending, secondary
   assert.equal(row.total_kgco2e, "150.0000");
   assert.equal(Number(row.total_emission), 0.15);
   assert.deepEqual(row.proxy, { basis: "coverage", coverage_pct: 85, from: [81500, 81501] });
-  assert.equal(row.extra_data.data_type, "secondary");
-  assert.equal(row.extra_data.is_estimate, true);
+  // The S3-3 columns: secondary, estimated, the sources' method (one in emission.method, one in @method), completeness 3.
+  assert.equal(row.data_type, "secondary");
+  assert.equal(row.is_estimate, true);
+  assert.equal(row.method, "distance_based");
+  assert.equal(row.dq.completeness, 3);
   assert.equal(row.activity_data["@method"], "distance_based");
   assert.equal(row.emission_factor_snapshot.factor_type, "other");
   const audit = await withDb((db) => db.query(`SELECT entity_type, action FROM audit_log WHERE entity_id = $1 AND entity_type IN ('emission', 'scope3_proxy') ORDER BY entity_type`, [r.json.id]));
@@ -289,6 +315,14 @@ test("extrapolate intensity: kg per output at sites with data × output at the s
   assert.equal(again.json.details.reason, "output_site_has_data");
 });
 
+test("two extrapolations at once: one Pending row, the other DUPLICATE_EXISTING", async () => {
+  // The site 1 coverage row was approved above, so nothing is pending for this key.
+  const [a, b] = await Promise.all([call("POST", "/scope3/extrapolate", "manager", coverage()), call("POST", "/scope3/extrapolate", "admin", coverage())]);
+  assert.deepEqual([a.status, b.status].sort(), [201, 409], JSON.stringify([a.json, b.json]));
+  const pending = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id = 1 AND status = 'pending' AND proxy ->> 'basis' = 'coverage'`));
+  assert.equal(pending.rows[0].n, 1);
+});
+
 // ── migrate:scope3-screening ─────────────────────────────────────────────────
 
 const runScript = (name) =>
@@ -305,4 +339,40 @@ test("migrate:scope3-screening runs twice and backfills survey rows into emissio
   assert.deepEqual(rows[1].proxy, { basis: "sample", from: [] }, "no coverage_pct in the survey → none in the proxy");
   const untouched = await withDb(async (db) => (await db.query(`SELECT proxy FROM emission WHERE pk_id = 81500`)).rows[0].proxy);
   assert.equal(untouched, null, "measured rows stay without a proxy");
+});
+
+test("migrate:scope3-screening gives older inputs a year type (the base year's, else CY) and keys inputs by it, twice", async () => {
+  // Stand in for rows written before year_type existed: the column back to nullable, two rows without one.
+  const hadBaseYear = await withDb(async (db) => (await db.query(`SELECT 1 FROM company_base_year WHERE company_id = 2 AND scope = 'Scope 3'`)).rows.length > 0);
+  await withDb(async (db) => {
+    await db.query(`ALTER TABLE scope3_screening_input ALTER COLUMN year_type DROP NOT NULL`);
+    if (!hadBaseYear) await db.query(`INSERT INTO company_base_year (company_id, scope, base_year, year_type) VALUES (2, 'Scope 3', 2010, 'FY')`);
+    await db.query(
+      `INSERT INTO scope3_screening_input (company_id, year, year_type, ghg_category, basis, amount) VALUES (1, 2010, NULL, 5, 'other', 1), (2, 2010, NULL, 5, 'other', 2)`,
+    );
+  });
+  try {
+    for (let i = 0; i < 2; i++) {
+      const r = runScript("migrateScope3Screening");
+      assert.equal(r.status, 0, r.stderr + r.stdout);
+    }
+    const expected = await withDb(async (db) => {
+      const by = async (c) => (await db.query(`SELECT year_type FROM company_base_year WHERE company_id = $1 AND scope = 'Scope 3' ORDER BY id DESC LIMIT 1`, [c])).rows[0]?.year_type ?? "CY";
+      return [await by(1), await by(2)];
+    });
+    if (!hadBaseYear) assert.equal(expected[1], "FY");
+    const rows = await withDb(async (db) => (await db.query(`SELECT company_id, year_type FROM scope3_screening_input WHERE year = 2010 AND ghg_category = 5 ORDER BY company_id`)).rows);
+    assert.deepEqual(rows.map((r) => r.year_type), expected);
+    const col = await withDb(async (db) => (await db.query(`SELECT is_nullable, column_default FROM information_schema.columns WHERE table_name = 'scope3_screening_input' AND column_name = 'year_type'`)).rows[0]);
+    assert.equal(col.is_nullable, "NO");
+    assert.match(col.column_default, /'CY'/);
+    const idx = await withDb(async (db) => (await db.query(`SELECT indexname FROM pg_indexes WHERE tablename = 'scope3_screening_input' AND indexname LIKE 'UQ_%' ORDER BY 1`)).rows.map((r) => r.indexname));
+    assert.deepEqual(idx, ["UQ_scope3_screening_input_company_year_type_n_basis"], "the year-only key is gone");
+    await assert.rejects(
+      withDb((db) => db.query(`INSERT INTO scope3_screening_input (company_id, year, year_type, ghg_category, basis, amount) VALUES (1, 2010, 'QY', 5, 'spend', 1)`)),
+      /CHK_scope3_screening_input_year_type/,
+    );
+  } finally {
+    if (!hadBaseYear) await withDb((db) => db.query(`DELETE FROM company_base_year WHERE company_id = 2 AND base_year = 2010`));
+  }
 });

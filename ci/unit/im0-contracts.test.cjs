@@ -156,7 +156,8 @@ test("row issue codes carry the contract's severity", () => {
   assert.equal(errors.ROW_ISSUE_CODES.FACTOR_FALLBACK_YEAR, "warning");
   assert.equal(errors.ROW_ISSUE_CODES.CLIENT_TOTAL_IGNORED, "warning");
   assert.equal(errors.ROW_ISSUE_CODES.DISTANCE_REQUIRED, "error");
-  assert.equal(errors.ROW_ISSUE_CODE_LIST.length, 27); // 17 IM0 codes + 3 XI0 codes + 2 S3-4 codes + 2 S3-7 codes + 3 S3-5 codes
+  assert.equal(errors.ROW_ISSUE_CODE_LIST.length, 29); // 17 IM0 codes + 3 XI0 codes + 2 S3-4 codes + 2 S3-7 codes + 4 S3-5 codes + 1 S3-3 code
+  assert.equal(errors.ROW_ISSUE_CODES.METHOD_NOT_ALLOWED, "error"); // S3-3
   assert.equal(errors.ROW_ISSUE_CODES.UNIT_REQUIRED, "error");
   assert.equal(errors.ROW_ISSUE_CODES.FERA_FACTOR_MISSING, "warning");
   assert.equal(errors.ROW_ISSUE_CODES.FACTOR_TYPE_MISMATCH, "warning");
