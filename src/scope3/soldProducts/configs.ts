@@ -372,7 +372,7 @@ export const isLegacyUseConfig = (config: StandardContent): boolean => {
   return same(deps?.[COL_USE_OPTION], legacyDeps);
 };
 
-// ── Methods (S3-3 column `method_options`; written once S3-3 is merged) ───────
+// ── Methods (S3-3 column `method_options`) ───────────────────────────────────
 /** Most specific first (01-contracts.md §1). */
 export const METHOD_OPTIONS: Record<SoldProductCategory, Method[]> = {
   10: ["site_specific", "average_data"],
@@ -385,3 +385,7 @@ export const UNITS_BY_METHOD: Record<SoldProductCategory, Partial<Record<Method,
   11: { direct_use: ["kWh", "litre", "kg", "use"] },
   12: { waste_type_specific: ["kg"], average_data: ["kg"] },
 };
+
+/** The form's `method_options` value: `{method, units}` per method, most specific first. */
+export const methodOptionsFor = (n: SoldProductCategory): Array<{ method: Method; units: string[] }> =>
+  METHOD_OPTIONS[n].map((method) => ({ method, units: UNITS_BY_METHOD[n][method] ?? [] }));

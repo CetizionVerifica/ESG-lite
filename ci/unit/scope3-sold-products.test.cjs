@@ -349,3 +349,22 @@ test("withoutImported: saved rows leave the plan; the product is listed once as 
   const all = R.withoutImported(out, () => true);
   assert.deepEqual([all.rows.length, all.planned.length, all.skipped.length], [0, 0, 1]);
 });
+
+test("method_options per form pass S3-0's schema, most specific first, and cover every @method the form uses", () => {
+  const { MethodOptionsSchema } = require(path.resolve("dist/scope3/contracts/schemas.js"));
+  for (const n of [10, 11, 12]) {
+    const opts = C.methodOptionsFor(n);
+    assert.ok(MethodOptionsSchema.safeParse(opts).success, `Category ${n}`);
+    assert.deepEqual(opts.map((o) => o.method), C.METHOD_OPTIONS[n]);
+  }
+  assert.deepEqual(C.methodOptionsFor(12), [
+    { method: "waste_type_specific", units: ["kg"] },
+    { method: "average_data", units: ["kg"] },
+  ]);
+  // Category 10 and 12 rows name their method in "@method": every one the form defines is offered.
+  for (const n of [10, 12]) {
+    const spec = C.soldProductForm(n).calculation;
+    assert.equal(spec.method_column, ROW_METHOD_COLUMN);
+    for (const m of Object.keys(spec.methods)) assert.ok(C.METHOD_OPTIONS[n].includes(m), `Category ${n}: ${m}`);
+  }
+});

@@ -7,6 +7,8 @@
 // through regenerateFromSnapshot() gives a byte-identical result.
 // A PCF result is never a CBAM "specific embedded emissions" figure.
 
+import { allocatedKg, allocationShare } from "../../scope3/suppliers/allocate";
+
 export const ENGINE_VERSION = "pcf-1.0.0";
 
 export type PcfStage = "A1" | "A2" | "A3_packaging" | "A3_waste";
@@ -178,7 +180,8 @@ export function computePcf(data: PcfEngineInput): PcfEngineResult {
       throw new PcfInputError("A3 energy needs an allocation key with a site total and product output above 0");
     }
     checkDqr(a.dqr, "allocation");
-    const share = a.key_value_product / a.key_value_site_total;
+    // The allocation rule is shared with the hybrid Cat 1 method (S3-6).
+    const share = allocationShare(a.key_value_product, a.key_value_site_total);
     allocation = { share_pct: share * 100, product_output_units: a.product_output_units };
     for (const e of data.energy) {
       if (e.scope !== 1 && e.scope !== 2) throw new PcfInputError(`Energy source ${e.id}: only Scope 1 and 2 are allocated`);
@@ -186,7 +189,7 @@ export function computePcf(data: PcfEngineInput): PcfEngineResult {
         id: e.id,
         stage: "A3_energy",
         name: e.category_name,
-        kgco2e_per_unit: (e.period_total_tco2e * 1000 * share) / a.product_output_units,
+        kgco2e_per_unit: allocatedKg(e.period_total_tco2e, share) / a.product_output_units,
         data_type: "primary", // measured and approved plant data (method note §2.12)
         cut_off_candidate: false, // never a cut-off candidate (method note §2.9)
         dqr: a.dqr,

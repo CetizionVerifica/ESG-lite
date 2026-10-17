@@ -1,5 +1,5 @@
 // S3-0 engine split: compute.ts dispatches to emissionWrite/methods/*. Until
-// their modules build them, the spend, supplier, hybrid and proxy stubs give
+// their modules build them, the spend, supplier and hybrid stubs give
 // the activity method's result; spec categories always use the spec.
 //   npm run build && npm run test:unit
 const test = require("node:test");
@@ -38,10 +38,21 @@ test("rows without a method compute as before: computeTotal = computeRow = activ
 
 test("the stub methods fall back to activity until their modules land", () => {
   const expected = activity.compute(ctx(), row());
-  for (const method of ["spend_based", "supplier_specific", "hybrid", "average_data", "distance_based"]) {
+  for (const method of ["spend_based", "average_data", "distance_based"]) {
     assert.deepEqual(engine.computeRow(ctx(), row({ method })), expected, method);
   }
-  assert.deepEqual(engine.computeRow(ctx(), row({ proxy: { basis: "floor_area" } })), expected, "proxy");
+  // S3-12 built proxy.ts: a survey sample keeps the category's own method; an unknown basis is refused.
+  assert.deepEqual(engine.computeRow(ctx(), row({ proxy: { basis: "sample", coverage_pct: 40, from: [] } })), expected, "proxy sample");
+  assert.equal(engine.computeRow(ctx(), row({ proxy: { basis: "floor_area" } })).issue.code, "FIELD_INVALID", "proxy basis");
+});
+
+test("S3-6: supplier-specific and hybrid are real methods; without the supplier's figures they refuse, never fall back", () => {
+  for (const method of ["supplier_specific", "hybrid"]) {
+    const r = engine.computeRow(ctx(), row({ method }));
+    assert.equal(r.ok, false, method);
+    assert.equal(r.issue.code, "FIELD_REQUIRED", method);
+    assert.equal(r.issue.field, "supplier_id", method);
+  }
 });
 
 test("spec categories always use the spec method, whatever the row's method", () => {

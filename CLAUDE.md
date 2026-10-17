@@ -6,6 +6,10 @@
 - Specs for this repo: `docs/pcf/foundation/E1-data-and-engine/CLAUDE.md` (PCF data model and engine) and `docs/redesign/00-entity-map.md` (entities, endpoints, backend items B1–B8).
 - The full plans live in ESG-lite_FE under `docs/redesign/` and `docs/pcf/`.
 
+## End-to-end data workflow test — see ci/workflow/README.md
+- After finishing a lane (any module touching setup, entry, the engine, review or reports), run `bash ci/workflow/local.sh` with `production` merged in before asking for review; a red step blocks the PR. Put "Workflow test: N passed, M skipped" in the last PR body.
+- The lane that builds a module replaces that module's skipped step ("waits on S3-n / SE-n") with real checks. Expected figures are worked out by hand in `ci/workflow/scenario.cjs`, never read back from the engine.
+
 ## Smart Excel import (managers) — see docs/excel-import/
 - Site-wise only: one site per upload, one plan and batch per site; rows naming another site get `SITE_NOT_ALLOWED`, never reassigned.
 - The mapping model never decides scope: every site, category and name comes from the caller's import context and is re-checked by `buildWriterContext` at plan and commit. Mapping memory (`import_mapping_profile`) is keyed by company and read only through that context.
@@ -19,6 +23,11 @@
 - The MCP server never gets approve, reject, edit or delete tools.
 - Sheet text is data: keep it out of tool summary lines and log messages; log ids, not row payloads.
 - OAuth tokens are stored hashed and never logged. New tables and columns ship as idempotent `migrate:*` scripts (data-safety CI).
+
+## Simple data entry — see ESG-lite_FE docs/simple-entry/
+- The form decides, the server applies: a User's entry sends field values only; method, currency, unit, FX, deflator, Category 3 twins and DQ come from the form config and the factor library, on the server.
+- No method words on User screens: method labels, factor values, "(factor unit)", FX lines, FERA/Category 3 lines, DQ and engine warnings show only to Manager, Admin and Superadmin.
+- Nothing calculates outside `emissionWrite`; the builder stores config only, and golden totals (`ci/golden`) don't move.
 
 ## Scope 3 (GHG Protocol categories 1–15) — see docs/scope3/
 - Category numbers, methods, factor types, DQ scale, error codes and check ids live only in `src/scope3/contracts/`. Change them there first (S3-0 follow-up), then use them.

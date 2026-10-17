@@ -41,7 +41,7 @@ Purchases of goods can be calculated with the supplier's own product footprint, 
    - List: name, country, rows this year, tCO₂e, whether a supplier figure exists, and the last request.
    - Detail drawer: factors (item, unit, value, year, evidence), facility data, and "Request data" (opens the existing C06 request flow with the supplier prefilled).
    - Name-match review list from the backfill: Link / Not the same.
-2. **Add data Cat 1/2:** a Supplier field (a combobox of suppliers, with create-new). With "Supplier's own figure" selected, show the matched supplier factor ("Gulf Smelter Co., P1020 ingot, 8.6 kgCO₂e/kg, 2025"). With none found, show the hint "No figure from this supplier yet. Request one or use an average." Hybrid shows the facility data and input lines.
+2. **Add data Cat 1/2:** a Supplier field stays (a combobox of suppliers, with create-new; it is real data). Supplier-specific vs average is chosen by the form: the Superadmin maps a client-worded question ("Do you have the supplier's figure?") to methods with `method_by_choice` (SE-2); the contributor never picks a method. The matched supplier factor ("Gulf Smelter Co., P1020 ingot, 8.6 kgCO₂e/kg, 2025") and "No figure from this supplier yet. Request one or use an average." show to reviewers only (`showCalcDetail`, SE-1). Hybrid's facility data and input lines are reviewer-only too.
 3. Mirror the FE preview in `src/lib/emissions/emissionCalc.ts`.
 
 ### AI service

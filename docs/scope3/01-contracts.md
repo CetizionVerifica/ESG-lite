@@ -69,7 +69,7 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 |---|---|---|
 | `category.ghg_category` | smallint null, check 1–15, only when scope = 'Scope 3' | S3-1 |
 | `company.consolidation_approach` | varchar default `operational_control` (`equity_share`, `financial_control`) | S3-1 |
-| `company_scope3_category` | id, company_id, ghg_category, status (`included`, `excluded`, `not_relevant`, `screening`), reason text (required unless included), method_note text, relevance jsonb (Table II criteria ticks), updated_by, updated_at; unique (company_id, ghg_category) | S3-1 |
+| `company_scope3_category` | id, company_id, ghg_category, status (`included`, `excluded`, `not_relevant`, `screening`), reason text (required unless included), method_note text, relevance jsonb (Table II criteria ticks, keys `RELEVANCE_KEYS`: `size`, `influence`, `risk`, `stakeholders`, `outsourcing`, `sector_guidance`, `spend_analysis`, `other`), updated_by, updated_at; unique (company_id, ghg_category) | S3-1 |
 | `category_ghg_map_proposal` | category_id, company_id, proposed ghg_category, confidence, confirmed_by/at | S3-1 backfill |
 | `emission_factors.*` | §2 fields | S3-2 |
 | `emission.method` | varchar null (`Method`) | S3-3 |
@@ -77,9 +77,9 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `emission.data_type` | varchar null | S3-3 |
 | `emission.is_estimate` | boolean default false | S3-3 |
 | `emission.total_kgco2e` | numeric(18,4) null (written beside `total_emission`) | S3-4 |
-| `emission.fx` | jsonb null `{currency, rate, as_of, source}` | S3-5 |
+| `emission.fx` | jsonb null `{currency, to, rate, as_of, source, spend_date?, fallback?}`: 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date it was looked up for; `fallback: true` marks a stand-in rate (FX_RATE_FALLBACK: latest stored or live), which a recalculation quotes again once the purchase day is stored | S3-5 |
 | `fx_rate` | currency, date, rate_to_usd, source; unique (currency, date) | S3-5 |
-| `price_deflator` | country, year, index (base 100 = dataset base year), source | S3-5 |
+| `price_deflator` | country, year, index (any base, e.g. CPI-U 1982-84 = 100; only ratios index[base year] ÷ index[spend year] are used), source | S3-5 |
 | `supplier` | supplier_id, company_id, name, country, email null, created_by; unique (company_id, lower(name)) | S3-6 |
 | `emission.supplier_id` | int null FK supplier | S3-6 |
 | `supplier_factor` | id, company_id, supplier_id, item, unit, kgco2e_per_unit, boundary (`cradle_to_gate`), reference_year, gwp_set, evidence_document_id, source (`supplier_request`, `manual`), material_factor_id null | S3-6 |
@@ -93,8 +93,8 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `investment` | id, company_id, investee, type (`equity`, `debt`, `project`), share_pct, investee_scope12_tco2e, year, source, revenue, currency, eeio_sector, sector_split jsonb null (`{sector: share}` summing to 1) | S3-11 |
 | `product_sale` | id, company_id, product_id, period (date, first day of the month, like `emission.date`), quantity, unit, region | S3-10 |
 | `product.lifetime_uses`, `product.eol_mix` jsonb | null; `eol_mix` = `[{treatment, share}]`, shares summing to 1. `Product` gains columns although §4 of the plan lists it as read-only (allowed deviation) | S3-10 |
-| `emission.proxy` | jsonb null `{basis, coverage_pct, from}`. Survey scaling is a proxy too: `{basis: "sample", coverage_pct}`; S3-9 keeps it in `extra_data.survey` until S3-12 merges and backfills | S3-12 |
-| `scope3_screening_input` | company_id, year, ghg_category, basis (`spend`, `headcount`, `revenue`, `mass_sold`, `other`), amount, currency, eeio_sector, note, updated_by/at; unique (company_id, year, ghg_category, basis) | S3-12 |
+| `emission.proxy` | jsonb null `{basis, coverage_pct, from}`: `basis` `coverage` \| `intensity` \| `sample`; `coverage_pct` 1–99, required only for `coverage` (optional share for the others, up to 100); `from` = the source emission row ids (empty for a survey). Plain label per basis: `PROXY_BASIS_LABELS`. Survey scaling is a proxy too: `{basis: "sample", coverage_pct, from: []}`; S3-9 keeps it in `extra_data.survey` until S3-12 merges and backfills | S3-12 |
+| `scope3_screening_input` | company_id, year, year_type (`CY`, `FY`, default `CY`), ghg_category, basis (`spend`, `headcount`, `revenue`, `mass_sold`, `other`), amount, currency, eeio_sector, note, updated_by/at; unique (company_id, year, year_type, ghg_category, basis) | S3-12 |
 | `company_base_year` | company_id, base_year, scope, significance_pct default 5, policy_note, rationale text, year_type (`CY`, `FY`), snapshot jsonb (frozen base-year tCO₂e per category, with version and `frozen_at`) | S3-14 |
 | `recalculation_event` | id, company_id, reason (`methodology`, `data_quality`, `structural`, `error`), affected_years, delta_tco2e, approved_by, created_at, status (`proposed`, `approved`, `dismissed`), note, before/after jsonb | S3-14 |
 | `emission.status` | adds `draft`. It is a Postgres enum (`Emission.ts:15-19,42-47`), so the migration runs `ALTER TYPE … ADD VALUE 'draft'` outside a transaction | S3-15 |
@@ -115,8 +115,9 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `GET/POST/PUT /suppliers`, `GET /suppliers/:id/factors` | S3-6 | Manager+ on own company |
 | `POST /suppliers/:id/factors` | S3-6 | manual entry; supplier-request accept also writes here |
 | `GET /fx-rates?currency&date` | S3-5 | read only; filled by a daily job |
-| `GET /scope3/screening?year=` | S3-12 | estimate per category and suggested status |
-| `PUT /scope3/screening/inputs` | S3-12 | the `scope3_screening_input` rows; relevance ticks and "Apply suggestion" go through `PUT /scope3/categories/:n` |
+| `GET /scope3/screening?year=&year_type=` | S3-12 | estimate per category and suggested status (year_type defaults to CY) |
+| `PUT /scope3/screening/inputs` | S3-12 | `{year, year_type?, inputs}` (year_type defaults to CY): the `scope3_screening_input` rows; relevance ticks and "Apply suggestion" go through `PUT /scope3/categories/:n` |
+| `POST /scope3/screening/sector-suggestions` | S3-12 | Admin and Superadmin: `{description, supplier?, amount, currency}` → `{available, suggestions: [{code, name, confidence, needs_confirmation}] (≤ 3), confirm_below: 80}` via the AI route below; `available: false` when the AI service can't answer |
 | `POST /scope3/extrapolate` | S3-12 | body `{ghg_category, site_id, year, year_type, basis: "coverage" \| "intensity", coverage_pct?, source_filter?, output_site_ids?}`; creates proxy rows, Pending; `EXTRAPOLATION_BASIS_INVALID` for coverage outside 1–99, no source rows or no production |
 | `POST /v1/scope3/eeio-sector` (python_AI_service) | S3-12 | `{lines: [{description, supplier, amount, currency}], sectors: [{code, name}]}` → up to 3 `{code, confidence 0–100}` per line |
 | `POST /scope3/commuting/surveys` | S3-9 | `{site_id, year, year_type, total_employees, responses: [{ref, mode, one_way_km, days_per_week, weeks_per_year}]}` (≤ 20,000 responses) → an import plan |
@@ -131,6 +132,19 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `POST /user/emissions/check` | S3-15 | dry run of the checks for the live panel; saves nothing |
 | `GET /user/emissions/:id/history?months=6` | S3-15 | a row's last 6 months |
 | `POST/DELETE /user/my-month/nothing` `{site_id, category_id, month}` | S3-15 | "Nothing this month"; notification kind `draft_submitted` for submitted drafts |
+
+**As built by S3-15 part 2 (ESG-lite `[S3-15 3/4]`), response shapes.** Errors are `{code, message, details?}`; access and validation use the S3-1 codes `SCOPE3_VALIDATION` (400), `SCOPE3_COMPANY_REQUIRED` (400), `SCOPE3_FORBIDDEN` (403), `SCOPE3_NOT_FOUND` (404, also another company's ids).
+- **A Draft belongs to its author.** For anyone else (Manager, Admin and Superadmin included) it doesn't exist: single-row routes (edit, manager edit, delete, approve, reject, history, factor, audit trail, evidence add/move/remove) answer their usual 404, id lists (bulk approve/reject/delete) drop it like an unknown id (404 when nothing is left), batch approve/reject/delete skip it (404 for a batch of only such rows), a typed entry with `replace=true` never matches it. FERA twins follow the parent.
+- `POST /user/emissions/submit {ids}` (1–1,000) → 200 `{submitted: number[], refused: [{id, code: "NOT_DRAFT" | "PERIOD_LOCKED"}]}`. Own drafts only (a non-draft is `NOT_DRAFT`); FERA twins move with their parent; any id outside the caller's sites, or someone else's draft → 404.
+- `POST /user/emissions/check`, saves nothing, two body forms:
+  - `{ids: number[]}` (1–200) → 200 `{results: [{id, status, checks: {ready, held: CheckId[]}}]}`; saved rows of any status checked as if submitted now.
+  - `{rows: [{ref: string (1–100), id?: number, site_id, category_id, activity_data: object, activity_data_unit?: string | null, date_of_reporting: "YYYY-MM-DD", reporting_period?: "monthly" | "yearly" (default monthly), year_type?: "CY" | "FY" | null, method?: string | null, has_evidence?: boolean}]}` (1–50) → 200 `{results: [{ref, checks: {ready, held: CheckId[]}, issue?: {code, message, field?}}]}`, in request order. Each row runs `prepareEntry` (as a save) and the §8 checks with a saved row's context: duplicates and month totals from pending and approved rows, the company change limit, evidence = `has_evidence` (default false; for an edit, the saved row's evidence), `IMPORT_MATCH_SURE` passes (no import). `issue` is the engine's refusal (e.g. `NO_FACTOR_FOR_YEAR`, `UNIT_NOT_CONVERTIBLE`, `METHOD_NOT_ALLOWED`, `FIELD_REQUIRED`, `PERIOD_INVALID`, `CATEGORY_NOT_ASSIGNED`); checks still come back (`FACTOR_FOUND` held without a factor). With `id` the row is an edit of that saved row: it and its FERA family are left out of its own duplicate and month-total comparison. Access as `POST /user/emissions`: another company's site, or an `id` that is someone else's draft or not on the caller's sites → 404; a site of the caller's company that isn't theirs → 403 (`SCOPE3_FORBIDDEN`); a User's category not granted → 403. Invalid body (neither form, 0 or 51+ rows, bad date) → 400 `SCOPE3_VALIDATION`.
+- `GET /user/emissions/:id/history?months=6` (1–24) → 200 `{id, site_id, category_id, emission_category, unit: "tCO2e", months: [{month: "YYYY-MM", total_tco2e, rows}]}`, oldest first, ending with the row's month; pending and approved rows of the same site, category and `emission_category`.
+- `POST /user/my-month/nothing` and `DELETE` (body or query) `{site_id, category_id, month: "YYYY-MM-DD" | "YYYY-MM"}` → 200 `{site_id, category_id, month: "YYYY-MM-01", nothing: boolean}`; 403 `REVIEW_WORKFLOW_OFF` with the switch off, 409 `PERIOD_LOCKED` in a closed month.
+- `GET /periods/lock?year&month[&site_id][&company_id]` → 200 `PeriodStatus`: `{company_id, year, month, period: "YYYY-MM", review_workflow_v2, can_lock, locked, left: [{site_id, site_name, category_id, category_name, reason: "missing" | "draft" | "pending" | "rejected"}], sites: [{site_id, name, locked, lock: {site_id (null: the company-wide lock this site sits under), locked_at, locked_by, locked_by_name} | null, reopened: {reopened_at, reopened_by, reopened_by_name, reason} | null, left: number, categories: [{category_id, category_name, scope, ghg_category, state: "missing" | "draft" | "pending" | "rejected" | "approved" | "nothing" | "covered", counts: {draft, pending, approved, rejected}, nothing}], scope3: [{n: 1–15, status: boundary status (default "screening"), data: boolean}]}]}`.
+- `POST /periods/lock {site_id?: number | null, year, month, company_id?}` → 200 `PeriodStatus`; 422 `PERIOD_INCOMPLETE` `{details: {left}}`; 403 `REVIEW_WORKFLOW_OFF`. `POST /periods/unlock {site_id?, year, month, reason, company_id?}` → 200 `PeriodStatus`; 400 `UNLOCK_REASON_REQUIRED` `{details: {min_length: 5}}`. A Manager names one of their sites; `site_id` null is every site (Admin, Superadmin).
+- Evidence on a closed month is allowed and logged: attaching (upload, multiple upload, invoice link, relink) or removing (delete, bulk delete, relink away) a document on a row whose site-month is closed writes `audit_log` `{entity_type: "scope3_period_lock", entity_id: <period_lock id>, action: "evidence_added" | "evidence_removed", changed_fields: {document_id: {old, new}, emission_id: {old, new}}}` (ids only).
+- `GET /user/my-month` with the switch on adds `review_workflow_v2: true`, per site `locked`, per category `entries.draft` and `nothing`, statuses `draft` and `nothing`, and `summary.draft`; with it off the response is unchanged.
 
 Existing endpoints that gain fields: `GET /user/emissions` (method, dq, data_type, supplier, checks); `GET /admin/emission-factors` (§2 fields); `GET /user/my-month` (draft count, nothing-this-month flag); the GHG report endpoints (ghg_category per row).
 
@@ -150,14 +164,20 @@ src/services/emissionWrite/
 ```
 `ComputedRow = { total_tco2e: number (2 dp, as today), total_kgco2e: string, factor_snapshot: FactorSnapshot, method: Method, dq: Dq, data_type, warnings: Warning[] }`.
 `FactorSnapshot` gains `factor_type, gwp_set, geography, dataset, dataset_version, gases?`.
-The method is chosen by the row's `method` field. When it's missing, by the form's `method_options[0]`. Otherwise `activity`.
+The row's method is set by the form, not by the contributor (simple data entry, ESG-lite_FE `docs/simple-entry/00-plan.md` §5.2), first that applies:
+1. an import by an Admin or Superadmin, a Manager's smart Excel import, or an MCP row may send `method` (it must be in the form's `method_options`, else `METHOD_NOT_ALLOWED`); a User's manual bulk upload does not;
+2. the form's `method_by_choice` (SE-2): the answer to a client-worded select field picks the method;
+3. the form's `method_options[0]`;
+4. `spend_based` when the matched factor is `eeio_spend` (S3-5);
+5. `activity`.
+A User's typed entry never sends a method; any `method` / `@method` it carries is ignored when the form fixes one.
 Dispatch order (`methodFileFor` in `compute.ts`), first match wins:
 1. a row with `proxy` → `methods/proxy.ts`;
 2. method `spend_based` → `methods/spend.ts`, `supplier_specific` → `methods/supplier.ts`, `hybrid` → `methods/hybrid.ts`, on any category, spec or not (so Cat 4/9 spend rows under S3-8 and Cat 6 spend rows under S3-9 get S3-5's FX and deflator maths);
 3. any other method on a category with a calculation spec → `methods/spec.ts`, so `fuel_based`, `distance_based`, `site_specific` and `average_data` forms (S3-8 to S3-11) need no method file of their own;
 4. everything else → `methods/activity.ts`.
 
-As built today `methodFileFor` checks `ctx.spec` first. S3-5 changes it to this order when `spend.ts` lands; no row carries a method yet, so the change moves no numbers (golden re-run confirms it).
+S3-5 put `methodFileFor` in this order. A row carrying a spend quote (asked for with `@method` until S3-3, or on an `eeio_spend` factor) goes to `methods/spend.ts` after step 2 and before step 3. No row carries a method yet, so the order moved no numbers (golden re-run confirms it).
 
 **Shared spec additions** (built by S3-9; contract owned by S3-0 here in §6; used by S3-8, S3-10 and S3-11):
 - `MethodCalculation.divide?: string[]`: fields to divide by, each > 0 (0 or empty → `FIELD_REQUIRED`); a field also listed in `percent` divides by value / 100.
@@ -168,12 +188,12 @@ As built today `methodFileFor` checks `ctx.spec` first. S3-5 changes it to this 
 
 ## 7. Error and warning codes (add to `src/imports/errors.ts` style)
 
-Errors: `SCOPE_INVALID`, `GHG_CATEGORY_INVALID`, `GHG_CATEGORY_REQUIRED` (Scope 3 category with no number, after the backfill is confirmed), `EXCLUSION_REASON_REQUIRED`, `UNIT_REQUIRED` (a factor with no unit), `METHOD_NOT_ALLOWED`, `CURRENCY_NOT_SUPPORTED`, `SUPPLIER_FACTOR_BOUNDARY`, `PERIOD_LOCKED`, `UNLOCK_REASON_REQUIRED`, `NOT_DRAFT`, `EXTRAPOLATION_BASIS_INVALID`, `PERIOD_INCOMPLETE`, `BASE_YEAR_NO_DATA`, `RECALCULATION_REASON_REQUIRED`.
-Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
+Errors: `SCOPE_INVALID`, `GHG_CATEGORY_INVALID`, `GHG_CATEGORY_REQUIRED` (Scope 3 category with no number, after the backfill is confirmed), `EXCLUSION_REASON_REQUIRED`, `UNIT_REQUIRED` (a factor with no unit), `METHOD_NOT_ALLOWED`, `CURRENCY_NOT_SUPPORTED`, `SUPPLIER_FACTOR_BOUNDARY`, `PERIOD_LOCKED`, `UNLOCK_REASON_REQUIRED`, `NOT_DRAFT`, `EXTRAPOLATION_BASIS_INVALID`, `PERIOD_INCOMPLETE`, `BASE_YEAR_NO_DATA`, `RECALCULATION_REASON_REQUIRED`, `REVIEW_WORKFLOW_OFF` (S3-15 part 2: lock or "Nothing this month" for a client without review workflow v2).
+Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `DEFLATOR_FALLBACK_YEAR` (spend year with no index yet: the latest earlier index was used), `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
 
 ## 8. Review check ids (S3-15, `review/checks.ts`)
 
-`FACTOR_FOUND`, `UNIT_OK`, `EVIDENCE_ATTACHED`, `WITHIN_THRESHOLD` (company `emission_threshold`, vs previous month same site/category/activity), `NO_DUPLICATE`, `IMPORT_MATCH_SURE` (smart import ≥ 80 %), `METHOD_GIVEN` (Scope 3 only), `DQ_ACCEPTABLE` (overall ≤ 2 or a note). Ready = all pass. The UI shows a fixed label per id (`src/lib/scope3/checks.ts`).
+`FACTOR_FOUND`, `UNIT_OK`, `EVIDENCE_ATTACHED`, `WITHIN_THRESHOLD` (company `emission_threshold`, vs previous month same site/category/activity), `NO_DUPLICATE`, `IMPORT_MATCH_SURE` (smart import ≥ 80 %), `METHOD_GIVEN` (Scope 3 only; the method set by the form or the import, never asked of a User), `DQ_ACCEPTABLE` (overall ≤ 2 or a note). Ready = all pass. The UI shows a fixed label per id (`src/lib/scope3/checks.ts`).
 
 ## 9. Golden cases (`ci/golden/scope3/cases.json`, S3-0)
 

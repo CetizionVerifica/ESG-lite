@@ -77,6 +77,12 @@ export class Company {
   @Column({ type: "varchar", length: 30, default: "operational_control" })
   consolidation_approach!: string;
 
+  // Review workflow v2 (S3-15 part 2, D9): drafts, submit and the month lock.
+  // Off by default; Superadmin turns it on per client through PUT
+  // /admin/companies/:id. Off means today's behaviour exactly.
+  @Column({ default: false })
+  review_workflow_v2!: boolean;
+
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];
 }

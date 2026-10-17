@@ -26,7 +26,7 @@ A spend row is calculated with the exchange rate on the purchase date, adjusted 
 2. `methods/spend.ts`:
    - Activity = amount in `currency`, on `date_of_reporting`, or on `extra_data.invoice_date` when given.
    - Rate = `fx_rate` on that date, or the nearest earlier date within 7 days. Otherwise use the latest rate and warn `FX_RATE_FALLBACK`.
-   - Deflate to the factor's `price_base_year` with `price_deflator` (country of the factor's currency). When no deflator is found, warn `NO_DEFLATOR` and apply none.
+   - Deflate to the factor's `price_base_year` with `price_deflator` (country of the factor's currency). When the spend year has no index yet, use the latest earlier index after the base year and warn `DEFLATOR_FALLBACK_YEAR` (the snapshot's `deflator.index_year` names it). When the base year has no index or nothing later fits, warn `NO_DEFLATOR` and apply none.
    - total_kg = spend × rate_to_factor_currency × (deflator[base] / deflator[spend year]) × factor_value.
    - Store `fx = {currency, rate, as_of, source}` and the deflator used in the snapshot.
    - An unsupported currency → `CURRENCY_NOT_SUPPORTED`.
@@ -37,7 +37,7 @@ A spend row is calculated with the exchange rate on the purchase date, adjusted 
 5. **Spend forms:** when a form's method is `spend_based`, `spent_value` plus `currency` become calculation fields. A form-config migration flips the `extra_fields` entries for Cat 1/2 forms that already have both.
 
 ### Frontend (ESG-lite_FE)
-1. Add data and bulk upload: the "From the amount spent" method shows Amount, Currency (only the supported list, from `GET /fx-rates/currencies`) and an optional Invoice date. The preview line reads "₹ 12,40,000 ≈ USD 13,950 (rate on 3 Sep 2026) × 0.42 kgCO₂e/USD (2022 USD, deflated)".
+1. Add data and bulk upload: the "From the amount spent" method shows Amount, Currency (only the supported list, from `GET /fx-rates/currencies`) and an optional Invoice date. The preview line reads "₹ 12,40,000 ≈ USD 13,950 (rate on 3 Sep 2026) × 0.42 kgCO₂e/USD (2022 USD, deflated)" and shows only when `showCalcDetail` is true (SE-1; a User sees the total). Currency is hidden when the form (`currency.fixed`) or the company (`default_currency`) fixes it (SE-2).
 2. Drawers: show the stored rate and date.
 
 ### AI service

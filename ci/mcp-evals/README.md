@@ -10,6 +10,22 @@ Twelve sample workbooks with expected plans, a runner that drives Claude through
 
 The runner needs `@anthropic-ai/sdk` (`npm install --no-save @anthropic-ai/sdk`); it is deliberately not a project dependency. Default model `claude-opus-5-5`.
 
+## Two transports
+| Transport | When | What it tests |
+|---|---|---|
+| connector (default) | `/mcp` is reachable from the internet (staging, a tunnel) | The whole path as claude.ai uses it: Anthropic's servers call `/mcp` through the Messages API MCP connector |
+| bridge (`--bridge`, automatic for a `localhost` URL) | `/mcp` is only reachable from the machine running the runner (a CI database in a cloud session, a laptop) | The tools and the guide, with the same workbooks, scripted replies and scoring; not the connector handshake or OAuth |
+
+In bridge mode the runner connects to `/mcp` with the MCP client, hands the tool list to Claude as plain tools, runs each `tool_use` locally and returns the result. The server's `instructions` go into the system prompt, as any MCP host would show them. Results carry `transport: "bridge"`. Tool round trips do not count against the 14 scripted user turns.
+
+`--dry-run` (bridge only, no API key) connects, lists the tools and calls `whoami`, to check the URL, token and fixture before spending a run:
+
+```
+ESGLITE_MCP_URL=http://localhost:3996/mcp ESGLITE_MCP_TOKEN=mcp-test.5.imports:read,imports:write node ci/mcp-evals/runner.cjs --dry-run
+```
+
+A local server for the bridge: build, `ci/schema-sync.cjs dist` into a throwaway database, load `ci/api/fixture.sql` and the audit lane's `mcp-fixture.sql`, start `dist/index.js` with `MCP_TEST_TOKENS=true` and `API_BASE_URL=http://localhost:<port>` (`NODE_ENV` not production). User 5 in the fixture is the Superadmin, so `mcp-test.5.imports:read,imports:write` is the token.
+
 ## Fixture the server must have
 Client "Eval Co" with `mcp_enabled` on; site 1 "Plant A" with categories 1 (fuel: HSD, Diesel; L, kL, gallons), 2 (electricity: Grid – TNEB; kWh) and 3 (travel: Domestic flight – economy; km, distance form); site 2 "Plant B" with categories 1 and 2. Factors for 2025 and 2026 (FY). No factor or mapping named "High speed diesel (bulk)". The audit lane's `mcp-fixture.sql` (IM12) is the reference.
 

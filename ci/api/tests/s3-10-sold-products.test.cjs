@@ -20,6 +20,10 @@ const ROOT = path.resolve(__dirname, "../../..");
 const CAT10 = 941;
 const CAT11 = 942;
 const CAT12 = 943;
+const C12_METHODS = [
+  { method: "waste_type_specific", units: ["kg"] },
+  { method: "average_data", units: ["kg"] },
+];
 const CATS = `${CAT10}, ${CAT11}, ${CAT12}`;
 const CABLE = 9401; // site 1, 2 kg per drum, with a PCF study
 const CHILLER = 9402; // site 1, contains R134a
@@ -412,6 +416,22 @@ test("migrate:scope3-sold-product-forms runs twice: forms, units, AR6 for rows d
   assert.ok(cfg11.rows[0].calculation.methods["Part of a customer's product"]);
   const cfg12 = await withDb((db) => db.query(`SELECT calculation FROM column_config WHERE category_id = $1`, [CAT12]));
   assert.equal(cfg12.rows[0].calculation.method_column, "@method");
+  // S3-3: each form offers its methods, most specific first; a list someone set is never replaced.
+  const methodsOf = async (cat) =>
+    (await withDb((db) => db.query(`SELECT method_options FROM column_config WHERE category_id = $1`, [cat]))).rows[0].method_options;
+  assert.deepEqual((await methodsOf(CAT10)).map((o) => o.method), ["site_specific", "average_data"]);
+  assert.deepEqual(await methodsOf(CAT11), [{ method: "direct_use", units: ["kWh", "litre", "kg", "use"] }]);
+  assert.deepEqual(await methodsOf(CAT12), [
+    { method: "waste_type_specific", units: ["kg"] },
+    { method: "average_data", units: ["kg"] },
+  ]);
+  const own = [{ method: "average_data", units: ["kg"] }];
+  await withDb((db) => db.query(`UPDATE column_config SET method_options = $1::jsonb WHERE category_id = $2`, [JSON.stringify(own), CAT12]));
+  const third = runScript("migrateScope3SoldProductForms", ["1"]);
+  assert.equal(third.status, 0, third.stderr + third.stdout);
+  assert.match(third.stdout, /method options set: 0/);
+  assert.deepEqual(await methodsOf(CAT12), own);
+  await withDb((db) => db.query(`UPDATE column_config SET method_options = $1::jsonb WHERE category_id = $2`, [JSON.stringify(C12_METHODS), CAT12]));
   // The module logs nothing but the error name.
   for (const file of ["service.js", "controller.js", "forms.js", "bom.js", "rows.js"]) {
     const src = fs.readFileSync(path.join(ROOT, "dist/scope3/soldProducts", file), "utf8");

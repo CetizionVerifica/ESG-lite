@@ -36,7 +36,7 @@ ESGLite reports Scope 3 per GHG Protocol category (1–15). Each category is eit
 | S3-0 | — | `src/scope3/contracts/*`, `ci/golden/scope3/*`, `docs/scope3/*`, the root CLAUDE.md blocks | `package.json` scripts |
 | S3-1 | S3-0 | `src/scope3/taxonomy/*`, `src/scope3/boundary/*`, `Category` columns, `company_scope3_category`, FE `features/scope3/boundary/*` | `reference-data` Categories tab, `scripts/migrate-all.cjs` |
 | S3-2 | S3-0 | `EmissionFactor` columns, factor import/export, FE `emission-factors/*`, AI `excel_parser.py` sub-columns | `emissionWrite/compute.ts` snapshot |
-| S3-3 | S3-0 | `Emission.method/dq/data_type/is_estimate`, `src/scope3/dq/*`, `ColumnConfig.method_options`, FE `src/lib/scope3/dq.ts`, add-data method picker | `emissionWrite/index.ts`, `imports/contracts.ts` |
+| S3-3 | S3-0 | `Emission.method/dq/data_type/is_estimate`, `src/scope3/dq/*`, `ColumnConfig.method_options`, FE `src/lib/scope3/dq.ts` | `emissionWrite/index.ts`, `imports/contracts.ts` |
 | S3-4 | — | `emissionWrite/units.ts` null-unit rule, `historicalImport.ts`, `seedEmissionsFromExcel.ts`, scope validation in `category.controller.ts`, FE Findings S3 bug | `emissionWrite/resolve.ts` (warning only) |
 | S3-5 | S3-2, S3-3 | `src/services/fxRate.ts`, `src/scope3/spend/*` (deflator, EEIO), `Emission.fx` | `emissionWrite/compute.ts` spend branch |
 | S3-6 | S3-2, S3-3 | `src/scope3/suppliers/*`, `supplier` table, `Emission.supplier_id`, FE `features/scope3/suppliers/*` | `supplierRequest.controller.ts` (accept → corporate factor), `emissionWrite/compute.ts` supplier and hybrid branches |
@@ -77,6 +77,7 @@ ESGLite reports Scope 3 per GHG Protocol category (1–15). Each category is eit
 5. FE: the four themes, four widths, loading/empty/error states, keyboard access, and a Playwright smoke test for the main path.
 6. The module's audit probe rows (S3-xx in `audit/e2e-workflow-audit.md` §14) are added or updated.
 7. The spec is copied to the module's folder as `CLAUDE.md` in the first commit. The dashboard updates itself from the PR (see `tracking.md`).
+8. The end-to-end data workflow test passes locally on the branch with `production` merged in (`bash ci/workflow/local.sh`, ESG-lite `ci/workflow/README.md`), the module's skipped workflow step is replaced by real checks, and the last PR body says "Workflow test: N passed, M skipped".
 
 ## 8. Working rules for parallel lanes
 

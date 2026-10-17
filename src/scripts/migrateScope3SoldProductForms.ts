@@ -13,7 +13,7 @@
 //
 // Runs on every start through scripts/migrate-all.cjs: idempotent, writes
 // nothing when everything is in place, never deletes. Logs ids and counts only.
-// TODO(S3-3): write `method_options` (configs.ts METHOD_OPTIONS, UNITS_BY_METHOD) once the column exists.
+// It also fills each form's empty `method_options` (S3-3) from configs.ts METHOD_OPTIONS and UNITS_BY_METHOD.
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 import type { SoldProductCategory } from "../scope3/soldProducts/configs";
@@ -31,7 +31,7 @@ async function main() {
     );
     const targets = assigned.filter((a) => siteArgs.length === 0 || siteArgs.includes(Number(a.site_id)));
     console.log(`S3-10 sold-product forms: ${targets.length} site × category assignment(s)`);
-    const counts = { created: 0, updated: 0, upgraded: 0, unchanged: 0, units: 0, factors: 0, marked: 0, raised: 0 };
+    const counts = { created: 0, updated: 0, upgraded: 0, unchanged: 0, units: 0, factors: 0, marked: 0, raised: 0, methods: 0 };
     const customised: string[] = [];
     const withEntries: string[] = [];
     for (const t of targets) {
@@ -43,9 +43,10 @@ async function main() {
       counts.factors += r.factors_added;
       counts.marked += r.factors_marked;
       counts.raised += r.factors_raised ?? 0;
+      counts.methods += r.methods_set ?? 0;
     }
     console.log(
-      `  configs created: ${counts.created} · updated: ${counts.updated} · upgraded: ${counts.upgraded} · unchanged: ${counts.unchanged} · units added: ${counts.units} · factors added: ${counts.factors} · marked AR4: ${counts.marked} · raised to AR6: ${counts.raised}`,
+      `  configs created: ${counts.created} · updated: ${counts.updated} · upgraded: ${counts.upgraded} · unchanged: ${counts.unchanged} · units added: ${counts.units} · factors added: ${counts.factors} · marked AR4: ${counts.marked} · raised to AR6: ${counts.raised} · method options set: ${counts.methods}`,
     );
     if (customised.length) console.log(`  customised forms left as they are (site/category): ${customised.join(", ")}`);
     if (withEntries.length) console.log(`  no form but existing entries, left as they are (site/category): ${withEntries.join(", ")}`);

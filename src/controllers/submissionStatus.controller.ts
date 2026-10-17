@@ -71,6 +71,8 @@ export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
       const count = await emissionRepo
         .createQueryBuilder("e")
         .where("e.created_by = :userId", { userId: user.user_id })
+        // S3-15 part 2: a Draft isn't submitted yet.
+        .andWhere("e.status::text <> 'draft'")
         .andWhere("e.date_of_reporting >= :startDate", { startDate: startDate.toISOString().split("T")[0] })
         .andWhere("e.date_of_reporting <= :endDate", { endDate: endDate.toISOString().split("T")[0] })
         .getCount();
