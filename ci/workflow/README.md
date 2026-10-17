@@ -45,12 +45,13 @@ About 15 seconds. The API runs on port 3997; set `WORKFLOW_PORT` if that port is
 | 9 | Admin | screening for FY 2026: 15 rows; a Category 7 headcount saved for FY (CY 2026 stays empty) gives the hand-worked commute estimate (not saved as a row); a Table II tick on Category 6 suggests Included; the suggestion is applied only by the Admin's own boundary change |
 | 10 | Admin | 15 boundary rows, 13–15 start Not relevant, an exclusion needs a reason, every category in use has its number and is Included, consolidation approach saved |
 | 11–12 | Superadmin | site factors for both factor years (with Category 3 WTT and T&D factors); USEEIO sector copied to a site |
+| 14 | Admin (for the Manager) | a supplier and its own cradle-to-gate figure; a figure that isn't cradle-to-gate is refused without `confirm_boundary` (S3-6) |
 | 15a | deploy | the next deploy adds the standard Category 6 form and its DEFRA 2025 factors |
 | 20 | Admin | Manager and Users invited and signed in; a User gets their sites' categories |
-| 25–25d | Users | every row's tCO₂e, its 3a/3b/3c twins, a Category 6 flight, a Category 1 INR spend row (rate on the invoice date, deflated); a User can't enter for another site or approve |
-| 26–26c | Manager | approve, reject and pending rows (twins follow their parent); Scope 3 table per category (kg summed then rounded), statuses and reasons, GWP sets; Scope 1/2/3 totals; another client sees nothing |
+| 25–25f | Users | every row's tCO₂e, its 3a/3b/3c twins, a Category 6 flight, a Category 1 INR spend row (rate on the invoice date, deflated); a User can't enter for another site or approve; a Category 1 purchase with the supplier's own figure (quantity × figure, supplier and snapshot on the row; another client's supplier refused) |
+| 26–26d | Manager | approve, reject and pending rows (twins follow their parent); Scope 3 table per category (kg summed then rounded), statuses and reasons, GWP sets; Scope 1/2/3 totals; supplier coverage of Categories 1–2 and the top suppliers; another client sees nothing |
 | 24 | Admin | base year preview per category, only the Admin freezes it |
-| skipped | — | 5a SE-2, 5b S3-15 parts 3–4, 14 S3-6, 16–17 and 25e S3-3, 18 SE-4, 27 S3-16 |
+| skipped | — | 5a SE-2, 5b S3-15 parts 3–4, 16–17 and 25e S3-3, 18 SE-4, 27 S3-16 |
 
 Front-end checks (what a User sees, SE-1) belong to the Playwright tests in ESG-lite_FE, not here.
 

@@ -16,7 +16,7 @@ import { computeSpecActivityValue } from "../../calculationSpec";
 import { supportedCurrency } from "../../../scope3/spend/currencies";
 import { factorCurrency } from "../../../scope3/spend/rates";
 import type { SpendQuote } from "../../../scope3/spend/types";
-import type { CategoryContext, ComputeResult, EngineIssue, EngineRow } from "../compute";
+import type { CategoryContext, ComputeResult, EngineIssue, FactorRow } from "../compute";
 import * as activity from "./activity";
 import * as specMethod from "./spec";
 
@@ -26,7 +26,7 @@ const totals = (kg: number) => ({ total: Math.round((kg / 1000) * 100) / 100, to
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 6 });
 
 /** The quote a row without loaded rates can still use: an amount already in the factor's currency. */
-const sameCurrencyQuote = (row: EngineRow, ctx: CategoryContext): SpendQuote | null => {
+const sameCurrencyQuote = (row: FactorRow, ctx: CategoryContext): SpendQuote | null => {
   const currency = supportedCurrency(row.activity_unit);
   const to = factorCurrency(row.factor);
   if (!currency || !to || currency !== to) return null;
@@ -43,7 +43,7 @@ const sameCurrencyQuote = (row: EngineRow, ctx: CategoryContext): SpendQuote | n
   };
 };
 
-export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
+export const compute = (ctx: CategoryContext, row: FactorRow): ComputeResult => {
   const quote = row.spend ?? sameCurrencyQuote(row, ctx);
   if (!quote) {
     // No amount in a currency on the row: the factor decides as before (the activity step converts or refuses the unit).

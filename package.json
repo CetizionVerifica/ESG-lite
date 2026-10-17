@@ -46,6 +46,8 @@
     "migrate:scope3-sold-products": "ts-node src/scripts/migrateScope3SoldProducts.ts",
     "migrate:scope3-sold-product-forms": "ts-node src/scripts/migrateScope3SoldProductForms.ts",
     "migrate:scope3-screening": "ts-node src/scripts/migrateScope3Screening.ts",
+    "migrate:scope3-transport": "ts-node src/scripts/seedScope3Transport.ts",
+    "migrate:scope3-suppliers": "ts-node src/scripts/createScope3SupplierTables.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",

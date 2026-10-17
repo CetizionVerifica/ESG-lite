@@ -15,7 +15,7 @@ export class CheckCache {
   private readonly modeLocks = new Map<string, Promise<ModeLockConflict | null>>();
   private readonly existing = new Map<string, Promise<Emission[]>>();
 
-  constructor(private readonly manager: EntityManager) {}
+  constructor(readonly manager: EntityManager) {}
 
   /** The typed-entry mode lock, one query per site × category × period window. */
   modeLock(site_id: number, category_id: number, p: StoredPeriod): Promise<ModeLockConflict | null> {

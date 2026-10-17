@@ -16,6 +16,7 @@
  */
 import { MethodOptionsSchema, type MethodOptions } from "../contracts/schemas";
 import { MethodSchema, type Method } from "../contracts/ghgCategory";
+import { normalizeUnitKey } from "../../services/calculationSpec";
 
 /** One entry as read from the column; `units` is empty only for a legacy bare key. */
 export type StoredMethodOption = { method: Exclude<Method, "unknown">; units: string[] };
@@ -36,6 +37,13 @@ export const readMethodOptions = (value: unknown): StoredMethodOption[] => {
 
 /** The method keys a form offers, most specific first; empty when it offers no list. */
 export const offeredMethods = (value: unknown): Method[] => readMethodOptions(value).map((o) => o.method);
+
+/**
+ * Each offered method's units as normalised unit keys (S3-8, the engine's
+ * default method by unit). A legacy bare key gets no entry.
+ */
+export const methodUnits = (value: unknown): Partial<Record<Exclude<Method, "unknown">, string[]>> =>
+  Object.fromEntries(readMethodOptions(value).filter((o) => o.units.length).map((o) => [o.method, o.units.map(normalizeUnitKey)]));
 
 export type MethodOptionsParse = { ok: true; value: MethodOptions | null | undefined } | { ok: false; field: string; message: string };
 

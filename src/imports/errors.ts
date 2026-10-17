@@ -111,6 +111,9 @@ export const ROW_ISSUE_CODES = {
   DEFLATOR_FALLBACK_YEAR: "warning",
   // S3-3: the row named a method the form does not offer.
   METHOD_NOT_ALLOWED: "error",
+  // Transport and distribution (S3-8). Never block.
+  ESTIMATED_DISTANCE: "warning",
+  TRANSPORT_PAID_BY_MISMATCH: "warning",
 } as const;
 
 export type RowIssueCode = keyof typeof ROW_ISSUE_CODES;

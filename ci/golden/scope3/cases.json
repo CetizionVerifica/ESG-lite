@@ -5,7 +5,7 @@
     "relative": 0.001,
     "rule": "fail when |actual - expected| > max(0.5 kg, 0.1 % of expected)"
   },
-  "row_model": "Each row: activity_value = quantity × (share ?? 1) in `unit`, with factor `factors[row.factor]` (kg CO2e per unit). An owner may replace a case's rows with its method's own inputs; expected_kgco2e stays.",
+  "row_model": "Each row: activity_value = quantity × (share ?? 1) in `unit`, with factor `factors[row.factor]` (kg CO2e per unit). An owner may replace a case's rows with its method's own inputs; expected_kgco2e stays. S3-6: a row with `supplier` is calculated from the supplier's own figures instead of `factor`: `supplier.factor` (a factor key used as the supplier's cradle-to-gate figure), `supplier.lines` (hybrid input lines `{kind, name, quantity, unit, factor}`), and `supplier.facility` / `supplier.purchased_value` (facility data to allocate).",
   "cases": [
     {
       "id": "ex-1.1",
@@ -44,37 +44,47 @@
           "label": "Cement (supplier C)",
           "quantity": 200000,
           "unit": "kg",
-          "factor": "cement_c"
+          "supplier": {
+            "factor": "cement_c"
+          }
         },
         {
           "label": "Plaster (supplier D)",
           "quantity": 600000,
           "unit": "kg",
-          "factor": "plaster_d"
+          "supplier": {
+            "factor": "plaster_d"
+          }
         },
         {
           "label": "Paint (supplier E)",
           "quantity": 200000,
           "unit": "kg",
-          "factor": "paint_e"
+          "supplier": {
+            "factor": "paint_e"
+          }
         },
         {
           "label": "Timber (supplier F)",
           "quantity": 100000,
           "unit": "kg",
-          "factor": "timber_f"
+          "supplier": {
+            "factor": "timber_f"
+          }
         },
         {
           "label": "Concrete (supplier G)",
           "quantity": 50000,
           "unit": "kg",
-          "factor": "concrete_g"
+          "supplier": {
+            "factor": "concrete_g"
+          }
         }
       ],
       "expected_kgco2e": 145000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-6",
-      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 145,000 kg."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 145,000 kg. S3-6: each row is a purchase from its supplier, calculated from the supplier's own cradle-to-gate figure (row.supplier.factor), as methods/supplier.ts does."
     },
     {
       "id": "ex-1.2",
@@ -134,76 +144,96 @@
       },
       "rows": [
         {
-          "label": "Supplier B electricity",
-          "quantity": 5000,
-          "unit": "kwh",
-          "factor": "electricity"
-        },
-        {
-          "label": "Supplier B natural gas",
-          "quantity": 2500,
-          "unit": "kwh",
-          "factor": "natural_gas"
-        },
-        {
-          "label": "Cotton",
-          "quantity": 5000,
-          "unit": "kg",
-          "factor": "cotton"
-        },
-        {
-          "label": "Polymer",
-          "quantity": 2500,
-          "unit": "kg",
-          "factor": "polymer"
-        },
-        {
-          "label": "Chemical A",
-          "quantity": 500,
-          "unit": "kg",
-          "factor": "chemical_a"
-        },
-        {
-          "label": "Chemical B",
-          "quantity": 500,
-          "unit": "kg",
-          "factor": "chemical_b"
-        },
-        {
-          "label": "Cotton transport",
-          "quantity": 5000000,
-          "unit": "kg.km",
-          "factor": "transport_cotton"
-        },
-        {
-          "label": "Polymer transport",
-          "quantity": 6250000,
-          "unit": "kg.km",
-          "factor": "transport_polymer"
-        },
-        {
-          "label": "Chemical A transport",
-          "quantity": 400000,
-          "unit": "kg.km",
-          "factor": "transport_chem_a"
-        },
-        {
-          "label": "Chemical B transport",
-          "quantity": 100000,
-          "unit": "kg.km",
-          "factor": "transport_chem_b"
-        },
-        {
-          "label": "Waste to landfill",
-          "quantity": 100,
-          "unit": "kg",
-          "factor": "landfill"
+          "label": "Purchase from supplier B (one order)",
+          "quantity": 1,
+          "unit": "unit",
+          "supplier": {
+            "lines": [
+              {
+                "kind": "energy",
+                "name": "Supplier B electricity",
+                "quantity": 5000,
+                "unit": "kwh",
+                "factor": "electricity"
+              },
+              {
+                "kind": "energy",
+                "name": "Supplier B natural gas",
+                "quantity": 2500,
+                "unit": "kwh",
+                "factor": "natural_gas"
+              },
+              {
+                "kind": "material",
+                "name": "Cotton",
+                "quantity": 5000,
+                "unit": "kg",
+                "factor": "cotton"
+              },
+              {
+                "kind": "material",
+                "name": "Polymer",
+                "quantity": 2500,
+                "unit": "kg",
+                "factor": "polymer"
+              },
+              {
+                "kind": "material",
+                "name": "Chemical A",
+                "quantity": 500,
+                "unit": "kg",
+                "factor": "chemical_a"
+              },
+              {
+                "kind": "material",
+                "name": "Chemical B",
+                "quantity": 500,
+                "unit": "kg",
+                "factor": "chemical_b"
+              },
+              {
+                "kind": "transport",
+                "name": "Cotton transport",
+                "quantity": 5000000,
+                "unit": "kg.km",
+                "factor": "transport_cotton"
+              },
+              {
+                "kind": "transport",
+                "name": "Polymer transport",
+                "quantity": 6250000,
+                "unit": "kg.km",
+                "factor": "transport_polymer"
+              },
+              {
+                "kind": "transport",
+                "name": "Chemical A transport",
+                "quantity": 400000,
+                "unit": "kg.km",
+                "factor": "transport_chem_a"
+              },
+              {
+                "kind": "transport",
+                "name": "Chemical B transport",
+                "quantity": 100000,
+                "unit": "kg.km",
+                "factor": "transport_chem_b"
+              },
+              {
+                "kind": "waste",
+                "name": "Waste to landfill",
+                "quantity": 100,
+                "unit": "kg",
+                "factor": "landfill"
+              }
+            ]
+          }
         }
       ],
       "expected_kgco2e": 257300,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-6",
-      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). The guidance prints 20,500 kg for transport and 72,800 kg in total, but its own transport line (5,000 × 1,000 × 0.01 + 2,500 × 2,500 × 0.02 + 500 × 800 × 0.05 + 500 × 200 × 0.1) sums to 205,000, so the exact total is 3,000 + 49,250 + 205,000 + 50 = 257,300 kg. Stored exact, the same rule as 8.1 and 15.2 (01-contracts.md §9). Transport rows carry kg × km as one quantity."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). The guidance prints 20,500 kg for transport and 72,800 kg in total, but its own transport line (5,000 × 1,000 × 0.01 + 2,500 × 2,500 × 0.02 + 500 × 800 × 0.05 + 500 × 200 × 0.1) sums to 205,000, so the exact total is 3,000 + 49,250 + 205,000 + 50 = 257,300 kg. Stored exact, the same rule as 8.1 and 15.2 (01-contracts.md §9). Transport rows carry kg × km as one quantity. S3-6: one hybrid row; the supplier's allocated energy, the materials, transport and waste are its input lines (extra_data.inputs), each × its factor, as methods/hybrid.ts adds them up. The supplier gave its Scope 1 and 2 as allocated energy, so no facility data is allocated; the row's own quantity (one order) does not enter the sum."
     },
     {
       "id": "ex-1.3",
@@ -235,34 +265,47 @@
       },
       "rows": [
         {
-          "label": "Supplier B electricity",
-          "quantity": 5000,
-          "unit": "kwh",
-          "factor": "electricity"
-        },
-        {
-          "label": "Supplier B natural gas",
-          "quantity": 2500,
-          "unit": "kwh",
-          "factor": "natural_gas"
-        },
-        {
-          "label": "Waste to landfill",
-          "quantity": 100,
-          "unit": "kg",
-          "factor": "landfill"
-        },
-        {
-          "label": "T-shirts (cradle-to-gate excl. supplier S1+S2 and waste)",
+          "label": "T-shirts from supplier B",
           "quantity": 12000,
           "unit": "unit",
-          "factor": "tshirt_excl_s1s2"
+          "supplier": {
+            "lines": [
+              {
+                "kind": "energy",
+                "name": "Supplier B electricity",
+                "quantity": 5000,
+                "unit": "kwh",
+                "factor": "electricity"
+              },
+              {
+                "kind": "energy",
+                "name": "Supplier B natural gas",
+                "quantity": 2500,
+                "unit": "kwh",
+                "factor": "natural_gas"
+              },
+              {
+                "kind": "waste",
+                "name": "Waste to landfill",
+                "quantity": 100,
+                "unit": "kg",
+                "factor": "landfill"
+              },
+              {
+                "kind": "material",
+                "name": "T-shirts (cradle-to-gate excl. supplier S1+S2 and waste)",
+                "quantity": 12000,
+                "unit": "unit",
+                "factor": "tshirt_excl_s1s2"
+              }
+            ]
+          }
         }
       ],
       "expected_kgco2e": 70250,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-6",
-      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 70,250 kg. The guidance's working line says 50,000 × 5.6 but its table and result use 12,000 t-shirts (12,000 × 5.6 = 67,200)."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 70,250 kg. The guidance's working line says 50,000 × 5.6 but its table and result use 12,000 t-shirts (12,000 × 5.6 = 67,200). S3-6: one hybrid row of 12,000 t-shirts; the supplier's allocated energy, the waste and the rest of the t-shirts' cradle-to-gate footprint are its input lines."
     },
     {
       "id": "ex-1.4",
@@ -339,9 +382,9 @@
         }
       ],
       "expected_kgco2e": 42400,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-6",
-      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Example 1.4 mixes two methods (54,100 kg in all). This case is its average-data part (semi-processed components by mass); the spend part is ex-1.5 (11,700 kg). 42,400 + 11,700 = 54,100."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Example 1.4 mixes two methods (54,100 kg in all). This case is its average-data part (semi-processed components by mass); the spend part is ex-1.5 (11,700 kg). 42,400 + 11,700 = 54,100. S3-6: run as the average-data rows of the combined example (each component × its cradle-to-gate factor through methods/activity.ts)."
     },
     {
       "id": "ex-1.5",
@@ -684,7 +727,7 @@
         }
       ],
       "expected_kgco2e": 760000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-8"
     },
     {
@@ -732,7 +775,7 @@
         }
       ],
       "expected_kgco2e": 5000,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-8"
     },
     {
@@ -835,7 +878,7 @@
         }
       ],
       "expected_kgco2e": 5187.5,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-8",
       "note": "Compare on summed total_kgco2e (rows of 62.5 and 125 kg round to 0.06 and 0.13 t)."
     },
@@ -874,7 +917,7 @@
         }
       ],
       "expected_kgco2e": 240,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-8"
     },
     {
@@ -902,7 +945,7 @@
         }
       ],
       "expected_kgco2e": 1600,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-8"
     },
     {
@@ -960,9 +1003,9 @@
         }
       ],
       "expected_kgco2e": 132500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-8",
-      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 132,500 kg. Owner to confirm: no module spec lists Cat 5."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 132,500 kg. Run by S3-8 (the owner here; no module spec lists Cat 5): each row is quantity (× share) × a per-tonne or per-m³ factor, which the engine's activity method reproduces exactly."
     },
     {
       "id": "ex-5.2",
@@ -1034,9 +1077,9 @@
         }
       ],
       "expected_kgco2e": 3320,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-8",
-      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 3,320 kg. Owner to confirm: no module spec lists Cat 5."
+      "note": "Transcribed by S3-0 from the guidance (reference/scope3-calculation-guidance.txt). Matches the printed 3,320 kg. Run by S3-8 (the owner here; no module spec lists Cat 5): each row is quantity (× share) × a per-tonne or per-m³ factor, which the engine's activity method reproduces exactly."
     },
     {
       "id": "ex-6.1",
@@ -1511,9 +1554,9 @@
         }
       ],
       "expected_kgco2e": 2332500,
-      "status": "skip",
+      "status": "run",
       "owner": "S3-11",
-      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). The guidance prints 2,242,500 because it writes the investee 4 term as 900,000; its own inputs give 990,000, so the exact total is 2,332,500 (S3-11). Runs once S3-5 spend.ts is merged."
+      "note": "Result in kg (the factors are kgCO₂e/$, 01-contracts.md §9). The guidance prints 2,242,500 because it writes the investee 4 term as 900,000; its own inputs give 990,000, so the exact total is 2,332,500 (S3-11). Runs since S3-5 spend.ts merged."
     },
     {
       "id": "ex-10.1",
