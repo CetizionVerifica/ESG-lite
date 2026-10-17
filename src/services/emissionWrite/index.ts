@@ -257,7 +257,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, rowIn
   // is ignored; on a form with several methods and no choice, today's rule (S3-3) stands.
   const atMethod = rowMethodOf(withDefaults.activity_data);
   const choice = methodByChoice(form, withDefaults.activity_data);
-  const named = namedMethodFor({ source: rowInput.method_source ?? "caller", named: rowInput.method ?? atMethod, choice, offered: ctx.method_options, hasChoiceMap: !!form.choice });
+  const named = namedMethodFor({ source: rowInput.method_source ?? "caller", named: rowInput.method ?? atMethod, choice, offered: ctx.method_options, hasChoiceMap: !!form.choice, configured: form.configured });
   // A contributor's own "@method" that the form overrides is replaced with the form's method, since
   // the spec and the spend fields read "@method" too: the choice's, else the one the engine would
   // pick for a row naming none (S3-8's method for the unit, then method_options[0]). A row without

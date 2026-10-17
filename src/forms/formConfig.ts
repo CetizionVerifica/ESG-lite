@@ -24,7 +24,7 @@ import {
   type FormUnits,
   type MethodByChoice,
 } from "../scope3/contracts/schemas";
-import { methodLabel, type Method } from "../scope3/contracts/ghgCategory";
+import { MethodSchema, methodLabel, type Method } from "../scope3/contracts/ghgCategory";
 import { readMethodOptions } from "../scope3/dq/methodOptions";
 import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currencies";
 import { normalizeUnitKey } from "../services/calculationSpec";
@@ -42,6 +42,9 @@ export interface FormShape {
   column_options?: Record<string, Array<{ id: unknown; label?: unknown }>> | null;
   dependent_options?: Record<string, Record<string, Array<{ id: unknown; label?: unknown }>>> | null;
   method_options?: unknown;
+  /** The stored settings (an update): a write is checked against them where the body leaves them out. */
+  method_by_choice?: unknown;
+  units?: unknown;
 }
 
 /** The stored settings of a form, as the engine reads them. */
@@ -61,9 +64,15 @@ export interface FormSettings {
   extra_keys: Set<string>;
   fixed_unit: string | null;
   fixed_currency: string | null;
+  /**
+   * The form carries any SE-2 setting (a choice map, field settings, a fixed unit or currency):
+   * only then does a single-method form fix the method for a User. A form with none keeps
+   * S3-3's rule exactly as before SE-2.
+   */
+  configured: boolean;
 }
 
-export const NO_FORM_SETTINGS: FormSettings = { choice: null, field_settings: {}, extra_keys: new Set(), fixed_unit: null, fixed_currency: null };
+export const NO_FORM_SETTINGS: FormSettings = { choice: null, field_settings: {}, extra_keys: new Set(), fixed_unit: null, fixed_currency: null, configured: false };
 
 const lower = (v: unknown) => String(v ?? "").trim().toLowerCase();
 
@@ -106,12 +115,16 @@ export const readFormSettings = (form: FormShape | null | undefined, stored: Sto
     }
     choice = { column: mbc.data.column, methods };
   }
+  const field_settings = fields.success ? fields.data : {};
+  const fixed_unit = units.success ? (units.data.fixed ?? null) : null;
+  const fixed_currency = currency.success ? (currency.data.fixed ?? null) : null;
   return {
     choice,
-    field_settings: fields.success ? fields.data : {},
+    field_settings,
     extra_keys: new Set((form.extra_fields ?? []).map((f) => f.key)),
-    fixed_unit: units.success ? (units.data.fixed ?? null) : null,
-    fixed_currency: currency.success ? (currency.data.fixed ?? null) : null,
+    fixed_unit,
+    fixed_currency,
+    configured: !!choice || Object.keys(field_settings).length > 0 || !!fixed_unit || !!fixed_currency,
   };
 };
 
@@ -138,7 +151,8 @@ export const methodByChoice = (settings: FormSettings, activity_data: Record<str
  *   recalculation. A method it names (`method`, else `@method`) wins; else the
  *   row's answer to the form's choice.
  * - `contributor`: a User's typed entry, edit or manual bulk upload. Where
- *   the form fixes the method (a choice map, or one method), a method the row
+ *   the form fixes the method (a choice map, or one method on a form with SE-2
+ *   settings), a method the row
  *   sends is ignored: the choice's method, else the form's default as for a
  *   row that names none (an answer the map doesn't name included). A form with several methods and no choice map fixes
  *   none, so the row keeps today's rule (S3-5's spend fields send one): a
@@ -155,11 +169,60 @@ export const namedMethodFor = (p: {
   offered: readonly Method[] | null | undefined;
   /** The form has a choice map (`method_by_choice`): it fixes the method even for an answer it doesn't map. */
   hasChoiceMap?: boolean;
+  /** The form carries SE-2 settings (`FormSettings.configured`): only then does a single method fix it. */
+  configured?: boolean;
 }): Method | null => {
   if (p.source !== "contributor") return p.named ?? p.choice;
   if (p.choice) return p.choice;
-  if (p.hasChoiceMap || p.offered?.length === 1) return null;
+  if (formFixesMethod(p)) return null;
   return p.named;
+};
+
+/**
+ * Whether the form fixes a User's method (SE-2): it has a choice map, or it is
+ * configured by SE-2 and offers one method. A form with no SE-2 settings fixes
+ * nothing, so S3-3's rule stands for it (a method it doesn't offer is refused).
+ */
+export const formFixesMethod = (p: { hasChoiceMap?: boolean; configured?: boolean; offered: readonly Method[] | null | undefined }): boolean =>
+  !!p.hasChoiceMap || (!!p.configured && p.offered?.length === 1);
+
+const ROW_METHOD_KEY = "@method";
+const atMethodOf = (data: Record<string, unknown> | null | undefined): Method | null => {
+  const parsed = MethodSchema.safeParse(String(data?.[ROW_METHOD_KEY] ?? "").trim());
+  return parsed.success && parsed.data !== "unknown" ? parsed.data : null;
+};
+
+/**
+ * An edit keeps the row's stored method (SE-2): a quantity or date edit must
+ * not silently relabel or recalculate a row under another method. The method
+ * is kept unless the edit changes what decides it: the answer to the form's
+ * choice, or (where the form doesn't fix the method for this editor) the row's
+ * own `@method`. A contributor's `@method` on a form that fixes the method is
+ * put back as it was. Not kept when the stored method is no method, or no
+ * longer offered by the form (the edit then takes the method as a new row).
+ * Returns the method to name and the activity data to calculate, or null.
+ */
+export const editKeepsMethod = (p: {
+  settings: FormSettings;
+  offered: readonly Method[] | null | undefined;
+  stored: unknown;
+  previous: Record<string, unknown> | null | undefined;
+  next: Record<string, unknown>;
+  source: MethodSource;
+}): { method: Method; activity_data: Record<string, unknown> } | null => {
+  const stored = MethodSchema.safeParse(p.stored);
+  if (!stored.success || stored.data === "unknown" || !p.previous) return null;
+  if (p.offered?.length && !p.offered.includes(stored.data)) return null;
+  if (methodByChoice(p.settings, p.previous) !== methodByChoice(p.settings, p.next)) return null;
+  const fixes = p.source === "contributor" && formFixesMethod({ hasChoiceMap: !!p.settings.choice, configured: p.settings.configured, offered: p.offered });
+  const before = atMethodOf(p.previous);
+  const after = atMethodOf(p.next);
+  if (before === after) return { method: stored.data, activity_data: p.next };
+  if (!fixes) return null;
+  const activity_data = { ...p.next };
+  if (before) activity_data[ROW_METHOD_KEY] = p.previous[ROW_METHOD_KEY];
+  else delete activity_data[ROW_METHOD_KEY];
+  return { method: stored.data, activity_data };
 };
 
 /**
@@ -180,7 +243,8 @@ export const applyHiddenDefaults = (
     if (!setting.hidden || setting.default === undefined) continue;
     const target = settings.extra_keys.has(key) ? extra : activity;
     const existing = Object.keys(target).find((k) => lower(k) === lower(key)) ?? key;
-    if (!isEmpty(target[existing])) continue;
+    // A value the row gives, in either place, is the row's.
+    if (!isEmpty(target[existing]) || !isEmpty(valueOf(target === activity ? extra : activity, key))) continue;
     target[existing] = String(setting.default);
     filled.push(key);
   }
@@ -300,19 +364,26 @@ export const parseFormSettingsInput = (body: Record<string, unknown>, form: Form
     else {
       const parsed = FormUnitsSchema.safeParse(body.units);
       if (!parsed.success) return shapeError("units", parsed.error);
-      const fixed = parsed.data.fixed;
-      if (fixed) {
-        // The methods a row of this form can take: each mapped choice's, else the form's default.
-        const choiceMap = value.method_by_choice !== undefined ? value.method_by_choice : null;
-        const methods = choiceMap ? [...new Set(Object.values(choiceMap.map))] : offered.slice(0, 1);
-        for (const method of methods) {
-          const units = offeredOptions.find((o) => o.method === method)?.units ?? [];
-          if (units.length && !units.some((u) => normalizeUnitKey(u) === normalizeUnitKey(fixed))) {
-            return mismatch("units.fixed", `${methodLabel(method)} offers ${units.join(", ")}; "${fixed}" isn't one of them.`);
-          }
+      value.units = parsed.data;
+    }
+  }
+
+  // A fixed unit against the form as it will be: the body's choice map and unit over the stored
+  // ones, and the form's methods (already updated by this write). Checked when any of them changes.
+  if (body.units !== undefined || body.method_by_choice !== undefined || body.method_options !== undefined) {
+    const storedMap = MethodByChoiceSchema.safeParse(form.method_by_choice);
+    const storedUnits = FormUnitsSchema.safeParse(form.units ?? {});
+    const choiceMap = value.method_by_choice !== undefined ? value.method_by_choice : storedMap.success ? storedMap.data : null;
+    const fixed = (value.units !== undefined ? value.units?.fixed : storedUnits.success ? storedUnits.data.fixed : undefined) ?? null;
+    if (fixed) {
+      // The methods a row of this form can take: each mapped choice's, else the form's default.
+      const methods = choiceMap ? [...new Set(Object.values(choiceMap.map))] : offered.slice(0, 1);
+      for (const method of methods) {
+        const units = offeredOptions.find((o) => o.method === method)?.units ?? [];
+        if (units.length && !units.some((u) => normalizeUnitKey(u) === normalizeUnitKey(fixed))) {
+          return mismatch("units.fixed", `${methodLabel(method)} offers ${units.join(", ")}; "${fixed}" isn't one of them.`);
         }
       }
-      value.units = parsed.data;
     }
   }
 

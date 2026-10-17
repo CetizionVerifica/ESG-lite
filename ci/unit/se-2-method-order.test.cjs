@@ -127,8 +127,8 @@ test("step 2: the choice decides; a contributor's own method or @method is ignor
   assert.equal(unmapped.activity_data["@method"], "distance_based", "replaced with the form's method for km (S3-8)");
   assert.equal(unmapped.computed.method, "distance_based");
   assert.equal(unmapped.computed.total, 0.1);
-  // One method on the form fixes it too.
-  const single = ctx({ method_options_full: [{ method: "distance_based", units: ["km"] }] });
+  // One method on a form with SE-2 settings fixes it too.
+  const single = ctx({ method_options_full: [{ method: "distance_based", units: ["km"] }], settings: { field_settings: { Vehicle: { label: "Truck" } } } });
   const one = await ok(single, row({ "@method": "fuel_based", emission_category: "HGV", activity_value: "100" }, "km", { method_source: "contributor" }));
   assert.equal(one.computed.method, "distance_based");
   // Several methods and no choice map: the form fixes none, so S3-3's rule stands.
@@ -192,4 +192,18 @@ test("a form with none of the SE-2 settings: a User's row gives the same result 
   const a = await ok(c, row({ emission_category: "HGV", activity_value: "100" }, "km", { method_source: "contributor" }));
   const b = await ok(c, row({ emission_category: "HGV", activity_value: "100" }, "km"));
   assert.deepEqual([a.computed.total, a.computed.method], [b.computed.total, b.computed.method]);
+});
+
+test("a single-method form with no SE-2 settings behaves exactly as before SE-2 (S3-3, S3-6)", async () => {
+  const single = ctx({ method_options_full: [{ method: "distance_based", units: ["km"] }] });
+  for (const source of ["contributor", "caller"]) {
+    const refused = await prepare(single, row({ emission_category: "HGV", activity_value: "100" }, "km", { method_source: source, method: "spend_based" }));
+    assert.equal(refused.ok, false, source);
+    assert.equal(refused.issue.code, "METHOD_NOT_ALLOWED", source);
+  }
+  const supplierForm = ctx({ method_options_full: [{ method: "supplier_specific", units: [] }] });
+  const noSupplier = await prepare(supplierForm, row({ "@method": "supplier_specific", emission_category: "Pallets", activity_value: "5" }, "kg", { method_source: "contributor" }));
+  assert.equal(noSupplier.ok, false);
+  assert.equal(noSupplier.issue.code, "FIELD_REQUIRED");
+  assert.equal(noSupplier.issue.field, "supplier_id");
 });

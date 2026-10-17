@@ -76,8 +76,18 @@ test("namedMethodFor: importers name the method; for a User the form decides whe
   assert.equal(caller(null, null), null);
   // Contributor: the choice wins over whatever the row sends.
   assert.equal(user("fuel_based", "distance_based"), "distance_based");
-  // One method: the form's, as for a row naming none (null → method_options[0] downstream).
-  assert.equal(user("spend_based", null, ["fuel_based"]), null);
+  // One method on a form with SE-2 settings: the form's, as for a row naming none (null → method_options[0] downstream).
+  assert.equal(form.namedMethodFor({ source: "contributor", named: "spend_based", choice: null, offered: ["fuel_based"], configured: true }), null);
+  // One method on a form with no SE-2 settings: exactly S3-3's rule (the row's method, refused downstream if not offered).
+  assert.equal(user("spend_based", null, ["fuel_based"]), "spend_based");
+  assert.equal(form.formFixesMethod({ offered: ["fuel_based"] }), false);
+  assert.equal(form.formFixesMethod({ offered: ["fuel_based"], configured: true }), true);
+  assert.equal(form.formFixesMethod({ offered: ["fuel_based", "distance_based"], configured: true }), false);
+  assert.equal(form.formFixesMethod({ offered: null, hasChoiceMap: true }), true);
+  assert.equal(form.readFormSettings(shape, {}).configured, false, "no SE-2 settings");
+  assert.equal(form.readFormSettings(shape, { field_settings: {} }).configured, false);
+  assert.equal(form.readFormSettings(shape, { units: { fixed: "km" } }).configured, true);
+  assert.equal(form.readFormSettings(shape, settings).configured, true);
   // Several methods, no choice map: the form fixes none, so today's rule (S3-3 refuses one it doesn't offer).
   assert.equal(user("distance_based", null), "distance_based");
   assert.equal(user("spend_based", null), "spend_based");
@@ -102,6 +112,11 @@ test("applyHiddenDefaults fills hidden fields the row leaves empty, columns in a
   assert.equal(kept.activity_data.Vehicle, "van");
   assert.equal(kept.extra_data.paid_by, "Customer or other");
   assert.deepEqual(kept.filled, []);
+  // A value the row gives in the other place (a column sent in extra_data) is the row's too.
+  const elsewhere = form.applyHiddenDefaults(s, { paid_by: "Customer or other" }, { Vehicle: "van" });
+  assert.equal(elsewhere.activity_data.Vehicle, undefined);
+  assert.equal(elsewhere.extra_data.paid_by, undefined);
+  assert.deepEqual(elsewhere.filled, []);
   const notHidden = form.readFormSettings(shape, { field_settings: { Vehicle: { default: "hgv" } } });
   assert.deepEqual(form.applyHiddenDefaults(notHidden, {}, {}).activity_data, {});
 });
@@ -167,6 +182,18 @@ test("parseFormSettingsInput refuses settings that don't fit the form, naming th
     assert.equal(r.field, field, JSON.stringify(body));
     assert.match(r.message, message, JSON.stringify(body));
   }
+  // A fixed unit is checked against the stored choice map when the body leaves it out (an update).
+  const stored = { ...shape, method_by_choice: { column: "record_type", map: { fuel_bill: "fuel_based" } } };
+  const storedMap = form.parseFormSettingsInput({ units: { fixed: "km" } }, stored);
+  assert.equal(storedMap.ok, false);
+  assert.equal(storedMap.code, "FORM_CHECK_FAILED");
+  assert.equal(storedMap.field, "units.fixed");
+  assert.match(storedMap.message, /From fuel used offers litre|offers litre/);
+  assert.equal(form.parseFormSettingsInput({ units: { fixed: "litre" } }, stored).ok, true);
+  // ...and a new choice map against the stored fixed unit.
+  const storedUnit = { ...shape, units: { fixed: "litre" } };
+  assert.equal(form.parseFormSettingsInput({ method_by_choice: { column: "record_type", map: { trip: "distance_based" } } }, storedUnit).field, "units.fixed");
+  assert.equal(form.parseFormSettingsInput({ method_by_choice: { column: "record_type", map: { trip: "distance_based" } }, units: null }, storedUnit).ok, true, "cleared in the same write");
   // A choice map needs the form's methods first.
   const noMethods = refuse({ method_by_choice: settings.method_by_choice }, { method_options: null });
   assert.equal(noMethods.field, "method_by_choice.map");
@@ -180,4 +207,22 @@ test("the contracts: SE-2 schemas sit beside MethodOptionsSchema; entry_detail i
   assert.equal(schemas.FieldSettingSchema.safeParse({ label: "Your reference", hidden: false, required: true }).success, true);
   assert.equal(schemas.FormUnitsSchema.safeParse({ fixed: "km", allowed: ["km"] }).success, false, "allowed units live in method_options");
   assert.equal(schemas.CurrencyCodeSchema.safeParse("INR").success, true);
+});
+
+test("editKeepsMethod: an edit keeps the stored method unless what decides it changed", () => {
+  const offered = ["fuel_based", "distance_based"];
+  const s = form.readFormSettings(shape, settings);
+  const keep = (over) => form.editKeepsMethod({ settings: s, offered, stored: "distance_based", previous: { record_type: "", "@method": "distance_based", Distance: "10" }, next: { record_type: "", "@method": "distance_based", Distance: "20" }, source: "contributor", ...over });
+  assert.deepEqual(keep({}), { method: "distance_based", activity_data: { record_type: "", "@method": "distance_based", Distance: "20" } }, "a quantity edit keeps it");
+  assert.equal(keep({ next: { record_type: "fuel_bill", "@method": "distance_based" } }), null, "a new answer to the choice decides again");
+  // A User's own @method change on a form that fixes the method is put back.
+  assert.deepEqual(keep({ next: { record_type: "", "@method": "fuel_based" } }).activity_data, { record_type: "", "@method": "distance_based" });
+  // A reviewer (caller) changing @method on purpose decides again; so does a User where the form fixes nothing.
+  assert.equal(keep({ source: "caller", next: { record_type: "", "@method": "fuel_based" } }), null);
+  assert.equal(form.editKeepsMethod({ settings: form.NO_FORM_SETTINGS, offered, stored: "distance_based", previous: { "@method": "distance_based" }, next: { "@method": "fuel_based" }, source: "contributor" }), null);
+  // No stored method, a method the form no longer offers, or no previous data: the edit is a new row.
+  assert.equal(keep({ stored: null }), null);
+  assert.equal(keep({ stored: "unknown" }), null);
+  assert.equal(keep({ stored: "spend_based" }), null);
+  assert.equal(keep({ previous: null }), null);
 });
