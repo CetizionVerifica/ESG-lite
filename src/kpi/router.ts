@@ -15,6 +15,7 @@ import autoRouter from "./auto/router";
 import { myRouter } from "./values/my";
 import reviewRouter from "./review/router";
 import targetsRouter from "./targets/router";
+import dashboardRouter from "./dashboard/router";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use(autoRouter); // KPI-5: /kpi/auto/refresh
 router.use(myRouter); // KPI-7 (backend part): /kpi/my
 router.use(reviewRouter); // KPI-8: /kpi/values/approve|reject, /kpi/periods/lock|unlock
 router.use(targetsRouter); // KPI-9: /kpi/targets
+router.use(dashboardRouter); // KPI-10: /kpi/dashboard, /kpi/dashboard/remind
 
 export default router;
