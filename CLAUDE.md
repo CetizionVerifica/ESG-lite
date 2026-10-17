@@ -36,3 +36,12 @@
 - Every new emission row stores `method`, `dq`, `data_type` and a factor snapshot with `factor_type` and `gwp_set`. Spend rows store `fx` (rate and date used).
 - Company Scope 3 boundary (`company_scope3_category`) is the only source of included/excluded status and reasons for reports.
 - New tables and columns ship as idempotent `migrate:scope3-*` scripts in `scripts/migrate-all.cjs`; every new endpoint gets a tenant-isolation test.
+
+## KPI tracking (GRI, BRSR, ESRS) — see docs/kpi/
+- One per-client switch: `company.kpi_tracking_enabled` (default off, Superadmin only). Every `/kpi` route sits behind `requireKpiTracking` (403 `KPI_TRACKING_OFF`); new KPI endpoints, MCP tools and exports check it too.
+- Same people as emissions: Superadmin / Admin / Manager / User with the existing site scope (`accessibleSiteIds`) and guards. No new role. Contributors enter, Managers approve (Admins don't), Admins set up.
+- KPI enums, framework codes, error codes and check ids live only in `src/kpi/contracts/`. Change them there first (KPI-0 follow-up), then use them.
+- A KPI is defined once in the library (`kpi_definition`) and mapped to framework disclosures (`kpi_disclosure_map`). Never store a value twice to satisfy two frameworks.
+- GHG and energy KPIs are read (KPI-5) from approved rows through the reporting layer. Never recompute an emission total in `src/kpi/`; never change `src/reporting/ghg*.ts` or `emissionWrite` for KPIs.
+- New tables and columns ship as idempotent `migrate:kpi-*` scripts; every new endpoint gets tenant-isolation, role and switch-off tests.
+- Standards text: codes, our own wording and a source link only. No copied paragraphs.
