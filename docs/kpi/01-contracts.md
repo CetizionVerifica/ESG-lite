@@ -70,6 +70,7 @@ Audit: `audit_log.entity_type` gains `kpi_value`, `kpi_setup`, `kpi_period_lock`
 | `GET /kpi/catalogue` | any | KPI-2 | the library as the company sees it: frameworks, disclosures, KPIs, mappings (versions it enabled) |
 | `GET/PUT /kpi/setup` | GET any, PUT Admin/Superadmin | KPI-3 | settings, frameworks, material topics, selected KPIs, assignments |
 | `POST /kpi/setup/custom-kpis` | Admin | KPI-3 | a company KPI (`company_id` set) |
+| `POST /kpi/setup/invite` | Admin, Superadmin | KPI-3 | `{notified}`: one `kpi_assigned` notification per owner of an assignment of a selected KPI ("Invite your team") |
 | `GET /kpi/my?period=` | any | KPI-7 | what the caller owes: KPIs × sites × periods, with status, last value and due date |
 | `GET /kpi/values?kpi=&site=&from=&to=&status=` | any (scoped) | KPI-4 | values |
 | `PUT /kpi/values` | owner, Manager+, Admin (company level) | KPI-4/7 | upsert drafts `{items:[…]}`, per-item result |
@@ -79,11 +80,24 @@ Audit: `audit_log.entity_type` gains `kpi_value`, `kpi_setup`, `kpi_period_lock`
 | `GET/POST /kpi/periods/lock`, `POST /kpi/periods/unlock` | Manager (own sites), Admin, Superadmin | KPI-8 | completeness + lock, the same shape as `/periods/lock` |
 | `POST /kpi/auto/refresh?year=` | Manager+, also run after approvals | KPI-5 | recomputed auto values |
 | `GET/PUT/DELETE /kpi/targets` | GET any, write Admin | KPI-9 | targets with progress |
-| `GET /kpi/dashboard?year=&framework=` | Manager+, Admin | KPI-10 | coverage per framework, gaps, trends |
+| `GET /kpi/dashboard?year=&framework=&site=&topic=` | Manager+, Admin | KPI-10 | coverage per framework, gaps, trends |
+| `POST /kpi/dashboard/remind` | Manager+, Admin | KPI-10 | `{kpi, site}` → a `kpi_due` to the owner, at most once a day per item |
 | `GET /kpi/reports/:framework?year=&format=xlsx\|pdf\|json` | Manager+, Admin | KPI-11 | the framework export (approved only) |
 | `POST /kpi/ai/suggest-values` (document id), `POST /kpi/ai/suggest-mapping` | owner / Admin | KPI-12 | suggestions `{kpi, value, unit, period, source_page, confidence}` |
 
 Error shape: `{ code, message, details? }`, as `src/imports/errors.ts`.
+
+Bulk actions answer `{updated: [ids], refused: [{id, code}]}` (submit: `{submitted, refused}`); one id's refusal never stops the others. Lists and rows are wrapped by name (`{values}`, `{targets}`, `{target}`, `{report}`, `{lock, status}`).
+
+Notification kinds (`src/kpi/contracts/enums.ts` `KPI_NOTIFICATION_KINDS`):
+
+| Kind | Module | To | When |
+|---|---|---|---|
+| `kpi_enabled` | KPI-1 | the company's Admins | the switch went on |
+| `kpi_assigned` | KPI-3 | each assignment owner | `POST /kpi/setup/invite` ("Invite your team") |
+| `kpi_submitted` | KPI-8 | each reviewer (the assignment's, else the site's Managers) | values submitted; one per reviewer per submit |
+| `kpi_rejected` | KPI-8 | whoever entered the value | a value sent back, with the reason |
+| `kpi_due` | KPI-8, KPI-10 | owners with values missing | 5 days before and on the due date (daily job; mute with `notification_preferences.kpi_due = false`), and a Manager's "Remind" |
 
 ## §4 Error codes (`src/kpi/contracts/errors.ts`)
 
@@ -102,6 +116,8 @@ Error shape: `{ code, message, details? }`, as `src/imports/errors.ts`.
 | `KPI_EVIDENCE_REQUIRED` | 422 | submitting a BRSR Core KPI without evidence (D15) |
 | `KPI_FORMULA_INVALID` | 422 | library or custom formula: unknown code, a cycle, or a unit mismatch |
 | `KPI_REASON_REQUIRED` | 400 | excluding a KPI, a non-material topic, or unlocking without a reason |
+
+Plumbing codes every route may answer (not contract decisions; `errors.ts` second block): `KPI_VALIDATION` 400, `KPI_NOT_FOUND` 404, `KPI_FORBIDDEN` 403, `KPI_COMPANY_REQUIRED` 400, `KPI_CODE_TAKEN` 409, and the per-id review refusals `KPI_NOT_PENDING` 409 (not waiting for review), `KPI_NOT_READY` 409 (`only_ready` and a check holds it), `KPI_SELF_REVIEW` 403 (your own entry).
 
 ## §5 Review checks (KPI-8; ids in `src/kpi/contracts/checks.ts`)
 

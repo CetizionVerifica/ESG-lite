@@ -37,6 +37,12 @@ export const KpiValueChecksSchema = z.object({
   ready: z.boolean(),
   held: z.array(KpiCheckIdSchema),
   info: z.array(KpiCheckIdSchema).optional(),
+  /**
+   * What a held check found, for the reason chips ("3× last September"):
+   * KPI_CHANGE_LIMIT `{previous, change_pct, ratio, limit_pct}`, KPI_BREAKDOWN_SUM `{parts, total, difference_pct}`.
+   * Numbers and ids only.
+   */
+  details: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
   checked_at: z.string().optional(),
 });
 export type KpiValueChecks = z.infer<typeof KpiValueChecksSchema>;

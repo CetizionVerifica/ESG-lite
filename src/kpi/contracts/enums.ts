@@ -111,5 +111,13 @@ export const KPI_AUDIT_ENTITY_TYPES = ["kpi_value", "kpi_setup", "kpi_period_loc
 export type KpiAuditEntityType = (typeof KPI_AUDIT_ENTITY_TYPES)[number];
 
 /** Notification kinds KPI code sends. */
-export const KPI_NOTIFICATION_KINDS = ["kpi_enabled", "kpi_due", "kpi_assigned"] as const; // kpi_assigned: KPI-3 "Invite your team"
+/**
+ * Notification kinds KPI code sends:
+ *   kpi_enabled    KPI-1: the switch went on (to the company's Admins)
+ *   kpi_due        KPI-8: values due in 5 days or today (daily job), and KPI-10's "Remind"
+ *   kpi_assigned   KPI-3: "Invite your team" (to assignment owners)
+ *   kpi_submitted  KPI-8: values sent for review (to reviewers, one per submit)
+ *   kpi_rejected   KPI-8: a value sent back, with the reason (to whoever entered it)
+ */
+export const KPI_NOTIFICATION_KINDS = ["kpi_enabled", "kpi_due", "kpi_assigned", "kpi_submitted", "kpi_rejected"] as const;
 export type KpiNotificationKind = (typeof KPI_NOTIFICATION_KINDS)[number];

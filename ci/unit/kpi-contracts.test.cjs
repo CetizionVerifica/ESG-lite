@@ -57,7 +57,14 @@ test("§4 error codes and statuses match the contract", () => {
   }
   // Plumbing codes are the only extras.
   const extras = errors.KPI_ERROR_CODES.filter((c) => !(c in expected));
-  assert.deepEqual(extras.sort(), ["KPI_CODE_TAKEN", "KPI_COMPANY_REQUIRED", "KPI_FORBIDDEN", "KPI_NOT_FOUND", "KPI_VALIDATION"]);
+  assert.deepEqual(extras.sort(), ["KPI_CODE_TAKEN", "KPI_COMPANY_REQUIRED", "KPI_FORBIDDEN", "KPI_NOT_FOUND", "KPI_NOT_PENDING", "KPI_NOT_READY", "KPI_SELF_REVIEW", "KPI_VALIDATION"]);
+  assert.equal(errors.KPI_ERRORS.KPI_NOT_PENDING.status, 409);
+  assert.equal(errors.KPI_ERRORS.KPI_NOT_READY.status, 409);
+  assert.equal(errors.KPI_ERRORS.KPI_SELF_REVIEW.status, 403);
+});
+
+test("notification kinds KPI code sends", () => {
+  assert.deepEqual([...enums.KPI_NOTIFICATION_KINDS], ["kpi_enabled", "kpi_due", "kpi_assigned", "kpi_submitted", "kpi_rejected"]);
 });
 
 test("KpiError carries code, status and details; the body never has a stack", () => {
@@ -81,6 +88,7 @@ test("§5 check ids, rules and labels", () => {
   assert.equal(checks.BREAKDOWN_TOLERANCE, 0.005);
   assert.ok(ok(checks.KpiValueChecksSchema, { ready: false, held: ["KPI_EVIDENCE"] }));
   assert.ok(!ok(checks.KpiValueChecksSchema, { ready: false, held: ["NOPE"] }));
+  assert.ok(ok(checks.KpiValueChecksSchema, { ready: false, held: ["KPI_CHANGE_LIMIT"], details: { KPI_CHANGE_LIMIT: { previous: 10, change_pct: 200 } } }));
 });
 
 test("every enum value has a label", () => {
@@ -156,6 +164,9 @@ test("setup, review, lock and other module schemas", () => {
   assert.ok(!ok(schemas.KpiPeriodLockBodySchema, { year: 2026, period: 13 }));
   assert.ok(ok(schemas.KpiTargetSchema, { kpi_definition_id: 1, baseline_year: 2024, baseline_value: 10, target_year: 2030, target_value: 5, direction: "reduce" }));
   assert.ok(ok(schemas.KpiDashboardQuerySchema, { year: "2026", framework: "BRSR" }));
+  assert.ok(ok(schemas.KpiRemindSchema, { kpi: 3, site: null }));
+  assert.ok(!ok(schemas.KpiRemindSchema, { kpi: 3 }), "site is explicit (null for company level)");
+  assert.ok(ok(schemas.KpiTargetsQuerySchema, { kpi: "4", site: "company" }));
   assert.ok(ok(schemas.KpiReportQuerySchema, { year: 2026, format: "xlsx", sites: "1,2" }));
   assert.ok(ok(schemas.CustomKpiCreateSchema, { ...definition, code: "OWN_KPI" }));
   assert.ok(!ok(schemas.CustomKpiCreateSchema, { ...definition, code: "OWN_KPI", source: "auto", auto_source: "ghg_scope1" }));

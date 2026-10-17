@@ -274,11 +274,23 @@ export const KpiTargetSchema = z.object({
   note: optionalText(1000),
 });
 
+/** `GET /kpi/targets?kpi=&site=` (`site=company` for company targets only). */
+export const KpiTargetsQuerySchema = z.object({
+  kpi: IdSchema.optional(),
+  site: z.union([IdSchema, z.literal("company")]).optional(),
+});
+
 export const KpiDashboardQuerySchema = z.object({
   year: year,
   framework: FrameworkCodeSchema.optional(),
   site: IdSchema.optional(),
   topic: KpiTopicSchema.optional(),
+});
+
+/** `POST /kpi/dashboard/remind {kpi, site}`: the KPI's id, and its site (null = company level). */
+export const KpiRemindSchema = z.object({
+  kpi: id,
+  site: id.nullable(),
 });
 
 export const KpiReportQuerySchema = z.object({
