@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { parseMethodOptionsInput } from "../scope3/dq/methodOptions";
+import type { AuthRequest } from "../middlewares/auth.middleware";
 import { AppDataSource } from "../config/data-source";
 import {
   ColumnConfig,
@@ -18,6 +19,7 @@ import { In } from "typeorm";
 import { generateColumnConfigProposal } from "../services/columnConfigGenerator";
 import { getDefaultExtraFieldsByName } from "../utils/defaultExtraFields";
 import { parseFormSettingsInput } from "../forms/formConfig";
+import { checkDraftForm, checkStoredForm, checkSummaries, listVersions, parseCheckYear, publishForm } from "../forms/versions";
 
 /** SE-2: the form settings a column-config write may carry (src/forms/formConfig.ts). */
 const FORM_SETTING_KEYS = ["method_by_choice", "field_settings", "units", "currency"] as const;
@@ -986,5 +988,102 @@ export const seedExtraFields = async (_req: Request, res: Response) => {
     return res.status(500).json({
       message: error.message || "Internal server error",
     });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// SE-4 · Form check and versions (src/forms/check.ts, src/forms/versions.ts)
+// ---------------------------------------------------------------------------
+
+const formId = (raw: unknown): number | null => {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+/** GET /admin/column-configs/:id/check?year= : the saved form, checked against that factor year. */
+export const checkColumnConfig = async (req: Request, res: Response) => {
+  try {
+    const id = formId(req.params.id);
+    if (!id) return res.status(404).json({ message: "Column config not found" });
+    const year = parseCheckYear(req.query.year);
+    if (!year.ok) return res.status(400).json({ message: year.message, code: "FIELD_INVALID", field: "year" });
+    const check = await checkStoredForm(AppDataSource.manager, id, year.year);
+    if (!check) return res.status(404).json({ message: "Column config not found" });
+    return res.status(200).json(check);
+  } catch (error) {
+    console.error("Check column config error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/** POST /admin/column-configs/check?year= : the builder's unsaved form (the PUT or POST body), checked. */
+export const checkColumnConfigDraft = async (req: Request, res: Response) => {
+  try {
+    const year = parseCheckYear(req.query.year);
+    if (!year.ok) return res.status(400).json({ message: year.message, code: "FIELD_INVALID", field: "year" });
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? (req.body as Record<string, unknown>) : {};
+    const result = await checkDraftForm(AppDataSource.manager, body, year.year);
+    if (!result.ok) return res.status(result.status).json({ message: result.message, ...(result.field ? { code: "FIELD_INVALID", field: result.field } : {}) });
+    return res.status(200).json(result.check);
+  } catch (error) {
+    console.error("Check draft column config error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * POST /admin/column-configs/:id/publish {note?} ?year= : check the saved form and record it as a
+ * new version. Errors refuse it (409 FORM_CHECK_FAILED, with the check); warnings publish.
+ */
+export const publishColumnConfig = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = formId(req.params.id);
+    if (!id) return res.status(404).json({ message: "Column config not found" });
+    const year = parseCheckYear(req.query.year ?? req.body?.year);
+    if (!year.ok) return res.status(400).json({ message: year.message, code: "FIELD_INVALID", field: "year" });
+    const note = req.body?.note;
+    if (note !== undefined && note !== null && typeof note !== "string") return res.status(400).json({ message: "note must be text.", code: "FIELD_INVALID", field: "note" });
+    const result = await publishForm(AppDataSource.manager, id, { year: year.year, note, userId: req.user?.userId ?? null });
+    if (!result.ok && result.reason === "not_found") return res.status(404).json({ message: "Column config not found" });
+    if (!result.ok && result.reason === "check_failed") {
+      const n = result.check.errors.length;
+      return res.status(409).json({ code: "FORM_CHECK_FAILED", message: `Fix ${n} ${n === 1 ? "thing" : "things"} before publishing this form.`, check: result.check });
+    }
+    if (!result.ok) return res.status(500).json({ message: "Internal server error" });
+    const message = result.unchanged ? `Nothing changed since version ${result.version.version}, which stays live.` : `Form version ${result.version.version} published.`;
+    return res.status(200).json({ message, version: result.version, check: result.check, unchanged: result.unchanged });
+  } catch (error) {
+    console.error("Publish column config error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/** GET /admin/column-configs/:id/versions : every published version, newest first. */
+export const getColumnConfigVersions = async (req: Request, res: Response) => {
+  try {
+    const id = formId(req.params.id);
+    const versions = id ? await listVersions(AppDataSource.manager, id) : null;
+    if (!versions) return res.status(404).json({ message: "Column config not found" });
+    return res.status(200).json(versions);
+  } catch (error) {
+    console.error("Column config versions error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/** GET /admin/column-configs/checks?year=&site_id=&category_id= : each form's error and warning counts, for the forms list. */
+export const getColumnConfigChecks = async (req: Request, res: Response) => {
+  try {
+    const year = parseCheckYear(req.query.year);
+    if (!year.ok) return res.status(400).json({ message: year.message, code: "FIELD_INVALID", field: "year" });
+    const site_id = req.query.site_id === undefined ? undefined : formId(req.query.site_id);
+    const category_id = req.query.category_id === undefined ? undefined : formId(req.query.category_id);
+    if (site_id === null) return res.status(400).json({ message: "site_id must be a site id.", code: "FIELD_INVALID", field: "site_id" });
+    if (category_id === null) return res.status(400).json({ message: "category_id must be a category id.", code: "FIELD_INVALID", field: "category_id" });
+    const forms = await checkSummaries(AppDataSource.manager, year.year, { site_id, category_id });
+    return res.status(200).json({ year: year.year, forms });
+  } catch (error) {
+    console.error("Column config checks error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

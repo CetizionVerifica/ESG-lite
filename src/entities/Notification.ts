@@ -19,6 +19,13 @@ export interface NotificationMeta {
   site_ids?: number[];
   months?: string[];
   channel?: string;
+  // form_needs_factor (SE-4): the site × category × month a contributor's row had no factor for
+  needs_factor_key?: string;
+  site_id?: number;
+  category_id?: number;
+  month?: string;
+  activity?: string;
+  form_id?: number | null;
 }
 
 // Partial unique expression index ((meta->>'upload_batch_id'), user_id) WHERE

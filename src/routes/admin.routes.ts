@@ -36,6 +36,11 @@ import {
   previewAutoGenerateColumnConfig,
   confirmAutoGenerateColumnConfig,
   seedExtraFields,
+  checkColumnConfig,
+  checkColumnConfigDraft,
+  publishColumnConfig,
+  getColumnConfigVersions,
+  getColumnConfigChecks,
 } from "../controllers/columnConfig.controller";
 import {
   getUnits,
@@ -178,6 +183,12 @@ router.get("/column-configs", getColumnConfigs);
 router.get("/column-configs/auto-generate/preview", previewAutoGenerateColumnConfig);
 router.post("/column-configs/auto-generate/confirm", confirmAutoGenerateColumnConfig);
 router.post("/column-configs/seed-extra-fields", seedExtraFields);
+// SE-4 · form check and versions (before /column-configs/:id, which would take "checks" as an id)
+router.get("/column-configs/checks", getColumnConfigChecks);
+router.post("/column-configs/check", checkColumnConfigDraft);
+router.get("/column-configs/:id/check", checkColumnConfig);
+router.post("/column-configs/:id/publish", publishColumnConfig);
+router.get("/column-configs/:id/versions", getColumnConfigVersions);
 router.get("/column-configs/:id", getColumnConfigById);
 router.get("/column-configs/category/:categoryId", getColumnConfigsByCategory);
 router.get("/column-configs/site/:siteId", getColumnConfigsBySite);

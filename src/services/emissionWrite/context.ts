@@ -25,6 +25,9 @@ export interface LoadedContext extends CategoryContext {
   form?: FormSettings;
   /** SE-2: the company's currency for a spend row whose row and form name none (INR for current clients). */
   default_currency?: string | null;
+  /** SE-4: the form rows are entered on and its version, which each row records. */
+  form_id?: number | null;
+  form_version?: number | null;
 }
 
 export class ContextCache {
@@ -98,6 +101,8 @@ export class ContextCache {
       // SE-2: the form's choice → method map, hidden-field defaults, fixed unit and currency.
       form: configs[0] ? readFormSettings(configs[0], configs[0]) : NO_FORM_SETTINGS,
       default_currency: site?.company?.default_currency ?? null,
+      form_id: configs[0]?.pk_id ?? null,
+      form_version: configs[0]?.version ?? null,
     };
   }
 }

@@ -280,7 +280,54 @@ pendingStep("16-17 each Scope 3 form fixes its method for this client", "S3-3", 
   assert.equal((await call("PUT", `/admin/column-configs/${forms.rows[0].pk_id}`, S.admin, { method_options: TRAVEL_METHODS })).status, 403);
 });
 
-pendingStep("18 forms pass the form check and are published", "SE-4", async () => (await call("GET", "/admin/column-configs/0/check", S.sa)).status !== 404, async () => {});
+step("18 forms pass the form check and are published (SE-4)", async () => {
+  const forms = (await withDb((db) => db.query(`SELECT pk_id, site_id, category_id, config_name FROM column_config WHERE site_id = ANY($1::int[]) ORDER BY pk_id`, [siteIds()]))).rows;
+  assert.ok(forms.length >= 1, "the standard forms are there (15a)");
+  // Every factor year the month's rows use.
+  const years = [...new Set([...SC.ENTRIES.map((e) => e.date), SC.TRAVEL.date].map(SC.factorYearOf))].sort();
+  const errorsOf = async (f) => {
+    const out = [];
+    for (const y of years) {
+      const r = await call("GET", `/admin/column-configs/${f.pk_id}/check?year=${y}`, S.sa);
+      ok(r);
+      out.push(...r.json.errors.map((e) => `${y} ${e.code} ${e.field}`));
+    }
+    return out;
+  };
+  // The main site's travel form offers spend (16-17), but no spend factor is on the site for travel yet.
+  const travel = forms.find((f) => f.site_id === S.sites.main && f.category_id === S.cats.travel);
+  for (const f of forms) {
+    assert.deepEqual(await errorsOf(f), f === travel ? years.map((y) => `${y} SPEND_FACTOR_MISSING method_options`) : [], `${f.config_name} (site ${f.site_id})`);
+  }
+  const refused = await call("POST", `/admin/column-configs/${travel.pk_id}/publish?year=${years[0]}`, S.sa, { note: "Onboarding" });
+  ok(refused, 409);
+  assert.equal(refused.json.code, "FORM_CHECK_FAILED");
+  assert.match(refused.json.check.errors[0].message, /needs a spend factor/);
+
+  // The Superadmin copies the USEEIO air-travel sector to the site's travel category, and the form passes.
+  const lib = await call("GET", `/scope3/spend/library?q=${encodeURIComponent("Scheduled Passenger Air Transportation")}`, S.sa);
+  ok(lib);
+  const air = lib.json.factors.find((f) => f.name.startsWith("Scheduled Passenger Air Transportation"));
+  assert.ok(air, "the air-travel sector is in the library");
+  ok(await call("POST", "/scope3/spend/library/copy", S.sa, { site_id: S.sites.main, category_id: S.cats.travel, factor_ids: [air.emission_factor_id], year: years[0], company_id: S.companyId }), 201);
+  for (const f of forms) assert.deepEqual(await errorsOf(f), [], `${f.config_name} (site ${f.site_id}) after the copy`);
+
+  // A form set up half-way is caught before it saves: hiding a required field with no default.
+  const draft = await call("POST", `/admin/column-configs/check?year=${years[0]}`, S.sa, { pk_id: travel.pk_id, field_settings: { "Trip ref": { hidden: true, required: true } } });
+  ok(draft);
+  assert.deepEqual(draft.json.errors.map((e) => [e.code, e.field]), [["DEFAULT_MISSING", "field_settings.Trip ref"]]);
+  // Publishing records version 1 of each form; only a Superadmin publishes.
+  assert.equal((await call("POST", `/admin/column-configs/${travel.pk_id}/publish`, S.admin, {})).status, 403);
+  for (const f of forms) {
+    const r = await call("POST", `/admin/column-configs/${f.pk_id}/publish?year=${years[0]}`, S.sa, { note: "Onboarding" });
+    ok(r);
+    assert.equal(r.json.version.version, 1, f.config_name);
+  }
+  const history = await call("GET", `/admin/column-configs/${travel.pk_id}/versions`, S.sa);
+  ok(history);
+  assert.deepEqual(history.json.versions.map((v) => [v.version, v.note]), [[1, "Onboarding"]]);
+  S.formVersion = Object.fromEntries(forms.map((f) => [`${f.site_id}:${f.category_id}`, 1]));
+});
 
 // ── Phase 6 · People (client Admin) ────────────────────────────────────────
 
@@ -355,6 +402,14 @@ step("25c a Category 1 spend row in INR: converted on the invoice date and defla
   assert.equal(Number(r.json.emission.total_emission), tonnes(kg));
   S.spendKg = kg;
   S.rows["spend-jun"] = { id: r.json.emission.pk_id, twinIds: [] };
+});
+
+step("25e each row records the version of the form it was entered on; a category with no form records none (SE-4)", async () => {
+  const ids = Object.values(S.rows).map((r) => r.id);
+  const rows = (await withDb((db) => db.query(`SELECT pk_id, site_id, category_id, form_version FROM emission WHERE pk_id = ANY($1::int[])`, [ids]))).rows;
+  assert.equal(rows.length, ids.length);
+  for (const r of rows) assert.equal(r.form_version, S.formVersion[`${r.site_id}:${r.category_id}`] ?? null, `row ${r.pk_id}`);
+  assert.equal(rows.find((r) => r.pk_id === S.rows[SC.TRAVEL.ref].id).form_version, 1, "the flight, through the standard form");
 });
 
 step("25d people stay inside their own sites", async () => {

@@ -184,4 +184,9 @@ export class Emission {
   // For example a distance the route helper worked out rather than one entered.
   @Column({ type: "boolean", default: false })
   is_estimate!: boolean;
+
+  // SE-4 · the version of the data-entry form the row was last calculated with
+  // (column_config.version); null on rows saved before SE-4 and on twins.
+  @Column({ type: "int", nullable: true })
+  form_version!: number | null;
 }

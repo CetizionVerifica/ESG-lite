@@ -118,6 +118,8 @@ export interface PreparedEntry {
   site_country?: string | null;
   /** S3-6: the supplier the row is linked to (checked to be the site's company's), or null. */
   supplier_id?: number | null;
+  /** SE-4: the version of the form the row is calculated with (null: no form). */
+  form_version?: number | null;
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -431,6 +433,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, rowIn
       warnings,
       site_country: ctx.site_country ?? null,
       supplier_id: computed?.supplier_id ?? prep.supplier?.supplier_id ?? null,
+      form_version: ctx.form_version ?? null,
       ...(feraSkipped ? { feraSkipped } : {}),
     },
   };
@@ -492,6 +495,8 @@ export const insertEntry = async (
     dq: entry.computed?.dq ?? null,
     data_type: entry.computed?.data_type ?? null,
     is_estimate: input.is_estimate ?? false,
+    // SE-4: the parent only; a twin's category has no form of its own.
+    form_version: entry.form_version ?? null,
   });
   await repo.save(emission);
 

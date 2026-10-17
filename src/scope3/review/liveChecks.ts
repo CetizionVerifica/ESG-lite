@@ -19,6 +19,7 @@ import type { EntityManager } from "typeorm";
 import { UserRole } from "../../types/type";
 import { accessibleSiteIds, resolveUserCompanyId } from "../../utils/companyScope";
 import { CheckCache, ContextCache, findDuplicate, prepareEntry, type PreparedEntry } from "../../services/emissionWrite";
+import { reportFormNeedsFactor } from "../../forms/needsFactor";
 import { factorSnapshot } from "../../services/emissionWrite/compute";
 import { validatePeriodFields } from "../../services/reportingPeriod";
 import { parseRowQuality } from "../dq/input";
@@ -136,6 +137,10 @@ export async function liveChecks(manager: EntityManager, caller: Caller, rows: L
       });
       if (prepared.ok) entry = prepared.entry;
       else issue = issueOf(prepared.issue.code, prepared.issue.message, prepared.issue.field);
+      // SE-4: a contributor's row with no factor tells the Superadmins (once per site × category × month).
+      if (!prepared.ok && prepared.issue.code === "NO_FACTOR_FOR_YEAR" && caller.role === UserRole.USER && activity_data.emission_category) {
+        reportFormNeedsFactor(manager, { site_id: row.site_id, category_id: row.category_id, date_of_reporting: row.date_of_reporting, activity: String(activity_data.emission_category), form_id: ctx.form_id });
+      }
     }
 
     // Duplicates: another counted row on the same date with the same activity identity (not the row itself).

@@ -9,6 +9,7 @@ import { ProductionData, ProductionDataStatus } from "../entities/ProductionData
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
 import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, entryFactorSnapshot, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
+import { reportFormNeedsFactor } from "../forms/needsFactor";
 import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
@@ -602,6 +603,10 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       method_source: req.user?.role === UserRole.USER ? "contributor" : "caller",
     });
     if (!prepared.ok) {
+      // SE-4: a contributor's row with no factor tells the Superadmins (once per site × category × month).
+      if (prepared.issue.code === "NO_FACTOR_FOR_YEAR" && req.user?.role === UserRole.USER && activity_data?.emission_category) {
+        reportFormNeedsFactor(AppDataSource.manager, { site_id: Number(site_id), category_id: Number(category_id), date_of_reporting, activity: String(activity_data.emission_category), form_id: ctx.form_id });
+      }
       return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
     }
     // S3-15 part 2: a User's entry is a Draft while the client's review workflow v2 is on.
@@ -851,6 +856,8 @@ async function recalculateEntry(
 function applyComputed(emission: Emission, entry: PreparedEntry): void {
   // SE-2: the data stored is the data calculated (hidden defaults, a default currency, the form's @method).
   emission.activity_data = entry.input.activity_data;
+  // SE-4: a recalculated row records the form version it now follows.
+  emission.form_version = entry.form_version ?? null;
   const snapshot = entryFactorSnapshot(entry);
   if (!entry.computed || !snapshot) {
     emission.total_emission = 0;
