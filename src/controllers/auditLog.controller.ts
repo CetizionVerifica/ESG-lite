@@ -2,6 +2,8 @@ import { Response } from "express";
 import { AppDataSource } from "../config/data-source";
 import { AuditLog } from "../entities/AuditLog";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { KpiError } from "../kpi/contracts/errors";
+import { assertKpiValueHistory } from "../kpi/review/history";
 
 const auditRepo = AppDataSource.getRepository(AuditLog);
 
@@ -15,7 +17,7 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
         .json({ message: "entity_type and entity_id are required" });
     }
 
-    if (!["emission", "production_data"].includes(entity_type as string)) {
+    if (!["emission", "production_data", "kpi_value"].includes(entity_type as string)) {
       return res.status(400).json({ message: "Invalid entity_type" });
     }
 
@@ -24,9 +26,19 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "entity_id must be a valid number" });
     }
 
+    // KPI-8: a KPI value's history, under the KPI tenant rules (src/kpi/review/history.ts).
+    if (entity_type === "kpi_value") {
+      try {
+        await assertKpiValueHistory(req.user, parsedEntityId);
+      } catch (err) {
+        if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
+        throw err;
+      }
+    }
+
     const logs = await auditRepo.find({
       where: {
-        entity_type: entity_type as "emission" | "production_data",
+        entity_type: entity_type as "emission" | "production_data" | "kpi_value",
         entity_id: parsedEntityId,
       },
       relations: ["changed_by"],

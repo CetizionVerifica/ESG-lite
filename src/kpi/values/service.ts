@@ -25,7 +25,7 @@ import type { KpiFrequency, YearType } from "../contracts/enums";
 import { NUMERIC_VALUE_TYPES } from "../contracts/enums";
 import { BREAKDOWN_TOLERANCE } from "../contracts/checks";
 import { KpiError } from "../contracts/errors";
-import { KpiValueItemSchema, KpiValuesQuerySchema, type KpiValueItem } from "../contracts/schemas";
+import { KpiValueItemSchema, KpiValueReviewEditSchema, KpiValuesQuerySchema, type KpiValueItem } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { recomputeForValues } from "../formulas/recompute";
@@ -205,6 +205,14 @@ export function checkValue(kpi: Row, item: KpiValueItem): CheckedValue {
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 const day = (v: unknown) => isoDay(v);
 
+const checkItems = (c: Row | null | undefined) =>
+  c && Array.isArray(c.held)
+    ? [
+        ...c.held.map((id: string) => ({ id, held: true, detail: c.details?.[id] ?? null })),
+        ...(Array.isArray(c.info) ? c.info : []).map((id: string) => ({ id, held: false, detail: c.details?.[id] ?? null })),
+      ]
+    : [];
+
 /** A kpi_value row as the API returns it (numbers as numbers, dates as YYYY-MM-DD). */
 export const toValueOut = (r: Row, evidence: Row[] = []) => ({
   id: r.id,
@@ -232,13 +240,21 @@ export const toValueOut = (r: Row, evidence: Row[] = []) => ({
   reviewed_at: r.reviewed_at,
   review_comment: r.review_comment,
   checks: r.checks,
+  /** KPI-8: the checks as a list for reason chips: held ones first, then informational ones, each with what it found. */
+  check_items: checkItems(r.checks),
+  kpi_name: r.kpi_name ?? null,
+  site_name: r.site_name ?? null,
+  entered_by_name: r.entered_by_name ?? null,
   auto_snapshot: r.auto_snapshot,
   created_at: r.created_at,
   updated_at: r.updated_at,
   evidence: evidence.map((e) => ({ id: e.id, document_url: e.document_url, document_name: e.document_name, uploaded_by: e.uploaded_by, uploaded_at: e.uploaded_at })),
 });
 
-const VALUE_SELECT = `SELECT v.*, d.code AS kpi_code, d.canonical_unit FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id`;
+const VALUE_SELECT = `SELECT v.*, d.code AS kpi_code, d.canonical_unit, d.name AS kpi_name, st.name AS site_name,
+    NULLIF(TRIM(CONCAT(COALESCE(eu.name, ''), ' ', COALESCE(eu.last_name, ''))), '') AS entered_by_name
+  FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id
+  LEFT JOIN site st ON st.site_id = v.site_id LEFT JOIN "user" eu ON eu.user_id = v.entered_by`;
 
 /** Whether the caller can see a value: their sites (company level to all), and drafts only their own unless Admin/Superadmin. */
 export const canSee = (caller: KpiCaller, r: Row): boolean => {
@@ -281,7 +297,29 @@ export async function listValues(caller: KpiCaller, query: unknown) {
   // KPI-8: a pending value submitted before the checks existed gets them now.
   for (const r of rows) if (r.status === "pending" && r.source === "manual" && !r.checks) r.checks = await storeChecks(m, Number(r.id));
   const ev = await evidenceFor(m, rows.map((r) => Number(r.id)));
-  return { values: rows.map((r) => toValueOut(r, ev.get(Number(r.id)))) };
+  // KPI-8: the same period last year (pending or approved) and the change, for the review rows.
+  const last = rows.length
+    ? ((await m.query(
+        `SELECT p.id AS for_id, l.value_numeric, l.unit, l.value_canonical, l.period_start, l.status
+           FROM kpi_value p JOIN kpi_value l ON l.company_id = p.company_id AND l.site_id IS NOT DISTINCT FROM p.site_id AND l.kpi_definition_id = p.kpi_definition_id
+            AND l.frequency = p.frequency AND l.period_start = (p.period_start - interval '1 year')::date AND l.status IN ('pending', 'approved')
+          WHERE p.id = ANY($1::int[])`,
+        [rows.map((r) => Number(r.id))],
+      )) as Row[])
+    : [];
+  const lastOf = new Map(last.map((l) => [Number(l.for_id), l]));
+  return {
+    values: rows.map((r) => {
+      const l = lastOf.get(Number(r.id));
+      const prev = l ? num(l.value_canonical) : null;
+      const cur = num(r.value_canonical);
+      return {
+        ...toValueOut(r, ev.get(Number(r.id))),
+        last_value: l ? { value: num(l.value_numeric), unit: l.unit ?? null, value_canonical: prev, period_start: day(l.period_start), status: l.status } : null,
+        change_pct: prev !== null && cur !== null && prev !== 0 ? Number((((cur - prev) / Math.abs(prev)) * 100).toFixed(1)) : null,
+      };
+    }),
+  };
 }
 
 /** A value the caller can see, locked FOR UPDATE inside `m`; KPI_NOT_FOUND otherwise. */
@@ -370,18 +408,81 @@ async function upsertOne(caller: KpiCaller, raw: unknown): Promise<ReturnType<ty
   });
 }
 
-/** PUT /kpi/values `{items}` → `{saved, results}`; one item's failure never stops the others. */
+/**
+ * KPI-8: a reviewer's edit of a pending value (`{id, …fields, reason}`): a
+ * Manager of its site (company-level values: any Manager of the company) or
+ * the Superadmin; Admins and Users → KPI_FORBIDDEN. The value stays pending,
+ * fields left out keep their value, the same value checks as entry apply, the
+ * reason is required (KPI_REASON_REQUIRED) and audited (`review_edit`), and
+ * the checks run again. Auto and calculated values → KPI_AUTO_READ_ONLY; not
+ * pending → KPI_NOT_PENDING; a locked period → KPI_PERIOD_LOCKED.
+ */
+async function reviewEditOne(caller: KpiCaller, raw: unknown): Promise<ReturnType<typeof toValueOut>> {
+  if (!REVIEW_EDITORS.has(caller.role)) throw new KpiError("KPI_FORBIDDEN", { allowed: ["Manager", "Superadmin"] });
+  const e = parse(KpiValueReviewEditSchema, raw);
+  const reason = (e.reason ?? "").trim();
+  if (!reason) throw new KpiError("KPI_REASON_REQUIRED", { field: "reason" });
+  return AppDataSource.transaction(async (m) => {
+    await holdKpiLease(m, caller.companyId);
+    const old = await loadVisibleValue(m, caller, e.id);
+    if (old.source !== "manual") throw new KpiError("KPI_AUTO_READ_ONLY", { source: old.source });
+    if (old.status !== "pending") throw new KpiError("KPI_NOT_PENDING", { status: old.status });
+    const site = old.site_id === null ? null : Number(old.site_id);
+    if (await lockedPeriod(m, caller.companyId, site, { start: day(old.period_start)!, end: day(old.period_end)! })) throw new KpiError("KPI_PERIOD_LOCKED");
+    const kpi = await findKpi(m, caller.companyId, { id: Number(old.kpi_definition_id) });
+    const pick = <T>(v: T | undefined, fallback: T) => (v === undefined ? fallback : v);
+    const merged = {
+      kpi_definition_id: Number(kpi.id),
+      site_id: site,
+      period_start: day(old.period_start)!,
+      value_numeric: pick(e.value_numeric, num(old.value_numeric)),
+      value_text: pick(e.value_text, old.value_text ?? null),
+      unit: pick(e.unit, old.unit ?? null),
+      breakdown: pick(e.breakdown, old.breakdown ?? null),
+    } as KpiValueItem;
+    const checked = checkValue(kpi, merged);
+    const next: Row = { ...checked, is_estimate: pick(e.is_estimate, old.is_estimate === true), comment: pick(e.comment, old.comment ?? null), status: "pending" };
+    await m.query(
+      `UPDATE kpi_value SET value_numeric = $2, value_text = $3, unit = $4, value_canonical = $5, breakdown = $6, is_estimate = $7, comment = $8, updated_at = now() WHERE id = $1`,
+      [e.id, next.value_numeric, next.value_text, next.unit, next.value_canonical, next.breakdown ? JSON.stringify(next.breakdown) : null, next.is_estimate, next.comment],
+    );
+    const changed = Object.fromEntries(
+      AUDITED.filter((k) => comparable(k.startsWith("value_") ? num(old[k]) : old[k]) !== comparable(next[k])).map((k) => [k, { old: k.startsWith("value_") ? num(old[k]) : old[k] ?? null, new: next[k] ?? null }]),
+    );
+    await auditValue(m, e.id, "review_edit", changed, caller.userId, reason);
+    await storeChecks(m, e.id);
+    const rows: Row[] = await m.query(`${VALUE_SELECT} WHERE v.id = $1`, [e.id]);
+    const ev = await evidenceFor(m, [e.id]);
+    return toValueOut(rows[0], ev.get(e.id));
+  });
+}
+
+const REVIEW_EDITORS = new Set<string>([UserRole.MANAGER, UserRole.SUPERADMIN]);
+const isReviewEdit = (raw: unknown) => !!raw && typeof raw === "object" && "id" in (raw as Record<string, unknown>);
+
+/**
+ * PUT /kpi/values `{items}` → `{saved, results}`; one item's failure never
+ * stops the others. An item with `id` is a reviewer's edit of a pending value
+ * (KPI-8, reviewEditOne); every other item saves a draft.
+ */
 export async function upsertDrafts(caller: KpiCaller, items: unknown[]): Promise<{ saved: number; results: ItemResult[] }> {
   const results: ItemResult[] = [];
+  const edited: number[] = [];
   for (let index = 0; index < items.length; index++) {
     try {
-      results.push({ index, ok: true, value: await upsertOne(caller, items[index]) });
+      if (isReviewEdit(items[index])) {
+        const value = await reviewEditOne(caller, items[index]);
+        edited.push(Number(value.id));
+        results.push({ index, ok: true, value });
+      } else results.push({ index, ok: true, value: await upsertOne(caller, items[index]) });
     } catch (err) {
       if (!(err instanceof KpiError)) throw err;
       const body = err.toBody();
       results.push({ index, ok: false, ...body });
     }
   }
+  // A pending value is a formula input: its dependants recompute (never fails the save).
+  if (edited.length) await recomputeForValues(caller.companyId, edited);
   return { saved: results.filter((r) => r.ok).length, results };
 }
 

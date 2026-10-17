@@ -317,3 +317,52 @@ test("switch off: every KPI-8 route answers KPI_TRACKING_OFF", async () => {
     await setSwitch(1, true);
   }
 });
+
+test("a reviewer edits a pending value: it stays pending, needs a reason, is audited and checked again", async () => {
+  const id = await entered("multiSiteUser", lti(2, "2026-12-01", 4));
+  const edit = (who, item, qs = "") => call("PUT", `/kpi/values${qs}`, who, { items: [item] });
+  const noReason = await edit("manager", { id, value_numeric: 5 });
+  assert.equal(noReason.json.results[0].code, "KPI_REASON_REQUIRED");
+  for (const who of ["admin", "user"]) assert.equal((await edit(who, { id, value_numeric: 5, reason: "x" })).json.results[0].code, "KPI_FORBIDDEN", who);
+  const ok = await edit("manager", { id, value_numeric: 5, is_estimate: true, reason: "Logbook says 5" });
+  assert.equal(ok.json.results[0].ok, true, JSON.stringify(ok.json));
+  const v = ok.json.results[0].value;
+  assert.deepEqual([v.status, v.value_numeric, v.value_canonical, v.is_estimate, v.entered_by], ["pending", 5, 5, true, 7], "still pending, still the contributor's");
+  assert.deepEqual(v.checks.held, ["KPI_ESTIMATE"]);
+  const [audit] = await q(`SELECT action, reason, changed_by, changed_fields FROM audit_log WHERE entity_type = 'kpi_value' AND entity_id = $1 AND action = 'review_edit'`, [id]);
+  assert.deepEqual([audit.reason, audit.changed_by, audit.changed_fields.value_numeric, audit.changed_fields.is_estimate], ["Logbook says 5", 2, { old: 4, new: 5 }, { old: false, new: true }]);
+  assert.equal((await edit("manager", { id, value_numeric: -1, reason: "x" })).json.results[0].code, "KPI_VALUE_INVALID");
+  assert.equal((await edit("superadmin", { id, value_numeric: 6, reason: "Superadmin fix" }, "?company_id=1")).json.results[0].value.value_numeric, 6);
+  assert.equal((await edit("otherManager", { id, value_numeric: 6, reason: "x" })).json.results[0].code, "KPI_NOT_FOUND", "tenant");
+  assert.deepEqual((await approve("manager", { ids: [id] })).json.updated, [id]);
+  assert.equal((await edit("manager", { id, value_numeric: 7, reason: "x" })).json.results[0].code, "KPI_NOT_PENDING");
+});
+
+test("value rows carry names, last year and the change; the history reads through /user/audit-logs with the KPI tenant rules", async () => {
+  const rows = (await call("GET", "/kpi/values?kpi=LOST_TIME_INJURIES&site=1&from=2026-09-01&to=2026-09-30", "manager")).json.values;
+  const sep = rows.find((r) => r.period_start === "2026-09-01");
+  const [{ name }] = await q(`SELECT name FROM kpi_definition WHERE code = 'LOST_TIME_INJURIES' AND company_id IS NULL`);
+  assert.deepEqual([sep.kpi_name, sep.site_name, sep.entered_by_name], [name, "CI Plant A", "CI User"]);
+  assert.deepEqual(sep.last_value, { value: 10, unit: "count", value_canonical: 10, period_start: "2025-09-01", status: "approved" });
+  assert.equal(sep.change_pct, 200);
+  assert.deepEqual(sep.check_items[0], { id: "KPI_CHANGE_LIMIT", held: true, detail: { previous: 10, change_pct: 200, ratio: 3, limit_pct: 20 } });
+
+  const history = (who, qs = "") => call("GET", `/user/audit-logs?entity_type=kpi_value&entity_id=${sep.id}${qs}`, who);
+  const h = await history("manager");
+  assert.equal(h.status, 200, JSON.stringify(h.json));
+  assert.deepEqual(h.json.map((r) => r.action).reverse().slice(0, 3), ["create", "evidence_added", "submit"]);
+  assert.ok(h.json.some((r) => r.action === "approve" && r.changed_by.user_id === 2));
+  assert.equal((await history("user")).status, 200, "its contributor");
+  assert.equal((await history("superadmin")).status, 200);
+  assert.equal((await history("otherManager")).status, 404, "another company");
+  assert.equal((await history("otherUser")).status, 404);
+  const draft = await entered("user", lti(1, "2026-12-01", 1), { submit: false });
+  assert.equal((await call("GET", `/user/audit-logs?entity_type=kpi_value&entity_id=${draft}`, "multiSiteUser")).status, 404, "someone else's draft");
+  assert.equal((await call("GET", `/user/audit-logs?entity_type=kpi_value&entity_id=999999`, "manager")).status, 404);
+  await setSwitch(1, false);
+  try {
+    assert.equal((await history("manager")).json.code, "KPI_TRACKING_OFF");
+  } finally {
+    await setSwitch(1, true);
+  }
+});
