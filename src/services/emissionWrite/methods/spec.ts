@@ -8,7 +8,7 @@
 import { computeSpecActivityValue } from "../../calculationSpec";
 import type { RowIssueCode } from "../../../imports/errors";
 import type { CalculationSpec } from "../../../entities/ColumnConfig";
-import type { CategoryContext, ComputeResult, EngineRow } from "../compute";
+import type { CategoryContext, ComputeResult, FactorRow } from "../compute";
 import { applyFactor } from "./activity";
 
 /** Spec messages that mean "a field is missing" vs "a field holds a wrong option". */
@@ -20,7 +20,7 @@ const specIssueCode = (message: string): RowIssueCode =>
  * `activity_value`, as the typed-entry path does. compute.ts picks this file
  * only when the category has a spec.
  */
-export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
+export const compute = (ctx: CategoryContext, row: FactorRow): ComputeResult => {
   const spec = ctx.spec as CalculationSpec;
   let unit = row.activity_unit;
   const computed = computeSpecActivityValue(spec, row.activity_data, unit, row.method);

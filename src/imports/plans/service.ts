@@ -536,11 +536,15 @@ export const commitPlan = async (user: TokenUser, planId: string, body: { versio
         await m.getRepository(ImportPlanRow).update({ id: r.id }, { state: r.state, issues: r.issues, result: r.result });
       }
       await refreshSummary(m, plan, rows);
-      recheckFailure = new ImportError("IMPORT_PLAN_VERSION_CONFLICT", {
-        current_version: plan.version,
-        reason: "rows changed on re-check",
-        rows: newIssues.map((p) => ({ row_ref: p.row_ref, issues: p.issues })),
-      });
+      // S3-15 part 2: a month closed since the plan was made is its own refusal (PERIOD_LOCKED).
+      const closed = newIssues.filter((p) => p.issues.some((i) => i.code === "PERIOD_LOCKED")).map((p) => p.row_ref);
+      recheckFailure = closed.length
+        ? new ImportError("PERIOD_LOCKED", { current_version: plan.version, row_refs: closed })
+        : new ImportError("IMPORT_PLAN_VERSION_CONFLICT", {
+            current_version: plan.version,
+            reason: "rows changed on re-check",
+            rows: newIssues.map((p) => ({ row_ref: p.row_ref, issues: p.issues })),
+          });
       return plan;
     }
 

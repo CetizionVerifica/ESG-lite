@@ -10,7 +10,7 @@
  */
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
-import { Emission } from "../../entities/Emission";
+import { Emission, EmissionStatus } from "../../entities/Emission";
 import { EmissionFactor } from "../../entities/EmissionFactor";
 import { AuditLog } from "../../entities/AuditLog";
 import { User } from "../../entities/User";
@@ -23,9 +23,30 @@ import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
 import { computeTotal, factorSnapshot, feraGap, feraTwinFor, type Computed, type EngineIssue, type FeraTwin } from "./compute";
 import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
+import { estimatedDistanceWarning, paidByMismatchWarning } from "./transportWarnings";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
 import { refreshChecksSafely } from "../../scope3/review/service";
+import { lockedSiteMonths, siteMonthOf } from "../../scope3/review/periodLock";
+import { lockPeriodsShared } from "../../scope3/review/periodLease";
+import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
+import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
+import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
+import { MethodSchema, methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import { ROW_METHOD_COLUMN } from "../calculationSpec";
+import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
+import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
+import type { Proxy } from "../../scope3/contracts/schemas";
+import { surveyProxy } from "../../scope3/screening/proxyRows";
+import {
+  loadSupplier,
+  parseHybridLines,
+  pickFacility,
+  pickSupplierFactor,
+  type HybridLine,
+  type LoadedSupplier,
+  type SupplierEngineInput,
+} from "../../scope3/suppliers/engineInput";
 
 export { ContextCache } from "./context";
 export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
@@ -46,6 +67,27 @@ export interface EntryInput {
   activity_data_unit: string | null | undefined;
   period: StoredPeriod;
   extra_data?: Record<string, any>;
+  /**
+   * S3-3: how the row was calculated, whether its figure is an estimate, and a
+   * data quality judged by hand. The same three fields on every channel
+   * (`src/scope3/dq/input.ts`); the engine refuses a method the form does not
+   * offer, so no channel can store one.
+   */
+  method?: Method | null;
+  is_estimate?: boolean;
+  dq?: ManualDqInput | null;
+  /** S3-5: the row's saved `fx`, so a recalculation with the same currency and date reuses its rate. */
+  storedFx?: EmissionFx | null;
+  /** S3-12: how an estimated row was made (`emission.proxy`, ProxySchema); set by src/scope3/screening and survey rows only. */
+  proxy?: Proxy | null;
+  /**
+   * S3-6: the supplier the goods came from (one of the site's company), and
+   * for the supplier-specific method the figure to use when the supplier has
+   * several. Hybrid rows carry their input lines in `extra_data.inputs` and,
+   * for economic allocation, what was paid in `extra_data.purchased_value`.
+   */
+  supplier_id?: number | null;
+  supplier_factor_id?: number | null;
 }
 
 export interface PreparedEntry {
@@ -63,6 +105,10 @@ export interface PreparedEntry {
   warnings: EngineIssue[];
   /** When FERA applies but no 3a/3b twin was made: why (an edit puts it on the twin it can't recalculate). */
   feraSkipped?: string;
+  /** S3-3: the site's country, so a twin's data quality can be scored where the twin is written. */
+  site_country?: string | null;
+  /** S3-6: the supplier the row is linked to (checked to be the site's company's), or null. */
+  supplier_id?: number | null;
 }
 
 export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; issue: EngineIssue };
@@ -72,6 +118,123 @@ export type PrepareResult = { ok: true; entry: PreparedEntry } | { ok: false; is
  * writing. Scope, period validation, mode lock and duplicates are the
  * caller's (createEmission keeps its own responses; planRows adds issues).
  */
+/**
+ * The year a row is reported in, for the S3-3 data quality time rule. Not
+ * `targetYearFor`, which is this year minus one because that is the factor
+ * year convention; comparing a factor against that would shift every time
+ * score by a year.
+ */
+export const reportingYearFor = (dateOfReporting: string | Date): number =>
+  typeof dateOfReporting === "string"
+    ? parseInt(dateOfReporting.substring(0, 4), 10)
+    : new Date(dateOfReporting).getUTCFullYear();
+
+/**
+ * S3-3 for a FERA or T&D-loss twin. A twin is always a Scope 3 row (Cat 3),
+ * calculated as the activity figure times a published factor, which is the
+ * average-data method. Its quality is read from its own factor, not the
+ * parent's.
+ */
+const twinQuality = (siteCountry: string | null | undefined, factor: EmissionFactor, dateOfReporting: string | Date) => {
+  const method: Method = "average_data";
+  return {
+    method,
+    dq: autoDq({
+      method,
+      factor: { geography: factor.geography, year: factor.year, factor_type: factor.factor_type },
+      siteCountry,
+      reportingYear: reportingYearFor(dateOfReporting),
+    }),
+    data_type: dataTypeFor({ method }),
+  };
+};
+
+type SupplierPrep = { ok: true; supplier: LoadedSupplier | null; engine: SupplierEngineInput | null; warnings: EngineIssue[] } | { ok: false; issue: EngineIssue };
+
+const supplierIssue = (code: RowIssueCode, message: string, field: string): SupplierPrep => ({ ok: false, issue: { code, message, field } });
+
+/**
+ * S3-6: loads the row's supplier (only ever one of the site's company) and,
+ * for the supplier-specific and hybrid methods, the figures the engine needs:
+ * the supplier factor to use, or the facility data and the resolved input
+ * lines. The maths stays in `methods/supplier.ts` and `methods/hybrid.ts`.
+ */
+const prepareSupplier = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput, method: Method | null, targetYear: number): Promise<SupplierPrep> => {
+  const wanted = input.supplier_id ?? null;
+  const supplierMethod = method === "supplier_specific" || method === "hybrid";
+  let supplier: LoadedSupplier | null = null;
+  if (wanted !== null) {
+    supplier = ctx.company_id ? await loadSupplier(checks.manager, ctx.company_id, Number(wanted)) : null;
+    // Another company's supplier reads exactly like one that doesn't exist.
+    if (!supplier) return supplierIssue("FIELD_INVALID", "This supplier wasn't found for this company.", "supplier_id");
+  }
+  if (!supplierMethod) return { ok: true, supplier, engine: null, warnings: [] };
+  if (!supplier) {
+    return supplierIssue("FIELD_REQUIRED", `Choose the supplier to use "${methodLabel(method)}".`, "supplier_id");
+  }
+
+  const reportingYear = reportingYearFor(input.period.date_of_reporting);
+  if (method === "supplier_specific") {
+    const pick = pickSupplierFactor(supplier.factors, reportingYear, input.activity_data.emission_category, input.supplier_factor_id ?? null);
+    if (!pick.ok) {
+      switch (pick.reason) {
+        case "ambiguous":
+          return supplierIssue("FIELD_REQUIRED", "This supplier has figures for several items. Choose which one this purchase is.", "supplier_factor_id");
+        case "future_year":
+          return supplierIssue("FIELD_INVALID", `That supplier figure is from after ${reportingYear}, so it can't be used for this period.`, "supplier_factor_id");
+        case "none_for_year":
+          return supplierIssue("NO_FACTOR_FOR_YEAR", `This supplier has no figure from ${reportingYear} or earlier. Request one or use an average.`, "supplier_factor_id");
+        default:
+          return input.supplier_factor_id
+            ? supplierIssue("FIELD_INVALID", "That figure isn't one of this supplier's.", "supplier_factor_id")
+            : supplierIssue("NO_FACTOR_FOR_YEAR", "No figure from this supplier yet. Request one or use an average.", "supplier_factor_id");
+      }
+    }
+    return { ok: true, supplier, engine: { supplier_id: supplier.supplier_id, country: supplier.country, factor: pick.factor }, warnings: [] };
+  }
+
+  // Hybrid: input lines × the factors of this site × category, and the facility data.
+  const extra = input.extra_data ?? {};
+  const parsed = parseHybridLines(extra.inputs);
+  if (!parsed.ok) return supplierIssue("FIELD_INVALID", parsed.message, parsed.field);
+  const warnings: EngineIssue[] = [];
+  const lines: HybridLine[] = [];
+  for (let i = 0; i < parsed.lines.length; i++) {
+    const line = parsed.lines[i];
+    const match = ctx.factors.find(line.name, targetYear);
+    if (!match) {
+      return supplierIssue("NO_FACTOR_FOR_YEAR", `Input line ${i + 1}: no emission factor named "${line.name}" for this category (year ${targetYear}).`, `extra_data.inputs[${i}].name`);
+    }
+    if (match.fallback_year) {
+      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${match.factor.emission_category_name}"; the ${match.factor.year} factor was used.` });
+    }
+    lines.push({ ...line, factor: match.factor });
+  }
+  let purchasedValue: number | null = null;
+  if (extra.purchased_value !== undefined && extra.purchased_value !== null && extra.purchased_value !== "") {
+    purchasedValue = Number(extra.purchased_value);
+    if (!Number.isFinite(purchasedValue) || purchasedValue <= 0) return supplierIssue("FIELD_INVALID", "What was paid must be a number greater than 0.", "extra_data.purchased_value");
+  }
+  return {
+    ok: true,
+    supplier,
+    engine: {
+      supplier_id: supplier.supplier_id,
+      country: supplier.country,
+      facility: pickFacility(supplier.facilities, reportingYear),
+      lines,
+      purchased_value: purchasedValue,
+    },
+    warnings,
+  };
+};
+
+/** A valid method key in `activity_data["@method"]`, or null (S3-3). */
+const rowMethodOf = (activity_data: Record<string, any>): Method | null => {
+  const parsed = MethodSchema.safeParse(String(activity_data?.[ROW_METHOD_COLUMN] ?? "").trim());
+  return parsed.success && parsed.data !== "unknown" ? parsed.data : null;
+};
+
 export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
   const { activity_data } = input;
   // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
@@ -81,23 +244,94 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const warnings: EngineIssue[] = [];
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
+  // S3-3: the method the row names: its `method`, else `activity_data["@method"]`
+  // (S3-9 forms and rows sent before rows had a method). A key ESGLite doesn't
+  // know in "@method" is left to the spec, as before.
+  const named = input.method ?? rowMethodOf(activity_data);
+
+  // S3-3: the form decides which methods its category offers. Checked here so
+  // typed entries, bulk upload, smart import and MCP all refuse the same ones.
+  if (!methodAllowedForForm(named, ctx.method_options)) {
+    const offered = (ctx.method_options ?? []).map((m) => methodLabel(m)).join(", ");
+    return {
+      ok: false,
+      issue: {
+        code: "METHOD_NOT_ALLOWED",
+        message: `${SCOPE3_ERRORS.METHOD_NOT_ALLOWED.message}${offered ? ` This form offers: ${offered}.` : ""}`,
+        field: "method",
+      },
+    };
+  }
+  // S3-6: supplier-specific and hybrid are real methods. A row gets one when it
+  // names it (`method` or `@method`), or when the form offers one first and
+  // the row names a supplier. A form defaulting to one, on a row naming no
+  // supplier, is calculated (and recorded) as average data, as it was before
+  // S3-6, so no saved total moves.
+  const isSupplierMethodKey = (m: Method | null | undefined): m is "supplier_specific" | "hybrid" => m === "supplier_specific" || m === "hybrid";
+  const formDefault = ctx.method_options?.[0] ?? null;
+  const supplierMethodWanted: Method | null = isSupplierMethodKey(named)
+    ? named
+    : !named && isSupplierMethodKey(formDefault) && input.supplier_id != null
+      ? formDefault
+      : null;
+  const recordAs: Method | null = !named && isSupplierMethodKey(formDefault) && !supplierMethodWanted ? "average_data" : null;
+  const supplierMethod = supplierMethodWanted !== null;
+  const prep = await prepareSupplier(ctx, checks, input, supplierMethodWanted, targetYear);
+  if (!prep.ok) return prep;
+  warnings.push(...prep.warnings);
+
+  // S3-5 asks for an amount and a currency when the row's method is spend_based: the
+  // one it names, else the form's default (01-contracts §6: row → method_options[0]).
+  const spendMethod = named ?? ctx.method_options?.[0] ?? null;
+
+  // S3-5: a row entered as an amount and a currency is in that currency.
+  if (!unit && rowAsksForSpend(activity_data, spendMethod)) {
+    unit = spendInputOf(activity_data, input.extra_data, null, input.period.date_of_reporting, undefined, spendMethod)?.currency;
+  }
+
   if (activity_data.emission_category && unit) {
     const match = ctx.factors.find(activity_data.emission_category, targetYear);
-    if (!match) {
+    // A supplier's own figure (or a hybrid row's lines) stands in for the
+    // activity's factor, so the activity needs none of its own.
+    if (!match && !supplierMethod) {
       return {
         ok: false,
         issue: { code: "NO_FACTOR_FOR_YEAR", message: `No emission factor found for emission category "${activity_data.emission_category}" (year ${targetYear})` },
       };
     }
-    factor = match.factor;
-    if (match.fallback_year) {
-      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${factor.emission_category_name}"; the ${factor.year} factor was used.` });
+    factor = match?.factor ?? null;
+    if (match?.fallback_year && !supplierMethod) {
+      warnings.push({ code: "FACTOR_FALLBACK_YEAR", message: `No ${targetYear} factor for "${match.factor.emission_category_name}"; the ${match.factor.year} factor was used.` });
     }
-    const result = computeTotal(ctx, factor, activity_data, unit);
+    // S3-5: a spend row gets its stored rate and deflator before the (pure) engine runs. That includes
+    // an amount in another currency than its factor's (INR on a factor per USD), so its rate is stored too.
+    let spend: SpendQuote | undefined;
+    if (!supplierMethod && factor && isSpendRow(activity_data, factor, spendMethod, unit)) {
+      const spendInput = spendInputOf(activity_data, input.extra_data, unit, input.period.date_of_reporting, ctx.selectColumns, spendMethod);
+      if (spendInput && ctx.rates) {
+        const quoted = await ctx.rates.quote(spendInput, factor, input.storedFx);
+        if (!quoted.ok) return { ok: false, issue: { code: quoted.code, message: quoted.message, field: quoted.field } };
+        spend = quoted.quote;
+      } else if (!spendInput && rowAsksForSpend(activity_data, spendMethod)) {
+        return { ok: false, issue: { code: "FIELD_REQUIRED", message: "Give the amount spent and its currency.", field: "spent_value" } };
+      }
+    }
+    // S3-3: the method and quality the engine records; S3-5: the spend quote that picks the spend file.
+    const result = computeTotal(ctx, factor, activity_data, unit, {
+      method: supplierMethodWanted ?? recordAs ?? input.method,
+      rowMethod: input.method ? null : rowMethodOf(activity_data),
+      reportingYear: reportingYearFor(input.period.date_of_reporting),
+      manualDq: input.dq ? manualDqFrom(input.dq) : null,
+      spend,
+      // S3-12: a proxy row (a survey sample) scores completeness 3; its total is its form's own.
+      proxy: input.proxy ?? undefined,
+      supplier: prep.engine,
+    });
     if (!result.ok) return result;
     computed = result.computed;
     unit = computed.activity_unit;
   }
+  const methodWarnings = computed?.warnings ?? [];
 
   let fera: FeraTwin | null = null;
   let feraSkipped: string | undefined;
@@ -130,11 +364,35 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     }
     for (const w of [feraFactorTypeWarning(fera), feraFactorTypeWarning(tdLoss)]) if (w) warnings.push(w);
   }
-  const wtt = wttDoubleCountWarning(ctx, factor);
+  const wtt = supplierMethod ? null : wttDoubleCountWarning(ctx, factor);
   if (wtt) warnings.push(wtt);
+  warnings.push(...methodWarnings);
+  // S3-8: an estimated distance, and a Category 9 row the company says it paid for.
+  for (const w of [estimatedDistanceWarning(input.is_estimate, unit), paidByMismatchWarning(ctx, input.extra_data)]) if (w) warnings.push(w);
 
-  return { ok: true, entry: { input: { ...input, activity_data_unit: unit }, factor, computed, fera, tdLoss, warnings, ...(feraSkipped ? { feraSkipped } : {}) } };
+  return {
+    ok: true,
+    entry: {
+      input: { ...input, activity_data_unit: unit },
+      factor,
+      computed,
+      fera,
+      tdLoss,
+      warnings,
+      site_country: ctx.site_country ?? null,
+      supplier_id: computed?.supplier_id ?? prep.supplier?.supplier_id ?? null,
+      ...(feraSkipped ? { feraSkipped } : {}),
+    },
+  };
 };
+
+/**
+ * The snapshot a row stores: the method's own (a supplier's figure, a hybrid
+ * row's components; S3-6) or the row's emission factor with a spend row's
+ * deflator (S3-5), as before.
+ */
+export const entryFactorSnapshot = (entry: Pick<PreparedEntry, "factor" | "computed">): Record<string, unknown> | null =>
+  entry.computed?.snapshot ?? (entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null);
 
 export interface AuditInfo {
   changed_by: number;
@@ -148,11 +406,14 @@ export const insertEntry = async (
   entry: PreparedEntry,
   batch: BatchInfo | null,
   audit: AuditInfo | null,
-  opts: { deferChecks?: boolean } = {},
+  opts: { deferChecks?: boolean; status?: EmissionStatus } = {},
 ): Promise<{ emission: Emission; fera: Emission | null; tdLoss: Emission | null }> => {
   const repo = tx.getRepository(Emission);
   const { input } = entry;
   const base = {
+    // S3-15 part 2: a User's typed entry is a Draft with the review workflow on;
+    // everything else is Pending. The twins share the parent's status.
+    status: opts.status ?? EmissionStatus.PENDING,
     site: { site_id: input.site_id },
     category: { category_id: input.category_id },
     unit: "tCO2e",
@@ -171,7 +432,16 @@ export const insertEntry = async (
     total_kgco2e: entry.computed?.total_kgco2e ?? "0.0000",
     gas_kg: entry.computed?.gas_kg ?? null,
     biogenic_kg: entry.computed?.biogenic_kg ?? null,
-    emission_factor_snapshot: entry.factor ? factorSnapshot(entry.factor) : null,
+    emission_factor_snapshot: entryFactorSnapshot(entry),
+    // S3-6: the supplier the goods came from, when the entry names one.
+    supplier: entry.supplier_id ? ({ supplier_id: entry.supplier_id } as any) : null,
+    fx: entry.computed?.fx ?? null,
+    proxy: input.proxy ?? null,
+    // S3-3: null on Scope 1 and Scope 2 rows, where a method means nothing.
+    method: entry.computed?.method ?? null,
+    dq: entry.computed?.dq ?? null,
+    data_type: entry.computed?.data_type ?? null,
+    is_estimate: input.is_estimate ?? false,
   });
   await repo.save(emission);
 
@@ -188,6 +458,7 @@ export const insertEntry = async (
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.fera.factor),
       scope3_sub: entry.fera.scope3_sub,
+      ...twinQuality(entry.site_country, entry.fera.factor, input.period.date_of_reporting),
     });
     await repo.save(fera);
     emission.fera_linked_id = fera.pk_id;
@@ -210,6 +481,7 @@ export const insertEntry = async (
       fera_linked_id: emission.pk_id,
       emission_factor_snapshot: factorSnapshot(entry.tdLoss.factor),
       scope3_sub: entry.tdLoss.scope3_sub,
+      ...twinQuality(entry.site_country, entry.tdLoss.factor, input.period.date_of_reporting),
     });
     await repo.save(tdLoss);
   }
@@ -358,6 +630,13 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
 
   // Pass 2: in-plan mode conflicts and duplicates.
   const planConflicts = planModeConflicts(work.map((w) => (w ? { site_id: w.row.site_id, category_id: w.row.category_id, period: w.period } : null)));
+  // S3-15 part 2: closed site-months (review workflow v2), one query for the plan. A yearly row
+  // belongs to its period-end month, the date it is stored with.
+  const siteMonths = work.map((w) => (w ? siteMonthOf(w.row.site_id, w.period.date_of_reporting) : null));
+  // Inside a commit transaction, hold the month-lock keys shared until it ends, so a month can't be
+  // locked between this check and the insert committing (periodLease.ts). A plan outside one only reads.
+  if (manager.queryRunner?.isTransactionActive) await lockPeriodsShared(manager, siteMonths);
+  const closed = new Set((await lockedSiteMonths(manager, siteMonths)).map((p) => `${p.site_id}:${p.year}:${p.month}`));
   const seenIdentity = new Map<string, string>();
 
   for (let i = 0; i < work.length; i++) {
@@ -366,6 +645,10 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     const { row, period, ctx, resolved, activity_data, issues } = w;
     const errors: RowIssue[] = [];
 
+    const sm = siteMonthOf(row.site_id, period.date_of_reporting);
+    if (sm && closed.has(`${sm.site_id}:${sm.year}:${sm.month}`)) {
+      errors.push(issue("PERIOD_LOCKED", `${period.date_of_reporting.slice(0, 7)} is closed for this site. Reopen it with a reason before importing into it.`, "period"));
+    }
     const planConflict = planConflicts.get(i);
     if (planConflict) errors.push(issue("MODE_LOCK", planConflict, "period"));
     else {
@@ -374,7 +657,20 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
     }
 
     // Totals (unit, spec fields).
-    const result = await prepareEntry(ctx, checks, { site_id: row.site_id, category_id: row.category_id, activity_data, activity_data_unit: row.activity_unit, period });
+    // S3-3: the row's own method, estimate flag and hand-judged quality ride along, so
+    // plan and commit store the same method, dq and is_estimate a typed entry would.
+    const result = await prepareEntry(ctx, checks, {
+      site_id: row.site_id,
+      category_id: row.category_id,
+      activity_data,
+      activity_data_unit: row.activity_unit,
+      period,
+      method: row.method ?? null,
+      is_estimate: row.is_estimate,
+      dq: row.dq ?? null,
+      // S3-12: a survey-scaled row is a proxy (basis sample), so plan and commit score it alike.
+      proxy: row.survey ? surveyProxy(row.survey) : null,
+    });
     if (!result.ok) {
       errors.push(issue(result.issue.code, result.issue.message, result.issue.field));
     } else if (!result.entry.computed || result.entry.computed.activityValue <= 0) {
@@ -460,6 +756,9 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
 
   const forbidden = planned.filter((p) => p.issues.some((i) => i.code === "SITE_NOT_ALLOWED" || i.code === "CATEGORY_NOT_ASSIGNED")).map((p) => p.row_ref);
   if (forbidden.length) throw new ImportError("IMPORT_FORBIDDEN", { row_refs: forbidden });
+  // S3-15 part 2: a month closed since the plan was made refuses the commit (PERIOD_LOCKED).
+  const closedRows = planned.filter((p) => p.issues.some((i) => i.code === "PERIOD_LOCKED")).map((p) => p.row_ref);
+  if (closedRows.length) throw new ImportError("PERIOD_LOCKED", { row_refs: closedRows });
   const blocked = planned.filter((p) => p.state !== "ready").map((p) => p.row_ref);
   if (blocked.length) throw new ImportError("IMPORT_PLAN_HAS_ISSUES", { row_refs: blocked });
 
@@ -496,7 +795,9 @@ export const insertRows = async (tx: EntityManager, writerCtx: WriterContext, ro
     if (row.meta) extra_data.import.meta = { source: row.meta.source, confidence: row.meta.confidence };
     if (row.notes) extra_data.notes = row.notes;
     if (row.survey) extra_data.survey = row.survey; // S3-9 commuting survey scaling
-    const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data } }, batch, audit, { deferChecks: true });
+    // S3-12: a survey row is a proxy too (basis sample), as the backfill writes for older rows.
+    const proxy = row.survey ? surveyProxy(row.survey) : null;
+    const { emission, fera, tdLoss } = await insertEntry(tx, writerCtx.user_id, { ...entry, input: { ...entry.input, extra_data, proxy } }, batch, audit, { deferChecks: true });
     inserted += 1;
     ids.push(emission.pk_id);
     for (const twin of [fera, tdLoss]) {

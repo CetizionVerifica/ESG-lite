@@ -96,11 +96,14 @@ test("survey 7.1 as a Manager: one plan, a row per mode, the engine gives 3,072 
     idempotency_key: `s3-9-${r.json.plan.plan_id}`,
   });
   assert.equal(commit.status, 200, JSON.stringify(commit.json));
-  const saved = await withDb((db) => db.query(`SELECT total_emission, extra_data, activity_data FROM emission WHERE category_id = $1 ORDER BY total_emission`, [CAT7]));
+  const saved = await withDb((db) => db.query(`SELECT total_emission, extra_data, activity_data, proxy, dq FROM emission WHERE category_id = $1 ORDER BY total_emission`, [CAT7]));
   assert.deepEqual(saved.rows.map((x) => Number(x.total_emission)), [0.86, 2.21]);
   for (const x of saved.rows) {
     assert.deepEqual(x.extra_data.survey, { basis: "sample", respondents: 3, total_employees: 3, coverage_pct: 100 });
     assert.equal(x.activity_data["@method"], "distance_based");
+    // S3-12: a survey row is a sample proxy, and a proxy scores completeness 3 (S3-3).
+    assert.deepEqual(x.proxy, { basis: "sample", coverage_pct: 100, from: [] });
+    assert.equal(x.dq.completeness, 3);
   }
 });
 

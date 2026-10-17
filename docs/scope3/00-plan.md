@@ -77,6 +77,7 @@ ESGLite reports Scope 3 per GHG Protocol category (1–15). Each category is eit
 5. FE: the four themes, four widths, loading/empty/error states, keyboard access, and a Playwright smoke test for the main path.
 6. The module's audit probe rows (S3-xx in `audit/e2e-workflow-audit.md` §14) are added or updated.
 7. The spec is copied to the module's folder as `CLAUDE.md` in the first commit. The dashboard updates itself from the PR (see `tracking.md`).
+8. The end-to-end data workflow test passes locally on the branch with `production` merged in (`bash ci/workflow/local.sh`, ESG-lite `ci/workflow/README.md`), the module's skipped workflow step is replaced by real checks, and the last PR body says "Workflow test: N passed, M skipped".
 
 ## 8. Working rules for parallel lanes
 

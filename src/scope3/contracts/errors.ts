@@ -24,6 +24,8 @@ export const SCOPE3_ERRORS = {
   PERIOD_INCOMPLETE: { status: 422, message: "Some sites or categories in this period aren't complete yet." },
   BASE_YEAR_NO_DATA: { status: 422, message: "The base year has no approved data." },
   RECALCULATION_REASON_REQUIRED: { status: 400, message: "Give a reason for the recalculation." },
+  // S3-15 part 2: lock and "Nothing this month" exist only with company.review_workflow_v2 on (D9).
+  REVIEW_WORKFLOW_OFF: { status: 403, message: "Drafts and month locks aren't switched on for this client." },
 } as const;
 
 export type Scope3ErrorCode = keyof typeof SCOPE3_ERRORS;
@@ -67,6 +69,7 @@ export const SCOPE3_WARNINGS = {
   WTT_ALREADY_IN_FACTOR: "This transport factor already includes well-to-tank emissions.",
   FX_RATE_FALLBACK: "No exchange rate for that day; the nearest earlier rate was used.",
   NO_DEFLATOR: "No price deflator for that year; the amount was not deflated.",
+  DEFLATOR_FALLBACK_YEAR: "No price index for the spend year yet; the latest published year's was used.",
   ESTIMATED_DISTANCE: "The distance is an estimate from the route helper.",
   TRANSPORT_PAID_BY_MISMATCH: "Who paid for this transport doesn't match the category.",
 } as const;

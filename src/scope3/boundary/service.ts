@@ -18,8 +18,9 @@ export type BoundaryStatus = (typeof BOUNDARY_STATUSES)[number];
 export const CONSOLIDATION_APPROACHES = ["operational_control", "financial_control", "equity_share"] as const;
 export type ConsolidationApproach = (typeof CONSOLIDATION_APPROACHES)[number];
 
-/** Scope 3 Standard Table 6.1 relevance criteria (ticks in `relevance`). */
-export const RELEVANCE_KEYS = ["size", "influence", "risk", "stakeholders", "outsourcing", "sector_guidance", "other"] as const;
+/** Table II relevance criteria (ticks in `relevance`): defined in the contracts, re-exported for older imports. */
+import { RELEVANCE_KEYS } from "../contracts/schemas";
+export { RELEVANCE_KEYS };
 
 const MAX_TEXT = 2000;
 

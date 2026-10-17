@@ -19,7 +19,7 @@ import { GHG_CATEGORIES, ghgCategory, type GhgCategoryNumber, type Method, METHO
 import { GWP_SETS, isFactorType, type FactorType, type GwpSet } from "../scope3/contracts/factor";
 import { ensureBoundaryRows, isScope3Sql, type Queryable } from "../scope3/taxonomy/service";
 import { getPeriodRange, type GhgFilters } from "./ghg-data";
-import type { Scope3ReportRow as ContractScope3ReportRow } from "../scope3/contracts/schemas";
+import { PROXY_BASIS_LABELS, type Scope3ReportRow as ContractScope3ReportRow } from "../scope3/contracts/schemas";
 import type { Block } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -237,7 +237,7 @@ async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Que
     catFilter = `AND c.category_id = ANY($${params.length}::int[])`;
   }
   const surveyBasis = `CASE WHEN COALESCE(e.extra_data ? 'survey', false) THEN 'Commuting survey scaled to all employees' END`;
-  const proxyBasisExpr = cols.has("proxy") ? `COALESCE(e.proxy ->> 'basis', ${surveyBasis})` : surveyBasis;
+  const proxyBasisExpr = cols.has("proxy") ? `COALESCE(CASE e.proxy ->> 'basis' ${Object.entries(PROXY_BASIS_LABELS).map(([k, v]) => `WHEN '${k}' THEN '${v}'`).join(" ")} ELSE e.proxy ->> 'basis' END, ${surveyBasis})` : surveyBasis; // S3-12: the plain label per basis, never the key
   const proxyExpr = cols.has("proxy")
     ? `(e.proxy IS NOT NULL OR COALESCE(e.extra_data ? 'survey', false))`
     : `COALESCE(e.extra_data ? 'survey', false)`; // S3-9 survey scaling until S3-12 backfills emission.proxy
