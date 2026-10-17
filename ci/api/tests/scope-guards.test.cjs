@@ -137,3 +137,12 @@ test("another company can't edit or delete an entry by id", async () => {
   const after = await withDb(async (db) => (await db.query("SELECT date_of_reporting, status FROM emission WHERE pk_id=4")).rows[0]);
   assert.deepEqual(after, before);
 });
+
+test("a malformed entry id is a 400, not a server error", async () => {
+  for (const id of ["undefined", "abc", "0", "-1"]) {
+    assert.equal((await call("PUT", `/user/emissions/${id}/approve`, "manager", {})).status, 400, `approve ${id}`);
+    assert.equal((await call("PUT", `/user/emissions/${id}`, "user", {})).status, 400, `edit ${id}`);
+    assert.equal((await call("DELETE", `/user/emissions/${id}`, "user")).status, 400, `delete ${id}`);
+    assert.equal((await call("PUT", `/user/production-data/${id}/approve`, "manager", {})).status, 400, `production ${id}`);
+  }
+});
