@@ -118,6 +118,8 @@ export const ROW_ISSUE_CODES = {
   TRANSPORT_PAID_BY_MISMATCH: "warning",
   // S3-15 part 2: the row's site and month are closed (period_lock, review workflow v2).
   PERIOD_LOCKED: "error",
+  // Simple data entry SE-2: the form fixes its unit and the row names another.
+  UNIT_NOT_ALLOWED: "error",
 } as const;
 
 export type RowIssueCode = keyof typeof ROW_ISSUE_CODES;

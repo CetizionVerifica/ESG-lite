@@ -700,3 +700,48 @@ export const MethodOptionsSchema = z
   .min(1)
   .refine((opts) => new Set(opts.map((o) => o.method)).size === opts.length, "A method appears twice.");
 export type MethodOptions = z.infer<typeof MethodOptionsSchema>;
+
+// ---------------------------------------------------------------------------
+// Simple data entry SE-2 (ESG-lite_FE docs/simple-entry): form and company settings
+// ---------------------------------------------------------------------------
+
+/** `column_config.method_by_choice`: a select field's choices pick the row's method ("fuel_bill" → fuel_based). */
+export const MethodByChoiceSchema = z.object({
+  column: text(200),
+  map: z.record(text(200), MethodSchema.exclude(["unknown"])),
+});
+export type MethodByChoice = z.infer<typeof MethodByChoiceSchema>;
+
+/** One field's settings (a column name or an extra-field key): what a User sees and what the server fills. */
+export const FieldSettingSchema = z
+  .object({
+    label: text(200).optional(),
+    help: text(500).optional(),
+    default: z.union([z.string().max(500), z.number()]).optional(),
+    hidden: z.boolean().optional(),
+    readonly: z.boolean().optional(),
+    required: z.boolean().optional(),
+  })
+  .strict();
+export type FieldSetting = z.infer<typeof FieldSettingSchema>;
+
+/** `column_config.field_settings`: per field. */
+export const FieldSettingsSchema = z.record(text(200), FieldSettingSchema);
+export type FieldSettings = z.infer<typeof FieldSettingsSchema>;
+
+/** `column_config.units`: a fixed unit hides the unit select (allowed units per method stay in `method_options[].units`). */
+export const FormUnitsSchema = z.object({ fixed: text(50).optional() }).strict();
+export type FormUnits = z.infer<typeof FormUnitsSchema>;
+
+/** ISO 4217 code, upper case. */
+export const CurrencyCodeSchema = z.string().regex(/^[A-Z]{3}$/, "A three-letter currency code, for example INR");
+
+/** `column_config.currency`: a fixed currency; else the company's `default_currency`. */
+export const FormCurrencySchema = z.object({ fixed: CurrencyCodeSchema.optional() }).strict();
+export type FormCurrency = z.infer<typeof FormCurrencySchema>;
+
+/** `company.entry_detail`: how much of the calculation a User sees where data is entered. */
+export const ENTRY_DETAILS = ["total", "full"] as const;
+export const EntryDetailSchema = z.enum(ENTRY_DETAILS);
+export type EntryDetail = z.infer<typeof EntryDetailSchema>;
+

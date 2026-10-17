@@ -83,6 +83,15 @@ export class Company {
   @Column({ default: false })
   review_workflow_v2!: boolean;
 
+  // Simple data entry SE-2 (migrate:entry-forms). The currency a spend row
+  // takes when neither the row nor its form says (INR for current clients),
+  // and how much of the calculation a User sees: "total" (default) or "full".
+  @Column({ type: "varchar", length: 3, default: "INR" })
+  default_currency!: string;
+
+  @Column({ type: "varchar", length: 8, default: "total" })
+  entry_detail!: string;
+
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];
 }

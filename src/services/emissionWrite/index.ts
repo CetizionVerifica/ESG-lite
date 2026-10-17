@@ -33,6 +33,8 @@ import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
 import { manualDqFrom, methodAllowedForForm, type ManualDqInput } from "../../scope3/dq/input";
 import { SCOPE3_ERRORS } from "../../scope3/contracts/errors";
 import { MethodSchema, methodLabel, type Method } from "../../scope3/contracts/ghgCategory";
+import { NO_FORM_SETTINGS, applyHiddenDefaults, defaultCurrencyFor, fixedUnitFor, hasValue, methodByChoice, namedMethodFor, type MethodSource } from "../../forms/formConfig";
+import { looksLikeCurrency } from "../../scope3/spend/currencies";
 import { ROW_METHOD_COLUMN } from "../calculationSpec";
 import { isSpendRow, rowAsksForSpend, spendInputOf } from "../../scope3/spend/inputs";
 import type { EmissionFx, SpendQuote } from "../../scope3/spend/types";
@@ -88,6 +90,13 @@ export interface EntryInput {
    */
   supplier_id?: number | null;
   supplier_factor_id?: number | null;
+  /**
+   * SE-2: who chose the row's method (src/forms/formConfig.ts `namedMethodFor`).
+   * `contributor` for a User's typed entry, edit and manual bulk upload: the form
+   * decides. Absent = `caller` (imports by Admins, Superadmins and Managers, MCP,
+   * recalculations): a method the row names wins, as before.
+   */
+  method_source?: MethodSource;
 }
 
 export interface PreparedEntry {
@@ -235,8 +244,31 @@ const rowMethodOf = (activity_data: Record<string, any>): Method | null => {
   return parsed.success && parsed.data !== "unknown" ? parsed.data : null;
 };
 
-export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input: EntryInput): Promise<PrepareResult> => {
-  const { activity_data } = input;
+export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, rowInput: EntryInput): Promise<PrepareResult> => {
+  // SE-2: what the form fixes is applied first, so typed entries, bulk upload, smart import and MCP
+  // store the same row. A hidden field with a default gets it when the row leaves it empty.
+  const form = ctx.form ?? NO_FORM_SETTINGS;
+  const withDefaults = applyHiddenDefaults(form, rowInput.activity_data, rowInput.extra_data);
+  const contributor = rowInput.method_source === "contributor";
+
+  // SE-2 method order (01-contracts §6 after SE-0): a method the caller names (an importer's
+  // `method`, else `@method`), else the row's answer to the form's choice. For a contributor, a
+  // form that fixes the method (its choice, else its only method) decides and what the row sends
+  // is ignored; on a form with several methods and no choice, today's rule (S3-3) stands.
+  const atMethod = rowMethodOf(withDefaults.activity_data);
+  const choice = methodByChoice(form, withDefaults.activity_data);
+  const named = namedMethodFor({ source: rowInput.method_source ?? "caller", named: rowInput.method ?? atMethod, choice, offered: ctx.method_options });
+  // A contributor's own "@method" that the form overrides is replaced with the form's method, since
+  // the spec and the spend fields read "@method" too. A row without one gets none.
+  const formMethod = named ?? ctx.method_options?.[0] ?? null;
+  const activity_data: Record<string, any> =
+    contributor && atMethod && formMethod && atMethod !== formMethod ? { ...withDefaults.activity_data, [ROW_METHOD_COLUMN]: formMethod } : withDefaults.activity_data;
+  // The method the engine is handed: the caller's `method`, or the choice's when it decided.
+  const methodArg: Method | undefined =
+    choice && named === choice && (rowInput.method ?? atMethod) !== choice ? choice : rowInput.method && named === rowInput.method ? rowInput.method : undefined;
+  const extraFilled = withDefaults.filled.some((key) => form.extra_keys.has(key));
+  const input: EntryInput = { ...rowInput, activity_data, extra_data: extraFilled ? withDefaults.extra_data : rowInput.extra_data };
+
   // An entry without a unit is in the form's unit only when the form has exactly one (S3-4).
   let unit = input.activity_data_unit || (ctx.formUnits?.length === 1 ? ctx.formUnits[0] : input.activity_data_unit);
   let factor: EmissionFactor | null = null;
@@ -245,9 +277,8 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   const targetYear = targetYearFor(input.period.date_of_reporting);
 
   // S3-3: the method the row names: its `method`, else `activity_data["@method"]`
-  // (S3-9 forms and rows sent before rows had a method). A key ESGLite doesn't
-  // know in "@method" is left to the spec, as before.
-  const named = input.method ?? rowMethodOf(activity_data);
+  // (S3-9 forms and rows sent before rows had a method), as SE-2 resolved it above.
+  // A key ESGLite doesn't know in "@method" is left to the spec, as before.
 
   // S3-3: the form decides which methods its category offers. Checked here so
   // typed entries, bulk upload, smart import and MCP all refuse the same ones.
@@ -283,9 +314,26 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
   // S3-5 asks for an amount and a currency when the row's method is spend_based: the
   // one it names, else the form's default (01-contracts §6: row → method_options[0]).
   const spendMethod = named ?? ctx.method_options?.[0] ?? null;
+  const asksForSpend = rowAsksForSpend(activity_data, spendMethod);
+
+  // SE-2: a spend row that names no currency takes the form's, else the company's default
+  // (a row whose unit is a currency is in that currency, S3-5).
+  if (asksForSpend && !hasValue(activity_data, input.extra_data, "currency") && !looksLikeCurrency(unit)) {
+    const currency = defaultCurrencyFor(form, ctx.default_currency);
+    if (currency) activity_data.currency = currency;
+  }
+  // SE-2: a form that fixes its unit fills it in for a row with none and refuses another one
+  // (never converted or overwritten). A spend row's unit is its currency.
+  if (!asksForSpend) {
+    const fixed = fixedUnitFor(form, unit);
+    if (!fixed.ok) {
+      return { ok: false, issue: { code: "UNIT_NOT_ALLOWED", message: fixed.message, field: "activity_data_unit" } };
+    }
+    unit = fixed.unit;
+  }
 
   // S3-5: a row entered as an amount and a currency is in that currency.
-  if (!unit && rowAsksForSpend(activity_data, spendMethod)) {
+  if (!unit && asksForSpend) {
     unit = spendInputOf(activity_data, input.extra_data, null, input.period.date_of_reporting, undefined, spendMethod)?.currency;
   }
 
@@ -318,8 +366,8 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, input
     }
     // S3-3: the method and quality the engine records; S3-5: the spend quote that picks the spend file.
     const result = computeTotal(ctx, factor, activity_data, unit, {
-      method: supplierMethodWanted ?? recordAs ?? input.method,
-      rowMethod: input.method ? null : rowMethodOf(activity_data),
+      method: supplierMethodWanted ?? recordAs ?? methodArg,
+      rowMethod: methodArg ? null : rowMethodOf(activity_data),
       reportingYear: reportingYearFor(input.period.date_of_reporting),
       manualDq: input.dq ? manualDqFrom(input.dq) : null,
       spend,
@@ -666,6 +714,8 @@ const planRowsDetailed = async (writerCtx: WriterContext, rows: ImportRow[], opt
       activity_data_unit: row.activity_unit,
       period,
       method: row.method ?? null,
+      // SE-2: a User's bulk upload takes the method the form decides; importers may name one.
+      method_source: writerCtx.role === UserRole.USER ? "contributor" : "caller",
       is_estimate: row.is_estimate,
       dq: row.dq ?? null,
       // S3-12: a survey-scaled row is a proxy (basis sample), so plan and commit score it alike.

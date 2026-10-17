@@ -26,6 +26,9 @@ export const SCOPE3_ERRORS = {
   RECALCULATION_REASON_REQUIRED: { status: 400, message: "Give a reason for the recalculation." },
   // S3-15 part 2: lock and "Nothing this month" exist only with company.review_workflow_v2 on (D9).
   REVIEW_WORKFLOW_OFF: { status: 403, message: "Drafts and month locks aren't switched on for this client." },
+  // Simple data entry SE-2 (ESG-lite_FE docs/simple-entry): the form fixes the unit and is checked before use.
+  UNIT_NOT_ALLOWED: { status: 400, message: "This form only takes another unit." },
+  FORM_CHECK_FAILED: { status: 400, message: "The form's settings don't fit its fields, choices or methods." },
 } as const;
 
 export type Scope3ErrorCode = keyof typeof SCOPE3_ERRORS;

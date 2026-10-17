@@ -9,6 +9,8 @@ import { FY_START_MONTH, FISCAL_YEAR_RULE } from "../reporting/ghg-data";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { UserRole } from "../types/type";
 import { resolveUserCompanyId } from "../utils/companyScope";
+import { ENTRY_DETAILS, EntryDetailSchema } from "../scope3/contracts/schemas";
+import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currencies";
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -42,6 +44,17 @@ export const updateCompany = async (req: Request, res: Response) => {
   // S3-15 part 2 (D9): drafts, submit and the month lock for this client.
   if ("review_workflow_v2" in body && typeof body.review_workflow_v2 !== "boolean") {
     return res.status(400).json({ message: "review_workflow_v2 must be true or false" });
+  }
+  // SE-2 (simple data entry): the currency a spend row takes when it names none, and how much of
+  // the calculation the client's Users see where they enter data ("total" or "full").
+  if ("default_currency" in body) {
+    const currency = supportedCurrency(body.default_currency);
+    if (!currency || String(body.default_currency).trim() !== currency) {
+      return res.status(400).json({ code: "FIELD_INVALID", field: "default_currency", message: `default_currency must be one of ${SUPPORTED_CURRENCIES.join(", ")}` });
+    }
+  }
+  if ("entry_detail" in body && !EntryDetailSchema.safeParse(body.entry_detail).success) {
+    return res.status(400).json({ code: "FIELD_INVALID", field: "entry_detail", message: `entry_detail must be ${ENTRY_DETAILS.join(" or ")}` });
   }
   await repo.update(req.params.id, body);
   // Deactivating (or reactivating) a client takes effect on the next request.

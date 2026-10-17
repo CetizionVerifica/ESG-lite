@@ -27,3 +27,24 @@ Everything a contributor no longer chooses is stored on the form or the company 
 
 ## Done when
 A form can fix its method, map a choice to methods, hide/default fields, fix unit and currency; a User's entry with only field values gets the same total as today's equivalent entry.
+
+## As built (2026-10-17)
+- **`src/forms/formConfig.ts`** (pure, owned here): `readFormSettings` (tolerant: a value that doesn't fit its schema is skipped, never a reason to refuse rows), `methodByChoice` (the answer matched by choice id or label, without regard to case), `namedMethodFor` (the method order), `applyHiddenDefaults`, `fixedUnitFor`, `defaultCurrencyFor`, and `parseFormSettingsInput` for the Superadmin writes.
+- **Method order** (`prepareEntry`, with `EntryInput.method_source`):
+  - `caller` (default: imports by Admins, Superadmins and Managers, MCP, recalculations, a reviewer's edit): the row's `method`, else its `@method`, else the choice's method. As before for every row that names one.
+  - `contributor` (a User's typed entry, own edit, live checks, manual bulk upload): where the form **fixes** the method (a choice map, or only one method in `method_options`) what the row sends is ignored. The choice's method decides, or the form's only method applies as for a row that names none. A User's own `@method` is replaced with the form's, since the spec and S3-5's spend fields read `@method` too.
+  - **Deviation:** a form with several methods and no choice map fixes none. A User's row there keeps today's S3-3 rule: an offered method is used, another is refused with `METHOD_NOT_ALLOWED`. S3-5's spend fields send `spend_based` this way until SE-3 replaces them.
+  - The engine's later steps are unchanged: `method_options[0]`, S3-8's method by unit, S3-5's `eeio_spend` rule, activity. Labels only; no stored total moves (golden unchanged).
+- **Server-side defaults** (every channel goes through `prepareEntry`):
+  - Hidden fields with a `default` are filled when the row leaves them empty. Columns go in `activity_data`, extra fields in `extra_data`; a value the row has is never overwritten.
+  - `units.fixed` fills a row with no unit and refuses another (`UNIT_NOT_ALLOWED`, 400, field `activity_data_unit`). The same unit written another way ("KM") is kept. A spend row's unit is its currency, so the fixed unit doesn't apply to it.
+  - A spend row with no currency takes `currency.fixed`, else `company.default_currency`. A row whose unit is a currency keeps it.
+- **Writes** (`POST`/`PUT /admin/column-configs`, Superadmin only):
+  - `method_by_choice`, `field_settings`, `units` and `currency` are checked against the form as it will be after the write. Absent keeps what is stored; `null` clears it.
+  - A shape error is `FIELD_INVALID`; a mismatch with the form is `FORM_CHECK_FAILED`. Both name the field path, e.g. `method_by_choice.map.trip` or `units.fixed`.
+  - A choice map needs the form's `method_options`. A fixed unit must be offered by every method a row can take: each mapped choice's method, else the form's default.
+  - `PUT /admin/companies/:id` takes `default_currency` (a currency ESGLite converts) and `entry_detail` (`total` | `full`).
+  - `version` isn't writable yet; SE-4 publishes.
+- **Reads:** the form endpoints return the entity, so the new fields come back to the User's form. The session user's `sites.company` carries `entry_detail`, which SE-1 reads.
+- **`migrate:entry-forms`** is listed right after `migrate:scope3-row-quality`, before any migration that loads `ColumnConfig` or `Company`. It adds only columns. Current clients get INR and `total`.
+- **Error codes:** `UNIT_NOT_ALLOWED` is in `scope3/contracts/errors.ts` and is also a row issue (`imports/errors.ts`). `FORM_CHECK_FAILED` is in the contracts.

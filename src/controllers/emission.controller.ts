@@ -17,6 +17,7 @@ import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
+import type { MethodSource } from "../forms/formConfig";
 import axios from "axios";
 import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
@@ -597,6 +598,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       extra_data: extra_data || {},
       ...quality.value,
       ...supplierRef.value,
+      // SE-2: a User's entry takes the method the form decides.
+      method_source: req.user?.role === UserRole.USER ? "contributor" : "caller",
     });
     if (!prepared.ok) {
       return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
@@ -696,7 +699,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.reviewed_at = null as any;
 
       // The factor year follows the new reporting date when one is sent.
-      const prepared = await recalculateEntry(emission, activity_data, extra_data !== undefined ? extra_data : emission.extra_data, date_of_reporting);
+      const prepared = await recalculateEntry(emission, activity_data, extra_data !== undefined ? extra_data : emission.extra_data, date_of_reporting, req.user?.role === UserRole.USER ? "contributor" : "caller");
       if (!prepared.ok) {
         return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
       }
@@ -790,7 +793,13 @@ const ymd = (d: unknown): string => (typeof d === "string" ? d.slice(0, 10) : ne
  * resolution, unit check, kgCO₂e total, snapshot and the FERA twin. A new
  * reporting date counts, since the factor year follows it. Nothing is written.
  */
-async function recalculateEntry(emission: Emission, activity_data: any, extra_data: Record<string, any> | null | undefined, newDate?: string): Promise<PrepareResult> {
+async function recalculateEntry(
+  emission: Emission,
+  activity_data: any,
+  extra_data: Record<string, any> | null | undefined,
+  newDate?: string,
+  methodSource: MethodSource = "caller",
+): Promise<PrepareResult> {
   const site_id = emission.site.site_id;
   const category_id = emission.category.category_id;
   const ctx = await new ContextCache(AppDataSource.manager).context(site_id, category_id);
@@ -813,6 +822,8 @@ async function recalculateEntry(emission: Emission, activity_data: any, extra_da
     extra_data: extra_data ?? {},
     // S3-5: a spend row keeps the rate it was saved with while its currency and purchase date don't change.
     storedFx: emission.fx,
+    // SE-2: a User's own edit takes the method the form decides; a reviewer's keeps the row's.
+    method_source: methodSource,
     ...(supplierRow
       ? {
           method: emission.method,
