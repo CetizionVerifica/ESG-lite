@@ -366,6 +366,9 @@ test("tenant isolation: another company's token gets 404 on submit, check, histo
   }
   assert.equal((await call("GET", `/periods/lock?year=2025&month=5&site_id=${A}`, "otherManager")).status, 404);
   assert.equal((await call("POST", "/periods/lock", "otherManager", { site_id: A, ...MAY })).status, 404);
+  // Access is checked before the body: an invalid month still answers 404/403, not 400 (S3-16 probes S3-19, S3-20).
+  assert.equal((await call("POST", "/periods/lock", "otherManager", { site_id: A, year: 2025, month: 13 })).status, 404);
+  assert.equal((await call("POST", "/periods/unlock", "otherManager", { site_id: A, year: 2025, month: 13, reason: "" })).status, 404);
   assert.equal((await call("POST", "/periods/unlock", "otherManager", { site_id: A, ...MAY, reason: "Late invoice" })).status, 404);
   assert.equal((await call("GET", `/periods/lock?year=2025&month=5&company_id=${CO}`, "manager")).status, 200);
   assert.equal((await call("GET", `/periods/lock?year=2025&month=5&company_id=2`, "manager")).status, 404, "naming another company");
@@ -373,6 +376,7 @@ test("tenant isolation: another company's token gets 404 on submit, check, histo
 
 test("roles: a User can't lock; a Manager can't lock another manager's site or every site", async () => {
   assert.equal((await call("POST", "/periods/lock", "user", { site_id: A, ...MAY })).status, 403);
+  assert.equal((await call("POST", "/periods/lock", "user", { site_id: A, year: 2025, month: 13 })).status, 403, "role before validation");
   assert.equal((await call("GET", `/periods/lock?year=2025&month=5`, "user")).status, 403);
   assert.equal((await call("POST", "/periods/lock", "manager", { site_id: B, ...MAY })).status, 403);
   assert.equal((await call("POST", "/periods/lock", "manager", { site_id: null, ...MAY })).status, 403);

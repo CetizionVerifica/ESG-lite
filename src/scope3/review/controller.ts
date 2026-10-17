@@ -59,18 +59,28 @@ export const getPeriodLock = handle("period status", async (req, res) => {
   res.json(await periodStatus(AppDataSource.manager, scope, q.year, q.month));
 });
 
+/**
+ * Lock and unlock check role and company before the rest of the body, so a
+ * caller without access gets 403/404 rather than a validation error.
+ */
+const LockScopeFieldsSchema = LockPeriodBodySchema.pick({ site_id: true, company_id: true });
+const writeScope = (req: AuthRequest) => {
+  const ids = parse(LockScopeFieldsSchema, req.body ?? {});
+  return resolveLockScope(caller(req), { site_id: ids.site_id ?? null, company_id: ids.company_id }, true);
+};
+
 /** POST /periods/lock: 422 PERIOD_INCOMPLETE while anything is left; 403 REVIEW_WORKFLOW_OFF with the switch off. */
 export const postPeriodLock = handle("lock period", async (req, res) => {
+  const scope = await writeScope(req);
   const body = parse(LockPeriodBodySchema, req.body ?? {});
-  const scope = await resolveLockScope(caller(req), { site_id: body.site_id ?? null, company_id: body.company_id }, true);
   res.json(await lockPeriod(caller(req), scope, body.year, body.month));
 });
 
 /** POST /periods/unlock: a reason of at least UNLOCK_REASON_MIN characters (400 UNLOCK_REASON_REQUIRED). */
 export const postPeriodUnlock = handle("unlock period", async (req, res) => {
   const raw = (req.body ?? {}) as Record<string, unknown>;
+  const scope = await writeScope(req);
   const body = parse(LockPeriodBodySchema, raw);
-  const scope = await resolveLockScope(caller(req), { site_id: body.site_id ?? null, company_id: body.company_id }, true);
   if (typeof raw.reason !== "string" || raw.reason.trim().length < UNLOCK_REASON_MIN || raw.reason.length > 2000) {
     throw new Scope3Error("UNLOCK_REASON_REQUIRED", { min_length: UNLOCK_REASON_MIN });
   }
