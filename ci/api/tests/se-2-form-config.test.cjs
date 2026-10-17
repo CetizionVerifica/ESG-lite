@@ -8,6 +8,8 @@
 // created, so other tests' counts don't move.
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("path");
+const { spawnSync } = require("child_process");
 const { call, withDb } = require("../helpers.cjs");
 
 const SITE = 1; // company 1, the `user` fixture's site
@@ -113,6 +115,19 @@ test("migrate:entry-forms columns are there with their defaults (CI runs every m
   assert.equal(by["column_config.field_settings"].is_nullable, "NO");
   const [company] = await q(`SELECT default_currency, entry_detail FROM company WHERE company_id = 1`);
   assert.deepEqual(company, { default_currency: "INR", entry_detail: "total" }, "current clients: INR and the total only");
+
+  // Run twice more here: additive and idempotent, a client's chosen settings are kept.
+  await q(`UPDATE company SET default_currency = 'USD' WHERE company_id = 2`);
+  try {
+    for (let pass = 1; pass <= 2; pass++) {
+      const run = spawnSync(process.execPath, [path.resolve("dist/scripts/migrateEntryForms.js")], { env: process.env, encoding: "utf8" });
+      assert.equal(run.status, 0, `pass ${pass}: ${run.stderr}`);
+    }
+    assert.equal((await q(`SELECT default_currency FROM company WHERE company_id = 2`))[0].default_currency, "USD");
+    assert.equal((await q(`SELECT count(*)::int AS n FROM column_config WHERE field_settings IS NULL OR version IS NULL`))[0].n, 0);
+  } finally {
+    await q(`UPDATE company SET default_currency = 'INR' WHERE company_id = 2`);
+  }
 });
 
 test("a Superadmin sets what the form fixes; the User's form returns it; anyone else is refused; company 2 can't read it", async () => {
@@ -271,5 +286,57 @@ test("company settings: a Superadmin sets entry_detail and default_currency; bad
   assert.equal(me.status, 200, JSON.stringify(me.json));
   const sites = me.json.user?.sites?.length ? me.json.user.sites : [me.json.user?.site].filter(Boolean);
   assert.ok(sites.some((s) => s.company?.entry_detail === "full"), JSON.stringify(me.json).slice(0, 400));
+  // The company and site reads return both settings to the client's own people.
+  const site = await call("GET", `/user/sites/${SITE}`, "user");
+  assert.equal(site.status, 200, JSON.stringify(site.json));
+  assert.deepEqual([site.json.company.entry_detail, site.json.company.default_currency], ["full", "USD"]);
+  const companies = await call("GET", "/user/companies", "user");
+  assert.deepEqual(companies.json.map((c) => [c.company_id, c.entry_detail, c.default_currency]), [[1, "full", "USD"]]);
+  const bySites = await call("POST", "/user/companies/by-sites", "user", { siteIds: [SITE] });
+  assert.equal(bySites.status, 200, JSON.stringify(bySites.json));
+  assert.deepEqual([bySites.json.entry_detail, bySites.json.default_currency], ["full", "USD"]);
+  // Company 2's people read none of company 1's.
+  assert.notEqual((await call("GET", `/user/sites/${SITE}`, "otherUser")).status, 200);
+  assert.notEqual((await call("POST", "/user/companies/by-sites", "otherUser", { siteIds: [SITE] })).status, 200);
+  assert.ok(!(await call("GET", "/user/companies", "otherUser")).json.some((c) => c.company_id === 1));
   await q(`UPDATE company SET default_currency = 'INR', entry_detail = 'total' WHERE company_id = 1`);
+});
+
+test("done when: a User's entry with only field values gives the same row as the equivalent explicit entry", async () => {
+  // The form fixes everything a User no longer chooses: the choice picks the method, Vehicle and
+  // "Who paid?" are hidden with defaults, and the unit is fixed.
+  const put = await putForm("superadmin", { method_by_choice: { column: "record_type", map: { trip: "distance_based" } }, units: { fixed: "km" } });
+  assert.equal(put.status, 200, JSON.stringify(put.json));
+  try {
+    const simple = await saved(
+      await call("POST", "/user/emissions", "user", {
+        site_id: SITE, category_id: CAT, date_of_reporting: "2025-09-30", reporting_period: "monthly",
+        activity_data: { record_type: "trip", emission_category: "SE-2 HGV", activity_value: "250" }, extra_data: {},
+      }),
+    );
+    // The same row with everything spelled out, as an importer (a Manager) sends it today.
+    const explicit = await saved(
+      await call("POST", "/user/emissions", "manager", {
+        site_id: SITE, category_id: CAT, date_of_reporting: "2025-08-31", reporting_period: "monthly", activity_data_unit: "km", method: "distance_based",
+        activity_data: { record_type: "trip", Vehicle: "hgv", "@method": "distance_based", emission_category: "SE-2 HGV", activity_value: "250" }, extra_data: { paid_by: "We paid" },
+      }),
+    );
+    assert.equal(simple.total, 0.25, "250 km × 1 kg");
+    assert.equal(simple.total, explicit.total);
+    assert.equal(simple.method, explicit.method);
+    assert.equal(simple.activity_data_unit, explicit.activity_data_unit);
+    assert.equal(simple.activity_data.Vehicle, explicit.activity_data.Vehicle);
+    assert.equal(simple.extra_data.paid_by, explicit.extra_data.paid_by);
+  } finally {
+    assert.equal((await putForm("superadmin", { units: null, method_by_choice: choice })).status, 200);
+  }
+});
+
+test("company 2's people can't change or read company 1's form or company settings", async () => {
+  assert.equal((await putForm("otherManager", { field_settings: {} })).status, 403);
+  assert.equal((await call("PUT", "/admin/companies/1", "otherManager", { entry_detail: "full" })).status, 403);
+  assert.equal((await call("GET", `/admin/column-configs/${formId}`, "otherUser")).status, 403);
+  assert.equal((await call("GET", `/user/column-configs/site/${SITE}/category/${CAT}`, "otherManager")).status, 403);
+  // An id that isn't a form: 404 for the Superadmin, nothing stored.
+  assert.equal((await putForm("superadmin", { units: { fixed: "km" } }, 999999)).status, 404);
 });
