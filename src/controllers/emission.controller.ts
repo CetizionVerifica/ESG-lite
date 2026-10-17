@@ -37,6 +37,8 @@ import { pcfDataChanged } from "../pcf/staleness";
 import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
 import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
 import { checkKeysFor, refreshChecks, refreshChecksSafely } from "../scope3/review/service";
+import { parseRowQuality } from "../scope3/dq/input";
+import { METHOD_KEYS } from "../scope3/contracts/ghgCategory";
 
 const repo = AppDataSource.getRepository(Emission);
 const emissionFactorRepo = AppDataSource.getRepository(EmissionFactor);
@@ -116,6 +118,19 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "ready must be 1 or 0" });
     }
     const readyFilter = readyParam === null ? null : readyParam === "1" || readyParam === "true";
+    // S3-3 method=<key>: rows calculated that way. An unknown key is refused
+    // rather than quietly matching nothing.
+    const methodFilter = typeof req.query.method === "string" ? req.query.method.trim() : "";
+    if (methodFilter && !(METHOD_KEYS as readonly string[]).includes(methodFilter)) {
+      return res.status(400).json({ message: `method must be one of ${METHOD_KEYS.join(", ")}` });
+    }
+    // S3-3 dq_max=<1|2|3>: rows whose overall data quality is at least that
+    // good (1 is best). A row with no data quality has none to meet, so it is
+    // left out rather than counted as good.
+    const dqMaxParam = req.query.dq_max === undefined ? null : String(req.query.dq_max);
+    if (dqMaxParam !== null && !["1", "2", "3"].includes(dqMaxParam)) {
+      return res.status(400).json({ message: "dq_max must be 1, 2 or 3" });
+    }
     const siteIds = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     // categoryIds=1,2 (several) or the older categoryId=1.
     if (hasInvalidCategoryIds(req.query as { categoryIds?: unknown; categoryId?: unknown })) {
@@ -171,6 +186,11 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       if (attention) qb.andWhere(attentionSql("emission"), { attentionBelow: ATTENTION_BELOW });
     }
     if (readyFilter !== null) qb.andWhere(readyFilter ? READY_SQL("emission") : HELD_SQL("emission"));
+
+    if (methodFilter) qb.andWhere("emission.method = :methodFilter", { methodFilter });
+    if (dqMaxParam !== null) {
+      qb.andWhere("(emission.dq->>'overall')::int <= :dqMax", { dqMax: Number(dqMaxParam) });
+    }
 
     if (date) {
       // Date format: YYYY-MM (e.g., 2024-01)
@@ -417,6 +437,12 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     // `let`: per-unit spec categories replace a spelling variant ("Tonne KM")
     // with the canonical unit key so matching and storage stay consistent.
     let activity_data_unit = req.body.activity_data_unit;
+    // S3-3: how the contributor says the row was calculated, whether the
+    // figure is an estimate, and a data quality they judged by hand.
+    const quality = parseRowQuality(req.body);
+    if (!quality.ok) {
+      return res.status(400).json({ message: quality.message, code: "FIELD_INVALID", field: quality.field });
+    }
     const userId = req.user?.userId;
 
     if (!site_id || !category_id || !activity_data || !date_of_reporting) {
@@ -549,9 +575,10 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
         year_type: effectivePeriod === "yearly" ? year_type : null,
       },
       extra_data: extra_data || {},
+      ...quality.value,
     });
     if (!prepared.ok) {
-      return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
+      return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
     }
     const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null));
 
@@ -645,9 +672,9 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.reviewed_at = null as any;
 
       // The factor year follows the new reporting date when one is sent.
-      const prepared = await recalculateEntry(emission, activity_data, date_of_reporting);
+      const prepared = await recalculateEntry(emission, activity_data, extra_data !== undefined ? extra_data : emission.extra_data, date_of_reporting);
       if (!prepared.ok) {
-        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
+        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
       }
       if (prepared.entry.computed && !(prepared.entry.computed.activityValue > 0)) {
         return res.status(400).json({
@@ -737,7 +764,7 @@ const ymd = (d: unknown): string => (typeof d === "string" ? d.slice(0, 10) : ne
  * resolution, unit check, kgCO₂e total, snapshot and the FERA twin. A new
  * reporting date counts, since the factor year follows it. Nothing is written.
  */
-async function recalculateEntry(emission: Emission, activity_data: any, newDate?: string): Promise<PrepareResult> {
+async function recalculateEntry(emission: Emission, activity_data: any, extra_data: Record<string, any> | null | undefined, newDate?: string): Promise<PrepareResult> {
   const site_id = emission.site.site_id;
   const category_id = emission.category.category_id;
   const ctx = await new ContextCache(AppDataSource.manager).context(site_id, category_id);
@@ -752,6 +779,9 @@ async function recalculateEntry(emission: Emission, activity_data: any, newDate?
       reporting_period: yearly ? "yearly" : "monthly",
       year_type: yearly ? ((emission.year_type as "CY" | "FY" | null) ?? null) : null,
     },
+    extra_data: extra_data ?? {},
+    // S3-5: a spend row keeps the rate it was saved with while its currency and purchase date don't change.
+    storedFx: emission.fx,
   });
 }
 
@@ -763,13 +793,15 @@ function applyComputed(emission: Emission, entry: PreparedEntry): void {
     emission.gas_kg = null;
     emission.biogenic_kg = null;
     emission.emission_factor_snapshot = null as any;
+    emission.fx = null;
     return;
   }
   emission.total_emission = entry.computed.total;
   emission.total_kgco2e = entry.computed.total_kgco2e ?? null;
   emission.gas_kg = entry.computed.gas_kg ?? null;
   emission.biogenic_kg = entry.computed.biogenic_kg ?? null;
-  emission.emission_factor_snapshot = factorSnapshot(entry.factor) as any;
+  emission.emission_factor_snapshot = factorSnapshot(entry.factor, entry.computed.deflator) as any;
+  emission.fx = entry.computed.fx ?? null;
   emission.activity_data_unit = (entry.input.activity_data_unit ?? emission.activity_data_unit) as any;
 }
 
@@ -3137,10 +3169,10 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
 
       // Same engine as a new entry (S3-4); the new date is already applied,
       // so the factor year follows it.
-      const prepared = await recalculateEntry(emission, activity_data);
+      const prepared = await recalculateEntry(emission, activity_data, emission.extra_data);
       if (!prepared.ok) {
         // Saving would keep the old total next to the new values.
-        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.extra ?? {}) });
+        return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
       }
       const { entry } = prepared;
       if (entry.computed && !(entry.computed.activityValue > 0)) {

@@ -9,6 +9,7 @@ import { Readable } from "stream";
 import { accessibleSiteIds } from "../utils/companyScope";
 import { refreshChecksSafely } from "../scope3/review/service";
 import { EntityManager, In } from "typeorm";
+import { refreshDqForEvidenceSafely } from "../scope3/dq/evidence";
 
 const documentRepo = AppDataSource.getRepository(EmissionDocument);
 // S3-15: EVIDENCE_ATTACHED reads the documents linked to an entry.
@@ -20,8 +21,13 @@ const emissionIdsOfDocuments = async (documentIds: number[]): Promise<number[]> 
   );
   return rows.map((r) => Number(r.emission_id));
 };
-const refreshEvidenceChecks = (emissionIds: Array<number | string | null | undefined>) =>
-  refreshChecksSafely(AppDataSource.manager, emissionIds.map(Number).filter((n) => Number.isInteger(n) && n > 0));
+// S3-15's checks and S3-3's data quality both read the documents on an entry,
+// so an evidence change refreshes the two together.
+const refreshEvidenceChecks = async (emissionIds: Array<number | string | null | undefined>) => {
+  const ids = emissionIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  await refreshChecksSafely(AppDataSource.manager, ids);
+  await refreshDqForEvidenceSafely(AppDataSource.manager, ids);
+};
 
 const emissionRepo = AppDataSource.getRepository(Emission);
 

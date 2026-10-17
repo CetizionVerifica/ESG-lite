@@ -80,7 +80,16 @@ test("migrate:scope3-transport sets up the standard form once; the second run wr
   const after1 = await state();
   const standard = after1.configs.filter((c) => c.site_id === SITE);
   assert.deepEqual(standard.map((c) => c.config_name).sort(), ["Transport - Standard - Downstream", "Transport - Standard - Upstream"]);
-  for (const c of standard) assert.equal(c.calculation.standard, "scope3-transport@1");
+  for (const c of standard) {
+    assert.equal(c.calculation.standard, "scope3-transport@1");
+    assert.match(c.calculation.standard_hash, /^[0-9a-f]{32}$/);
+  }
+  // S3-3 method_options: Cat 4 fuel first, Cat 9 distance first, each with its units.
+  const methods = await q(`SELECT category_id, method_options FROM column_config WHERE site_id = ${SITE} ORDER BY category_id`);
+  const byCat = Object.fromEntries(methods.filter((m) => [UP, DOWN].includes(m.category_id)).map((m) => [m.category_id, m.method_options]));
+  assert.deepEqual(byCat[UP].map((o) => o.method), ["fuel_based", "distance_based", "site_specific", "average_data", "spend_based"]);
+  assert.deepEqual(byCat[DOWN].map((o) => o.method), ["distance_based", "fuel_based", "average_data", "site_specific", "spend_based"]);
+  assert.deepEqual(byCat[UP].find((o) => o.method === "distance_based").units, ["tonne.km", "km"]);
   const custom = after1.configs.find((c) => c.site_id === CUSTOM_SITE);
   assert.deepEqual(custom.calculation, { mode: "per_unit", methods: { km: { multiply: ["Km"] } } }, "the client's form is untouched");
   assert.equal((await q(`SELECT count(*)::int AS n FROM unit WHERE site_id = ${CUSTOM_SITE} AND category_id = ${UP}`))[0].n, 0, "no units added to a client's form");
@@ -143,3 +152,100 @@ test("a share over 100 % is refused; a pre-S3-8 tonne.km row holding only the di
   const [row] = await q(`SELECT total_emission FROM emission WHERE pk_id = $1`, [legacy.json.emission.pk_id]);
   assert.equal(Number(row.total_emission), 1.2);
 });
+
+test("a standard form a Superadmin edited is left alone on the next start; their methods stay", async () => {
+  const [cfg] = await q(`SELECT pk_id, emission_category_mapping, method_options FROM column_config WHERE site_id = ${SITE} AND category_id = ${DOWN}`);
+  const mapping = { ...cfg.emission_category_mapping, "Road|Van|Diesel [km]": "Client van factor" };
+  const methods = [{ method: "distance_based", units: ["tonne.km", "km"] }];
+  await q(`UPDATE column_config SET emission_category_mapping = $1, method_options = $2 WHERE pk_id = $3`, [JSON.stringify(mapping), JSON.stringify(methods), cfg.pk_id]);
+  const out = seed();
+  assert.match(out, /configs written: 0/);
+  assert.match(out, new RegExp(`customised configs left as they are: .*\\b${cfg.pk_id}\\b`));
+  const [after] = await q(`SELECT emission_category_mapping, method_options FROM column_config WHERE pk_id = $1`, [cfg.pk_id]);
+  assert.equal(after.emission_category_mapping["Road|Van|Diesel [km]"], "Client van factor");
+  assert.deepEqual(after.method_options, methods);
+});
+
+test("an estimated distance is saved as is_estimate and warns ESTIMATED_DISTANCE; a measured one doesn't", async () => {
+  const data = (ref) => ({ "Weight (tonne)": "10", "Distance travelled": "500", emission_category: "Road - HGV (all diesel) - All rigids [tonne.km]", "Shipment Ref": ref });
+  const est = await createEntry(data("EST-1"), "tonne.km", { is_estimate: true });
+  assert.equal(est.status, 201, JSON.stringify(est.json));
+  assert.deepEqual(est.json.warnings.map((w) => w.code), ["ESTIMATED_DISTANCE"]);
+  const [row] = await q(`SELECT is_estimate, total_emission FROM emission WHERE pk_id = $1`, [est.json.emission.pk_id]);
+  assert.equal(row.is_estimate, true);
+  assert.equal(Number(row.total_emission), 1.2, "the warning never changes the total");
+  const measured = await createEntry(data("EST-2"), "tonne.km");
+  assert.equal(measured.status, 201);
+  assert.deepEqual(measured.json.warnings ?? [], []);
+});
+
+test("a Category 9 row the company says it paid for warns TRANSPORT_PAID_BY_MISMATCH and is still saved", async () => {
+  await q(`INSERT INTO emission_factors (site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name) VALUES
+    (${SITE}, ${DOWN}, 2025, 0.2, 'tonne.km', 'CI', 'Road - HGV (all diesel) - All rigids [tonne.km]', 'Road - HGV (all diesel) - All rigids [tonne.km]')`);
+  const data = (ref) => ({ "Weight (tonne)": "4", "Distance travelled": "2000", emission_category: "Road - HGV (all diesel) - All rigids [tonne.km]", "Shipment Ref": ref });
+  const ours = await createEntry(data("DN-1"), "tonne.km", { category_id: DOWN, extra_data: { paid_by: "We paid" } });
+  assert.equal(ours.status, 201, JSON.stringify(ours.json));
+  assert.deepEqual(ours.json.warnings.map((w) => w.code), ["TRANSPORT_PAID_BY_MISMATCH"]);
+  assert.equal(Number((await q(`SELECT total_emission FROM emission WHERE pk_id = $1`, [ours.json.emission.pk_id]))[0].total_emission), 1.6, "ex-9.1: 4 t × 2,000 km × 0.2 = 1,600 kg");
+  const theirs = await createEntry(data("DN-2"), "tonne.km", { category_id: DOWN, extra_data: { paid_by: "Customer or other" } });
+  assert.equal(theirs.status, 201);
+  assert.deepEqual(theirs.json.warnings ?? [], []);
+  // Category 4 is never flagged: inbound freight is Category 4 whoever paid.
+  const up = await createEntry(data("UP-1"), "tonne.km", { extra_data: { paid_by: "Customer or other" } });
+  assert.equal(up.status, 201);
+  assert.deepEqual(up.json.warnings ?? [], []);
+});
+
+test("a row that names no method records the one its unit belongs to; totals are the same (S3-8 default by unit)", async () => {
+  // Rows saved above on the Category 4 form (fuel_based first): each unit's own method.
+  const byRef = Object.fromEntries(
+    (await q(`SELECT activity_data->>'Shipment Ref' AS ref, method FROM emission WHERE pk_id = ANY($1::int[]) AND category_id = ${UP}`, [created])).map((r) => [r.ref, r.method]),
+  );
+  assert.equal(byRef.A, "fuel_based", "litre");
+  assert.equal(byRef.B, "fuel_based", "kWh: fuel_based and site_specific both list it; the form's order decides");
+  assert.equal(byRef.C, "fuel_based", "kg: likewise");
+  assert.equal(byRef.D, "average_data", "m³.day");
+  assert.equal(byRef.E, "average_data", "pallet day");
+  assert.equal(byRef.F, "average_data", "teu.day");
+  assert.equal(byRef.G, "distance_based", "tonne.km");
+  assert.equal(byRef.I, "distance_based", "a legacy tonne.km row");
+
+  // Category 9 (distance_based first): litres record fuel_based, not the form's first method.
+  const [down] = await q(`SELECT pk_id FROM column_config WHERE site_id = ${SITE} AND category_id = ${DOWN}`);
+  await q(`UPDATE column_config SET method_options = $1 WHERE pk_id = $2`, [
+    JSON.stringify([
+      { method: "distance_based", units: ["tonne.km", "km"] },
+      { method: "fuel_based", units: ["litre", "kWh", "kg"] },
+      { method: "average_data", units: ["m3.day", "pallet.day", "teu.day"] },
+    ]),
+    down.pk_id,
+  ]);
+  const fuel = { "Fuel used (litres)": "500", "Your share of the load (%)": "50", emission_category: "Fuel - Diesel (average biofuel blend) [litre]", "Shipment Ref": "DN-FUEL" };
+  const r = await createEntry(fuel, "litre", { category_id: DOWN });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  const [row] = await q(`SELECT method, total_emission FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]);
+  assert.equal(row.method, "fuel_based");
+  assert.equal(Number(row.total_emission), 0.8, "500 L × 50 % × 3.18183 kg/L = 795 kg");
+  const named = await createEntry({ ...fuel, "Shipment Ref": "DN-FUEL-2" }, "litre", { category_id: DOWN, method: "fuel_based" });
+  assert.equal(named.status, 201);
+  assert.equal((await q(`SELECT method FROM emission WHERE pk_id = $1`, [named.json.emission.pk_id]))[0].method, "fuel_based", "a method the row names wins");
+});
+
+test("D6: the seeded DEFRA fuel factors are flagged as including WTT; fuel rows warn WTT_ALREADY_IN_FACTOR and keep their total", async () => {
+  const flags = await q(`SELECT DISTINCT emission_category_name AS n, factor_type, includes_wtt FROM emission_factors WHERE site_id = ${SITE} AND category_id = ${UP} AND source LIKE '% (S3-8)' ORDER BY 1`);
+  for (const f of flags) assert.equal(f.includes_wtt, f.n.startsWith("Fuel - "), f.n);
+  for (const f of flags) assert.equal(f.factor_type, f.n.startsWith("Fuel - ") ? "life_cycle" : "other", f.n);
+
+  // Rows seeded before the flag existed are flagged on the next run; nothing else changes.
+  await q(`UPDATE emission_factors SET includes_wtt = false WHERE site_id = ${SITE} AND category_id = ${UP} AND emission_category_name = 'Fuel - Diesel (average biofuel blend) [litre]'`);
+  const before = await q(`SELECT emission_factor_id, factor_value FROM emission_factors WHERE category_id IN (${UP}, ${DOWN}) ORDER BY 1`);
+  assert.match(seed(), /WTT flagged: 2\b/);
+  assert.deepEqual(await q(`SELECT emission_factor_id, factor_value FROM emission_factors WHERE category_id IN (${UP}, ${DOWN}) ORDER BY 1`), before);
+  assert.match(seed(), /WTT flagged: 0\b/);
+
+  const r = await createEntry({ "Fuel used (litres)": "1000", "Your share of the load (%)": "100", emission_category: "Fuel - Diesel (average biofuel blend) [litre]", "Shipment Ref": "WTT-1" }, "litre");
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.deepEqual(r.json.warnings.map((w) => w.code), ["WTT_ALREADY_IN_FACTOR"]);
+  assert.equal(Number((await q(`SELECT total_emission FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]))[0].total_emission), 3.18, "the total is kept");
+});
+

@@ -35,6 +35,10 @@ import { OauthToken } from "../entities/OauthToken";
 import { CompanyScope3Category } from "../entities/CompanyScope3Category";
 import { CategoryGhgMapProposal } from "../entities/CategoryGhgMapProposal";
 import { Investment } from "../entities/Investment";
+import { FxRate } from "../entities/FxRate";
+import { PriceDeflator } from "../entities/PriceDeflator";
+import { CompanyBaseYear } from "../entities/CompanyBaseYear"; // S3-14
+import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 dotenv.config();
 
@@ -80,6 +84,10 @@ const entities = [
     CompanyScope3Category,
     CategoryGhgMapProposal,
     Investment, // S3-11
+    FxRate, // S3-5
+    PriceDeflator, // S3-5
+    CompanyBaseYear, // S3-14
+    RecalculationEvent, // S3-14
     ProductSale, // S3-10
 ];
 

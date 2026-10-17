@@ -77,9 +77,9 @@ Allowed factor types per category (checked at save, warning code `FACTOR_TYPE_MI
 | `emission.data_type` | varchar null | S3-3 |
 | `emission.is_estimate` | boolean default false | S3-3 |
 | `emission.total_kgco2e` | numeric(18,4) null (written beside `total_emission`) | S3-4 |
-| `emission.fx` | jsonb null `{currency, rate, as_of, source}` | S3-5 |
+| `emission.fx` | jsonb null `{currency, to, rate, as_of, source, spend_date?, fallback?}`: 1 `currency` = `rate` `to` on `as_of`; `spend_date` is the purchase date it was looked up for; `fallback: true` marks a stand-in rate (FX_RATE_FALLBACK: latest stored or live), which a recalculation quotes again once the purchase day is stored | S3-5 |
 | `fx_rate` | currency, date, rate_to_usd, source; unique (currency, date) | S3-5 |
-| `price_deflator` | country, year, index (base 100 = dataset base year), source | S3-5 |
+| `price_deflator` | country, year, index (any base, e.g. CPI-U 1982-84 = 100; only ratios index[base year] ÷ index[spend year] are used), source | S3-5 |
 | `supplier` | supplier_id, company_id, name, country, email null, created_by; unique (company_id, lower(name)) | S3-6 |
 | `emission.supplier_id` | int null FK supplier | S3-6 |
 | `supplier_factor` | id, company_id, supplier_id, item, unit, kgco2e_per_unit, boundary (`cradle_to_gate`), reference_year, gwp_set, evidence_document_id, source (`supplier_request`, `manual`), material_factor_id null | S3-6 |
@@ -157,7 +157,7 @@ Dispatch order (`methodFileFor` in `compute.ts`), first match wins:
 3. any other method on a category with a calculation spec → `methods/spec.ts`, so `fuel_based`, `distance_based`, `site_specific` and `average_data` forms (S3-8 to S3-11) need no method file of their own;
 4. everything else → `methods/activity.ts`.
 
-As built today `methodFileFor` checks `ctx.spec` first. S3-5 changes it to this order when `spend.ts` lands; no row carries a method yet, so the change moves no numbers (golden re-run confirms it).
+S3-5 put `methodFileFor` in this order. A row carrying a spend quote (asked for with `@method` until S3-3, or on an `eeio_spend` factor) goes to `methods/spend.ts` after step 2 and before step 3. No row carries a method yet, so the order moved no numbers (golden re-run confirms it).
 
 **Shared spec additions** (built by S3-9; contract owned by S3-0 here in §6; used by S3-8, S3-10 and S3-11):
 - `MethodCalculation.divide?: string[]`: fields to divide by, each > 0 (0 or empty → `FIELD_REQUIRED`); a field also listed in `percent` divides by value / 100.
@@ -169,7 +169,7 @@ As built today `methodFileFor` checks `ctx.spec` first. S3-5 changes it to this 
 ## 7. Error and warning codes (add to `src/imports/errors.ts` style)
 
 Errors: `SCOPE_INVALID`, `GHG_CATEGORY_INVALID`, `GHG_CATEGORY_REQUIRED` (Scope 3 category with no number, after the backfill is confirmed), `EXCLUSION_REASON_REQUIRED`, `UNIT_REQUIRED` (a factor with no unit), `METHOD_NOT_ALLOWED`, `CURRENCY_NOT_SUPPORTED`, `SUPPLIER_FACTOR_BOUNDARY`, `PERIOD_LOCKED`, `UNLOCK_REASON_REQUIRED`, `NOT_DRAFT`, `EXTRAPOLATION_BASIS_INVALID`, `PERIOD_INCOMPLETE`, `BASE_YEAR_NO_DATA`, `RECALCULATION_REASON_REQUIRED`.
-Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
+Warnings (never block): `FACTOR_FALLBACK_YEAR` (now on typed entries too), `FACTOR_TYPE_MISMATCH`, `FERA_FACTOR_MISSING`, `WTT_ALREADY_IN_FACTOR`, `FX_RATE_FALLBACK`, `NO_DEFLATOR`, `DEFLATOR_FALLBACK_YEAR` (spend year with no index yet: the latest earlier index was used), `ESTIMATED_DISTANCE`, `TRANSPORT_PAID_BY_MISMATCH`.
 
 ## 8. Review check ids (S3-15, `review/checks.ts`)
 
