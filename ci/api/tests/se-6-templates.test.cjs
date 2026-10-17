@@ -177,6 +177,17 @@ test("global templates seed a client's sites that have no form; a dry run writes
   assert.equal((await formsAt(3)).length, 1);
   const twice = await call("POST", "/admin/form-templates/seed?year=2025", "superadmin", { company_id: 2 });
   assert.deepEqual(twice.json.targets, [], "a site with a form is left alone");
+
+  // Company 1's new site has rows saved without a form: reported, not given one.
+  await q(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name) VALUES (9998, ${NEW_SITE}, ${CAT}, 2025, 2.6, 'litre', 'CI', 'SE-6 Diesel', 'SE-6 Diesel'), (9999, ${NEW_SITE}, ${CAT}, 2025, 2.1, 'litre', 'CI', 'SE-6 Petrol', 'SE-6 Petrol')`);
+  FACTORS.push(9998, 9999);
+  await q(`INSERT INTO emission (site_id, category_id, activity_data, total_emission, unit, date_of_reporting, status, reporting_period) VALUES (${NEW_SITE}, ${CAT}, '{"activity_value":"5","emission_category":"SE-6 Diesel"}', 0.013, 'tCO2e', '2026-07-31', 'pending', 'monthly')`);
+  const withRows = await call("POST", "/admin/form-templates/seed?year=2025", "superadmin", { company_id: 1 });
+  const c = withRows.json.targets.find((t) => t.site_id === NEW_SITE);
+  assert.deepEqual([c.status, c.saved_rows], ["refused", 1]);
+  assert.match(c.refused, /1 row was saved here without a form/);
+  assert.deepEqual(await formsAt(NEW_SITE), []);
+  await q(`DELETE FROM emission WHERE site_id = ${NEW_SITE}`);
 });
 
 test("deleting a template leaves the forms made from it", async () => {

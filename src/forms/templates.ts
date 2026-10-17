@@ -280,10 +280,15 @@ export async function applyToSites(
   return preview;
 }
 
-/** A client's sites get, for each category they report with no form yet, the newest global template for it. */
+/**
+ * A client's sites get, for each category they report with no form yet, the newest global template
+ * for it. A site whose rows were saved without a form is reported, not changed: a form would change
+ * how those rows are edited and re-imported (the S3-9 standard forms leave such sites alone too).
+ */
 export async function seedFromGlobal(m: EntityManager, companyId: number, opts: { year: number; userId: number | null; dryRun?: boolean }): Promise<Array<{ template_id: number; template_name: string } & TargetResult>> {
-  const gaps: Array<{ site_id: number; category_id: number; template_id: number; template_name: string }> = await m.query(
-    `SELECT DISTINCT ON (s.site_id, sc.category_id) s.site_id, sc.category_id, t.id AS template_id, t.name AS template_name
+  const gaps: Array<{ site_id: number; site_name: string; category_id: number; template_id: number; template_name: string; rows: number }> = await m.query(
+    `SELECT DISTINCT ON (s.site_id, sc.category_id) s.site_id, s.name AS site_name, sc.category_id, t.id AS template_id, t.name AS template_name,
+            (SELECT count(*)::int FROM emission e WHERE e.site_id = s.site_id AND e.category_id = sc.category_id) AS rows
        FROM site s JOIN site_categories sc ON sc.site_id = s.site_id
        JOIN form_template t ON t.category_id = sc.category_id AND t.company_id IS NULL
       WHERE s.company_id = $1 AND NOT EXISTS (SELECT 1 FROM column_config cc WHERE cc.site_id = s.site_id AND cc.category_id = sc.category_id)
@@ -292,6 +297,21 @@ export async function seedFromGlobal(m: EntityManager, companyId: number, opts: 
   );
   const out: Array<{ template_id: number; template_name: string } & TargetResult> = [];
   for (const g of gaps) {
+    if (g.rows > 0) {
+      out.push({
+        template_id: g.template_id,
+        template_name: g.template_name,
+        site_id: g.site_id,
+        site_name: g.site_name,
+        action: null,
+        form_id: null,
+        saved_rows: g.rows,
+        check: null,
+        status: "refused",
+        refused: `${g.rows} ${g.rows === 1 ? "row was" : "rows were"} saved here without a form; apply a template by hand once you've checked them.`,
+      });
+      continue;
+    }
     const input = { template_id: g.template_id, site_ids: [g.site_id], note: `Seeded from global template "${g.template_name}"` };
     const r = opts.dryRun ? await previewApply(m, input, opts.year) : await applyToSites(m, input, opts);
     out.push(...r.targets.map((t) => ({ template_id: g.template_id, template_name: g.template_name, ...t })));
