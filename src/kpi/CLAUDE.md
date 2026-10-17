@@ -50,3 +50,10 @@ Entities: `src/entities/Kpi*.ts`. Migrations: `src/scripts/migrateKpi<Thing>.ts`
    - Logs carry ids and codes, never values typed by users or document contents.
 9. **Validation** with the zod schemas from `contracts/schemas.ts`. Errors use the `{code, message, details}` shape and the codes in `contracts/errors.ts`.
 10. **Tests every module adds:** tenant isolation, role matrix, switch-off (`KPI_TRACKING_OFF`) for each endpoint, every new error code, migrations run twice, and its golden cases switched from `skip` to `run`.
+
+## KPI-1 as built
+- `company.kpi_tracking_enabled` (migrate:kpi-switch, `src/scripts/addKpiSwitch.ts`); set through `PUT /admin/companies/:id` (Superadmin; non-boolean → 400 `FIELD_INVALID`). A change writes `audit_log` (`kpi_setup`, `switch`, `{kpi_tracking_enabled:{old,new}}`); switching on sends `kpi_enabled` ("KPI tracking is ready: set it up", `/kpi/setup`) to the company's Admins (`src/kpi/switch.ts`).
+- `src/kpi/guard.ts`: `kpiCompanyFor` (Superadmin passes `company_id` in query or body, else 400 `KPI_COMPANY_REQUIRED`; another company's id → 404), `requireKpiTracking` (sets `req.kpi = {companyId, userId, role, sites}`), `requireKpiSuperadmin`, `kpiStatus`.
+- `src/kpi/http.ts`: `handle` (KpiError → `{code, message, details}`), `parse` (zod → `KPI_VALIDATION`).
+- In `router.ts`, `/status` and the library routes come before `router.use(requireKpiTracking)`. Unknown paths under `/kpi` answer `KPI_TRACKING_OFF` when off.
+- `setup_completed` is always false until KPI-3 (`kpiSetupCompleted`, TODO(KPI-3)).

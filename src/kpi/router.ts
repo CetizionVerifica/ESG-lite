@@ -1,14 +1,17 @@
 /**
  * KPI tracking API (KPI-0): mounted once at `/kpi` in src/index.ts, behind
  * `authenticate`. Each module appends ONE `router.use` line here, in module
- * order, and keeps its own routes in its folder (docs/kpi/00-plan.md §8):
- *   router.use(libraryRouter); // KPI-2
+ * order, and keeps its own routes in its folder (docs/kpi/00-plan.md §8).
+ *
+ * Order matters: GET /kpi/status and /kpi/library/* (Superadmin) come before
+ * `requireKpiTracking`; every other route sits behind it (layer rule 1).
  */
 import { Router } from "express";
+import { kpiStatus, requireKpiTracking } from "./guard";
 
 const router = Router();
 
-// KPI-0: answers off until KPI-1 adds the switch.
-router.get("/status", (_req, res) => res.json({ enabled: false, setup_completed: false }));
+router.get("/status", kpiStatus); // KPI-1: {enabled, setup_completed}, answers when off
+router.use(requireKpiTracking); // KPI-1: 403 KPI_TRACKING_OFF below this line
 
 export default router;

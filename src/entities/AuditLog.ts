@@ -15,7 +15,8 @@ export class AuditLog {
 
   @Column()
   // S3-0: Scope 3 modules write their own `scope3_*` entity types (boundary, base year, locks, supplier factors).
-  entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping" | "import_mapping_profile" | `scope3_${string}`;
+  // KPI-0: KPI modules write `kpi_value`, `kpi_setup`, `kpi_period_lock`, `kpi_target`, `kpi_library` (src/kpi/contracts/enums.ts).
+  entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping" | "import_mapping_profile" | `scope3_${string}` | `kpi_${string}`;
 
   @Column()
   entity_id!: number;

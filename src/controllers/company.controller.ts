@@ -11,6 +11,7 @@ import { UserRole } from "../types/type";
 import { resolveUserCompanyId } from "../utils/companyScope";
 import { ENTRY_DETAILS, EntryDetailSchema } from "../scope3/contracts/schemas";
 import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currencies";
+import { currentKpiSwitch, kpiSwitchChanged } from "../kpi/switch";
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -56,7 +57,15 @@ export const updateCompany = async (req: Request, res: Response) => {
   if ("entry_detail" in body && !EntryDetailSchema.safeParse(body.entry_detail).success) {
     return res.status(400).json({ code: "FIELD_INVALID", field: "entry_detail", message: `entry_detail must be ${ENTRY_DETAILS.join(" or ")}` });
   }
+  // KPI-1: KPI tracking (Superadmin only: this route sits behind requireSuperAdmin).
+  if ("kpi_tracking_enabled" in body && typeof body.kpi_tracking_enabled !== "boolean") {
+    return res.status(400).json({ code: "FIELD_INVALID", field: "kpi_tracking_enabled", message: "kpi_tracking_enabled must be true or false" });
+  }
+  const kpiSwitchBefore = "kpi_tracking_enabled" in body ? await currentKpiSwitch(Number(req.params.id)) : null;
   await repo.update(req.params.id, body);
+  if (kpiSwitchBefore !== null && kpiSwitchBefore !== body.kpi_tracking_enabled) {
+    await kpiSwitchChanged(Number(req.params.id), kpiSwitchBefore, body.kpi_tracking_enabled, Number((req as AuthRequest).user?.userId) || null);
+  }
   // Deactivating (or reactivating) a client takes effect on the next request.
   if ("status" in body) clearClientStatusCache();
   if (body.status === false) {

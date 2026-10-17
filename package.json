@@ -50,6 +50,7 @@
     "migrate:scope3-transport": "ts-node src/scripts/seedScope3Transport.ts",
     "migrate:scope3-suppliers": "ts-node src/scripts/createScope3SupplierTables.ts",
     "migrate:scope3-review-workflow": "ts-node src/scripts/migrateScope3ReviewWorkflow.ts",
+    "migrate:kpi-switch": "ts-node src/scripts/addKpiSwitch.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",

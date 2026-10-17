@@ -92,6 +92,13 @@ export class Company {
   @Column({ type: "varchar", length: 8, default: "total" })
   entry_detail!: string;
 
+  // KPI-1: KPI tracking (GRI, BRSR, ESRS) for this client, docs/kpi/. Off by
+  // default: with it off every /kpi route except /kpi/status and the
+  // Superadmin library answers KPI_TRACKING_OFF. Superadmin toggles it through
+  // PUT /admin/companies/:id (migrate:kpi-switch).
+  @Column({ default: false })
+  kpi_tracking_enabled!: boolean;
+
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];
 }
