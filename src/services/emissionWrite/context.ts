@@ -71,6 +71,7 @@ export class ContextCache {
       category_id,
       category_name: category?.category_name ?? "",
       scope: category?.scope ?? null,
+      ghg_category: category?.ghg_category ?? null,
       assigned: !!category,
       hasForm: configs.length > 0,
       spec,

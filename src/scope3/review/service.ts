@@ -14,10 +14,7 @@
  */
 import type { EntityManager } from "typeorm";
 import { ColumnConfig } from "../../entities/ColumnConfig";
-import { Emission } from "../../entities/Emission";
 import { getCalculationSpec } from "../../services/calculationSpec";
-import { findDuplicate } from "../../services/emissionWrite/checks";
-import type { CalculationSpec } from "../../entities/ColumnConfig";
 import { attentionSql, ATTENTION_BELOW } from "../../utils/importAttention";
 import { log } from "../../utils/logger";
 import { computeChecks, DEFAULT_THRESHOLD_PCT, type CheckRow } from "./checks";
@@ -137,41 +134,55 @@ const monthTotals = async (manager: EntityManager, keys: CheckKey[]): Promise<Ma
   return out;
 };
 
-/** The id of another counted row this one duplicates (same site, category, date and activity identity), or null. */
+/** What String.prototype.trim() strips, for btrim: specIdentityMatches trims identity values that way. */
+const JS_TRIM_CHARS = " \t\n\v\f\r                 　﻿";
+
+/**
+ * The id of another counted row this one duplicates (same site, category, date and activity identity), or null.
+ * Same rule as findDuplicate (emissionWrite/checks.ts): the lowest-id counted row with the same
+ * emission_category and, for spec categories, the same identity columns (trimmed, case-insensitive);
+ * without an emission_category any counted row on the date counts. The match runs in SQL and returns
+ * one id per row: a date can hold hundreds of thousands of rows (a bulk import), and loading every
+ * candidate's activity_data for every row of a batch ran the API out of memory.
+ */
 const duplicates = async (manager: EntityManager, rows: LoadedRow[]): Promise<Map<number, number | null>> => {
   const out = new Map<number, number | null>();
   if (!rows.length) return out;
-  const candidates: any[] = await manager.query(
-    `SELECT o.pk_id, o.activity_data, e.pk_id AS of_id
-       FROM emission e JOIN emission o
-         ON o.site_id = e.site_id AND o.category_id = e.category_id AND o.date_of_reporting = e.date_of_reporting
-        AND o.reporting_period = e.reporting_period AND o.pk_id <> e.pk_id
-        AND o.pk_id <> COALESCE(e.fera_linked_id, 0) AND COALESCE(o.fera_linked_id, 0) <> e.pk_id
-        -- S3-7: a parent's upstream and T&D twins both link to the parent, never to each other.
-        -- NULL-safe: an unlinked row is still a duplicate candidate of a linked one.
-        AND (e.fera_linked_id IS NULL OR o.fera_linked_id IS DISTINCT FROM e.fera_linked_id)
-      WHERE e.pk_id = ANY($1) AND o.status::text = ANY($2)
-      ORDER BY o.pk_id`,
-    [rows.map((r) => r.pk_id), COUNTED_STATUSES],
-  );
-  const byRow = new Map<number, Emission[]>();
-  for (const c of candidates) {
-    const list = byRow.get(Number(c.of_id)) ?? [];
-    list.push({ pk_id: Number(c.pk_id), activity_data: c.activity_data } as Emission);
-    byRow.set(Number(c.of_id), list);
-  }
-  const specs = new Map<string, Promise<CalculationSpec | null>>();
+  // Identity columns come from the site × category spec, so one query per spec.
   const configRepo = manager.getRepository(ColumnConfig);
+  const bySpec = new Map<string, LoadedRow[]>();
   for (const row of rows) {
-    const existing = byRow.get(row.pk_id);
-    if (!existing?.length) {
-      out.set(row.pk_id, null);
-      continue;
-    }
-    const specKey = `${row.site_id}:${row.category_id}`;
-    if (!specs.has(specKey)) specs.set(specKey, getCalculationSpec(configRepo, row.site_id, row.category_id));
-    const dup = findDuplicate(existing, row.activity_data ?? {}, await specs.get(specKey)!);
-    out.set(row.pk_id, dup ? dup.pk_id : null);
+    const key = `${row.site_id}:${row.category_id}`;
+    bySpec.set(key, [...(bySpec.get(key) ?? []), row]);
+  }
+  for (const group of bySpec.values()) {
+    const spec = await getCalculationSpec(configRepo, group[0].site_id, group[0].category_id);
+    const found: Array<{ pk_id: number; dup_id: number | null }> = await manager.query(
+      `SELECT e.pk_id, d.pk_id AS dup_id
+         FROM emission e
+         LEFT JOIN LATERAL (
+           SELECT o.pk_id FROM emission o
+            WHERE o.site_id = e.site_id AND o.category_id = e.category_id AND o.date_of_reporting = e.date_of_reporting
+              AND o.reporting_period = e.reporting_period AND o.pk_id <> e.pk_id
+              AND o.pk_id <> COALESCE(e.fera_linked_id, 0) AND COALESCE(o.fera_linked_id, 0) <> e.pk_id
+              -- S3-7: a parent's upstream and T&D twins both link to the parent, never to each other.
+              -- NULL-safe: an unlinked row is still a duplicate candidate of a linked one.
+              AND (e.fera_linked_id IS NULL OR o.fera_linked_id IS DISTINCT FROM e.fera_linked_id)
+              AND o.status::text = ANY($2)
+              -- findDuplicate tests emission_category for truthiness; a falsy one matches any row.
+              AND (COALESCE(e.activity_data -> 'emission_category', 'null') IN ('null', 'false', '0', '""')
+                   OR (o.activity_data -> 'emission_category' = e.activity_data -> 'emission_category'
+                       AND NOT EXISTS (
+                         SELECT 1 FROM unnest($3::text[]) AS c(col)
+                          WHERE lower(btrim(COALESCE(e.activity_data ->> c.col, ''), $4))
+                             <> lower(btrim(COALESCE(o.activity_data ->> c.col, ''), $4)))))
+            ORDER BY o.pk_id
+            LIMIT 1
+         ) d ON true
+        WHERE e.pk_id = ANY($1)`,
+      [group.map((r) => r.pk_id), COUNTED_STATUSES, spec?.identity_columns ?? [], JS_TRIM_CHARS],
+    );
+    for (const r of found) out.set(Number(r.pk_id), r.dup_id === null ? null : Number(r.dup_id));
   }
   return out;
 };

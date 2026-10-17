@@ -117,4 +117,16 @@ const BOUNDARY = {
   ],
 };
 
-module.exports = { YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, BOUNDARY };
+/**
+ * S3-6: one supplier, its own cradle-to-gate product figure, and one Category 1
+ * purchase from it calculated with that figure ("Supplier's own figure").
+ * 2.5 t of ingot × 8.6 kgCO₂e/kg = 2,500 kg × 8.6 = 21,500 kgCO₂e = 21.5 tCO₂e.
+ */
+const SUPPLIER = {
+  name: "Gulf Smelter Co.",
+  country: "BH",
+  factor: { item: "P1020 aluminium ingot", unit: "kg", kgco2e_per_unit: 8.6, reference_year: YEAR, boundary: "cradle_to_gate" },
+  purchase: { date: `${YEAR}-07-31`, quantity: 2.5, unit: "tonne", kg: 2500 * 8.6 },
+};
+
+module.exports = { SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, BOUNDARY };

@@ -15,7 +15,8 @@ import type { RowIssueCode } from "../../imports/errors";
 import { factorValueText, metaSnapshot } from "../../scope3/factors/meta";
 import type { Method } from "../../scope3/contracts/ghgCategory";
 import type { Dq, DataType } from "../../scope3/contracts/dq";
-import { autoDq, dataTypeFor } from "../../scope3/dq/defaults";
+import { autoDq, dataTypeFor, type DqFactorInput } from "../../scope3/dq/defaults";
+import type { SupplierEngineInput } from "../../scope3/suppliers/engineInput";
 import type { Gas } from "../../scope3/contracts/factor";
 import type { DeflatorUsed, EmissionFx, SpendQuote } from "../../scope3/spend/types";
 import * as activity from "./methods/activity";
@@ -34,6 +35,8 @@ export interface CategoryContext {
   category_id: number;
   category_name: string;
   scope: string | null;
+  /** The category's GHG Protocol Scope 3 number (S3-1), when it has one. */
+  ghg_category?: number | null;
   /** The site has this category assigned. */
   assigned: boolean;
   /** A column config exists for site × category. */
@@ -89,13 +92,31 @@ export interface Computed {
   deflator?: DeflatorUsed;
   /** Warnings the method raised (never block): FX_RATE_FALLBACK, NO_DEFLATOR. */
   warnings?: EngineIssue[];
+  /**
+   * S3-6: the stored factor snapshot when the method's figure is not the row's
+   * emission factor (a supplier's figure, or a hybrid row's components).
+   * Unset means `factorSnapshot(row factor)`, as before.
+   */
+  snapshot?: Record<string, unknown>;
+  /** S3-6: the supplier whose figures the row was calculated from. */
+  supplier_id?: number;
+  /**
+   * S3-6: what the DQ rules should read instead of the row's emission factor,
+   * when the method used another figure. Consumed by computeRow, never stored.
+   */
+  quality?: { factor: DqFactorInput; siteCountry?: string | null; hasEvidence?: boolean };
 }
 
 export type ComputeResult = { ok: true; computed: Computed } | { ok: false; issue: EngineIssue };
 
 /** One row as the method files see it. */
 export interface EngineRow {
-  factor: EmissionFactor;
+  /**
+   * The activity's emission factor. Null only on a supplier-specific or hybrid
+   * row whose activity has no factor of its own: those methods use the
+   * supplier's figures instead (S3-6).
+   */
+  factor: EmissionFactor | null;
   /** Spec categories write the computed product into `activity_value`. */
   activity_data: Record<string, any>;
   activity_unit: string;
@@ -117,10 +138,16 @@ export interface EngineRow {
   manualDq?: Dq | null;
   /** S3-5: amount, rate and deflator of a spend row, loaded before the engine runs (src/scope3/spend/rates.ts). */
   spend?: SpendQuote;
+  /** S3-6: the supplier's figures, loaded by `src/scope3/suppliers` for supplier-specific and hybrid rows. */
+  supplier?: SupplierEngineInput | null;
 }
 
+/** A row the factor methods (activity, spec, spend, proxy) get: it always has its emission factor. */
+export type FactorRow = EngineRow & { factor: EmissionFactor };
+
 /** Every method file exports `compute(ctx, row)`. */
-type MethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeResult };
+type MethodFile = { compute: (ctx: CategoryContext, row: FactorRow) => ComputeResult };
+type SupplierMethodFile = { compute: (ctx: CategoryContext, row: EngineRow) => ComputeResult };
 
 const SCOPE_3 = "Scope 3";
 
@@ -134,7 +161,7 @@ const SCOPE_3 = "Scope 3";
  * times a published factor *is* the average-data method. `unknown` is kept for
  * legacy rows that never recorded anything.
  */
-export const methodFor = (ctx: CategoryContext, row: EngineRow): Method | null => {
+export const methodFor = (ctx: CategoryContext, row: Pick<EngineRow, "method" | "rowMethod" | "activity_unit">): Method | null => {
   if (ctx.scope !== SCOPE_3) return null;
   return row.method ?? row.rowMethod ?? methodForUnit(ctx, row.activity_unit) ?? ctx.method_options?.[0] ?? "average_data";
 };
@@ -169,12 +196,16 @@ export const methodForUnit = (ctx: CategoryContext, unit: unknown): Method | nul
  * Only the method the caller sends (`row.method`) picks a file here. The form's
  * default (`method_options[0]`) reaches the engine another way: index.ts asks
  * for a spend quote when it is spend_based, and that quote picks the spend
- * file. Supplier and hybrid are still stubs (S3-6), so routing a form default
- * or an `@method` to them would move totals that today come from the spec.
+ * file. S3-6: supplier-specific and hybrid are real methods now. index.ts
+ * passes them as `row.method` whenever the row asks for one (its `method`,
+ * its `@method`, or the form's default when the row names a supplier); an
+ * `@method` naming one, with the supplier's figures on the row, routes the
+ * same way here for callers that don't.
  */
-const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
+const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile | SupplierMethodFile => {
   if (row.proxy) return proxy;
-  switch (row.method) {
+  const named = row.method ?? (row.supplier && (row.rowMethod === "supplier_specific" || row.rowMethod === "hybrid") ? row.rowMethod : null);
+  switch (named) {
     case "spend_based":
       return spend;
     case "supplier_specific":
@@ -194,38 +225,47 @@ const methodFileFor = (ctx: CategoryContext, row: EngineRow): MethodFile => {
  * total: it is worked out from the method, the factor's own metadata, the
  * site's country and the reporting year, and attached to the result.
  */
+const isSupplierMethod = (file: MethodFile | SupplierMethodFile): file is SupplierMethodFile => file === supplier || file === hybrid;
+
 export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
-  const result = methodFileFor(ctx, row).compute(ctx, row);
+  const file = methodFileFor(ctx, row);
+  let result: ComputeResult;
+  if (isSupplierMethod(file)) result = file.compute(ctx, row);
+  else if (row.factor) result = file.compute(ctx, row as FactorRow);
+  else return { ok: false, issue: { code: "NO_FACTOR_FOR_YEAR", message: "No emission factor was found for this activity." } };
   if (!result.ok) return result;
   if (ctx.scope !== SCOPE_3) {
     // Scope 1 and Scope 2 rows carry no method, even when a file names one (a Scope 2 bill in INR takes the spend file).
-    const { method: _method, dq: _dq, data_type: _dataType, ...rest } = result.computed;
+    const { method: _method, dq: _dq, data_type: _dataType, quality: _quality, ...rest } = result.computed;
     return { ok: true, computed: rest };
   }
+  const { quality, ...computed } = result.computed;
   // The method file's own word wins (a spend quote makes a spend row, S3-5), then the row's, then the form's.
-  const method = result.computed.method ?? methodFor(ctx, row);
-  if (!method) return result;
+  const method = computed.method ?? methodFor(ctx, row);
+  if (!method) return { ok: true, computed };
 
+  // S3-6: a supplier's figure (or the evidence on it) speaks for the row.
+  const hasEvidence = !!row.hasEvidence || !!quality?.hasEvidence;
   const dq =
     row.manualDq ??
     autoDq({
       method,
-      factor: { geography: row.factor?.geography, year: row.factor?.year, factor_type: row.factor?.factor_type },
-      siteCountry: ctx.site_country,
+      factor: quality?.factor ?? { geography: row.factor?.geography, year: row.factor?.year, factor_type: row.factor?.factor_type },
+      siteCountry: quality ? quality.siteCountry : ctx.site_country,
       // The row is being written now, so this year stands in when the caller
       // names no period; every write path in index.ts passes the real one.
       reportingYear: row.reportingYear ?? new Date().getUTCFullYear(),
-      hasEvidence: row.hasEvidence,
+      hasEvidence,
       isProxy: !!row.proxy,
     });
 
   return {
     ok: true,
     computed: {
-      ...result.computed,
+      ...computed,
       method,
       dq,
-      data_type: dataTypeFor({ method, hasEvidence: row.hasEvidence }),
+      data_type: dataTypeFor({ method, hasEvidence }),
     },
   };
 };
@@ -237,11 +277,11 @@ export const computeRow = (ctx: CategoryContext, row: EngineRow): ComputeResult 
  */
 export const computeTotal = (
   ctx: CategoryContext,
-  factor: EmissionFactor,
+  factor: EmissionFactor | null,
   activity_data: Record<string, any>,
   activity_unit: string,
-  /** S3-3 and S3-5: what the row says about its own method and quality, and a spend row's quote. */
-  extra: Pick<EngineRow, "method" | "rowMethod" | "reportingYear" | "hasEvidence" | "manualDq" | "proxy" | "spend"> = {},
+  /** S3-3, S3-5 and S3-6: what the row says about its own method and quality, a spend row's quote, a supplier row's figures. */
+  extra: Pick<EngineRow, "method" | "rowMethod" | "reportingYear" | "hasEvidence" | "manualDq" | "proxy" | "spend" | "supplier"> = {},
 ): ComputeResult & { activity_unit?: string } => computeRow(ctx, { factor, activity_data, activity_unit, ...extra });
 
 /** The stored factor snapshot; a spend row adds the deflator it used (S3-5). */

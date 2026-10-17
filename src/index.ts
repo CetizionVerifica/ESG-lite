@@ -19,6 +19,7 @@ import { fxRouter } from "./scope3/spend/router";
 import { startFxJob } from "./scope3/spend/fxJob";
 import supplierPublicRoutes from "./routes/supplierPublic.routes";
 import { companyRouter as scope3CompanyRouter } from "./scope3/boundary/router";
+import suppliersRouter from "./scope3/suppliers/router";
 import { registerUploadNotifyListener } from "./services/uploadNotify";
 import { registerMappingMemoryListener } from "./imports/profiles/service";
 import { onBatchCommitted } from "./imports/writer";
@@ -93,6 +94,7 @@ app.use("/fx-rates", authenticate, fxRouter); // S3-5: stored FX rates for spend
 app.use("/internal/imports", internalImportsRouter); // IM4, service key
 app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, no account
 app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
+app.use("/suppliers", authenticate, suppliersRouter); // S3-6 suppliers, their figures and coverage
 
 let server: any;
 

@@ -40,6 +40,9 @@ import { PriceDeflator } from "../entities/PriceDeflator";
 import { CompanyBaseYear } from "../entities/CompanyBaseYear"; // S3-14
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
+import { Supplier } from "../entities/Supplier";
+import { SupplierFactor } from "../entities/SupplierFactor";
+import { SupplierFacilityData } from "../entities/SupplierFacilityData";
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -89,6 +92,10 @@ const entities = [
     CompanyBaseYear, // S3-14
     RecalculationEvent, // S3-14
     ProductSale, // S3-10
+    // S3-6
+    Supplier,
+    SupplierFactor,
+    SupplierFacilityData,
 ];
 
 // Parse DATABASE_URL to extract connection parameters
