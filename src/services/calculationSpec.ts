@@ -113,7 +113,13 @@ export function resolveSpecMethod(
   }
   const methodColumn = spec.method_column ?? "";
   const byRow = methodColumn === ROW_METHOD_COLUMN;
-  const methodValue = byRow && rowMethod ? rowMethod : activity_data[methodColumn];
+  let methodValue = byRow && rowMethod ? rowMethod : activity_data[methodColumn];
+  // SE-5: a form whose question replaced "@method" (migrate:entry-forms-data) still calculates the
+  // rows saved before it, which have no answer: their method decides, as it did, when the spec has it.
+  if (!byRow && (methodValue === undefined || methodValue === null || String(methodValue).trim() === "")) {
+    const before = rowMethod ?? activity_data[ROW_METHOD_COLUMN];
+    if (before !== undefined && before !== null && spec.methods[normalizeMethodKey(before)]) methodValue = before;
+  }
   const methodKey =
     methodValue === undefined || methodValue === null ? "" : normalizeMethodKey(methodValue);
   if (methodKey === "") {

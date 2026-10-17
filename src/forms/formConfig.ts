@@ -27,7 +27,7 @@ import {
 import { MethodSchema, methodLabel, type Method } from "../scope3/contracts/ghgCategory";
 import { readMethodOptions } from "../scope3/dq/methodOptions";
 import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currencies";
-import { normalizeUnitKey } from "../services/calculationSpec";
+import { normalizeUnitKey, ROW_METHOD_COLUMN } from "../services/calculationSpec";
 
 // ── Reading (engine side: tolerant) ─────────────────────────────────────────
 
@@ -138,11 +138,18 @@ const valueOf = (data: Record<string, unknown> | null | undefined, key: string):
 
 const isEmpty = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
 
-/** The method the row's answer to the form's choice picks, or null (no choice map, no answer, or an answer it doesn't map). */
+/**
+ * The method the row's answer to the form's choice picks, or null (no choice map, no answer, or an answer it doesn't map).
+ * SE-5: a form moved off "@method" asks a question whose answers are the method keys, so a row that
+ * names one in "@method" instead (saved before the move, or sent by a screen or sheet that still
+ * does) has answered it.
+ */
 export const methodByChoice = (settings: FormSettings, activity_data: Record<string, unknown> | null | undefined): Method | null => {
   if (!settings.choice) return null;
   const answer = valueOf(activity_data, settings.choice.column);
-  return isEmpty(answer) ? null : (settings.choice.methods.get(lower(answer)) ?? null);
+  if (!isEmpty(answer)) return settings.choice.methods.get(lower(answer)) ?? null;
+  const atMethod = activity_data?.[ROW_METHOD_COLUMN];
+  return isEmpty(atMethod) ? null : (settings.choice.methods.get(lower(atMethod)) ?? null);
 };
 
 /**
