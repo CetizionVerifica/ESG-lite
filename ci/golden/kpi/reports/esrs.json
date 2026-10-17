@@ -1,0 +1,210 @@
+{
+ "about": "ESRS 2023 for input.json, worked by hand. Energy in MWh: 5,400 GJ ÷ 3.6 = 1,500 MWh (2025: 3,240 GJ = 900 MWh). NOx in kg: 2.5 t = 2,500 kg. Intensities per INR crore can't become per EUR million without an exchange rate ESGLite doesn't apply: they stay in the canonical unit with a note. E1 and E2 material; E3 not material (with the company's reason); E5 and S1 not assessed. GOV-1 (women on the board) has only a pending value: missing.",
+ "totals": {
+  "disclosures": 15,
+  "reported": 0,
+  "partial": 3,
+  "omitted": 12
+ },
+ "pending": 3,
+ "rows": [
+  {
+   "code": "E1-5",
+   "status": "partial",
+   "items": [
+    {
+     "code": "ENERGY_TOTAL",
+     "status": "approved",
+     "value": 1500,
+     "previous": 900,
+     "unit": "MWh",
+     "complete": true,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_RENEWABLE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "MWh",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_NON_RENEWABLE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "MWh",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_RENEWABLE_SHARE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "%",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_INTENSITY_REVENUE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "GJ per INR crore",
+     "complete": false,
+     "evidence": 0,
+     "unit_note": "Shown in GJ per INR crore: MWh per EUR million needs a conversion ESGLite doesn't make."
+    }
+   ]
+  },
+  {
+   "code": "E1-6",
+   "status": "partial",
+   "items": [
+    {
+     "code": "GHG_SCOPE1",
+     "status": "approved",
+     "value": 180.75,
+     "previous": 200,
+     "unit": "tCO2e",
+     "complete": true,
+     "evidence": 0
+    },
+    {
+     "code": "GHG_SCOPE2_LB",
+     "status": "approved",
+     "value": 300,
+     "previous": null,
+     "unit": "tCO2e",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "GHG_SCOPE2_MB",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "tCO2e",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "GHG_SCOPE3",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "tCO2e",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "GHG_INTENSITY_REVENUE",
+     "status": "approved",
+     "value": 1.923,
+     "previous": 1.5,
+     "unit": "tCO2e per INR crore",
+     "complete": true,
+     "evidence": 0,
+     "unit_note": "Shown in tCO2e per INR crore: tCO2e per EUR million needs a conversion ESGLite doesn't make."
+    }
+   ]
+  },
+  {
+   "code": "E2-4",
+   "status": "partial",
+   "items": [
+    {
+     "code": "AIR_NOX",
+     "status": "approved",
+     "value": 2500,
+     "previous": null,
+     "unit": "kg",
+     "complete": false,
+     "evidence": 1
+    },
+    {
+     "code": "AIR_SOX",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "kg",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "AIR_PM",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "kg",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  }
+ ],
+ "omissions": [
+  [
+   "GOV-1",
+   "missing"
+  ],
+  [
+   "E3-4",
+   "not_material",
+   "No water stress at our sites"
+  ],
+  [
+   "E5-5",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-6",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-7",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-9",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-10",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-13",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-14",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-15",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-16",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "S1-17",
+   "not_material",
+   "Materiality not assessed."
+  ]
+ ]
+}

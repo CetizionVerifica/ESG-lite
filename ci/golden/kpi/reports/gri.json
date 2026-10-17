@@ -1,0 +1,284 @@
+{
+ "about": "GRI 2021+ for input.json, worked by hand. Water in ML (kL ÷ 1,000), energy in GJ, emissions in tCO2e. Withdrawal 2026 = Plant A 12 × 100 + Plant B 6 × 50 = 1,500 kL = 1.5 ML (July pending, August draft and September rejected aren't counted; incomplete); breakdown 12 × 60 = 720 kL groundwater, 12 × 40 = 480 kL third party (Plant B has none); 2025 = 12 × 90 + 12 × 40 = 1,560 kL. Scope 1 = 120.5 + 60.25 = 180.75 (2025: 150 + 50 = 200). Scope 2 location-based = 300 (Plant B's 77 is rejected). Discharge 400 (Plant B pending). Women on the board is only pending: 405-1 is missing. Every other disclosure: no KPI tracked.",
+ "totals": {
+  "disclosures": 26,
+  "reported": 2,
+  "partial": 7,
+  "omitted": 17
+ },
+ "pending": 3,
+ "rows": [
+  {
+   "code": "2-7",
+   "status": "partial",
+   "items": [
+    {
+     "code": "EMPLOYEES_TOTAL",
+     "status": "approved",
+     "value": 420,
+     "previous": 400,
+     "unit": "count",
+     "complete": true,
+     "evidence": 0
+    },
+    {
+     "code": "EMPLOYEES_PERMANENT",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "count",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "EMPLOYEES_TEMPORARY",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "count",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "302-1",
+   "status": "partial",
+   "items": [
+    {
+     "code": "ENERGY_TOTAL",
+     "status": "approved",
+     "value": 5400,
+     "previous": 3240,
+     "unit": "GJ",
+     "complete": true,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_RENEWABLE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "GJ",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_NON_RENEWABLE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "GJ",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "303-3",
+   "status": "partial",
+   "items": [
+    {
+     "code": "WATER_WITHDRAWAL",
+     "status": "approved",
+     "value": 1.5,
+     "previous": 1.56,
+     "unit": "ML",
+     "complete": false,
+     "evidence": 2,
+     "breakdown": {
+      "groundwater": 0.72,
+      "third_party": 0.48
+     }
+    }
+   ]
+  },
+  {
+   "code": "303-4",
+   "status": "partial",
+   "items": [
+    {
+     "code": "WATER_DISCHARGE",
+     "status": "approved",
+     "value": 0.4,
+     "previous": null,
+     "unit": "ML",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "303-5",
+   "status": "partial",
+   "items": [
+    {
+     "code": "WATER_CONSUMPTION",
+     "status": "approved",
+     "value": 0.8,
+     "previous": null,
+     "unit": "ML",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "305-1",
+   "status": "reported",
+   "items": [
+    {
+     "code": "GHG_SCOPE1",
+     "status": "approved",
+     "value": 180.75,
+     "previous": 200,
+     "unit": "tCO2e",
+     "complete": true,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "305-2",
+   "status": "partial",
+   "items": [
+    {
+     "code": "GHG_SCOPE2_LB",
+     "status": "approved",
+     "value": 300,
+     "previous": null,
+     "unit": "tCO2e",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "GHG_SCOPE2_MB",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "tCO2e",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "305-4",
+   "status": "reported",
+   "items": [
+    {
+     "code": "GHG_INTENSITY_REVENUE",
+     "status": "approved",
+     "value": 1.923,
+     "previous": 1.5,
+     "unit": "tCO2e per INR crore",
+     "complete": true,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "305-7",
+   "status": "partial",
+   "items": [
+    {
+     "code": "AIR_NOX",
+     "status": "approved",
+     "value": 2.5,
+     "previous": null,
+     "unit": "tonne",
+     "complete": false,
+     "evidence": 1
+    },
+    {
+     "code": "AIR_SOX",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "tonne",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "AIR_PM",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "tonne",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  }
+ ],
+ "omissions": [
+  [
+   "2-8",
+   "not_tracked"
+  ],
+  [
+   "2-21",
+   "not_tracked"
+  ],
+  [
+   "2-26",
+   "not_tracked"
+  ],
+  [
+   "302-3",
+   "not_tracked"
+  ],
+  [
+   "305-3",
+   "not_tracked"
+  ],
+  [
+   "306-3",
+   "not_tracked"
+  ],
+  [
+   "306-4",
+   "not_tracked"
+  ],
+  [
+   "306-5",
+   "not_tracked"
+  ],
+  [
+   "401-1",
+   "not_tracked"
+  ],
+  [
+   "401-3",
+   "not_tracked"
+  ],
+  [
+   "403-9",
+   "not_tracked"
+  ],
+  [
+   "403-10",
+   "not_tracked"
+  ],
+  [
+   "404-1",
+   "not_tracked"
+  ],
+  [
+   "404-3",
+   "not_tracked"
+  ],
+  [
+   "405-1",
+   "missing"
+  ],
+  [
+   "405-2",
+   "not_tracked"
+  ],
+  [
+   "406-1",
+   "not_tracked"
+  ]
+ ]
+}

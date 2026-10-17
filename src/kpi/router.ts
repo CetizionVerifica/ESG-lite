@@ -16,6 +16,7 @@ import { myRouter } from "./values/my";
 import reviewRouter from "./review/router";
 import targetsRouter from "./targets/router";
 import dashboardRouter from "./dashboard/router";
+import reportsRouter from "./reports/router";
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use(myRouter); // KPI-7 (backend part): /kpi/my
 router.use(reviewRouter); // KPI-8: /kpi/values/approve|reject, /kpi/periods/lock|unlock
 router.use(targetsRouter); // KPI-9: /kpi/targets
 router.use(dashboardRouter); // KPI-10: /kpi/dashboard, /kpi/dashboard/remind
+router.use(reportsRouter); // KPI-11: /kpi/reports/:framework
 
 export default router;

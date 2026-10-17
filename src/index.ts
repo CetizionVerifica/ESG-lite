@@ -16,6 +16,7 @@ import importsRouter from "./imports/router";
 import internalImportsRouter from "./routes/internalImports.routes";
 import scope3Router from "./scope3/router";
 import kpiRouter from "./kpi/router";
+import { kpiAuthenticate } from "./kpi/auth";
 import { fxRouter } from "./scope3/spend/router";
 import { periodsRouter } from "./scope3/review/router";
 import { startFxJob } from "./scope3/spend/fxJob";
@@ -93,7 +94,7 @@ app.use("/oauth", oauthRoutes);
 app.use("/.well-known", wellKnownRoutes);
 app.use("/imports", authenticate, importsRouter);
 app.use("/scope3", authenticate, scope3Router); // S3-0; each Scope 3 module adds its routes in src/scope3/router.ts
-app.use("/kpi", authenticate, kpiRouter); // KPI-0; each KPI module adds its routes in src/kpi/router.ts
+app.use("/kpi", kpiAuthenticate, kpiRouter); // KPI-0; each KPI module adds its routes in src/kpi/router.ts (KPI-11: reports also take ?token=)
 app.use("/fx-rates", authenticate, fxRouter); // S3-5: stored FX rates for spend rows (01-contracts.md §5)
 app.use("/periods", authenticate, periodsRouter); // S3-15 part 2: month lock (01-contracts.md §5)
 app.use("/internal/imports", internalImportsRouter); // IM4, service key

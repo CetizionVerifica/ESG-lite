@@ -1,0 +1,284 @@
+{
+ "about": "BRSR 2023 for input.json, worked by hand. Water in kL, energy in GJ (BRSR's units), with the previous financial year. P6-E3 withdrawal 1,500 kL (2025: 1,560) by source; consumption 800 kL; water intensity not tracked. A-21 (women on the board) has only a pending value: missing. P6-L2 is voluntary and not tracked.",
+ "totals": {
+  "disclosures": 23,
+  "reported": 0,
+  "partial": 6,
+  "omitted": 17
+ },
+ "pending": 3,
+ "rows": [
+  {
+   "code": "A-20a",
+   "status": "partial",
+   "items": [
+    {
+     "code": "EMPLOYEES_TOTAL",
+     "status": "approved",
+     "value": 420,
+     "previous": 400,
+     "unit": "count",
+     "complete": true,
+     "evidence": 0
+    },
+    {
+     "code": "EMPLOYEES_PERMANENT",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "count",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "EMPLOYEES_TEMPORARY",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "count",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "WORKERS_TOTAL",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "count",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "P6-E1",
+   "status": "partial",
+   "items": [
+    {
+     "code": "ENERGY_TOTAL",
+     "status": "approved",
+     "value": 5400,
+     "previous": 3240,
+     "unit": "GJ",
+     "complete": true,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_RENEWABLE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "GJ",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_NON_RENEWABLE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "GJ",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "ENERGY_INTENSITY_REVENUE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "GJ per INR crore",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "P6-E3",
+   "status": "partial",
+   "items": [
+    {
+     "code": "WATER_WITHDRAWAL",
+     "status": "approved",
+     "value": 1500,
+     "previous": 1560,
+     "unit": "kL",
+     "complete": false,
+     "evidence": 2,
+     "breakdown": {
+      "groundwater": 720,
+      "third_party": 480
+     }
+    },
+    {
+     "code": "WATER_CONSUMPTION",
+     "status": "approved",
+     "value": 800,
+     "previous": null,
+     "unit": "kL",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "WATER_INTENSITY_REVENUE",
+     "status": "not_tracked",
+     "value": null,
+     "previous": null,
+     "unit": "kL per INR crore",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "P6-E4",
+   "status": "partial",
+   "items": [
+    {
+     "code": "WATER_DISCHARGE",
+     "status": "approved",
+     "value": 400,
+     "previous": null,
+     "unit": "kL",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "P6-E6",
+   "status": "partial",
+   "items": [
+    {
+     "code": "AIR_NOX",
+     "status": "approved",
+     "value": 2.5,
+     "previous": null,
+     "unit": "tonne",
+     "complete": false,
+     "evidence": 1
+    },
+    {
+     "code": "AIR_SOX",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "tonne",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "AIR_PM",
+     "status": "excluded",
+     "value": null,
+     "previous": null,
+     "unit": "tonne",
+     "complete": false,
+     "evidence": 0
+    }
+   ]
+  },
+  {
+   "code": "P6-E7",
+   "status": "partial",
+   "items": [
+    {
+     "code": "GHG_SCOPE1",
+     "status": "approved",
+     "value": 180.75,
+     "previous": 200,
+     "unit": "tCO2e",
+     "complete": true,
+     "evidence": 0
+    },
+    {
+     "code": "GHG_SCOPE2_LB",
+     "status": "approved",
+     "value": 300,
+     "previous": null,
+     "unit": "tCO2e",
+     "complete": false,
+     "evidence": 0
+    },
+    {
+     "code": "GHG_INTENSITY_REVENUE",
+     "status": "approved",
+     "value": 1.923,
+     "previous": 1.5,
+     "unit": "tCO2e per INR crore",
+     "complete": true,
+     "evidence": 0
+    }
+   ]
+  }
+ ],
+ "omissions": [
+  [
+   "A-20b",
+   "not_tracked"
+  ],
+  [
+   "A-21",
+   "missing"
+  ],
+  [
+   "A-22",
+   "not_tracked"
+  ],
+  [
+   "P3-E1c",
+   "not_tracked"
+  ],
+  [
+   "P3-E5",
+   "not_tracked"
+  ],
+  [
+   "P3-E8",
+   "not_tracked"
+  ],
+  [
+   "P3-E9",
+   "not_tracked"
+  ],
+  [
+   "P3-E11",
+   "not_tracked"
+  ],
+  [
+   "P3-E13",
+   "not_tracked"
+  ],
+  [
+   "P5-E1",
+   "not_tracked"
+  ],
+  [
+   "P5-E2",
+   "not_tracked"
+  ],
+  [
+   "P5-E3a",
+   "not_tracked"
+  ],
+  [
+   "P5-E3b",
+   "not_tracked"
+  ],
+  [
+   "P5-E6",
+   "not_tracked"
+  ],
+  [
+   "P5-E7",
+   "not_tracked"
+  ],
+  [
+   "P6-E9",
+   "not_tracked"
+  ],
+  [
+   "P6-L2",
+   "not_tracked"
+  ]
+ ]
+}
