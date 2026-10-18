@@ -11,7 +11,7 @@ import { UserRole } from "../types/type";
 import { resolveUserCompanyId } from "../utils/companyScope";
 import { ENTRY_DETAILS, EntryDetailSchema } from "../scope3/contracts/schemas";
 import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currencies";
-import { currentKpiSwitch, kpiSwitchChanged } from "../kpi/switch";
+import { auditKpiSwitch, currentKpiSwitch, notifyKpiEnabled } from "../kpi/switch";
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -62,9 +62,16 @@ export const updateCompany = async (req: Request, res: Response) => {
     return res.status(400).json({ code: "FIELD_INVALID", field: "kpi_tracking_enabled", message: "kpi_tracking_enabled must be true or false" });
   }
   const kpiSwitchBefore = "kpi_tracking_enabled" in body ? await currentKpiSwitch(Number(req.params.id)) : null;
-  await repo.update(req.params.id, body);
-  if (kpiSwitchBefore !== null && kpiSwitchBefore !== body.kpi_tracking_enabled) {
-    await kpiSwitchChanged(Number(req.params.id), kpiSwitchBefore, body.kpi_tracking_enabled, Number((req as AuthRequest).user?.userId) || null);
+  const kpiSwitchChanged = kpiSwitchBefore !== null && kpiSwitchBefore !== body.kpi_tracking_enabled;
+  if (kpiSwitchChanged) {
+    // The switch and its audit row commit together; the Admins hear about it only afterwards.
+    await AppDataSource.transaction(async (m) => {
+      await m.getRepository(Company).update(req.params.id, body);
+      await auditKpiSwitch(m, Number(req.params.id), kpiSwitchBefore, body.kpi_tracking_enabled, Number((req as AuthRequest).user?.userId) || null);
+    });
+    if (body.kpi_tracking_enabled) await notifyKpiEnabled(Number(req.params.id));
+  } else {
+    await repo.update(req.params.id, body);
   }
   // Deactivating (or reactivating) a client takes effect on the next request.
   if ("status" in body) clearClientStatusCache();

@@ -12,7 +12,11 @@
  *   not visible / another company      KPI_NOT_FOUND
  *   auto or calculated                 KPI_AUTO_READ_ONLY (they follow their source)
  *   not pending (approve)              KPI_NOT_PENDING; reject takes pending or approved
- *   the caller entered it              KPI_SELF_REVIEW (a Superadmin may, as for emissions)
+ *   the caller entered it              KPI_SELF_REVIEW (a Superadmin may, as for emissions);
+ *                                      approve also when the caller review-edited it since it was
+ *                                      last submitted (their own figure needs another reviewer)
+ *   a reviewer is named for the KPI ×  KPI_NOT_YOUR_REVIEW for any other Manager (D17: the
+ *   site and it isn't the caller      resolved owner row's reviewer; null = the site's Managers)
  *   in a locked period                 KPI_PERIOD_LOCKED
  *   only_ready and a check holds it    KPI_NOT_READY (checks are recomputed first)
  * Each change is audited (`approve` / `reject`, the reason on reject). Then the
@@ -26,6 +30,7 @@ import { KpiReviewSchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { recomputeForValues } from "../formulas/recompute";
+import { resolveOwner } from "../setup/owners";
 import { auditValue, holdKpiLease, loadVisibleValue, lockedPeriod } from "../values/service";
 import { isoDay } from "../values/period";
 import { storeChecks } from "./checks";
@@ -65,6 +70,21 @@ export async function reviewValues(caller: KpiCaller, action: ReviewAction, body
         if (!allowed.includes(row.status)) throw new KpiError("KPI_NOT_PENDING", { status: row.status });
         if (caller.role !== UserRole.SUPERADMIN && Number(row.entered_by) === caller.userId) throw new KpiError("KPI_SELF_REVIEW");
         const site = row.site_id === null ? null : Number(row.site_id);
+        if (caller.role !== UserRole.SUPERADMIN) {
+          if (action === "approve") {
+            const edited: Row[] = await m.query(
+              `SELECT 1 FROM audit_log a
+                WHERE a.entity_type = 'kpi_value' AND a.entity_id = $1 AND a.action = 'review_edit' AND a.changed_by = $2
+                  AND a.id > COALESCE((SELECT MAX(s.id) FROM audit_log s WHERE s.entity_type = 'kpi_value' AND s.entity_id = $1 AND s.action = 'submit'), 0)
+                LIMIT 1`,
+              [id, caller.userId],
+            );
+            if (edited.length) throw new KpiError("KPI_SELF_REVIEW", { rule: "review_edited" });
+          }
+          const [kpi]: Array<{ id: number; topic: string }> = await m.query(`SELECT id, topic FROM kpi_definition WHERE id = $1`, [row.kpi_definition_id]);
+          const { reviewer_user_id } = await resolveOwner(m, caller.companyId, kpi, site);
+          if (reviewer_user_id !== null && reviewer_user_id !== caller.userId) throw new KpiError("KPI_NOT_YOUR_REVIEW");
+        }
         if (await lockedPeriod(m, caller.companyId, site, { start: isoDay(row.period_start)!, end: isoDay(row.period_end)! })) throw new KpiError("KPI_PERIOD_LOCKED");
         const checks = await storeChecks(m, id);
         if (action === "approve" && input.only_ready && !checks?.ready) throw new KpiError("KPI_NOT_READY", { held: checks?.held ?? [] });

@@ -5,6 +5,7 @@
  * ("KPI tracking is ready: set it up", link /kpi/setup). Turning it off keeps
  * every KPI row (D3).
  */
+import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { createNotification } from "../services/notificationService";
 
@@ -34,19 +35,25 @@ export const currentKpiSwitch = async (companyId: number): Promise<boolean | nul
   return rows.length ? rows[0].on === true : null;
 };
 
-/** After the switch changed: audit always; notify Admins when it went on. Never throws for the notification. */
-export const kpiSwitchChanged = async (companyId: number, oldValue: boolean, newValue: boolean, actorId: number | null): Promise<void> => {
-  await AppDataSource.query(
+/** The switch's audit row, in the same transaction as the change (so neither lands without the other). */
+export const auditKpiSwitch = (m: EntityManager, companyId: number, oldValue: boolean, newValue: boolean, actorId: number | null) =>
+  m.query(
     `INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, reason, changed_by) VALUES ('kpi_setup', $1, 'switch', $2, NULL, $3)`,
     [companyId, JSON.stringify({ kpi_tracking_enabled: { old: oldValue, new: newValue } }), actorId],
   );
-  if (!newValue) return;
-  for (const userId of await companyAdminIds(companyId)) {
-    try {
-      const n = KPI_ENABLED_NOTIFICATION;
-      await createNotification(userId, n.type, n.title, n.message, n.link);
-    } catch (err) {
-      console.error(`[kpi] kpi_enabled notification failed (company ${companyId}, user ${userId}):`, (err as Error)?.message);
+
+/** After the switch went on (and committed): tell the company's Admins. Never throws. */
+export const notifyKpiEnabled = async (companyId: number): Promise<void> => {
+  try {
+    for (const userId of await companyAdminIds(companyId)) {
+      try {
+        const n = KPI_ENABLED_NOTIFICATION;
+        await createNotification(userId, n.type, n.title, n.message, n.link);
+      } catch (err) {
+        console.error(`[kpi] kpi_enabled notification failed (company ${companyId}, user ${userId}):`, (err as Error)?.message);
+      }
     }
+  } catch (err) {
+    console.error(`[kpi] kpi_enabled notifications not sent (company ${companyId}):`, (err as Error)?.message);
   }
 };

@@ -129,7 +129,7 @@ Notification kinds (`src/kpi/contracts/enums.ts` `KPI_NOTIFICATION_KINDS`):
 | `KPI_FORMULA_INVALID` | 422 | library or custom formula: unknown code, a cycle, or a unit mismatch |
 | `KPI_REASON_REQUIRED` | 400 | excluding a KPI, a non-material topic, or unlocking without a reason |
 
-Plumbing codes every route may answer (not contract decisions; `errors.ts` second block): `KPI_VALIDATION` 400, `KPI_NOT_FOUND` 404, `KPI_FORBIDDEN` 403, `KPI_COMPANY_REQUIRED` 400, `KPI_CODE_TAKEN` 409, and the per-id review refusals `KPI_NOT_PENDING` 409 (not waiting for review), `KPI_NOT_READY` 409 (`only_ready` and a check holds it), `KPI_SELF_REVIEW` 403 (your own entry).
+Plumbing codes every route may answer (not contract decisions; `errors.ts` second block): `KPI_VALIDATION` 400, `KPI_NOT_FOUND` 404, `KPI_FORBIDDEN` 403, `KPI_COMPANY_REQUIRED` 400, `KPI_CODE_TAKEN` 409, and the per-id review refusals `KPI_NOT_PENDING` 409 (not waiting for review), `KPI_NOT_READY` 409 (`only_ready` and a check holds it), `KPI_SELF_REVIEW` 403 (your own entry, or approving a figure you review-edited since it was submitted), `KPI_NOT_YOUR_REVIEW` 403 (the KPI × site names another reviewer; null = the site's Managers; a Superadmin is exempt).
 
 ## §5 Review checks (KPI-8; ids in `src/kpi/contracts/checks.ts`)
 

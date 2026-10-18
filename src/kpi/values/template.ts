@@ -159,10 +159,18 @@ const breakdownOf = (v: unknown): Record<string, number> | null | "invalid" => {
   return Object.keys(out).length ? out : null;
 };
 
+// .xlsx files are zip archives. Anything else (old .xls, CSV, HTML, SYLK...) is refused before the
+// parser sees it, and the parse reads values only: the upload is open to every User, and xlsx 0.18.5
+// has known parser CVEs (prototype pollution, ReDoS) that are fixed only in SheetJS 0.20.x.
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+
 export function readTemplate(buffer: Buffer): Row[] {
+  if (buffer.length < 4 || !buffer.subarray(0, 4).equals(ZIP_MAGIC)) {
+    throw new KpiError("KPI_VALIDATION", { issues: [{ path: "file", message: "Upload the .xlsx template (other spreadsheet formats can't be read)." }] });
+  }
   let wb: XLSX.WorkBook;
   try {
-    wb = XLSX.read(buffer, { type: "buffer" });
+    wb = XLSX.read(buffer, { type: "buffer", cellFormula: false, cellHTML: false, cellStyles: false, bookVBA: false, sheetStubs: false });
   } catch {
     throw new KpiError("KPI_VALIDATION", { issues: [{ path: "file", message: "The file couldn't be read as a spreadsheet." }] });
   }

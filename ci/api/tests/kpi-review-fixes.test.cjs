@@ -5,6 +5,9 @@
 //     leaves the role unchanged;
 //   - evidence links are http(s) only;
 //   - template upload plans live in kpi_template_plan (not process memory), one commit each;
+//   - a Manager can't approve a figure they review-edited since it was submitted, and only the
+//     named reviewer of a KPI × site (when one is named) approves or rejects it;
+//   - the template upload takes .xlsx files only;
 //   - migrate:kpi-template-plans runs twice; migrate:kpi-topic-assignment collapses per-KPI rows
 //     only on the run that creates the table.
 //
@@ -116,4 +119,53 @@ test("migrate:kpi-template-plans runs twice; topic-assignment collapse only on t
   const r = runScript("migrateKpiTopicAssignment");
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.equal((await q(`SELECT 1 FROM kpi_topic_assignment WHERE company_id = 1 AND site_id = 1 AND topic = 'water'`)).length, 0, "no topic owner made on a later run");
+});
+
+test("review: the named reviewer only, and not a figure you edited since it was submitted", async () => {
+  const water = await kpiId("WATER_WITHDRAWAL");
+  const [{ frequency }] = await q(`SELECT COALESCE(ck.frequency, d.default_frequency) AS frequency FROM company_kpi ck JOIN kpi_definition d ON d.id = ck.kpi_definition_id WHERE ck.company_id = 1 AND ck.kpi_definition_id = $1`, [water]);
+  const pending = async (start, end) =>
+    (await q(
+      `INSERT INTO kpi_value (company_id, site_id, kpi_definition_id, period_start, period_end, frequency, year_type, value_numeric, unit, value_canonical, source, status, entered_by)
+       VALUES (1, 1, $1, $2, $3, $4, 'CY', 12, 'kl', 12, 'manual', 'pending', 1) RETURNING id`,
+      [water, start, end, frequency],
+    ))[0].id;
+  const approve = (who, body) => call("PUT", "/kpi/values/approve", who, body);
+  // The migration test above emptied water on site 1 and left per-KPI rows: user 1 owns the topic again.
+  await q(`DELETE FROM kpi_assignment WHERE company_id = 1`);
+  const setReviewer = (id) =>
+    q(
+      `INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id, reviewer_user_id) VALUES (1, 1, 'water', 1, $1)
+       ON CONFLICT (company_id, (COALESCE(site_id, 0)), topic) DO UPDATE SET owner_user_id = 1, reviewer_user_id = EXCLUDED.reviewer_user_id`,
+      [id],
+    );
+
+  // Someone else is the named reviewer: the site's other Managers are refused; a Superadmin isn't.
+  const a = await pending("2024-01-01", "2024-01-31");
+  const b = await pending("2024-02-01", "2024-02-29");
+  await setReviewer(5);
+  assert.deepEqual((await approve("manager", { ids: [a] })).json.refused, [{ id: a, code: "KPI_NOT_YOUR_REVIEW" }]);
+  assert.deepEqual((await call("PUT", "/kpi/values/reject", "manager", { ids: [a], reason: "x" })).json.refused, [{ id: a, code: "KPI_NOT_YOUR_REVIEW" }]);
+  assert.deepEqual((await approve("superadmin", { ids: [a], company_id: 1 })).json.updated, [a]);
+  // Named as the reviewer: allowed.
+  await setReviewer(2);
+  assert.deepEqual((await approve("manager", { ids: [b] })).json.updated, [b]);
+  await setReviewer(null);
+
+  // A Manager who review-edited the figure can't approve it, until it is submitted again.
+  const c = await pending("2024-03-01", "2024-03-31");
+  const edited = await call("PUT", "/kpi/values", "manager", { items: [{ id: c, value_numeric: 13, reason: "Meter photo says 13" }] });
+  assert.equal(edited.json.results[0].ok, true, JSON.stringify(edited.json));
+  assert.deepEqual((await approve("manager", { ids: [c] })).json.refused, [{ id: c, code: "KPI_SELF_REVIEW" }]);
+  await q(`INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, changed_by) VALUES ('kpi_value', $1, 'submit', '{}', 1)`, [c]);
+  assert.deepEqual((await approve("manager", { ids: [c] })).json.updated, [c], "submitted again after the edit");
+});
+
+test("the template upload takes .xlsx files only", async () => {
+  const csv = Buffer.from("KPI code,Site ID,Period start,Value\nWATER_WITHDRAWAL,1,2026-01-01,5\n");
+  const form = new FormData();
+  form.append("file", new Blob([csv], { type: "text/csv" }), "template.csv");
+  const r = await call("POST", "/kpi/my/template", "user", form);
+  assert.equal(r.status, 400, JSON.stringify(r.json));
+  assert.match(JSON.stringify(r.json), /\.xlsx template/);
 });

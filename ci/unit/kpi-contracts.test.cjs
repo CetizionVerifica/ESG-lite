@@ -58,7 +58,7 @@ test("§4 error codes and statuses match the contract", () => {
   }
   // Plumbing codes are the only extras.
   const extras = errors.KPI_ERROR_CODES.filter((c) => !(c in expected));
-  assert.deepEqual(extras.sort(), ["KPI_CODE_TAKEN", "KPI_COMPANY_REQUIRED", "KPI_FORBIDDEN", "KPI_NOT_FOUND", "KPI_NOT_PENDING", "KPI_NOT_READY", "KPI_SELF_REVIEW", "KPI_VALIDATION"]);
+  assert.deepEqual(extras.sort(), ["KPI_CODE_TAKEN", "KPI_COMPANY_REQUIRED", "KPI_FORBIDDEN", "KPI_NOT_FOUND", "KPI_NOT_PENDING", "KPI_NOT_READY", "KPI_NOT_YOUR_REVIEW", "KPI_SELF_REVIEW", "KPI_VALIDATION"]);
   assert.equal(errors.KPI_ERRORS.KPI_NOT_PENDING.status, 409);
   assert.equal(errors.KPI_ERRORS.KPI_NOT_READY.status, 409);
   assert.equal(errors.KPI_ERRORS.KPI_SELF_REVIEW.status, 403);

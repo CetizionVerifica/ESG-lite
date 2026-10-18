@@ -35,6 +35,7 @@ export const KPI_ERRORS = {
   KPI_NOT_PENDING: { status: 409, message: "Only values waiting for review can be approved." },
   KPI_NOT_READY: { status: 409, message: "This value needs a closer look before it's approved with the others." },
   KPI_SELF_REVIEW: { status: 403, message: "You can't approve or reject your own entries." },
+  KPI_NOT_YOUR_REVIEW: { status: 403, message: "Another manager is this KPI's reviewer." },
 } as const;
 
 export type KpiErrorCode = keyof typeof KPI_ERRORS;

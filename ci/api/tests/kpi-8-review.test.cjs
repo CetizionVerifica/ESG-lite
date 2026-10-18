@@ -342,7 +342,9 @@ test("a reviewer edits a pending value: it stays pending, needs a reason, is aud
   assert.equal((await edit("manager", { id, value_numeric: -1, reason: "x" })).json.results[0].code, "KPI_VALUE_INVALID");
   assert.equal((await edit("superadmin", { id, value_numeric: 6, reason: "Superadmin fix" }, "?company_id=1")).json.results[0].value.value_numeric, 6);
   assert.equal((await edit("otherManager", { id, value_numeric: 6, reason: "x" })).json.results[0].code, "KPI_NOT_FOUND", "tenant");
-  assert.deepEqual((await approve("manager", { ids: [id] })).json.updated, [id]);
+  // The Manager changed the figure, so approving it would be reviewing their own work.
+  assert.deepEqual((await approve("manager", { ids: [id] })).json.refused, [{ id, code: "KPI_SELF_REVIEW" }]);
+  assert.deepEqual((await approve("superadmin", { ids: [id], company_id: 1 })).json.updated, [id]);
   assert.equal((await edit("manager", { id, value_numeric: 7, reason: "x" })).json.results[0].code, "KPI_NOT_PENDING");
 });
 
