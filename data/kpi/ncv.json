@@ -1,18 +1,22 @@
 {
-  "about": "Net calorific values (NCV) for KPI-5's energy adapters: a fuel row's quantity in a mass or volume unit becomes energy (GJ) as quantity × density × NCV. Used only when the row's factor snapshot carries no NCV of its own. A fuel is found by the first entry (more specific names first) whose `match` words appear in the row's activity name (case-insensitive). A row whose fuel or unit isn't here is listed as skipped, never guessed.",
+  "about": "Net calorific values (NCV) and densities for KPI-5's energy adapters: a fuel row's quantity in a mass or volume unit becomes energy (GJ) as quantity × density × NCV. Used only when the row's factor snapshot carries no NCV of its own. A fuel is found by the first entry (more specific names first) whose `match` words appear in the row's activity name (case-insensitive). A row whose fuel or unit isn't here is listed as skipped, never guessed. `verified` is per fuel and is about its density: true = equal to the row named in `density_row` of the DESNZ table below; false = no density is used for it (mass only), see `note`.",
   "ncv_source": "IPCC 2006 Guidelines for National Greenhouse Gas Inventories, Vol. 2 Energy, Chapter 1, Table 1.2 (default net calorific values, TJ/Gg = GJ/tonne).",
   "ncv_source_url": "https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_1_Ch1_Introduction.pdf",
-  "density_source": "Typical densities at 15 °C, as used in the UK government (DESNZ/DEFRA) GHG conversion factors' fuel properties; check against the current year's 'Fuel properties' table before relying on litre-based energy figures.",
-  "density_source_url": "https://www.gov.uk/government/collections/government-conversion-factors-for-company-reporting",
-  "verified": false,
+  "density_source": "UK Government GHG Conversion Factors for Company Reporting 2025 (DESNZ, version 1, published 10 June 2025), full set, sheet 'Fuel properties', column 'Density, kg/m3' (stored here as kg/litre = kg/m3 ÷ 1000, natural gas as kg/m3).",
+  "density_source_url": "https://assets.publishing.service.gov.uk/media/6846a4f55e92539572806125/ghg-conversion-factors-2025-full-set.xlsx",
+  "density_source_page": "https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2025",
+  "density_checked_at": "2026-10-18",
   "fuels": [
     {
       "key": "biodiesel",
       "match": [
         "biodiesel"
       ],
-      "ncv_gj_per_tonne": 27.0,
-      "density_kg_per_litre": 0.88
+      "ncv_gj_per_tonne": 27,
+      "density_kg_per_litre": 0.89,
+      "verified": true,
+      "density_row": "Biodiesel (ME)",
+      "note": "Density 890 kg/m3 (was 0.88 kg/L before the 2026-10-18 check). HVO/BtL biodiesel is 780 kg/m3 in the same table; rows naming HVO aren't told apart yet."
     },
     {
       "key": "petcoke",
@@ -21,19 +25,36 @@
         "petcoke",
         "pet coke"
       ],
-      "ncv_gj_per_tonne": 32.5
+      "ncv_gj_per_tonne": 32.5,
+      "verified": false,
+      "note": "Solid fuel, entered by mass only: no density used. The DESNZ table lists no density for petroleum coke."
+    },
+    {
+      "key": "gas_oil",
+      "match": [
+        "gas oil",
+        "gasoil",
+        "light diesel oil",
+        "ldo"
+      ],
+      "ncv_gj_per_tonne": 43,
+      "density_kg_per_litre": 0.853971,
+      "verified": true,
+      "density_row": "Gas Oil",
+      "note": "Split from diesel on 2026-10-18 (gas oil and LDO were read as diesel at 0.84 kg/L). NCV: IPCC gas/diesel oil."
     },
     {
       "key": "diesel",
       "match": [
         "diesel",
-        "gas oil",
-        "gasoil",
         "hsd",
         "high speed diesel"
       ],
-      "ncv_gj_per_tonne": 43.0,
-      "density_kg_per_litre": 0.84
+      "ncv_gj_per_tonne": 43,
+      "density_kg_per_litre": 0.830565,
+      "verified": true,
+      "density_row": "Diesel (100% mineral diesel)",
+      "note": "Density 830.565 kg/m3 (was 0.84 kg/L before the 2026-10-18 check). Indian HSD carries no biofuel blend, so the mineral row is used, not 'Diesel (average biofuel blend)' (832.361)."
     },
     {
       "key": "petrol",
@@ -43,30 +64,71 @@
         "motor spirit"
       ],
       "ncv_gj_per_tonne": 44.3,
-      "density_kg_per_litre": 0.74
+      "density_kg_per_litre": 0.74184,
+      "verified": true,
+      "density_row": "Petrol (100% mineral petrol)",
+      "note": "Density 741.84 kg/m3 (was 0.74 kg/L)."
+    },
+    {
+      "key": "propane",
+      "match": [
+        "propane"
+      ],
+      "ncv_gj_per_tonne": 47.3,
+      "density_kg_per_litre": 0.514933,
+      "verified": true,
+      "density_row": "Propane",
+      "note": "Split from LPG on 2026-10-18. NCV: IPCC LPG."
+    },
+    {
+      "key": "butane",
+      "match": [
+        "butane"
+      ],
+      "ncv_gj_per_tonne": 47.3,
+      "density_kg_per_litre": 0.575374,
+      "verified": true,
+      "density_row": "Butane",
+      "note": "Split from LPG on 2026-10-18. NCV: IPCC LPG."
     },
     {
       "key": "lpg",
       "match": [
         "lpg",
-        "liquefied petroleum gas",
-        "propane",
-        "butane"
+        "liquefied petroleum gas"
       ],
       "ncv_gj_per_tonne": 47.3,
-      "density_kg_per_litre": 0.51
+      "density_kg_per_litre": 0.529749,
+      "verified": true,
+      "density_row": "LPG",
+      "note": "Density 529.749 kg/m3 (was 0.51 kg/L)."
+    },
+    {
+      "key": "jet_fuel",
+      "match": [
+        "jet fuel",
+        "jet kerosene",
+        "aviation turbine fuel",
+        "atf"
+      ],
+      "ncv_gj_per_tonne": 44.1,
+      "density_kg_per_litre": 0.8,
+      "verified": true,
+      "density_row": "Aviation Turbine Fuel",
+      "note": "Split from kerosene on 2026-10-18. NCV: IPCC jet kerosene (44.1)."
     },
     {
       "key": "kerosene",
       "match": [
         "kerosene",
         "paraffin",
-        "jet fuel",
-        "aviation turbine fuel",
-        "atf"
+        "burning oil"
       ],
       "ncv_gj_per_tonne": 43.8,
-      "density_kg_per_litre": 0.8
+      "density_kg_per_litre": 0.802568,
+      "verified": true,
+      "density_row": "Burning Oil",
+      "note": "Density 802.568 kg/m3 (was 0.80 kg/L)."
     },
     {
       "key": "fuel_oil",
@@ -75,23 +137,38 @@
         "fuel oil",
         "residual fuel",
         "heavy fuel oil",
-        "hfo",
-        "ldo",
-        "light diesel oil"
+        "hfo"
       ],
       "ncv_gj_per_tonne": 40.4,
-      "density_kg_per_litre": 0.94
+      "density_kg_per_litre": 0.983284,
+      "verified": true,
+      "density_row": "Fuel Oil",
+      "note": "Density 983.284 kg/m3 (was 0.94 kg/L). LDO moved to gas_oil."
+    },
+    {
+      "key": "lng",
+      "match": [
+        "lng",
+        "liquefied natural gas"
+      ],
+      "ncv_gj_per_tonne": 48,
+      "density_kg_per_litre": 0.452489,
+      "verified": true,
+      "density_row": "LNG",
+      "note": "Split from natural gas on 2026-10-18: an LNG volume is liquid (452.489 kg/m3), not gas. NCV: IPCC natural gas."
     },
     {
       "key": "natural_gas",
       "match": [
         "natural gas",
         "png",
-        "cng",
-        "lng"
+        "cng"
       ],
-      "ncv_gj_per_tonne": 48.0,
-      "density_kg_per_m3": 0.75
+      "ncv_gj_per_tonne": 48,
+      "density_kg_per_m3": 0.802,
+      "verified": true,
+      "density_row": "Natural Gas",
+      "note": "Density 0.802 kg/m3 of gas (was 0.75). A CNG volume is read as gas at standard conditions (billed in SCM), not as compressed gas (the table's CNG row, 175 kg/m3)."
     },
     {
       "key": "naphtha",
@@ -99,7 +176,10 @@
         "naphtha"
       ],
       "ncv_gj_per_tonne": 44.5,
-      "density_kg_per_litre": 0.7
+      "density_kg_per_litre": 0.674309,
+      "verified": true,
+      "density_row": "Naphtha",
+      "note": "Density 674.309 kg/m3 (was 0.70 kg/L)."
     },
     {
       "key": "coke",
@@ -108,7 +188,9 @@
         "met coke",
         "coke"
       ],
-      "ncv_gj_per_tonne": 28.2
+      "ncv_gj_per_tonne": 28.2,
+      "verified": false,
+      "note": "Solid fuel, entered by mass only: no density used."
     },
     {
       "key": "lignite",
@@ -116,7 +198,9 @@
         "lignite",
         "brown coal"
       ],
-      "ncv_gj_per_tonne": 11.9
+      "ncv_gj_per_tonne": 11.9,
+      "verified": false,
+      "note": "Solid fuel, entered by mass only: no density used. The DESNZ table has no lignite row."
     },
     {
       "key": "coal_bituminous",
@@ -125,7 +209,9 @@
         "steam coal",
         "coal"
       ],
-      "ncv_gj_per_tonne": 25.8
+      "ncv_gj_per_tonne": 25.8,
+      "verified": false,
+      "note": "Solid fuel, entered by mass only: no density used (the table's coal densities are bulk densities, not for volume reading)."
     },
     {
       "key": "wood",
@@ -135,7 +221,9 @@
         "firewood",
         "wood pellets"
       ],
-      "ncv_gj_per_tonne": 15.6
+      "ncv_gj_per_tonne": 15.6,
+      "verified": false,
+      "note": "Solid fuel, entered by mass only: no density used (the table's wood densities are bulk densities by form: logs 425, chips 253, pellets 650 kg/m3)."
     }
   ]
 }

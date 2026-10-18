@@ -43,12 +43,12 @@ test("energy rows: Scope 2, Scope 1 combustion, renewable electricity; never ref
 });
 
 test("GJ by hand: energy units directly, fuels through NCV × density, the row's own NCV first, skipped with a reason", () => {
-  assert.deepEqual(rowGj(row({})), { gj: 36.12 }, "1,000 L diesel × 0.84 kg/L × 43.0 GJ/t");
+  assert.deepEqual(rowGj(row({})), { gj: 35.714295 }, "1,000 L diesel × 0.830565 kg/L × 43.0 GJ/t");
   assert.deepEqual(rowGj(row({ unit: "kWh", quantity: 10000 })), { gj: 36 });
   assert.deepEqual(rowGj(row({ unit: "MWh", quantity: 2 })), { gj: 7.2 });
   assert.deepEqual(rowGj(row({ unit: "tonne", quantity: 2, activity: "Coal" })), { gj: 51.6 });
   assert.deepEqual(rowGj(row({ unit: "kg", quantity: 500, activity: "LPG" })), { gj: 23.65 });
-  assert.deepEqual(rowGj(row({ unit: "m3", quantity: 1000, activity: "Natural gas" })), { gj: 36 }, "1,000 m³ × 0.75 kg/m³ × 48 GJ/t");
+  assert.deepEqual(rowGj(row({ unit: "m3", quantity: 1000, activity: "Natural gas" })), { gj: 38.496 }, "1,000 m³ × 0.802 kg/m³ × 48 GJ/t");
   assert.deepEqual(rowGj(row({ snapshot_ncv: 0.0386, snapshot_ncv_unit: "litre" })), { gj: 38.6 }, "the factor snapshot's NCV wins");
   assert.match(rowGj(row({ activity: "Hydrogen", unit: "kg" })).skipped, /calorific/);
   assert.match(rowGj(row({ unit: "" })).skipped, /no unit/);
@@ -65,6 +65,15 @@ test("fuels: specific names first; renewable words", () => {
   assert.equal(fuelOf("Lignite").key, "lignite");
   assert.equal(fuelOf("Imported coal").key, "coal_bituminous");
   assert.equal(fuelOf("Hydrogen"), null);
+  // DESNZ 2025 "Fuel properties" rows told apart (2026-10-18 check).
+  assert.equal(fuelOf("Light diesel oil (LDO)").key, "gas_oil");
+  assert.equal(fuelOf("Gas oil").key, "gas_oil");
+  assert.equal(fuelOf("Propane cylinders").key, "propane");
+  assert.equal(fuelOf("ATF").key, "jet_fuel");
+  assert.equal(fuelOf("Kerosene").key, "kerosene");
+  assert.equal(fuelOf("LNG").key, "lng");
+  assert.equal(fuelOf("Liquefied natural gas").key, "lng");
+  assert.equal(fuelOf("CNG").key, "natural_gas");
   assert.ok(isRenewable({ category: "Renewable Electricity", activity: "" }));
   assert.ok(isRenewable({ category: "Purchased Electricity", activity: "Solar PPA" }));
   assert.ok(!isRenewable({ category: "Stationary Combustion", activity: "Hydrogen" }));
@@ -109,4 +118,22 @@ test("debounced job: one run per company after the last change, with every year 
   assert.deepEqual(runs, [[1, [2025, 2026]], [2, [2026]]]);
   assert.equal(d.pending().size, 0);
   assert.equal(timers.filter((t) => t.cleared).length, 1, "the first timer of company 1 was replaced");
+});
+
+test("ncv.json densities: each one checked against DESNZ 2025 'Fuel properties' (figures copied by hand from the table)", () => {
+  const ncv = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "../../data/kpi/ncv.json"), "utf8"));
+  assert.match(ncv.density_source, /2025.*Fuel properties/);
+  // kg/m3 from the table, by row (DESNZ 2025 full set v1).
+  const table = { "Biodiesel (ME)": 890, "Gas Oil": 853.971, "Diesel (100% mineral diesel)": 830.565, "Petrol (100% mineral petrol)": 741.84, Propane: 514.933, Butane: 575.374, LPG: 529.749, "Aviation Turbine Fuel": 800, "Burning Oil": 802.568, "Fuel Oil": 983.284, LNG: 452.489, "Natural Gas": 0.802, Naphtha: 674.309 };
+  for (const f of ncv.fuels) {
+    const density = f.density_kg_per_litre !== undefined ? f.density_kg_per_litre * 1000 : f.density_kg_per_m3;
+    if (density === undefined) {
+      assert.equal(f.verified, false, `${f.key}: no density, so not marked verified`);
+      assert.ok(f.note, `${f.key} says why`);
+      continue;
+    }
+    assert.equal(f.verified, true, f.key);
+    assert.ok(f.density_row in table, `${f.key} names a table row`);
+    assert.ok(Math.abs(density - table[f.density_row]) < 1e-9, `${f.key}: ${density} = ${table[f.density_row]}`);
+  }
 });
