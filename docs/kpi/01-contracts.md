@@ -42,7 +42,8 @@ Plain-language labels for every value live in `src/lib/kpi/labels.ts`; pages nev
 - `company_material_topic`: `company_id`, `esrs_topic`, `material` (bool), `reason` (text, required when not material), `decided_by`, `decided_at`.
 - `company_kpi`: `company_id`, `kpi_definition_id`, `selected` (bool), `frequency` (override), `reason_excluded`. Unique per (company, kpi).
 - `kpi_assignment`: `company_id`, `kpi_definition_id`, `site_id` (null for company level), `owner_user_id`, `reviewer_user_id` (null = the site's managers). Unique per (kpi, site).
-- `kpi_topic_grant`: `user_id`, `topic`. Empty = all topics of the user's sites, like `user_categories`.
+- `kpi_topic_grant`: `user_id`, `topic`, `converted_at`. **No longer read or written since D17** (kept; converted once into topic assignments).
+- `kpi_topic_assignment` (D17): `id`, `company_id`, `site_id` (null = company level), `topic`, `owner_user_id`, `reviewer_user_id` (null = the site's Managers), `created_at`, `updated_at`, `updated_by`. Unique per (company, COALESCE(site, 0), topic). Who owns a KPI × site: the `kpi_assignment` override, else this row for the KPI's topic, else nobody.
 
 **Values (KPI-4)**
 - `kpi_value`
@@ -68,10 +69,14 @@ Audit: `audit_log.entity_type` gains `kpi_value`, `kpi_setup`, `kpi_period_lock`
 | `GET /kpi/status` | any role of the company | KPI-1 | `{ enabled, setup_completed }`. This one answers even when off, with `enabled:false`. |
 | `GET/POST/PUT /kpi/library/definitions`, `/frameworks`, `/disclosures`, `/mappings` | Superadmin | KPI-2 | library CRUD; `?framework=` filters |
 | `GET /kpi/catalogue` | any | KPI-2 | the library as the company sees it: frameworks, disclosures, KPIs, mappings (versions it enabled) |
-| `GET/PUT /kpi/setup` | GET any, PUT Admin/Superadmin | KPI-3 | settings, frameworks, material topics, selected KPIs, assignments |
+| `GET/PUT /kpi/setup` | GET any, PUT Admin/Superadmin | KPI-3 | settings, frameworks, material topics, selected KPIs, assignments; D17 adds `topic_assignments [{id, site_id, topic, owner_user_id, reviewer_user_id}]`, `topics_in_use [{topic, kpi_count, site_kpi_count, company_kpi_count, selected_count}]` and (setup writers) `suggested_topic_assignments` (same shape, `id` null); PUT takes `topic_assignments` (the whole set; `owner_user_id: null` removes) |
+| `GET /kpi/people/:user_id/topics` | Manager (their sites), Admin, Superadmin, the person | D17 | `{user_id, topics, by_site:[{site_id, site_name, topics}]}` (`site_id` null = "Company") |
+| `PUT /kpi/people/:user_id/topics` | Manager (their sites), Admin, Superadmin | D17 | `{topics, site_ids?}` → `{user_id, topics, site_ids, moved:[{site_id, site_name, topic, topic_label, from_user_id, from_name}]}`; owner of those topics on those sites (default: all their sites), other topics there dropped; audited. `PATCH /company-admin/users/:id {kpi_topics}` (Admin) and `PATCH /admin/users/:id {kpi_topics, company_id?}` (Superadmin, D18) are aliases answering `kpi_topics`, `kpi_topic_site_ids`, `kpi_topic_moves` |
 | `POST /kpi/setup/custom-kpis` | Admin | KPI-3 | a company KPI (`company_id` set) |
 | `POST /kpi/setup/invite` | Admin, Superadmin | KPI-3 | `{notified}`: one `kpi_assigned` notification per owner of an assignment of a selected KPI ("Invite your team") |
-| `GET /kpi/my?period=` | any | KPI-7 | what the caller owes: KPIs × sites × periods, with status, last value and due date |
+| `GET /kpi/my?period=` | any | KPI-7 | what the caller owes (D17: the pairs they own through the resolver): KPIs × sites × periods, with status, last value and due date; items carry `topic`, `topic_label`, `assigned_via` (`kpi` \| `topic`), sorted in topic order |
+| `GET /kpi/my/template?period=&site=` | any | KPI-7 | XLSX (`My KPIs`, `How to fill in`): one row per due or sent-back item the caller owns |
+| `POST /kpi/my/template` | any | KPI-7 | multipart `file`, `commit` (`true` \| `false`, default false) → `{dry_run, file_name, plan:{rows:[{row, kpi_code, kpi_name, site_id, site_name, period_start, period_label, value, unit, status: ready \| error \| skipped, issues:[{code, message, details?}]}], counts:{total, ready, error, skipped}}}`; commit adds `saved`, `results:[{row, ok, value_id} \| {row, ok:false, code, message}]` (ready rows saved as drafts) |
 | `GET /kpi/values?kpi=&site=&from=&to=&status=` | any (scoped) | KPI-4 | values |
 | `PUT /kpi/values` | owner, Manager+, Admin (company level) | KPI-4/7 | upsert drafts `{items:[…]}`, per-item result |
 | `PUT /kpi/values` item `{id, …fields, reason}` | Manager (own sites), Superadmin | KPI-8 | a reviewer's edit of a pending value: stays pending, `reason` required (`KPI_REASON_REQUIRED`), audited `review_edit` |
@@ -84,8 +89,10 @@ Audit: `audit_log.entity_type` gains `kpi_value`, `kpi_setup`, `kpi_period_lock`
 | `GET/PUT/DELETE /kpi/targets` | GET any, write Admin | KPI-9 | targets with progress |
 | `GET /kpi/dashboard?year=&framework=&site=&topic=` | Manager+, Admin | KPI-10 | coverage per framework, gaps, trends |
 | `POST /kpi/dashboard/remind` | Manager+, Admin | KPI-10 | `{kpi, site}` → a `kpi_due` to the owner, at most once a day per item |
+| `GET /kpi/overview` | any | KPI-10 (wave D fix 3) | `{period, year, readiness:[{framework, version, percent}], due:{due, sent_back, done}, setup_completed}`; readiness for Manager, Admin, Superadmin (`[]` for a User); before setup the empty shape with `setup_completed: false` |
 | `GET /kpi/reports/:framework?year=&format=xlsx\|pdf\|json` | Manager+, Admin | KPI-11 | the framework export (approved only) |
-| `POST /kpi/ai/suggest-values` (document id), `POST /kpi/ai/suggest-mapping` | owner / Admin | KPI-12 | suggestions `{kpi, value, unit, period, source_page, confidence}` |
+| `POST /kpi/ai/suggest-values` | any (their own due KPIs) | KPI-12 | JSON `{document_id, site_id?, period?, kpis?}` or multipart `file` + the same fields → `{available: true, document_id, document_name, pages, period, suggestions:[{kpi_code, kpi_definition_id, kpi_name, site_id, site_ids, value, unit, breakdown_key, period_start, period_end, site_hint, source_page, quote, confidence, why, check_this, document_id, document_name, label}]}` or `{available: false, message, suggestions: []}` (AI down; a Superadmin until python accepts their uploads) |
+| `POST /kpi/ai/suggest-mapping` | Admin, Superadmin | KPI-12 | `{name, question, unit?, topic}` → `{available, suggestions:[{disclosure_id, framework, version, code, title, section, why, confidence, check_this}]}` from the company's enabled catalogue |
 
 Error shape: `{ code, message, details? }`, as `src/imports/errors.ts`.
 
@@ -96,8 +103,8 @@ Notification kinds (`src/kpi/contracts/enums.ts` `KPI_NOTIFICATION_KINDS`):
 | Kind | Module | To | When |
 |---|---|---|---|
 | `kpi_enabled` | KPI-1 | the company's Admins | the switch went on |
-| `kpi_assigned` | KPI-3 | each assignment owner | `POST /kpi/setup/invite` ("Invite your team") |
-| `kpi_submitted` | KPI-8 | each reviewer (the assignment's, else the site's Managers) | values submitted; one per reviewer per submit |
+| `kpi_assigned` | KPI-3 | each owner (D17: through the resolver, topic owners included) | `POST /kpi/setup/invite` ("Invite your team") |
+| `kpi_submitted` | KPI-8 | each reviewer (the resolved owner row's, D17; else the site's Managers) | values submitted; one per reviewer per submit |
 | `kpi_rejected` | KPI-8 | whoever entered the value | a value sent back, with the reason |
 | `kpi_due` | KPI-8, KPI-10 | owners with values missing | 5 days before and on the due date (daily job; mute with `notification_preferences.kpi_due = false`), and a Manager's "Remind" |
 
