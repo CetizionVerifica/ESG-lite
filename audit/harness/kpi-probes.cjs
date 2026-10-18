@@ -141,8 +141,9 @@ const MATRIX = {
   "GET /reports/:framework": { roles: MAA },
   "POST /ai/suggest-values": { roles: A },
   "POST /ai/suggest-mapping": { roles: AS },
+  "GET /esg": { roles: MAA },
 };
-const QUERY = { "/dashboard": "?year=2026", "/periods/lock": "?year=2026", "/my/template": "?period=2026-09", "/reports/GRI": "?year=2026" };
+const QUERY = { "/dashboard": "?year=2026", "/periods/lock": "?year=2026", "/my/template": "?period=2026-09", "/reports/GRI": "?year=2026", "/esg": "?year=2026" };
 
 /** Every route of the compiled /kpi router, walked from its Express stack. */
 function kpiRoutes() {

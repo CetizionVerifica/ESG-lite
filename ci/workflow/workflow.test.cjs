@@ -819,6 +819,21 @@ step("K6 the dashboard: coverage per framework, the gaps with their owners, the 
   assert.deepEqual(ov.readiness.map((x) => x.framework), K.frameworks);
 });
 
+step("K6b the ESG dashboard (D19): GHG Scope 1 + 2 is the GHG report's; water and waste under Environment", async () => {
+  const r = await call("GET", `/kpi/esg?year=${K.report_year}`, S.people.manager);
+  ok(r);
+  assert.deepEqual(r.json.pillars.map((p) => p.pillar), ["environment", "social", "governance"]);
+  const env = r.json.pillars.find((p) => p.pillar === "environment");
+  assert.equal(env.kpis, K.selected.length, "every selected KPI is an Environment one");
+  const totals = S.kpiTables.totals[String(SC.REPORT_YEAR)];
+  const ghg = r.json.trends.find((t) => t.code === "GHG_SCOPE1_2");
+  assert.equal(r2(ghg.value), r2(totals.scope1 + totals.scope2), "the approved auto values, from the GHG report's functions");
+  assert.deepEqual(r.json.trends.map((t) => t.code), ["GHG_SCOPE1_2", "WATER_WITHDRAWAL", "WASTE_GENERATED"]);
+  assert.equal(r.json.trends.find((t) => t.code === "WASTE_GENERATED").value, K.waste.canonical);
+  assert.equal((await call("GET", `/kpi/esg?year=${K.report_year}`, S.people.userMain)).json.code, "KPI_FORBIDDEN");
+  assert.equal(await emissionReports(), S.kpiEmissionsBefore, "reading the ESG dashboard moves no emission figure");
+});
+
 step("K7 the framework exports carry exactly the approved values, in each framework's unit", async () => {
   const gri = await call("GET", `/kpi/reports/GRI?year=${K.report_year}`, S.people.manager);
   ok(gri);

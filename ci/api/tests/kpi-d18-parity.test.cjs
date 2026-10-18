@@ -31,7 +31,7 @@ test.after(async () => {
 
 const withCompany = (url) => `${url}${url.includes("?") ? "&" : "?"}company_id=1`;
 /** A query each GET needs to get past validation (year and friends), so the parity is about rights, not 400s. */
-const QUERY = { "/kpi/dashboard": "?year=2026", "/kpi/periods/lock": "?year=2026", "/kpi/my/template": "?period=2026-09" };
+const QUERY = { "/kpi/dashboard": "?year=2026", "/kpi/periods/lock": "?year=2026", "/kpi/my/template": "?period=2026-09", "/kpi/esg": "?year=2026" };
 
 test("route table: every route an Admin passes, a Superadmin with company_id passes; without it KPI_COMPANY_REQUIRED", async () => {
   const routes = kpiRoutes();
@@ -52,8 +52,9 @@ test("route table: every route an Admin passes, a Superadmin with company_id pas
     assert.deepEqual([none.status, none.json?.code], [400, "KPI_COMPANY_REQUIRED"], `${r.method} ${r.path} without company_id`);
   }
   assert.deepEqual(adminOnly, [], "Admin-only KPI gaps");
-  // The D18 list: setup, people topics, targets, lock and unlock, dashboard and remind, reports, auto refresh, values.
-  for (const must of ["PUT /setup", "POST /setup/custom-kpis", "POST /setup/invite", "PUT /people/:user_id/topics", "PUT /targets", "DELETE /targets/:id", "POST /periods/lock", "POST /periods/unlock", "GET /dashboard", "POST /dashboard/remind", "GET /reports/:framework", "POST /auto/refresh", "PUT /values", "GET /overview"]) {
+  // The D18 list: setup, people topics, targets, lock and unlock, dashboard and remind, reports, auto refresh, values,
+  // and (D19, wave E) the ESG dashboard.
+  for (const must of ["PUT /setup", "POST /setup/custom-kpis", "POST /setup/invite", "PUT /people/:user_id/topics", "PUT /targets", "DELETE /targets/:id", "POST /periods/lock", "POST /periods/unlock", "GET /dashboard", "POST /dashboard/remind", "GET /reports/:framework", "POST /auto/refresh", "PUT /values", "GET /overview", "GET /esg"]) {
     assert.ok(checked.includes(must), `${must} is an Admin route the walk checked (${checked.length} checked)`);
   }
 });
