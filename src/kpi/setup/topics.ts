@@ -159,6 +159,29 @@ export async function assertTopicOwner(
 const companySiteSet = async (m: EntityManager, companyId: number) =>
   new Set<number>((await m.query(`SELECT site_id FROM site WHERE company_id = $1`, [companyId])).map((r: Row) => Number(r.site_id)));
 
+/**
+ * When a topic's owner changes or the topic row goes, per-KPI rows on that
+ * site and topic that only repeated the old owner (same owner and reviewer)
+ * are not real exceptions: drop them, so the KPIs follow the topic. Real
+ * exceptions (another person) stay. Without this, wave B setups (one
+ * kpi_assignment row per KPI) kept every KPI pinned to the old person.
+ */
+export async function dropEchoExceptions(
+  m: EntityManager,
+  companyId: number,
+  siteId: number | null,
+  topic: string,
+  ownerUserId: number,
+  reviewerUserId: number | null,
+): Promise<number> {
+  // data-loss-reviewed: removes only per-KPI rows identical to the topic owner being replaced; who owns each KPI is decided by the new topic row.
+  const rows: Row[] = await m.query(
+    `DELETE FROM kpi_assignment a USING kpi_definition d WHERE d.id = a.kpi_definition_id AND a.company_id = $1 AND COALESCE(a.site_id, 0) = COALESCE($2::int, 0) AND d.topic = $3 AND a.owner_user_id = $4 AND COALESCE(a.reviewer_user_id, 0) = COALESCE($5::int, 0) RETURNING a.id`,
+    [companyId, siteId, topic, ownerUserId, reviewerUserId],
+  );
+  return rows.length;
+}
+
 // ---------------------------------------------------------------------------
 // PUT /kpi/setup {topic_assignments}: the whole set
 // ---------------------------------------------------------------------------
@@ -190,12 +213,14 @@ export async function saveTopicAssignments(
     const w = wanted.get(k);
     if (!w) {
       await m.query(`DELETE FROM kpi_topic_assignment WHERE id = $1`, [b.id]);
+      await dropEchoExceptions(m, companyId, b.site_id, b.topic, b.owner_user_id, b.reviewer_user_id);
       changed[`${b.topic}@${b.site_id ?? "company"}`] = { old: { owner_user_id: b.owner_user_id, reviewer_user_id: b.reviewer_user_id }, new: null };
     }
   }
   for (const w of wanted.values()) {
     const b = before.find((x) => x.site_id === w.site_id && x.topic === w.topic);
     if (b && b.owner_user_id === w.owner_user_id && b.reviewer_user_id === w.reviewer_user_id) continue;
+    if (b) await dropEchoExceptions(m, companyId, b.site_id, b.topic, b.owner_user_id, b.reviewer_user_id);
     await m.query(
       `INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id, reviewer_user_id, updated_by) VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (company_id, (COALESCE(site_id, 0)), topic) DO UPDATE SET owner_user_id = EXCLUDED.owner_user_id, reviewer_user_id = EXCLUDED.reviewer_user_id, updated_by = EXCLUDED.updated_by, updated_at = now()`,
@@ -289,7 +314,7 @@ export async function putPeopleTopics(caller: KpiCaller, userId: number, raw: un
 
     const current: Row[] = siteIds.length
       ? await m.query(
-          `SELECT t.id, t.site_id, t.topic, t.owner_user_id, s.name AS site_name, ${nameSql("o")} AS owner_name
+          `SELECT t.id, t.site_id, t.topic, t.owner_user_id, t.reviewer_user_id, s.name AS site_name, ${nameSql("o")} AS owner_name
              FROM kpi_topic_assignment t JOIN site s ON s.site_id = t.site_id LEFT JOIN "user" o ON o.user_id = t.owner_user_id
             WHERE t.company_id = $1 AND t.site_id = ANY($2::int[])`,
           [caller.companyId, siteIds],
@@ -304,6 +329,7 @@ export async function putPeopleTopics(caller: KpiCaller, userId: number, raw: un
         if (c && Number(c.owner_user_id) === userId) continue;
         if (c) {
           moved.push({ site_id: s, site_name: c.site_name ?? null, topic: t, topic_label: topicLabel(t), from_user_id: Number(c.owner_user_id), from_name: c.owner_name ?? null });
+          await dropEchoExceptions(m, caller.companyId, s, t, Number(c.owner_user_id), c.reviewer_user_id == null ? null : Number(c.reviewer_user_id));
           await m.query(`UPDATE kpi_topic_assignment SET owner_user_id = $2, updated_by = $3, updated_at = now() WHERE id = $1`, [c.id, userId, caller.userId || null]);
         } else {
           await m.query(`INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id, updated_by) VALUES ($1, $2, $3, $4, $5)`, [caller.companyId, s, t, userId, caller.userId || null]);
@@ -312,6 +338,7 @@ export async function putPeopleTopics(caller: KpiCaller, userId: number, raw: un
       }
       for (const c of current.filter((r) => Number(r.site_id) === s && Number(r.owner_user_id) === userId && !topics.includes(r.topic))) {
         await m.query(`DELETE FROM kpi_topic_assignment WHERE id = $1`, [c.id]);
+        await dropEchoExceptions(m, caller.companyId, s, c.topic, userId, c.reviewer_user_id == null ? null : Number(c.reviewer_user_id));
         removed.push({ site_id: s, topic: c.topic });
       }
     }

@@ -250,6 +250,51 @@ test("GET/PUT /kpi/people/:user_id/topics: owner of those topics on those sites,
   assert.equal((await call("PUT", "/kpi/people/1/topics?company_id=2", "superadmin", { topics: ["water"] })).status, 404, "not a person of company 2");
 });
 
+test("wave B per-KPI rows: one person's become the topic owner; moving the topic moves those KPIs, real exceptions stay", async () => {
+  const waste = (await q(
+    `SELECT d.id, d.code FROM kpi_definition d JOIN company_kpi c ON c.kpi_definition_id = d.id AND c.company_id = 1 AND c.selected
+      WHERE d.topic = 'waste' AND d.source = 'manual' ORDER BY d.id LIMIT 3`,
+  ));
+  assert.equal(waste.length, 3, "three manual waste KPIs selected");
+  const [a, b, c] = waste;
+  await q(`DELETE FROM kpi_value WHERE company_id = 1 AND kpi_definition_id = ANY($1::int[])`, [[a.id, b.id, c.id]]);
+  await q(`DELETE FROM kpi_assignment WHERE company_id = 1`);
+  await q(`DELETE FROM kpi_topic_assignment WHERE company_id = 1 AND topic = 'waste'`);
+  // A wave B setup: each waste KPI on site 1 has its own row, all user 1's.
+  for (const k of [a, b]) await q(`INSERT INTO kpi_assignment (company_id, kpi_definition_id, site_id, owner_user_id) VALUES (1, $1, 1, 1)`, [k.id]);
+  const r = runScript("migrateKpiTopicAssignment");
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(r.stdout, /1 from per-KPI rows held by one person/);
+  assert.deepEqual((await owners()).filter((o) => o.topic === "waste").map((o) => [o.site_id, o.owner_user_id]), [[1, 1]]);
+  assert.equal(runScript("migrateKpiTopicAssignment").status, 0, "twice clean");
+
+  // A real exception: C goes to user 7.
+  await q(`INSERT INTO kpi_assignment (company_id, kpi_definition_id, site_id, owner_user_id) VALUES (1, $1, 1, 7)`, [c.id]);
+  // Mixed owners for a topic are never collapsed.
+  await q(`DELETE FROM kpi_topic_assignment WHERE company_id = 1 AND topic = 'waste'`);
+  assert.equal(runScript("migrateKpiTopicAssignment").status, 0);
+  assert.deepEqual((await owners()).filter((o) => o.topic === "waste"), [], "users 1 and 7 both hold waste rows");
+  await q(`INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id) VALUES (1, 1, 'waste', 1)`);
+
+  // Move waste on site 1 to user 7 from the users drawer: A and B follow the topic.
+  const mine = (await call("GET", "/kpi/people/7/topics", "admin")).json.by_site.find((x) => x.site_id === 1)?.topics ?? [];
+  const put = await call("PUT", "/kpi/people/7/topics", "admin", { topics: [...new Set([...mine, "waste"])], site_ids: [1] });
+  assert.equal(put.status, 200, JSON.stringify(put.json));
+  assert.deepEqual(put.json.moved.filter((x) => x.topic === "waste").map((x) => x.from_user_id), [1]);
+  const left = await q(`SELECT kpi_definition_id, owner_user_id FROM kpi_assignment WHERE company_id = 1 ORDER BY kpi_definition_id`);
+  assert.deepEqual(left, [{ kpi_definition_id: c.id, owner_user_id: 7 }], "only the real exception is left");
+  { const sa = await save("multiSiteUser", { kpi_code: a.code, period_start: "2026-01-01" }); assert.equal(sa.ok, true, "user 7 now owns A: " + JSON.stringify(sa)); }
+  assert.equal((await save("user", { kpi_code: b.code, period_start: "2026-01-01" })).code, "KPI_NOT_ASSIGNED", "user 1 no longer owns B");
+
+  // Clearing the topic owner in setup drops rows that only repeated them, keeps others.
+  await q(`INSERT INTO kpi_assignment (company_id, kpi_definition_id, site_id, owner_user_id) VALUES (1, $1, 1, 7)`, [a.id]);
+  const setup = (await call("GET", "/kpi/setup", "admin")).json;
+  const ta = setup.topic_assignments.map(({ site_id, topic, owner_user_id, reviewer_user_id }) => ({ site_id, topic, owner_user_id: site_id === 1 && topic === "waste" ? null : owner_user_id, reviewer_user_id }));
+  assert.equal((await call("PUT", "/kpi/setup", "admin", { topic_assignments: ta })).status, 200);
+  assert.deepEqual(await q(`SELECT kpi_definition_id FROM kpi_assignment WHERE company_id = 1 ORDER BY 1`), [], "both rows were user 7's, the old topic owner");
+  await q(`DELETE FROM kpi_value WHERE company_id = 1 AND kpi_definition_id = ANY($1::int[])`, [[a.id, b.id, c.id]]);
+});
+
 test("the users-drawer aliases: PATCH /company-admin/users/:id and (Superadmin) PATCH /admin/users/:id {kpi_topics}", async () => {
   const a = await call("PATCH", "/company-admin/users/7", "admin", { kpi_topics: ["waste"] });
   assert.equal(a.status, 200, JSON.stringify(a.json));

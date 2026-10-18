@@ -12,7 +12,12 @@
 // are converted ONCE: each unconverted grant of a User or Manager becomes the
 // owner of that topic on each of their sites where the slot is still empty
 // (Users before Managers, then the lowest user id), then the grant is stamped,
-// so a later run never refills a slot someone emptied on purpose. Statements
+// so a later run never refills a slot someone emptied on purpose.
+// Wave B setups gave every KPI its own kpi_assignment row. Where one person
+// (same owner and reviewer) holds every per-KPI row of a topic on a site and
+// that slot has no topic owner yet, they become its topic owner (insert only;
+// the per-KPI rows stay and now equal the topic owner, so nothing changes who
+// owns what). They are dropped later when the topic owner changes. Statements
 // match what TypeORM generates for the entity, so ci/schema-diff.cjs sees
 // nothing left to do. Nothing here touches emission data.
 import "reflect-metadata";
@@ -25,6 +30,17 @@ export const KPI_TOPIC_ASSIGNMENT_SCHEMA = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_topic_assignment_company_site_topic" ON "kpi_topic_assignment" ("company_id", (COALESCE("site_id", 0)), "topic")`,
   `ALTER TABLE "kpi_topic_grant" ADD COLUMN IF NOT EXISTS "converted_at" TIMESTAMP`,
 ];
+
+export const COLLAPSE_PER_KPI = `
+  INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id, reviewer_user_id)
+  SELECT g.company_id, g.site_id, g.topic, g.owner, NULLIF(g.reviewer, 0) FROM (
+    SELECT a.company_id, a.site_id, d.topic, MIN(a.owner_user_id) AS owner, MAX(a.owner_user_id) AS owner_max,
+           MIN(COALESCE(a.reviewer_user_id, 0)) AS reviewer, MAX(COALESCE(a.reviewer_user_id, 0)) AS reviewer_max
+      FROM kpi_assignment a JOIN kpi_definition d ON d.id = a.kpi_definition_id
+     GROUP BY a.company_id, a.site_id, d.topic
+  ) g
+  WHERE g.owner = g.owner_max AND g.reviewer = g.reviewer_max
+  ON CONFLICT (company_id, (COALESCE(site_id, 0)), topic) DO NOTHING`;
 
 export const CONVERT_GRANTS = `
   INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id)
@@ -49,9 +65,10 @@ async function main() {
       await m.query(`LOCK TABLE kpi_topic_grant IN SHARE ROW EXCLUSIVE MODE`);
       const [ins] = await m.query(`WITH made AS (${CONVERT_GRANTS} RETURNING id) SELECT COUNT(*)::int AS n FROM made`, [[...KPI_TOPICS]]);
       const [upd] = await m.query(`WITH done AS (UPDATE kpi_topic_grant SET converted_at = now() WHERE converted_at IS NULL RETURNING id) SELECT COUNT(*)::int AS n FROM done`);
-      return { assignments: Number(ins?.n ?? 0), grants: Number(upd?.n ?? 0) };
+      const [col] = await m.query(`WITH made AS (${COLLAPSE_PER_KPI} RETURNING id) SELECT COUNT(*)::int AS n FROM made`);
+      return { assignments: Number(ins?.n ?? 0), grants: Number(upd?.n ?? 0), collapsed: Number(col?.n ?? 0) };
     });
-    console.log(`D17 kpi_topic_assignment present; ${converted.assignments} topic assignment(s) made from ${converted.grants} unconverted grant(s).`);
+    console.log(`D17 kpi_topic_assignment present; ${converted.assignments} topic assignment(s) made from ${converted.grants} unconverted grant(s); ${converted.collapsed} from per-KPI rows held by one person.`);
   } finally {
     await AppDataSource.destroy();
   }
