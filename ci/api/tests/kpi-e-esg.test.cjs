@@ -21,8 +21,8 @@
 //                EMPLOYEES_TOTAL      2025: 200                        2024: 160      (company)
 //                WOMEN_IN_WORKFORCE   2025: 30                         2024: 25       (company)
 //                TRAINING_HOURS_AVG   2025: 12 pending                 2024: 10       (company)
-//                WOMEN_ON_BOARD       —                                                (company)
-//   Governance   REVENUE              —                                                (company)
+//   Governance   WOMEN_ON_BOARD       —                                                (company)
+//                REVENUE              —                                                (company)
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { call, withDb } = require("../helpers.cjs");
@@ -105,7 +105,7 @@ test.before(async () => {
   await setSwitch(2, true);
 });
 test.after(async () => {
-  await q(`UPDATE kpi_definition SET pillar = 'social', edited_at = NULL WHERE company_id IS NULL AND code = 'WOMEN_ON_BOARD'`);
+  await q(`UPDATE kpi_definition SET topic = 'governance', pillar = 'governance', edited_at = NULL WHERE company_id IS NULL AND code = 'WOMEN_ON_BOARD'`);
   await q(`DELETE FROM audit_log WHERE entity_type IN ('kpi_library', 'kpi_setup') AND entity_id IN (SELECT id FROM kpi_definition WHERE code LIKE 'TESTE\\_%')`);
   await wipe();
   await setSwitch(1, false);
@@ -154,13 +154,15 @@ test("the ESG dashboard: pillars, topics and the change on last year, worked by 
     ["water", "Water", 1, 0, 1, 0, 0],
     ["waste", "Waste", 1, 0, 0, 1, 0],
   ]);
-  // S: hours, LTIFR, employees, women approved; training pending; women on the board missing → 4 / 6 = 67 %.
-  //    2024: training approved too → 5 / 6 = 83 %. Change −16 points.
+  // S: hours, LTIFR, employees, women approved; training pending → 4 / 5 = 80 %.
+  //    2024: training approved too → 5 / 5 = 100 %. Change −20 points.
   const s = pillarOf(r, "social");
-  assert.deepEqual(counts(s), [6, 4, 1, 1, 0, 67, -16]);
-  assert.deepEqual(s.topics.map((t) => [t.topic, t.kpis, t.coverage_pct]), [["workforce", 1, 100], ["health_safety", 2, 100], ["diversity", 2, 50], ["training", 1, 0]]);
-  // G: revenue missing both years (a rejected value doesn't count).
-  assert.deepEqual(counts(pillarOf(r, "governance")), [1, 0, 0, 1, 0, 0, 0]);
+  assert.deepEqual(counts(s), [5, 4, 1, 0, 0, 80, -20]);
+  assert.deepEqual(s.topics.map((t) => [t.topic, t.kpis, t.coverage_pct]), [["workforce", 1, 100], ["health_safety", 2, 100], ["diversity", 1, 100], ["training", 1, 0]]);
+  // G: women on the board (governance topic) and revenue missing both years (a rejected value doesn't count).
+  const g = pillarOf(r, "governance");
+  assert.deepEqual(counts(g), [2, 0, 0, 2, 0, 0, 0]);
+  assert.deepEqual(g.topics.map((t) => [t.topic, t.kpis, t.missing]), [["governance", 2, 2]]);
   assert.deepEqual(r.pending_not_in, { count: 2, link: "/data/approvals?view=kpi" });
 });
 
@@ -169,7 +171,10 @@ test("headline trends: GHG Scope 1 + 2 from the approved auto values, series, ch
   assert.deepEqual(r.trends.map((t) => [t.pillar, t.code]), [
     ["environment", "GHG_SCOPE1_2"], ["environment", "ENERGY_TOTAL"], ["environment", "WATER_WITHDRAWAL"], ["environment", "WASTE_GENERATED"],
     ["social", "EMPLOYEES_TOTAL"], ["social", "LTIFR"], ["social", "WOMEN_IN_WORKFORCE"], ["social", "TRAINING_HOURS_AVG"],
-  ], "at most 4 per pillar: women on the board is the 5th Social headline; no Governance headline is selected");
+    ["governance", "WOMEN_ON_BOARD"],
+  ], "at most 4 per pillar; women on the board is the selected Governance headline");
+  const wob = trend(r, "WOMEN_ON_BOARD");
+  assert.deepEqual([wob.topic, wob.value, wob.previous, wob.direction_good, wob.unit], ["governance", null, null, "up", "%"]);
   const ghg = trend(r, "GHG_SCOPE1_2");
   // 2025: 100 + 50 + 30 = 180; 2024: 120 + 80 + 20 = 220; (180 − 220) / 220 = −18.2 %.
   assert.deepEqual(
@@ -244,25 +249,48 @@ test("D17 expected sites: a manual KPI owned on one site is expected there only"
   }
 });
 
+test("the seed moves board diversity to the governance topic on an existing database, unless a Superadmin edited it", async () => {
+  const row = async () => (await q(`SELECT topic, pillar, edited_at FROM kpi_definition WHERE id = $1`, [ids.WOMEN_ON_BOARD]))[0];
+  const reseed = () => {
+    const r = runScript("seedKpiLibrary");
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+  };
+  try {
+    // A database seeded before the move: diversity topic, Social pillar, never edited.
+    await q(`UPDATE kpi_definition SET topic = 'diversity', pillar = 'social', edited_at = NULL WHERE id = $1`, [ids.WOMEN_ON_BOARD]);
+    reseed();
+    assert.deepEqual(Object.values(await row()), ["governance", "governance", null], "refreshed: topic and pillar follow the seed");
+    reseed();
+    assert.deepEqual(Object.values(await row()).slice(0, 2), ["governance", "governance"], "twice clean");
+    // The same old row, edited by a Superadmin: the seed leaves it alone.
+    await q(`UPDATE kpi_definition SET topic = 'diversity', pillar = 'social', edited_at = now() WHERE id = $1`, [ids.WOMEN_ON_BOARD]);
+    reseed();
+    assert.deepEqual(Object.values(await row()).slice(0, 2), ["diversity", "social"], "an edited row keeps its topic and pillar");
+  } finally {
+    await q(`UPDATE kpi_definition SET topic = 'governance', pillar = 'governance', edited_at = NULL WHERE id = $1`, [ids.WOMEN_ON_BOARD]);
+  }
+});
+
 test("the library pillar override: Superadmin only, kept by a re-seed, moves the headline; a topic change follows its pillar", async () => {
   const put = (who, id, body) => call("PUT", `/kpi/library/definitions/${id}`, who, body);
-  assert.equal((await put("admin", ids.WOMEN_ON_BOARD, { pillar: "governance" })).status, 403);
+  assert.equal((await put("admin", ids.WOMEN_ON_BOARD, { pillar: "social" })).status, 403);
   const bad = await put("superadmin", ids.WOMEN_ON_BOARD, { pillar: "economic" });
   assert.deepEqual([bad.status, bad.json.code], [400, "KPI_VALIDATION"]);
-  const ok = await put("superadmin", ids.WOMEN_ON_BOARD, { pillar: "governance" });
+  const ok = await put("superadmin", ids.WOMEN_ON_BOARD, { pillar: "social" });
   assert.equal(ok.status, 200, JSON.stringify(ok.json));
-  assert.deepEqual([ok.json.definition.topic, ok.json.definition.pillar], ["diversity", "governance"]);
+  assert.deepEqual([ok.json.definition.topic, ok.json.definition.pillar], ["governance", "social"]);
   const reseed = runScript("seedKpiLibrary");
   assert.equal(reseed.status, 0, reseed.stderr);
-  assert.equal((await q(`SELECT pillar FROM kpi_definition WHERE id = $1`, [ids.WOMEN_ON_BOARD]))[0].pillar, "governance", "an edited row keeps its pillar");
+  assert.equal((await q(`SELECT pillar FROM kpi_definition WHERE id = $1`, [ids.WOMEN_ON_BOARD]))[0].pillar, "social", "an edited row keeps its pillar");
   const lib = await call("GET", "/kpi/library/definitions?pillar=governance", "superadmin");
-  assert.deepEqual(lib.json.definitions.map((d) => d.code).sort(), ["REVENUE", "WOMEN_ON_BOARD"]);
+  assert.deepEqual(lib.json.definitions.map((d) => d.code).sort(), ["ANTI_CORRUPTION_TRAINING_SHARE", "BOARD_INDEPENDENCE", "CORRUPTION_INCIDENTS", "DAYS_PAYABLE", "ETHICS_CONCERNS", "FINES_PAID", "REVENUE"]);
 
   const r = await get("admin");
-  assert.deepEqual(r.trends.filter((t) => t.pillar === "governance").map((t) => t.code), ["WOMEN_ON_BOARD"]);
-  assert.deepEqual(counts(pillarOf(r, "governance")).slice(0, 6), [2, 0, 0, 2, 0, 0]);
-  assert.deepEqual(pillarOf(r, "governance").topics.map((t) => t.topic), ["diversity", "governance"]);
-  assert.deepEqual(counts(pillarOf(r, "social")).slice(0, 6), [5, 4, 1, 0, 0, 80]);
+  assert.deepEqual(r.trends.filter((t) => t.pillar === "governance").map((t) => t.code), [], "no Governance headline is selected once it moves");
+  assert.deepEqual(r.trends.filter((t) => t.pillar === "social").map((t) => t.code), ["EMPLOYEES_TOTAL", "LTIFR", "WOMEN_IN_WORKFORCE", "TRAINING_HOURS_AVG"], "women on the board would be the 5th Social headline");
+  assert.deepEqual(counts(pillarOf(r, "governance")).slice(0, 6), [1, 0, 0, 1, 0, 0]);
+  assert.deepEqual(pillarOf(r, "social").topics.map((t) => t.topic), ["workforce", "health_safety", "diversity", "training", "governance"]);
+  assert.deepEqual(counts(pillarOf(r, "social")).slice(0, 6), [6, 4, 1, 1, 0, 67]);
 
   // A new library KPI takes its topic's pillar; moving topic follows it, unless overridden.
   const made = await call("POST", "/kpi/library/definitions", "superadmin", {
@@ -291,8 +319,8 @@ test("a custom KPI's pillar defaults from its topic; the Admin may set it; /kpi/
     const setup = (await call("GET", "/kpi/setup", "admin")).json;
     assert.deepEqual(setup.kpis.filter((k) => k.custom).map((k) => k.pillar).sort(), ["governance", "social"]);
     const r = await get("admin");
-    assert.equal(pillarOf(r, "governance").kpis, 3, "revenue, women on the board (moved above) and the board meetings KPI");
-    assert.equal(pillarOf(r, "social").kpis, 6, "the five Social KPIs left and the supplier audits KPI");
+    assert.equal(pillarOf(r, "governance").kpis, 2, "revenue and the board meetings KPI (women on the board moved to Social above)");
+    assert.equal(pillarOf(r, "social").kpis, 7, "the five Social KPIs, women on the board and the supplier audits KPI");
   } finally {
     await q(`DELETE FROM company_kpi WHERE kpi_definition_id IN ($1, $2)`, [a.json.definition.id, b.json.definition.id]);
     await q(`DELETE FROM kpi_definition WHERE id IN ($1, $2)`, [a.json.definition.id, b.json.definition.id]);
@@ -300,7 +328,7 @@ test("a custom KPI's pillar defaults from its topic; the Admin may set it; /kpi/
 });
 
 test("pillar on the catalogue, setup, /kpi/my, dashboard cards and gaps, value rows and targets", async () => {
-  await q(`UPDATE kpi_definition SET pillar = 'social', edited_at = NULL WHERE company_id IS NULL AND code = 'WOMEN_ON_BOARD'`);
+  await q(`UPDATE kpi_definition SET topic = 'governance', pillar = 'governance', edited_at = NULL WHERE company_id IS NULL AND code = 'WOMEN_ON_BOARD'`);
   const cat = (await call("GET", "/kpi/catalogue", "admin")).json;
   for (const d of cat.definitions) assert.equal(d.pillar, TOPIC_PILLAR[d.topic], d.code);
   const setup = (await call("GET", "/kpi/setup", "manager")).json;

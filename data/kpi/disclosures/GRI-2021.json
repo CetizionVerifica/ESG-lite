@@ -261,6 +261,66 @@
       "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
       "sort_key": 260,
       "verified": true
+    },
+    {
+      "code": "2-9",
+      "title": "Governance structure and board composition",
+      "section": "GRI 2 General disclosures",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
+      "sort_key": 15,
+      "verified": true
+    },
+    {
+      "code": "2-16",
+      "title": "Critical concerns raised with the board",
+      "section": "GRI 2 General disclosures",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
+      "sort_key": 25,
+      "verified": true
+    },
+    {
+      "code": "2-27",
+      "title": "Compliance with laws and regulations, and fines paid",
+      "section": "GRI 2 General disclosures",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
+      "sort_key": 45,
+      "verified": true
+    },
+    {
+      "code": "205-2",
+      "title": "Anti-corruption communication and training",
+      "section": "GRI 205 Anti-corruption",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
+      "sort_key": 46,
+      "verified": true
+    },
+    {
+      "code": "205-3",
+      "title": "Confirmed corruption incidents and actions taken",
+      "section": "GRI 205 Anti-corruption",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
+      "sort_key": 47,
+      "verified": true
+    },
+    {
+      "code": "418-1",
+      "title": "Customer privacy complaints and customer data lost",
+      "section": "GRI 418 Customer privacy",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.globalreporting.org/how-to-use-the-gri-standards/gri-standards-english-language/",
+      "sort_key": 270,
+      "verified": true
     }
   ]
 }

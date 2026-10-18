@@ -128,7 +128,7 @@ test("XLSX: sheet names and headers per framework; an audit trail sheet in each"
   assert.deepEqual(trail[1], [101, "WATER_WITHDRAWAL", "Water withdrawn", "Plant A", "Jan 2026", 100, "kL", 100, "kL", "manual", "Mia Manager", "2026-02-03", "bill-jan.pdf; meter.jpg"]);
 
   const brsr = read(brsrSheets(buildReportModel(reportInput("BRSR")), audit));
-  assert.deepEqual(brsr.SheetNames, ["Section A", "Principle 3", "Principle 5", "Principle 6", "Audit trail"]);
+  assert.deepEqual(brsr.SheetNames, ["Section A", "Principle 1", "Principle 3", "Principle 5", "Principle 6", "Principle 9", "Audit trail"]);
   const p6 = XLSX.utils.sheet_to_json(brsr.Sheets["Principle 6"], { header: 1, defval: null });
   assert.deepEqual(p6[3], ["Indicator", "Disclosure", "Parameter", "Unit", "2026 (current year)", "2025 (previous year)", "BRSR Core", "Assurance evidence (files)", "Notes"]);
   const energy = p6.find((r) => r[2] === "Energy consumed");
@@ -143,7 +143,7 @@ test("XLSX: sheet names and headers per framework; an audit trail sheet in each"
   assert.deepEqual(dp[3], ESRS_HEADER);
   assert.deepEqual(dp.find((r) => r[1] === "E1-5" && r[4] === 1500).slice(0, 8), ["E1", "E1-5", dp.find((r) => r[1] === "E1-5")[2], "Energy consumed", 1500, "MWh", 900, "Material"]);
   const nm = XLSX.utils.sheet_to_json(esrs.Sheets["Not material"], { header: 1, defval: null });
-  assert.deepEqual(nm, [["Topic", "Reason", "Datapoints not reported"], ["E3", "No water stress at our sites", "E3-4"], ["E5", "Materiality not assessed.", "E5-5"], ["S1", "Materiality not assessed.", "S1-6, S1-7, S1-9, S1-10, S1-13, S1-14, S1-15, S1-16, S1-17"]]);
+  assert.deepEqual(nm, [["Topic", "Reason", "Datapoints not reported"], ["E3", "No water stress at our sites", "E3-4"], ["E5", "Materiality not assessed.", "E5-5"], ["S1", "Materiality not assessed.", "S1-6, S1-7, S1-9, S1-10, S1-13, S1-14, S1-15, S1-16, S1-17"], ["G1", "Materiality not assessed.", "G1-3, G1-4, G1-6"]]);
 });
 
 test("GRI PDF template: the brand, every value, omissions, escaped text (HTML snapshot)", () => {

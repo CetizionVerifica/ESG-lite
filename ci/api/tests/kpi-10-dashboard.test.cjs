@@ -89,12 +89,12 @@ test("coverage per framework, worked by hand", async () => {
   assert.deepEqual([r.year, r.year_type, r.label], [2025, "CY", "2025"]);
   assert.deepEqual(r.coverage.map((c) => c.framework), ["GRI", "BRSR", "ESRS"]);
 
-  // GRI: 26 required; 305-7 excluded (every air KPI left out with a reason) → 25 counted.
+  // GRI: 32 required; 305-7 excluded (every air KPI left out with a reason) → 31 counted.
   // 303-3 approved (both sites), 303-5 approved (the calculated value), 303-4 pending (site 2),
   // 403-9 missing (high-consequence injuries nowhere, recordable injuries not on site 2; a draft
-  // doesn't count); the other 21 aren't tracked → missing. 2 / 25 = 8 %.
+  // doesn't count); the other 27 aren't tracked → missing. 2 / 31 = 6 %.
   const gri = fw(r, "GRI");
-  assert.deepEqual(pick(gri), [25, 2, 1, 22, 0, 1, 8]);
+  assert.deepEqual(pick(gri), [31, 2, 1, 28, 0, 1, 6]);
   const state = (c, code) => c.disclosures.find((d) => d.code === code).state;
   assert.deepEqual(["303-3", "303-4", "303-5", "403-9", "305-7", "302-1"].map((c) => state(gri, c)), ["approved", "pending", "approved", "missing", "excluded", "missing"]);
   assert.equal(gri.disclosures.find((d) => d.code === "302-1").reason_kind, "not_tracked");
@@ -102,18 +102,18 @@ test("coverage per framework, worked by hand", async () => {
   assert.equal(gri.core, null);
   assert.equal(gri.gaps, 2, "recordable injuries on site 2; high-consequence injuries on site 2 (assigned there only)");
 
-  // BRSR: 23 disclosures, P6-L2 voluntary, P6-E6 excluded → 21 counted. P6-E3 approved (withdrawal and
-  // consumption; intensity left out with a reason), P6-E4 pending. Core: 9, done 1. 1 / 21 = 5 %.
+  // BRSR: 26 disclosures, P6-L2 voluntary, P6-E6 excluded → 24 counted. P6-E3 approved (withdrawal and
+  // consumption; intensity left out with a reason), P6-E4 pending. Core: 11, done 1. 1 / 24 = 4 %.
   const brsr = fw(r, "BRSR");
-  assert.deepEqual(pick(brsr), [21, 1, 1, 19, 0, 1, 5]);
-  assert.deepEqual(brsr.core, { done: 1, total: 9 });
+  assert.deepEqual(pick(brsr), [24, 1, 1, 22, 0, 1, 4]);
+  assert.deepEqual(brsr.core, { done: 1, total: 11 });
   assert.equal(state(brsr, "P6-L2"), "voluntary");
 
-  // ESRS: GOV-1 required (women on the board isn't tracked); E3 not material with its reason; the other topics undecided.
+  // ESRS: GOV-1 required (women on the board isn't tracked); E3 not material with its reason; the other topics (G1 too) undecided.
   const esrs = fw(r, "ESRS");
   assert.deepEqual(esrs.material_topics, [{ esrs_topic: "E3", material: false, reason: "No water stress at our sites" }]);
   assert.equal(gri.material_topics, undefined);
-  assert.deepEqual(pick(esrs), [1, 0, 0, 1, 0, 14, 0]);
+  assert.deepEqual(pick(esrs), [1, 0, 0, 1, 0, 17, 0]);
   assert.deepEqual(esrs.excluded_disclosures.find((d) => d.code === "E3-4"), { disclosure_id: esrs.excluded_disclosures.find((d) => d.code === "E3-4").disclosure_id, code: "E3-4", title: esrs.excluded_disclosures.find((d) => d.code === "E3-4").title, reason_kind: "not_material", reason: "No water stress at our sites" });
 
   assert.deepEqual((await dash("manager", "&framework=BRSR")).coverage.map((c) => c.framework), ["BRSR"]);

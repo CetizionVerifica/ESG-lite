@@ -69,13 +69,13 @@ test("the headline list: library KPIs of its topic, one unit per headline, at mo
   const picked = (pillar) => headlines.HEADLINES.filter((h) => enums.TOPIC_PILLAR[h.topic] === pillar).slice(0, 4).map((h) => h.code);
   assert.deepEqual(picked("environment"), ["GHG_SCOPE1_2", "ENERGY_TOTAL", "WATER_WITHDRAWAL", "WASTE_GENERATED"]);
   assert.deepEqual(picked("social"), ["EMPLOYEES_TOTAL", "LTIFR", "WOMEN_IN_WORKFORCE", "TRAINING_HOURS_AVG"]);
-  assert.deepEqual(picked("governance"), [], "the library has no governance-pillar headline KPI until a Superadmin moves one (D19)");
+  assert.deepEqual(picked("governance"), ["WOMEN_ON_BOARD", "BOARD_INDEPENDENCE", "CORRUPTION_INCIDENTS", "ANTI_CORRUPTION_TRAINING_SHARE"]);
   const ghg = headlines.HEADLINES.find((h) => h.code === "GHG_SCOPE1_2");
   assert.deepEqual(ghg.parts, ["GHG_SCOPE1", "GHG_SCOPE2_LB"], "Scope 1 + location-based Scope 2, both KPI-5 auto KPIs from the GHG report");
   for (const c of ghg.parts) assert.equal(def.get(c).source, "auto");
 });
 
-test("headline directions: less energy, emissions, water, waste and injuries is good; more women and training is good", () => {
+test("headline directions: less energy, emissions, water, waste, injuries and corruption is good; more women, training and board independence is good", () => {
   const dir = Object.fromEntries(headlines.HEADLINES.map((h) => [h.code, h.direction_good]));
   assert.deepEqual(dir, {
     GHG_SCOPE1_2: "down",
@@ -92,8 +92,11 @@ test("headline directions: less energy, emissions, water, waste and injuries is 
     TRAINING_HOURS_AVG: "up",
     FATALITIES: "down",
     EMPLOYEE_TURNOVER_RATE: "down",
-    WOMEN_ON_BOARD: "up",
     COMPLAINTS_RECEIVED: "down",
+    WOMEN_ON_BOARD: "up",
+    BOARD_INDEPENDENCE: "up",
+    CORRUPTION_INCIDENTS: "down",
+    ANTI_CORRUPTION_TRAINING_SHARE: "up",
   });
   // Every headline's direction is the KPI's own in DIRECTION_GOOD.
   for (const h of headlines.HEADLINES) for (const c of h.parts) assert.equal(headlines.DIRECTION_GOOD[c], h.direction_good, c);
@@ -134,5 +137,9 @@ test("the library seed gives each KPI its topic's pillar (applySeed on a stub ma
   await seed.applySeed(m, { ...seed.readSeed(), disclosures: [], mappings: [] });
   assert.equal(inserted.length, definitions.length);
   for (const row of inserted) assert.equal(row.pillar, enums.TOPIC_PILLAR[row.topic], row.code);
-  assert.equal(inserted.find((r) => r.code === "WOMEN_ON_BOARD").pillar, "social", "diversity is a Social topic");
+  const pillar = (code) => inserted.find((r) => r.code === code).pillar;
+  assert.equal(pillar("WOMEN_ON_BOARD"), "governance", "board composition is a governance topic (ESRS 2 GOV-1, GRI 2-9)");
+  assert.equal(pillar("DATA_BREACHES"), "social", "customer data sits under the customers topic");
+  assert.deepEqual(inserted.filter((r) => r.pillar === "governance").map((r) => r.code).sort(),
+    ["ANTI_CORRUPTION_TRAINING_SHARE", "BOARD_INDEPENDENCE", "CORRUPTION_INCIDENTS", "DAYS_PAYABLE", "ETHICS_CONCERNS", "FINES_PAID", "REVENUE", "WOMEN_ON_BOARD"]);
 });

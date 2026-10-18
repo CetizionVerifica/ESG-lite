@@ -151,6 +151,36 @@
       "source_url": "https://eur-lex.europa.eu/eli/reg_del/2023/2772/oj",
       "sort_key": 150,
       "verified": true
+    },
+    {
+      "code": "G1-3",
+      "title": "Preventing and detecting corruption, including training",
+      "section": "G1 Business conduct",
+      "requirement": "if_material",
+      "esrs_topic": "G1",
+      "source_url": "https://eur-lex.europa.eu/eli/reg_del/2023/2772/oj",
+      "sort_key": 160,
+      "verified": true
+    },
+    {
+      "code": "G1-4",
+      "title": "Corruption and bribery: convictions, fines and incidents",
+      "section": "G1 Business conduct",
+      "requirement": "if_material",
+      "esrs_topic": "G1",
+      "source_url": "https://eur-lex.europa.eu/eli/reg_del/2023/2772/oj",
+      "sort_key": 170,
+      "verified": true
+    },
+    {
+      "code": "G1-6",
+      "title": "Payment practices, including time taken to pay",
+      "section": "G1 Business conduct",
+      "requirement": "if_material",
+      "esrs_topic": "G1",
+      "source_url": "https://eur-lex.europa.eu/eli/reg_del/2023/2772/oj",
+      "sort_key": 180,
+      "verified": true
     }
   ]
 }

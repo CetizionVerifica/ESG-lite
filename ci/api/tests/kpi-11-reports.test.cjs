@@ -141,7 +141,7 @@ test("XLSX for each framework: sheet names, headers, the audit trail", async () 
   const trail = XLSX.utils.sheet_to_json(gri.Sheets["Audit trail"], { header: 1, defval: null });
   assert.deepEqual(trail[0].slice(0, 3), ["Value id", "KPI code", "KPI"]);
   assert.ok(trail.some((r) => r[0] === ids.w1 && r[10] === "CI Manager" && r[12] === "water-bill-2026.pdf"));
-  assert.deepEqual((await xlsx("BRSR")).SheetNames, ["Section A", "Principle 3", "Principle 5", "Principle 6", "Audit trail"]);
+  assert.deepEqual((await xlsx("BRSR")).SheetNames, ["Section A", "Principle 1", "Principle 3", "Principle 5", "Principle 6", "Principle 9", "Audit trail"]);
   assert.deepEqual((await xlsx("ESRS")).SheetNames, ["Datapoints", "Not material", "Audit trail"]);
 });
 

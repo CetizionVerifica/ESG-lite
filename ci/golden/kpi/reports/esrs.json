@@ -1,10 +1,10 @@
 {
  "about": "ESRS 2023 for input.json, worked by hand. Energy in MWh: 5,400 GJ ÷ 3.6 = 1,500 MWh (2025: 3,240 GJ = 900 MWh). NOx in kg: 2.5 t = 2,500 kg. Intensities per INR crore can't become per EUR million without an exchange rate ESGLite doesn't apply: they stay in the canonical unit with a note. E1 and E2 material; E3 not material (with the company's reason); E5 and S1 not assessed. GOV-1 (women on the board) has only a pending value: missing.",
  "totals": {
-  "disclosures": 15,
+  "disclosures": 18,
   "reported": 0,
   "partial": 3,
-  "omitted": 12
+  "omitted": 15
  },
  "pending": 3,
  "rows": [
@@ -203,6 +203,21 @@
   ],
   [
    "S1-17",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "G1-3",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "G1-4",
+   "not_material",
+   "Materiality not assessed."
+  ],
+  [
+   "G1-6",
    "not_material",
    "Materiality not assessed."
   ]

@@ -1,10 +1,10 @@
 {
  "about": "BRSR 2023 for input.json, worked by hand. Water in kL, energy in GJ (BRSR's units), with the previous financial year. P6-E3 withdrawal 1,500 kL (2025: 1,560) by source; consumption 800 kL; water intensity not tracked. A-21 (women on the board) has only a pending value: missing. P6-L2 is voluntary and not tracked.",
  "totals": {
-  "disclosures": 23,
+  "disclosures": 26,
   "reported": 0,
   "partial": 6,
-  "omitted": 17
+  "omitted": 20
  },
  "pending": 3,
  "rows": [
@@ -225,6 +225,16 @@
    "not_tracked"
   ],
   [
+   "P1-E2",
+   "not_tracked",
+   "Not tracked in ESGLite"
+  ],
+  [
+   "P1-E8",
+   "not_tracked",
+   "Not tracked in ESGLite"
+  ],
+  [
    "P3-E1c",
    "not_tracked"
   ],
@@ -279,6 +289,11 @@
   [
    "P6-L2",
    "not_tracked"
+  ],
+  [
+   "P9-E7",
+   "not_tracked",
+   "Not tracked in ESGLite"
   ]
  ]
 }

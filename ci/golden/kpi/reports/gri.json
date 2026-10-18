@@ -1,10 +1,10 @@
 {
  "about": "GRI 2021+ for input.json, worked by hand. Water in ML (kL ÷ 1,000), energy in GJ, emissions in tCO2e. Withdrawal 2026 = Plant A 12 × 100 + Plant B 6 × 50 = 1,500 kL = 1.5 ML (July pending, August draft and September rejected aren't counted; incomplete); breakdown 12 × 60 = 720 kL groundwater, 12 × 40 = 480 kL third party (Plant B has none); 2025 = 12 × 90 + 12 × 40 = 1,560 kL. Scope 1 = 120.5 + 60.25 = 180.75 (2025: 150 + 50 = 200). Scope 2 location-based = 300 (Plant B's 77 is rejected). Discharge 400 (Plant B pending). Women on the board is only pending: 405-1 is missing. Every other disclosure: no KPI tracked.",
  "totals": {
-  "disclosures": 26,
+  "disclosures": 32,
   "reported": 2,
   "partial": 7,
-  "omitted": 17
+  "omitted": 23
  },
  "pending": 3,
  "rows": [
@@ -213,8 +213,18 @@
  ],
  "omissions": [
   [
+   "2-9",
+   "missing",
+   "No approved value for 2026."
+  ],
+  [
    "2-8",
    "not_tracked"
+  ],
+  [
+   "2-16",
+   "not_tracked",
+   "Not tracked in ESGLite"
   ],
   [
    "2-21",
@@ -223,6 +233,21 @@
   [
    "2-26",
    "not_tracked"
+  ],
+  [
+   "2-27",
+   "not_tracked",
+   "Not tracked in ESGLite"
+  ],
+  [
+   "205-2",
+   "not_tracked",
+   "Not tracked in ESGLite"
+  ],
+  [
+   "205-3",
+   "not_tracked",
+   "Not tracked in ESGLite"
   ],
   [
    "302-3",
@@ -279,6 +304,11 @@
   [
    "406-1",
    "not_tracked"
+  ],
+  [
+   "418-1",
+   "not_tracked",
+   "Not tracked in ESGLite"
   ]
  ]
 }

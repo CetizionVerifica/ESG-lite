@@ -43,8 +43,7 @@ test("migrate:kpi-library and migrate:kpi-library-seed run twice; the second run
   assert.equal(first.status, 0, first.stderr + first.stdout);
   const after1 = await seedCounts();
   assert.equal(after1.frameworks, 3);
-  assert.ok(after1.definitions >= 40 && after1.definitions <= 60, JSON.stringify(after1));
-  assert.ok(after1.mappings >= 100, JSON.stringify(after1));
+  assert.deepEqual(after1, { frameworks: 3, definitions: 65, disclosures: 76, mappings: 144 });
   const second = runScript("seedKpiLibrary");
   assert.equal(second.status, 0, second.stderr + second.stdout);
   assert.match(second.stdout, /definitions: \+0, refreshed 0/);

@@ -1140,7 +1140,7 @@
     "name": "Women on the board",
     "question": "What share of board members are women?",
     "help": "Women directors at year end divided by all directors, as a percentage.",
-    "topic": "diversity",
+    "topic": "governance",
     "value_type": "percent",
     "unit_dimension": "ratio",
     "canonical_unit": "%",
@@ -1386,6 +1386,172 @@
     "auto_source": null,
     "formula": null,
     "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "BOARD_INDEPENDENCE",
+    "name": "Independent directors on the board",
+    "question": "What share of board members are independent directors?",
+    "help": "Independent directors at year end divided by all directors, as a percentage. Count a director as independent when they meet the test in your company law or listing rules.",
+    "topic": "governance",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "CORRUPTION_INCIDENTS",
+    "name": "Confirmed incidents of corruption",
+    "question": "How many incidents of corruption or bribery were confirmed during the year?",
+    "help": "Count incidents found to be true during the year, involving the company or its employees. Allegations still under investigation don't count yet.",
+    "topic": "ethics",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "ANTI_CORRUPTION_TRAINING_SHARE",
+    "name": "Employees trained on anti-corruption",
+    "question": "What share of employees were trained on anti-corruption during the year?",
+    "help": "Employees who completed anti-corruption or anti-bribery training during the year, as a percentage of all employees at year end.",
+    "topic": "ethics",
+    "value_type": "percent",
+    "unit_dimension": "ratio",
+    "canonical_unit": "%",
+    "allowed_units": [
+      "%"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 1
+  },
+  {
+    "code": "FINES_PAID",
+    "name": "Fines and penalties paid",
+    "question": "How much did the company pay in fines, penalties and settlements to regulators, enforcement agencies and courts during the year?",
+    "help": "Total paid during the year by the company or its directors and key managerial personnel, in INR (the currency of the financial statements; convert any other currency at the rate used there). Split out fines under anti-corruption and anti-bribery laws.",
+    "topic": "governance",
+    "value_type": "currency",
+    "unit_dimension": "currency",
+    "canonical_unit": "INR",
+    "allowed_units": [
+      "INR",
+      "INR lakh",
+      "INR crore",
+      "INR million"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "law"
+      ],
+      "values": [
+        "anti_corruption",
+        "other_laws"
+      ]
+    },
+    "decimals": 0
+  },
+  {
+    "code": "ETHICS_CONCERNS",
+    "name": "Ethics and whistle-blower concerns raised",
+    "question": "How many concerns about business conduct (whistle-blower reports, ethics complaints) were raised during the year?",
+    "help": "Count every concern received through the whistle-blower, ethics or speak-up channels, whatever its outcome.",
+    "topic": "ethics",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "DAYS_PAYABLE",
+    "name": "Days to pay suppliers",
+    "question": "On average, how many days does the company take to pay its suppliers?",
+    "help": "Accounts payable at year end × 365, divided by the cost of goods and services bought during the year, both from the financial statements.",
+    "topic": "governance",
+    "value_type": "number",
+    "unit_dimension": "count",
+    "canonical_unit": "days",
+    "allowed_units": [
+      "days"
+    ],
+    "aggregation": "none",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": null,
+    "decimals": 0
+  },
+  {
+    "code": "DATA_BREACHES",
+    "name": "Data breaches",
+    "question": "How many data breaches or cyber security incidents did the company have during the year?",
+    "help": "Count each breach once. Split out the breaches that involved customers' personal data.",
+    "topic": "customers",
+    "value_type": "integer",
+    "unit_dimension": "count",
+    "canonical_unit": "count",
+    "allowed_units": [
+      "count"
+    ],
+    "aggregation": "sum",
+    "level": "company",
+    "default_frequency": "annual",
+    "source": "manual",
+    "auto_source": null,
+    "formula": null,
+    "breakdowns": {
+      "by": [
+        "data"
+      ],
+      "values": [
+        "customer_personal_data",
+        "other_data"
+      ]
+    },
     "decimals": 0
   }
 ]

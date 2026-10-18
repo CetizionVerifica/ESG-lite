@@ -1278,5 +1278,165 @@
     "breakdown_key": "type",
     "display_unit": null,
     "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-9",
+    "kpi": "WOMEN_ON_BOARD",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "GRI 2-9 asks to describe the board by gender among other traits; the share supports it."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-9",
+    "kpi": "BOARD_INDEPENDENCE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "GRI 2-9 asks to describe the board by independence among other traits; the share supports it."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "GOV-1",
+    "kpi": "BOARD_INDEPENDENCE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": null
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "205-3",
+    "kpi": "CORRUPTION_INCIDENTS",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "G1-4",
+    "kpi": "CORRUPTION_INCIDENTS",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": "ESRS G1-4 requires the number of convictions and fines; confirmed incidents are a voluntary datapoint."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "205-2",
+    "kpi": "ANTI_CORRUPTION_TRAINING_SHARE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "GRI 205-2 also asks about board members and business partners, and about communication of the policies."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "G1-3",
+    "kpi": "ANTI_CORRUPTION_TRAINING_SHARE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "%",
+    "note": "ESRS asks for the share of functions at risk of corruption covered by training, not of all employees."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-27",
+    "kpi": "FINES_PAID",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": "GRI asks for the number and value of fines for non-compliance with laws, split by when the non-compliance happened; settlements aren't fines."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P1-E2",
+    "kpi": "FINES_PAID",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "INR",
+    "note": "BRSR lists each case (agency, amount, appeal) on a materiality basis; the total supports the table."
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "G1-4",
+    "kpi": "FINES_PAID",
+    "fit": "partial",
+    "breakdown_key": "law",
+    "display_unit": null,
+    "note": "Only fines under anti-corruption and anti-bribery laws answer G1-4; convert to the reporting currency."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-26",
+    "kpi": "ETHICS_CONCERNS",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": "GRI 2-26 describes the mechanisms; the count supports it."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "2-16",
+    "kpi": "ETHICS_CONCERNS",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": null,
+    "note": "GRI 2-16 counts only the critical concerns passed to the board."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P1-E8",
+    "kpi": "DAYS_PAYABLE",
+    "fit": "exact",
+    "breakdown_key": null,
+    "display_unit": "days",
+    "note": null
+  },
+  {
+    "framework": "ESRS",
+    "version": "ESRS 2023",
+    "disclosure": "G1-6",
+    "kpi": "DAYS_PAYABLE",
+    "fit": "partial",
+    "breakdown_key": null,
+    "display_unit": "days",
+    "note": "ESRS asks for the average days to pay an invoice from when its payment term starts; payables days approximate it."
+  },
+  {
+    "framework": "BRSR",
+    "version": "BRSR 2023",
+    "disclosure": "P9-E7",
+    "kpi": "DATA_BREACHES",
+    "fit": "exact",
+    "breakdown_key": "data",
+    "display_unit": null,
+    "note": "BRSR Core assures the share involving customers' personal data: that part divided by the total."
+  },
+  {
+    "framework": "GRI",
+    "version": "GRI 2021+",
+    "disclosure": "418-1",
+    "kpi": "DATA_BREACHES",
+    "fit": "partial",
+    "breakdown_key": "data",
+    "display_unit": null,
+    "note": "Only leaks, thefts or losses of customer data answer 418-1, which also asks for substantiated privacy complaints."
   }
 ]

@@ -231,6 +231,36 @@
       "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
       "sort_key": 230,
       "verified": true
+    },
+    {
+      "code": "P1-E2",
+      "title": "Fines, penalties and settlements paid to regulators and courts",
+      "section": "Principle 1 · Essential",
+      "requirement": "required",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 42,
+      "verified": true
+    },
+    {
+      "code": "P1-E8",
+      "title": "Days of accounts payable",
+      "section": "Principle 1 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 44,
+      "verified": true
+    },
+    {
+      "code": "P9-E7",
+      "title": "Data breaches, and the share involving customers' personal data",
+      "section": "Principle 9 · Essential",
+      "requirement": "core",
+      "esrs_topic": null,
+      "source_url": "https://www.sebi.gov.in/legal/circulars/jul-2023/brsr-core-framework-for-assurance-and-esg-disclosures-for-value-chain_73854.html",
+      "sort_key": 240,
+      "verified": true
     }
   ]
 }

@@ -9,7 +9,8 @@
  *                  are the headlines; the rest stand in when a company doesn't
  *                  track one of them.
  *   DIRECTION_GOOD for every library KPI: "down" (less is better), "up" (more is
- *                  better) or null (neither: headcount, revenue). Movers read it,
+ *                  better) or null (neither: headcount, revenue, ethics concerns
+ *                  raised). Movers read it,
  *                  and a headline's direction is its entry's.
  *
  * A headline with more than one part is their sum (same canonical unit): GHG
@@ -51,10 +52,13 @@ export const HEADLINES: readonly Headline[] = [
   { code: "TRAINING_HOURS_AVG", topic: "training", parts: ["TRAINING_HOURS_AVG"], direction_good: "up" },
   { code: "FATALITIES", topic: "health_safety", parts: ["FATALITIES"], direction_good: "down" },
   { code: "EMPLOYEE_TURNOVER_RATE", topic: "workforce", parts: ["EMPLOYEE_TURNOVER_RATE"], direction_good: "down" },
-  // Governance. The library files board diversity and complaints under Social topics (diversity,
-  // human_rights), so they show under Governance only when a Superadmin moves their pillar (D19).
-  { code: "WOMEN_ON_BOARD", topic: "diversity", parts: ["WOMEN_ON_BOARD"], direction_good: "up" },
   { code: "COMPLAINTS_RECEIVED", topic: "human_rights", parts: ["COMPLAINTS_RECEIVED"], direction_good: "down" },
+  // Governance: board composition (governance topic, as in ESRS 2 GOV-1 and GRI 2-9) and
+  // anti-corruption (ethics topic, GRI 205 and ESRS G1).
+  { code: "WOMEN_ON_BOARD", topic: "governance", parts: ["WOMEN_ON_BOARD"], direction_good: "up" },
+  { code: "BOARD_INDEPENDENCE", topic: "governance", parts: ["BOARD_INDEPENDENCE"], direction_good: "up" },
+  { code: "CORRUPTION_INCIDENTS", topic: "ethics", parts: ["CORRUPTION_INCIDENTS"], direction_good: "down" },
+  { code: "ANTI_CORRUPTION_TRAINING_SHARE", topic: "ethics", parts: ["ANTI_CORRUPTION_TRAINING_SHARE"], direction_good: "up" },
 ];
 
 export const DIRECTION_GOOD: Readonly<Record<string, DirectionGood>> = {
@@ -116,6 +120,14 @@ export const DIRECTION_GOOD: Readonly<Record<string, DirectionGood>> = {
   COMPLAINTS_RECEIVED: "down",
   COMPLAINTS_RESOLVED: "up",
   POSH_COMPLAINTS: "down",
+  BOARD_INDEPENDENCE: "up",
+  CORRUPTION_INCIDENTS: "down",
+  ANTI_CORRUPTION_TRAINING_SHARE: "up",
+  FINES_PAID: "down",
+  // More concerns raised can mean people trust the channel; neither way is good on its own.
+  ETHICS_CONCERNS: null,
+  DAYS_PAYABLE: "down",
+  DATA_BREACHES: "down",
 };
 
 /**
