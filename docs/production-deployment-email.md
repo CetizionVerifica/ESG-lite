@@ -37,9 +37,9 @@ Add these to your EC2 `.env` file (or PM2 ecosystem config):
 # RabbitMQ
 RABBITMQ_URL=amqp://your_username:your_strong_password@localhost:5672
 
-# Mailgun
-MAILGUN_API_KEY=your-mailgun-api-key
-MAILGUN_DOMAIN=mail.carbon-lens.com
+# Brevo
+BREVO_API_KEY=xkeysib-your-brevo-api-key
+MAIL_FROM=ESGLite <no-reply@planetpulse.life>
 
 # Admin alert email (receives failure notifications)
 ADMIN_EMAIL=info@carbonlens.com
@@ -128,7 +128,7 @@ Expected queues:
 After deployment, test by approving/rejecting an emission from the frontend:
 1. Login as manager
 2. Approve a pending emission
-3. Check PM2 logs for: `Email sent via Mailgun to user@example.com (APPROVED)`
+3. Check PM2 logs for: `Email sent via Brevo to user@example.com (APPROVED)`
 4. Verify the user received the email
 
 ---
@@ -148,14 +148,14 @@ The deadline scheduler starts automatically with the backend — no separate cro
 
 ---
 
-## 8. Mailgun Setup
+## 8. Brevo Setup
 
-Make sure your Mailgun account is configured for production:
+Make sure your Brevo account is configured for production:
 
-1. **Verify your sending domain** (`mail.carbon-lens.com`) in Mailgun dashboard
-2. **Add DNS records** (SPF, DKIM, MX) to avoid emails going to spam
-3. **Check your plan limits** — free tier allows ~100 emails/hour. For production with many users, upgrade to a paid plan
-4. **Add authorized recipients** — on free tier, Mailgun only sends to verified email addresses. On paid plans, this restriction is removed
+1. **Create an API key** in Brevo → SMTP & API → API keys and set it as `BREVO_API_KEY`
+2. **Authenticate the sending domain** (Senders, domains & dedicated IPs → Domains): add the DKIM, DMARC and Brevo code DNS records, then use an address on that domain in `MAIL_FROM`
+3. **Check your plan limits** — the free plan allows 300 emails/day. For production with many users, upgrade to a paid plan
+4. **Authorised IPs** — if "Authorised IPs" is on in Brevo (Security), add the server's IP or every send fails with 401 `unauthorized`
 
 ---
 
@@ -171,7 +171,7 @@ docker exec rabbitmq rabbitmqctl list_queues name messages
 ```
 
 - If `email_queue` has messages piling up → consumer might have crashed, restart PM2
-- If `dlq_queue` has messages → Mailgun is rejecting emails, check API key and domain
+- If `dlq_queue` has messages → Brevo is rejecting emails, check the API key, sender and authorised IPs (the log line `Brevo <status>: …` has the reason)
 - If `retry_60s` has messages → rate limited, wait for them to auto-retry
 
 ### If stuck messages in retry queues
@@ -220,9 +220,9 @@ The `-v rabbitmq_data:/var/lib/rabbitmq` ensures messages survive container rest
 
 - [ ] RabbitMQ running on EC2 (Docker or Amazon MQ)
 - [ ] `RABBITMQ_URL` set with credentials in `.env`
-- [ ] `MAILGUN_API_KEY` and `MAILGUN_DOMAIN` set in `.env`
+- [ ] `BREVO_API_KEY` and `MAIL_FROM` set in `.env`
 - [ ] `ADMIN_EMAIL` set in `.env`
-- [ ] Mailgun domain verified with DNS records (SPF, DKIM)
+- [ ] Brevo sending domain authenticated with DNS records (DKIM, DMARC)
 - [ ] Port 5672 not exposed publicly (security group)
 - [ ] EC2 timezone set correctly for cron schedules
 - [ ] PM2 running and backend logs show all services connected

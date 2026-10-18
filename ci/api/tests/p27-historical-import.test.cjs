@@ -1,6 +1,6 @@
 // P27 historical import: POST /admin/upload/emissions with a client, site and
 // category picked by id. Nothing is created from free text, a dry run saves
-// nothing, and new people get an invite (CI has no Mailgun, so it comes back
+// nothing, and new people get an invite (CI has no Brevo, so it comes back
 // as a warning) instead of a password. Totals come from the engine and the
 // site's factors (S3-4), never from the sheet's emissionFactor or
 // calculatedEmission.
