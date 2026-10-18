@@ -292,11 +292,12 @@ export interface MovedNote {
  * reviewer of a moved slot stays. Answers what moved, for the "Water at Noida
  * moved from Ravi to Priya" toast. Audited (`kpi_setup` `people_topics`).
  */
-export async function putPeopleTopics(caller: KpiCaller, userId: number, raw: unknown) {
+/** Pass `manager` to run inside the caller's transaction (the user update saves the person and their topics together). */
+export async function putPeopleTopics(caller: KpiCaller, userId: number, raw: unknown, manager?: EntityManager) {
   if (!PEOPLE_WRITERS.has(caller.role)) throw new KpiError("KPI_FORBIDDEN", { allowed: ["Manager", "Admin", "Superadmin"] });
   const body = parse(KpiPeopleTopicsPutSchema, raw ?? {});
   const topics = sortTopics(body.topics);
-  return AppDataSource.transaction(async (m) => {
+  const run = async (m: EntityManager) => {
     await m.query(`SELECT pg_advisory_xact_lock($1, $2)`, [KPI_TOPIC_LOCK_CLASS, caller.companyId]);
     const p = await companyPerson(m, caller.companyId, userId);
     const managerSites = caller.role === UserRole.MANAGER ? caller.sites ?? new Set<number>() : null;
@@ -346,5 +347,6 @@ export async function putPeopleTopics(caller: KpiCaller, userId: number, raw: un
       await auditSetupRow(m, caller.companyId, "people_topics", { [`user_${userId}`]: { old: { removed }, new: { added, site_ids: siteIds, topics } }, moved: moved.map((x) => ({ site_id: x.site_id, topic: x.topic, from_user_id: x.from_user_id })) }, caller.userId);
     }
     return { user_id: userId, topics, site_ids: siteIds, moved };
-  });
+  };
+  return manager ? run(manager) : AppDataSource.transaction(run);
 }

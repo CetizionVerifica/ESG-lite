@@ -431,16 +431,21 @@ export const updateUser = async (req: Request, res: Response) => {
       user.categories = await pickCategories(collectSiteCategories(sitesWithCats), category_ids);
     }
 
-    await repo.save(user);
-
+    // The user and their topics save together: a refused topic change (say, a new role that
+    // can't own a site topic) leaves the user unchanged too.
     let kpiTopicResult: Awaited<ReturnType<typeof saveKpiTopics>> | undefined;
     if (kpiTopics !== undefined && kpiCompanyId) {
       try {
-        kpiTopicResult = await saveKpiTopics(kpiCompanyId, user.user_id, kpiTopics, callerId(req), UserRole.SUPERADMIN);
+        kpiTopicResult = await AppDataSource.transaction(async (m) => {
+          await m.getRepository(User).save(user);
+          return saveKpiTopics(kpiCompanyId, user.user_id, kpiTopics, callerId(req), UserRole.SUPERADMIN, m);
+        });
       } catch (err) {
         if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
         throw err;
       }
+    } else {
+      await repo.save(user);
     }
 
     // Reload user with relations for response

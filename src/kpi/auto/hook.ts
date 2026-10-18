@@ -18,6 +18,7 @@ import { reportingYearOf, isoDay } from "../values/period";
 
 type Row = Record<string, any>;
 type Kind = "emission" | "production";
+type Hit = { company_id: number; site_id: number; from: string; to: string; year_type: YearType; sources: string[] };
 
 export const STALE_CHECKS = (at: string) => ({ ready: false, held: ["KPI_AUTO_STALE"], checked_at: at });
 
@@ -96,7 +97,7 @@ export function sourcesOf(scope: string | null, ghgCategory: number | null): str
   return ENERGY;
 }
 
-async function affected(kind: Kind, ids: number[]): Promise<Array<{ company_id: number; site_id: number; from: string; to: string; year_type: YearType; sources: string[] }>> {
+async function affected(kind: Kind, ids: number[]): Promise<Hit[]> {
   const rows: Row[] =
     kind === "emission"
       ? await AppDataSource.query(
@@ -126,7 +127,20 @@ export async function kpiSourceChanged(kind: Kind, ids: Array<number | null | un
     const hits = await affected(kind, clean);
     if (!hits.length) return;
     const now = new Date().toISOString();
+    // One UPDATE per (company, site, sources) over the span of dates, not one per row: a bulk
+    // approve of thousands of rows stays a handful of queries. A value inside the span that no
+    // row touched is only marked stale, and the scheduled refresh recomputes it unchanged.
+    const spans = new Map<string, Hit>();
     for (const h of hits) {
+      const key = `${h.company_id}|${h.site_id}|${[...h.sources].sort().join(",")}`;
+      const span = spans.get(key);
+      if (!span) spans.set(key, { ...h });
+      else {
+        if (h.from < span.from) span.from = h.from;
+        if (h.to > span.to) span.to = h.to;
+      }
+    }
+    for (const h of spans.values()) {
       await AppDataSource.query(
         `UPDATE kpi_value v SET checks = $6::jsonb
            FROM kpi_definition d

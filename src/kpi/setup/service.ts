@@ -289,6 +289,13 @@ async function saveKpis(m: EntityManager, caller: KpiCaller, items: Array<{ kpi_
     const frequency = item.frequency === undefined ? (before?.frequency ?? null) : item.frequency;
     const after = { selected: item.selected, frequency, reason_excluded: reason };
     if (before && JSON.stringify(before) === JSON.stringify(after)) continue;
+    // Yearly figures only read values at the KPI's frequency, so changing it would hide every
+    // value already entered at the old one (as with year_type in saveSettings).
+    const effective = frequency ?? kpi.default_frequency;
+    if (effective !== (before?.frequency ?? kpi.default_frequency)) {
+      const used: Row[] = await m.query(`SELECT 1 FROM kpi_value WHERE company_id = $1 AND kpi_definition_id = $2 AND frequency <> $3 LIMIT 1`, [companyId, kpi.id, effective]);
+      if (used.length) throw validation(`kpis.${kpi.code}.frequency`, "Values already use the other frequency.");
+    }
     await m.query(
       `INSERT INTO company_kpi (company_id, kpi_definition_id, selected, frequency, reason_excluded, updated_by) VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (company_id, kpi_definition_id) DO UPDATE SET selected = EXCLUDED.selected, frequency = EXCLUDED.frequency, reason_excluded = EXCLUDED.reason_excluded, updated_by = EXCLUDED.updated_by, updated_at = now()`,

@@ -44,7 +44,8 @@ const optionalText = (max = 2000) => z.string().trim().max(max).nullable().optio
 /** A KPI code: upper-case letters, digits and underscores (`ENERGY_TOTAL`). */
 export const KpiCodeSchema = z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/, "Use capitals, digits and underscores, e.g. ENERGY_TOTAL");
 const unit = z.string().trim().min(1).max(40);
-const url = z.string().trim().url().max(1000);
+// http(s) only: these render as links (evidence, framework sources), so javascript: and data: are refused.
+const url = z.string().trim().url().max(1000).refine((v) => /^https?:\/\//i.test(v), "Use an http or https link.");
 /** Query flags arrive as strings. */
 const queryBool = z.enum(["true", "false"]).transform((v) => v === "true");
 

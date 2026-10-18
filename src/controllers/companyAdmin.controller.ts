@@ -359,16 +359,21 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    await userRepo.save(user);
-
+    // The user and their topics save together: a refused topic change (say, a new role that
+    // can't own a site topic) leaves the user unchanged too.
     let kpiTopicResult: Awaited<ReturnType<typeof saveKpiTopics>> | undefined;
     if (kpiTopics !== undefined) {
       try {
-        kpiTopicResult = await saveKpiTopics(scope.companyId, user.user_id, kpiTopics, Number(req.user?.userId) || 0);
+        kpiTopicResult = await AppDataSource.transaction(async (m) => {
+          await m.getRepository(User).save(user);
+          return saveKpiTopics(scope.companyId, user.user_id, kpiTopics, Number(req.user?.userId) || 0, undefined, m);
+        });
       } catch (err) {
         if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
         throw err;
       }
+    } else {
+      await userRepo.save(user);
     }
 
     const updatedUser = await userRepo.findOne({

@@ -56,6 +56,7 @@ import { CompanyKpi } from "../entities/CompanyKpi";
 import { KpiAssignment } from "../entities/KpiAssignment";
 import { KpiTopicGrant } from "../entities/KpiTopicGrant";
 import { KpiTopicAssignment } from "../entities/KpiTopicAssignment";
+import { KpiTemplatePlan } from "../entities/KpiTemplatePlan";
 import { KpiTarget } from "../entities/KpiTarget"; // KPI-9
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
@@ -137,6 +138,7 @@ const entities = [
     KpiAssignment,
     KpiTopicGrant,
     KpiTopicAssignment,
+    KpiTemplatePlan,
     KpiTarget,
 ];
 

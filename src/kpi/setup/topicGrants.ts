@@ -8,8 +8,9 @@
  * company's KPI switch on.
  *
  *   parseKpiTopics(raw)                                   the topics, or KPI_VALIDATION
- *   saveKpiTopics(company, user, topics, by, role)        → {topics, site_ids, moved}
+ *   saveKpiTopics(company, user, topics, by, role, m?)    → {topics, site_ids, moved}
  */
+import type { EntityManager } from "typeorm";
 import { z } from "zod";
 import { UserRole } from "../../types/type";
 import { KpiTopicSchema, type KpiTopic } from "../contracts/enums";
@@ -26,8 +27,8 @@ export async function assertKpiSwitchOn(companyId: number): Promise<void> {
   if (!(await kpiTrackingEnabled(companyId))) throw new KpiError("KPI_TRACKING_OFF");
 }
 
-export async function saveKpiTopics(companyId: number, userId: number, topics: KpiTopic[], changedBy: number, role: string = UserRole.ADMIN) {
+export async function saveKpiTopics(companyId: number, userId: number, topics: KpiTopic[], changedBy: number, role: string = UserRole.ADMIN, manager?: EntityManager) {
   await assertKpiSwitchOn(companyId);
   const caller = { companyId, userId: changedBy, role, sites: await callerSites(changedBy, role, companyId) };
-  return putPeopleTopics(caller, userId, { topics });
+  return putPeopleTopics(caller, userId, { topics }, manager);
 }

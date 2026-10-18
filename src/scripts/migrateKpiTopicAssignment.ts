@@ -17,7 +17,10 @@
 // (same owner and reviewer) holds every per-KPI row of a topic on a site and
 // that slot has no topic owner yet, they become its topic owner (insert only;
 // the per-KPI rows stay and now equal the topic owner, so nothing changes who
-// owns what). They are dropped later when the topic owner changes. Statements
+// owns what). They are dropped later when the topic owner changes. The collapse
+// runs only on the run that creates kpi_topic_assignment: on later boots a
+// per-KPI override left on every KPI of an emptied topic must stay an override,
+// not quietly become the topic owner. Statements
 // match what TypeORM generates for the entity, so ci/schema-diff.cjs sees
 // nothing left to do. Nothing here touches emission data.
 import "reflect-metadata";
@@ -60,12 +63,14 @@ async function main() {
   try {
     const [grants] = await AppDataSource.query(`SELECT to_regclass('kpi_topic_grant') IS NOT NULL AS ok`);
     if (!grants?.ok) throw new Error("kpi_topic_grant is missing: run migrate:kpi-setup first");
+    const [existing] = await AppDataSource.query(`SELECT to_regclass('kpi_topic_assignment') IS NOT NULL AS ok`);
+    const firstRun = !existing?.ok;
     for (const sql of KPI_TOPIC_ASSIGNMENT_SCHEMA) await AppDataSource.query(sql);
     const converted = await AppDataSource.transaction(async (m) => {
       await m.query(`LOCK TABLE kpi_topic_grant IN SHARE ROW EXCLUSIVE MODE`);
       const [ins] = await m.query(`WITH made AS (${CONVERT_GRANTS} RETURNING id) SELECT COUNT(*)::int AS n FROM made`, [[...KPI_TOPICS]]);
       const [upd] = await m.query(`WITH done AS (UPDATE kpi_topic_grant SET converted_at = now() WHERE converted_at IS NULL RETURNING id) SELECT COUNT(*)::int AS n FROM done`);
-      const [col] = await m.query(`WITH made AS (${COLLAPSE_PER_KPI} RETURNING id) SELECT COUNT(*)::int AS n FROM made`);
+      const [col] = firstRun ? await m.query(`WITH made AS (${COLLAPSE_PER_KPI} RETURNING id) SELECT COUNT(*)::int AS n FROM made`) : [{ n: 0 }];
       return { assignments: Number(ins?.n ?? 0), grants: Number(upd?.n ?? 0), collapsed: Number(col?.n ?? 0) };
     });
     console.log(`D17 kpi_topic_assignment present; ${converted.assignments} topic assignment(s) made from ${converted.grants} unconverted grant(s); ${converted.collapsed} from per-KPI rows held by one person.`);

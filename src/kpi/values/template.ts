@@ -261,13 +261,10 @@ export async function planTemplate(caller: KpiCaller, buffer: Buffer, scope: { p
   return { rows: out, counts };
 }
 
-// Plans kept for the second step (commit by plan_id), per company and person, for 24 h, in process.
+// Plans kept for the second step (commit by plan_id), per company and person, for 24 h, in
+// kpi_template_plan (so a restart or another instance between the steps still finds them).
 // Only the ready rows' items are kept; a commit runs every draft rule again.
-const PLAN_MS = 24 * 60 * 60 * 1000;
-const plans = new Map<string, { companyId: number; userId: number; at: number; ready: Array<{ row: number; item: Row }> }>();
-const prunePlans = () => {
-  for (const [id, p] of plans) if (Date.now() - p.at > PLAN_MS) plans.delete(id);
-};
+const prunePlans = () => AppDataSource.query(`DELETE FROM kpi_template_plan WHERE created_at < now() - interval '24 hours'`);
 
 const UploadFieldsSchema = z.object({
   period: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM").optional()),
@@ -295,13 +292,13 @@ export async function uploadTemplate(caller: KpiCaller, file: { buffer: Buffer; 
   }
   const commit = commitRaw === "true" || commitRaw === true;
   const fields = parse(UploadFieldsSchema, fieldsRaw ?? {});
-  prunePlans();
+  await prunePlans();
   if (!file?.buffer?.length) {
     if (!fields.plan_id) throw new KpiError("KPI_VALIDATION", { issues: [{ path: "file", message: "Attach the filled-in template (multipart field `file`), or commit a plan_id." }] });
     if (!commit) throw new KpiError("KPI_VALIDATION", { issues: [{ path: "commit", message: "Send commit: true with the plan_id." }] });
-    const stored = plans.get(fields.plan_id);
-    if (!stored || stored.companyId !== caller.companyId || stored.userId !== caller.userId) throw new KpiError("KPI_NOT_FOUND", { plan_id: fields.plan_id });
-    plans.delete(fields.plan_id); // one commit per plan
+    // Deleting it claims it: one commit per plan, even for two commits at once.
+    const [stored]: Row[] = await AppDataSource.query(`WITH claimed AS (DELETE FROM kpi_template_plan WHERE id = $1 AND company_id = $2 AND user_id = $3 RETURNING ready) SELECT ready FROM claimed`, [fields.plan_id, caller.companyId, caller.userId]);
+    if (!stored) throw new KpiError("KPI_NOT_FOUND", { plan_id: fields.plan_id });
     return { dry_run: false, plan_id: fields.plan_id, ...(await commitReady(caller, stored.ready)) };
   }
   const plan = await planTemplate(caller, file.buffer, { period: fields.period, site: fields.site });
@@ -311,7 +308,7 @@ export async function uploadTemplate(caller: KpiCaller, file: { buffer: Buffer; 
   const ready = plan.rows.filter((r) => r.status === "ready" && r.item).map((r) => ({ row: r.row, item: r.item as Row }));
   if (!commit) {
     const planId = randomUUID();
-    plans.set(planId, { companyId: caller.companyId, userId: caller.userId, at: Date.now(), ready });
+    await AppDataSource.query(`INSERT INTO kpi_template_plan (id, company_id, user_id, ready) VALUES ($1, $2, $3, $4::jsonb)`, [planId, caller.companyId, caller.userId, JSON.stringify(ready)]);
     return { dry_run: true, file_name: fileName, plan: { plan_id: planId, rows: shown, counts } };
   }
   return { dry_run: false, file_name: fileName, plan: { plan_id: null, rows: shown, counts }, ...(await commitReady(caller, ready)) };
