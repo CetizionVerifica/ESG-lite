@@ -19,6 +19,7 @@ import {
   KpiFrameworkCreateSchema,
   KpiMappingCreateSchema,
 } from "../contracts/schemas";
+import { TOPIC_PILLAR, type KpiTopic } from "../contracts/enums";
 import { unitProblems } from "../values/units";
 import { formulaProblems } from "./formulaRefs";
 
@@ -48,6 +49,8 @@ export interface SeedDefinition {
   formula: string | null;
   breakdowns: Record<string, unknown> | null;
   decimals: number;
+  /** D19: optional; defaults to TOPIC_PILLAR[topic]. */
+  pillar?: string;
 }
 export interface SeedDisclosure {
   framework: string;
@@ -221,7 +224,8 @@ export async function applySeed(m: EntityManager, seed: KpiSeed): Promise<SeedRe
   const kpiIds = new Map<string, number>();
   for (const d of seed.definitions) {
     const { code, ...fields } = d;
-    const id = await upsert(m, "kpi_definition", { company_id: null, code }, { ...fields, help: fields.help ?? null, auto_source: fields.auto_source ?? null, formula: fields.formula ?? null, breakdowns: fields.breakdowns ?? null }, ["allowed_units", "breakdowns"], result.definitions);
+    const pillar = fields.pillar ?? TOPIC_PILLAR[fields.topic as KpiTopic];
+    const id = await upsert(m, "kpi_definition", { company_id: null, code }, { ...fields, pillar, help: fields.help ?? null, auto_source: fields.auto_source ?? null, formula: fields.formula ?? null, breakdowns: fields.breakdowns ?? null }, ["allowed_units", "breakdowns"], result.definitions);
     kpiIds.set(code, id);
   }
   const disclosureIds = new Map<string, number>();

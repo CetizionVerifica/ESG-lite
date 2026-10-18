@@ -52,14 +52,14 @@ test.before(async () => {
   ids.turnover = await kpiId("EMPLOYEE_TURNOVER_RATE");
   ids.discharge = await kpiId("WATER_DISCHARGE");
   const [text] = await q(
-    `INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id, active, decimals)
-     VALUES ('C1_T9_POLICY', 'Water policy', 'Describe your water policy', 'water', 'text', 'none', NULL, '[]', 'latest', 'company', 'annual', 'manual', 1, true, 0) RETURNING id`,
+    `INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id, active, decimals, pillar)
+     VALUES ('C1_T9_POLICY', 'Water policy', 'Describe your water policy', 'water', 'text', 'none', NULL, '[]', 'latest', 'company', 'annual', 'manual', 1, true, 0, 'environment') RETURNING id`,
   );
   ids.text = text.id;
   await q(`INSERT INTO company_kpi (company_id, kpi_definition_id, selected) VALUES (1, $1, true)`, [ids.text]);
   const [other] = await q(
-    `INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id, active, decimals)
-     VALUES ('C2_T9_OWN', 'Company 2 KPI', 'q', 'water', 'number', 'volume', 'kL', '["kL"]', 'sum', 'site', 'annual', 'manual', 2, true, 0) RETURNING id`,
+    `INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id, active, decimals, pillar)
+     VALUES ('C2_T9_OWN', 'Company 2 KPI', 'q', 'water', 'number', 'volume', 'kL', '["kL"]', 'sum', 'site', 'annual', 'manual', 2, true, 0, 'environment') RETURNING id`,
   );
   ids.otherCompanyKpi = other.id;
   // 2024: site 1 100/month, site 2 50/month = 1,800 kL. 2025: 90 and 45 = 1,620 kL.

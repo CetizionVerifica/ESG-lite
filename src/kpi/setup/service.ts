@@ -21,7 +21,7 @@
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import { UserRole } from "../../types/type";
-import type { YearType } from "../contracts/enums";
+import { pillarOfTopic, type YearType } from "../contracts/enums";
 import { KpiError } from "../contracts/errors";
 import { CustomKpiCreateSchema, KpiSetupPutSchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
@@ -106,7 +106,7 @@ export async function getSetup(caller: KpiCaller) {
   const frameworks = await enabledFrameworks(m, companyId);
   const topics: Row[] = await m.query(`SELECT * FROM company_material_topic WHERE company_id = $1 ORDER BY esrs_topic`, [companyId]);
   const kpiRows: Row[] = await m.query(
-    `SELECT ck.*, d.code, d.name, d.topic, d.level, d.source, d.default_frequency, d.company_id AS owner_company_id
+    `SELECT ck.*, d.code, d.name, d.topic, d.pillar, d.level, d.source, d.default_frequency, d.company_id AS owner_company_id
        FROM company_kpi ck JOIN kpi_definition d ON d.id = ck.kpi_definition_id
       WHERE ck.company_id = $1 ORDER BY d.topic, d.code`,
     [companyId],
@@ -124,6 +124,7 @@ export async function getSetup(caller: KpiCaller) {
     code: k.code,
     name: k.name,
     topic: k.topic,
+    pillar: k.pillar ?? pillarOfTopic(k.topic),
     level: k.level,
     source: k.source,
     custom: k.owner_company_id !== null,
@@ -145,7 +146,8 @@ export async function getSetup(caller: KpiCaller) {
     })()),
     // D17: topic owners, and the topics the selected KPIs use (KPI_TOPICS order).
     topic_assignments: topicRows,
-    topics_in_use: inUse.map((t) => ({ topic: t.topic, kpi_count: t.kpi_count, site_kpi_count: t.site_kpi_count, company_kpi_count: t.company_kpi_count, selected_count: t.selected_count })),
+    // D19: one pillar per topic, from TOPIC_PILLAR.
+    topics_in_use: inUse.map((t) => ({ topic: t.topic, pillar: pillarOfTopic(t.topic), kpi_count: t.kpi_count, site_kpi_count: t.site_kpi_count, company_kpi_count: t.company_kpi_count, selected_count: t.selected_count })),
     available_frameworks: available.map((f) => ({ id: Number(f.id), code: f.code, version: f.version, name: f.name, source_url: f.source_url, default_for_new: f.default_for_new === true })),
     sites: sites.map((x) => ({ site_id: Number(x.site_id), name: x.name })),
   };
@@ -434,12 +436,13 @@ export async function createCustomKpi(caller: KpiCaller, raw: unknown) {
       if (!ds.length) throw validation(`mappings.${i}.disclosure_id`, "No such disclosure.");
     }
     const rows: Row[] = await m.query(
-      `INSERT INTO kpi_definition (code, name, question, help, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, auto_source, formula, breakdowns, decimals, company_id, active, edited_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULL, $14, $15, $16, $17, $18, now()) RETURNING *`,
+      `INSERT INTO kpi_definition (code, name, question, help, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, auto_source, formula, breakdowns, decimals, company_id, active, pillar, edited_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULL, $14, $15, $16, $17, $18, $19, now()) RETURNING *`,
       [
         def.code, def.name, def.question, def.help ?? null, def.topic, def.value_type, def.unit_dimension, def.canonical_unit, JSON.stringify(def.allowed_units),
         def.aggregation, def.level, def.default_frequency, def.source, def.formula ?? null, def.breakdowns ? JSON.stringify(def.breakdowns) : null,
-        def.decimals ?? 2, companyId, def.active ?? true,
+        // D19: the Admin's pillar, else the topic's.
+        def.decimals ?? 2, companyId, def.active ?? true, def.pillar ?? pillarOfTopic(def.topic),
       ],
     );
     const row = rows[0];

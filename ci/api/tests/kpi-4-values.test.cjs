@@ -301,8 +301,8 @@ test("company-level values: Admins and Managers enter them, any role reads them;
 test("a company's own KPI is invisible to other companies", async () => {
   const own = await withDb(async (db) =>
     (
-      await db.query(`INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id)
-                      VALUES ('TEST4_OWN', 'Own', 'Own?', 'community', 'integer', 'count', 'count', '["count"]', 'sum', 'site', 'annual', 'manual', 2) RETURNING id`)
+      await db.query(`INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id, pillar)
+                      VALUES ('TEST4_OWN', 'Own', 'Own?', 'community', 'integer', 'count', 'count', '["count"]', 'sum', 'site', 'annual', 'manual', 2, 'social') RETURNING id`)
     ).rows[0].id,
   );
   try {

@@ -6,10 +6,12 @@
 // Idempotent: adds missing rows, refreshes rows no Superadmin has edited
 // (edited_at null) to the seed's content, keeps edited rows as they are and
 // never deletes anything. Refuses a seed that fails its integrity check
-// (src/kpi/library/seed.ts seedProblems). Runs in one transaction.
+// (src/kpi/library/seed.ts seedProblems). Runs in one transaction, after
+// making sure kpi_definition.pillar exists (D19, migrate:kpi-pillars).
 import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 import { applySeed, readSeed, seedProblems } from "../kpi/library/seed";
+import { ensurePillarColumn } from "./migrateKpiPillars";
 
 async function main() {
   const seed = readSeed();
@@ -20,7 +22,11 @@ async function main() {
   }
   await AppDataSource.initialize();
   try {
-    const result = await AppDataSource.transaction((m) => applySeed(m, seed));
+    // D19: the seed writes kpi_definition.pillar, so the column must be there (migrate:kpi-pillars, idempotent).
+    const result = await AppDataSource.transaction(async (m) => {
+      await ensurePillarColumn(m);
+      return applySeed(m, seed);
+    });
     const line = (Object.keys(result) as Array<keyof typeof result>)
       .map((k) => `${k}: +${result[k].added}, refreshed ${result[k].refreshed}, kept ${result[k].kept_edited} edited`)
       .join("; ");

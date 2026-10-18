@@ -21,7 +21,7 @@
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import { UserRole } from "../../types/type";
-import { NUMERIC_VALUE_TYPES, type KpiFrequency, type YearType } from "../contracts/enums";
+import { NUMERIC_VALUE_TYPES, pillarOfTopic, type KpiFrequency, type YearType } from "../contracts/enums";
 import { KpiError } from "../contracts/errors";
 import { KpiTargetSchema, KpiTargetsQuerySchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
@@ -87,6 +87,7 @@ const targetOut = (t: Row, def: Row | undefined, siteName: string | null, points
     kpi_code: def?.code ?? null,
     kpi_name: def?.name ?? null,
     topic: def?.topic ?? null,
+    pillar: def?.pillar ?? (def?.topic ? pillarOfTopic(def.topic) : null),
     unit: def?.canonical_unit ?? null,
     site_id: t.site_id === null ? null : Number(t.site_id),
     site_name: siteName,

@@ -33,6 +33,7 @@ test("§1 enums hold exactly the contract values, in order", () => {
   ]);
   assert.deepEqual([...enums.UNIT_DIMENSIONS], ["energy", "mass", "volume", "count", "currency", "ratio", "time", "none"]);
   assert.deepEqual([...enums.KPI_AUDIT_ENTITY_TYPES], ["kpi_value", "kpi_setup", "kpi_period_lock", "kpi_target", "kpi_library"]);
+  assert.deepEqual([...enums.KPI_PILLARS], ["environment", "social", "governance"], "D19 (wave E)");
 });
 
 test("auto source keys: the template expands to categories 1–15", () => {

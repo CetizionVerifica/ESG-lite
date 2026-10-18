@@ -22,6 +22,7 @@ import { withUploadErrors } from "../../middlewares/upload.middleware";
 import { templateWorkbook, uploadTemplate } from "./template";
 import { z } from "zod";
 import { AppDataSource } from "../../config/data-source";
+import { pillarOfTopic } from "../contracts/enums";
 import { KpiError } from "../contracts/errors";
 import { kpiCaller, type KpiCaller, type KpiRequest } from "../guard";
 import { handle, parse } from "../http";
@@ -104,7 +105,7 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
   const [y, mo] = ym.split("-").map(Number);
   const monthEnd = new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);
   const rowsFor = (from: string, to: string): Promise<Row[]> =>
-    m.query(`SELECT v.*, d.code AS kpi_code, d.canonical_unit FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id WHERE v.company_id = $1 AND v.period_end >= $2 AND v.period_end <= $3`, [
+    m.query(`SELECT v.*, d.code AS kpi_code, d.canonical_unit, d.pillar FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id WHERE v.company_id = $1 AND v.period_end >= $2 AND v.period_end <= $3`, [
       companyId,
       from,
       to,
@@ -157,6 +158,7 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
       help: d.help ?? null,
       topic: d.topic,
       topic_label: topicLabel(d.topic),
+      pillar: d.pillar ?? pillarOfTopic(d.topic),
       source: d.source,
       value_type: d.value_type,
       unit_dimension: d.unit_dimension,

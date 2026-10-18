@@ -22,7 +22,7 @@
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import { UserRole } from "../../types/type";
-import { NUMERIC_VALUE_TYPES, type YearType } from "../contracts/enums";
+import { NUMERIC_VALUE_TYPES, pillarOfTopic, type YearType } from "../contracts/enums";
 import { KpiError } from "../contracts/errors";
 import { KpiDashboardQuerySchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
@@ -128,6 +128,7 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
         code: d.code,
         kpi_name: d.name,
         topic: d.topic,
+        pillar: d.pillar ?? pillarOfTopic(d.topic),
         site_id: t,
         site_name: t === null ? null : siteName.get(t) ?? null,
         periods_missing: missing.map((p) => p.start),
@@ -213,6 +214,7 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
         code: d.code,
         name: d.name,
         topic: d.topic,
+        pillar: d.pillar ?? pillarOfTopic(d.topic),
         source: d.source,
         level: d.level,
         unit: d.canonical_unit ?? null,

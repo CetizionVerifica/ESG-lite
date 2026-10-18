@@ -205,8 +205,8 @@ test("GET /kpi/catalogue: behind the switch; the company's own KPIs only; anothe
   await setSwitch(1, true);
   await setSwitch(2, true);
   await withDb((db) =>
-    db.query(`INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id)
-              VALUES ('TEST_OWN', 'Own KPI', 'Own?', 'community', 'integer', 'count', 'count', '["count"]', 'sum', 'company', 'annual', 'manual', 2)`),
+    db.query(`INSERT INTO kpi_definition (code, name, question, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level, default_frequency, source, company_id, pillar)
+              VALUES ('TEST_OWN', 'Own KPI', 'Own?', 'community', 'integer', 'count', 'count', '["count"]', 'sum', 'company', 'annual', 'manual', 2, 'social')`),
   );
   for (const who of ["user", "manager", "admin"]) {
     const r = await call("GET", "/kpi/catalogue", who);

@@ -32,7 +32,7 @@ router.post(
     const m = AppDataSource.manager;
     const yr = periodsFor("annual", (await kpiSettings(m, caller.companyId)).year_type, year)[0];
     const rows = await m.query(
-      `SELECT v.*, d.code AS kpi_code, d.canonical_unit FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id
+      `SELECT v.*, d.code AS kpi_code, d.canonical_unit, d.pillar FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id
         WHERE v.company_id = $1 AND v.source = 'auto' AND v.period_start >= $2 AND v.period_end <= $3
           AND ($4::int[] IS NULL OR v.site_id IS NULL OR v.site_id = ANY($4::int[]))
         ORDER BY d.code, v.site_id NULLS FIRST, v.period_start`,

@@ -13,6 +13,7 @@ import {
   KpiAggregationSchema,
   KpiFrequencySchema,
   KpiLevelSchema,
+  KpiPillarSchema,
   KpiSourceSchema,
   KpiTopicSchema,
   KpiValueStatusSchema,
@@ -78,6 +79,8 @@ const definitionFields = {
   breakdowns: BreakdownsSchema.nullable().optional(),
   decimals: z.number().int().min(0).max(6).optional(),
   active: z.boolean().optional(),
+  /** D19: defaults to TOPIC_PILLAR[topic]; on a library KPI only the Superadmin changes it. */
+  pillar: KpiPillarSchema.optional(),
 };
 
 const definitionRules = (d: Partial<Record<keyof typeof definitionFields, unknown>>, ctx: z.RefinementCtx) => {
@@ -137,6 +140,7 @@ export const LibraryQuerySchema = z.object({
   framework: FrameworkCodeSchema.optional(),
   framework_id: IdSchema.optional(),
   topic: KpiTopicSchema.optional(),
+  pillar: KpiPillarSchema.optional(),
   source: KpiSourceSchema.optional(),
   kpi: IdSchema.optional(),
   active: queryBool.optional(),
@@ -321,6 +325,14 @@ export const KpiDashboardQuerySchema = z.object({
   year: year,
   framework: FrameworkCodeSchema.optional(),
   site: IdSchema.optional(),
+  topic: KpiTopicSchema.optional(),
+});
+
+/** D19 (wave E) `GET /kpi/esg?year=&site=&pillar=&topic=`: the ESG dashboard. */
+export const KpiEsgQuerySchema = z.object({
+  year: year,
+  site: IdSchema.optional(),
+  pillar: KpiPillarSchema.optional(),
   topic: KpiTopicSchema.optional(),
 });
 

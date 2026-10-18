@@ -238,6 +238,8 @@ export const toValueOut = (r: Row, evidence: Row[] = []) => ({
   /** KPI-8: the checks as a list for reason chips: held ones first, then informational ones, each with what it found. */
   check_items: checkItems(r.checks),
   kpi_name: r.kpi_name ?? null,
+  /** D19: the KPI's ESG pillar. */
+  pillar: r.pillar ?? null,
   site_name: r.site_name ?? null,
   entered_by_name: r.entered_by_name ?? null,
   auto_snapshot: r.auto_snapshot,
@@ -246,7 +248,7 @@ export const toValueOut = (r: Row, evidence: Row[] = []) => ({
   evidence: evidence.map((e) => ({ id: e.id, document_url: e.document_url, document_name: e.document_name, uploaded_by: e.uploaded_by, uploaded_at: e.uploaded_at })),
 });
 
-const VALUE_SELECT = `SELECT v.*, d.code AS kpi_code, d.canonical_unit, d.name AS kpi_name, st.name AS site_name,
+const VALUE_SELECT = `SELECT v.*, d.code AS kpi_code, d.canonical_unit, d.name AS kpi_name, d.pillar, st.name AS site_name,
     NULLIF(TRIM(CONCAT(COALESCE(eu.name, ''), ' ', COALESCE(eu.last_name, ''))), '') AS entered_by_name
   FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id
   LEFT JOIN site st ON st.site_id = v.site_id LEFT JOIN "user" eu ON eu.user_id = v.entered_by`;

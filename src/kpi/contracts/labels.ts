@@ -10,6 +10,7 @@ import type {
   KpiAggregation,
   KpiFrequency,
   KpiLevel,
+  KpiPillar,
   KpiSource,
   KpiTopic,
   KpiValueStatus,
@@ -53,6 +54,10 @@ export const TOPIC_LABELS: Record<KpiTopic, string> = {
   governance: "Governance",
   ethics: "Ethics",
 };
+
+/** D19 (wave E): the ESG pillars, their labels and their short letters. */
+export const PILLAR_LABELS: Record<KpiPillar, string> = { environment: "Environment", social: "Social", governance: "Governance" };
+export const PILLAR_LETTERS: Record<KpiPillar, string> = { environment: "E", social: "S", governance: "G" };
 
 export const VALUE_TYPE_LABELS: Record<KpiValueType, string> = {
   number: "Number",

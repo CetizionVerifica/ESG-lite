@@ -1,12 +1,15 @@
 /**
  * KPI-2 · library service: list, create and update frameworks, KPI
  * definitions, disclosures and mappings (Superadmin), the coverage helper, and
- * the catalogue a client reads. Every write sets `edited_at` (so a re-seed keeps
- * it) and records an audit_log row (`kpi_library`). Nothing is ever deleted:
- * a row is retired with `active: false` (frameworks, KPIs).
+ * the catalogue a client reads. Every write sets `edited_at` (so a re-seed
+ * keeps it) and records an audit_log row (`kpi_library`). Nothing is ever
+ * deleted: a row is retired with `active: false` (frameworks, KPIs).
+ * D19: a definition carries `pillar`, its topic's unless the Superadmin
+ * overrides it (PUT /kpi/library/definitions/:id {pillar}).
  */
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
+import { pillarOfTopic } from "../contracts/enums";
 import { KpiError } from "../contracts/errors";
 import {
   KpiDefinitionCreateSchema,
@@ -108,7 +111,7 @@ export const updateFramework = (id: number, body: unknown, userId: number) =>
 
 const DEFINITION_KEYS = [
   "name", "question", "help", "topic", "value_type", "unit_dimension", "canonical_unit", "allowed_units", "aggregation",
-  "level", "default_frequency", "source", "auto_source", "formula", "breakdowns", "decimals", "active",
+  "level", "default_frequency", "source", "auto_source", "formula", "breakdowns", "decimals", "active", "pillar",
 ];
 
 /**
@@ -144,6 +147,7 @@ export async function listDefinitions(query: unknown): Promise<Row[]> {
     where.push(sql.replace("?", `$${params.length}`));
   };
   if (q.topic) add("d.topic = ?", q.topic);
+  if (q.pillar) add("d.pillar = ?", q.pillar);
   if (q.source) add("d.source = ?", q.source);
   if (q.active !== undefined) add("d.active = ?", q.active);
   if (q.framework) add(`EXISTS (SELECT 1 FROM kpi_disclosure_map mp JOIN kpi_disclosure ds ON ds.id = mp.disclosure_id JOIN kpi_framework f ON f.id = ds.framework_id WHERE mp.kpi_definition_id = d.id AND f.code = ?)`, q.framework);
@@ -181,6 +185,8 @@ export const createDefinition = (body: unknown, userId: number) =>
       breakdowns: data.breakdowns ?? null,
       decimals: data.decimals ?? 2,
       active: data.active ?? true,
+      // D19: the topic's pillar unless the Superadmin names one.
+      pillar: data.pillar ?? pillarOfTopic(data.topic),
       company_id: null,
     });
     await audit(m, row.id, "definition_created", diff(null, row, ["code", ...DEFINITION_KEYS]), userId);
@@ -192,6 +198,11 @@ export const updateDefinition = (id: number, body: unknown, userId: number) =>
     const patch = parse(KpiDefinitionUpdateSchema, body);
     const before = await findById(m, "kpi_definition", id, "AND company_id IS NULL");
     if (!Object.keys(patch).length) return before;
+    // D19: a KPI moved to another topic follows that topic's pillar, unless its pillar was
+    // overridden before (it differed from the old topic's) or the same PUT names one.
+    if (patch.topic && patch.topic !== before.topic && patch.pillar === undefined && before.pillar === pillarOfTopic(before.topic)) {
+      patch.pillar = pillarOfTopic(patch.topic) ?? before.pillar;
+    }
     const merged = { ...before, ...patch };
     const whole = KpiDefinitionCreateSchema.safeParse({ ...merged, help: merged.help ?? null });
     if (!whole.success) throw new KpiError("KPI_VALIDATION", { issues: whole.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })) });
@@ -345,7 +356,7 @@ export async function catalogue(companyId: number) {
     [fwIds],
   );
   const definitions: Row[] = await m.query(
-    `SELECT id, code, name, question, help, topic, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level,
+    `SELECT id, code, name, question, help, topic, pillar, value_type, unit_dimension, canonical_unit, allowed_units, aggregation, level,
             default_frequency, source, auto_source, formula, breakdowns, decimals, company_id
        FROM kpi_definition WHERE active AND (company_id IS NULL OR company_id = $1) ORDER BY topic, code`,
     [companyId],

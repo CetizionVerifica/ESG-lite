@@ -34,6 +34,41 @@ export const KPI_TOPICS = [
 export const KpiTopicSchema = z.enum(KPI_TOPICS);
 export type KpiTopic = z.infer<typeof KpiTopicSchema>;
 
+/**
+ * D19 (wave E): every topic and KPI belongs to one ESG pillar. Labels
+ * "Environment", "Social", "Governance"; letters E, S, G (labels.ts).
+ */
+export const KPI_PILLARS = ["environment", "social", "governance"] as const;
+export const KpiPillarSchema = z.enum(KPI_PILLARS);
+export type KpiPillar = z.infer<typeof KpiPillarSchema>;
+
+/**
+ * D19: the default pillar of each topic. A KPI's `kpi_definition.pillar`
+ * starts as its topic's (migrate:kpi-pillars backfill, the library seed, custom
+ * KPIs); only a Superadmin overrides it on a library KPI.
+ */
+export const TOPIC_PILLAR: Record<KpiTopic, KpiPillar> = {
+  climate: "environment",
+  energy: "environment",
+  water: "environment",
+  waste: "environment",
+  pollution: "environment",
+  biodiversity: "environment",
+  materials: "environment",
+  workforce: "social",
+  health_safety: "social",
+  diversity: "social",
+  training: "social",
+  human_rights: "social",
+  community: "social",
+  customers: "social",
+  governance: "governance",
+  ethics: "governance",
+};
+
+/** D19: a topic's pillar (a topic outside KPI_TOPICS has none). */
+export const pillarOfTopic = (topic: string): KpiPillar | null => (TOPIC_PILLAR as Record<string, KpiPillar>)[topic] ?? null;
+
 export const KPI_VALUE_TYPES = ["number", "percent", "integer", "currency", "yes_no", "choice", "text"] as const;
 export const KpiValueTypeSchema = z.enum(KPI_VALUE_TYPES);
 export type KpiValueType = z.infer<typeof KpiValueTypeSchema>;
