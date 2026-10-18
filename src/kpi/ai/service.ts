@@ -13,7 +13,7 @@
  *     → {available: false, message, suggestions: []} when python is down, slow or can't read it
  *   POST /kpi/ai/suggest-mapping  {name, question, unit?, topic} (Admin, Superadmin)
  *     → {available: true, suggestions: [{disclosure_id, framework, version, code, title, section,
- *        why, confidence, check_this}]} | {available: false, message, suggestions: []}
+ *        why, confidence, check_this, fit ("exact" when inferable, else null)}]} | {available: false, message, suggestions: []}
  *
  * Scope (suggest-values): the KPIs sent to python are the caller's own due
  * items of `/kpi/my` for that month (D17 owners; on `site_id` only, when
@@ -175,10 +175,28 @@ export async function suggestMapping(caller: KpiCaller, raw: unknown) {
     catalogue: [...catalogue.values()].map((r) => ({ framework: r.framework, code: r.code, title: r.title, section: r.section ?? null })),
   });
   if (!res.ok || !Array.isArray(res.body?.suggestions)) return unavailable();
-  const suggestions = (res.body.suggestions as Row[])
+  const picked = (res.body.suggestions as Row[])
     .map((s) => ({ s, d: catalogue.get(`${s.framework}|${s.code}`) }))
     .filter((x) => x.d)
-    .slice(0, 5)
+    .slice(0, 5);
+  // A fit only where it can be inferred: the disclosure already takes a library KPI exactly in the
+  // custom KPI's unit, and python is confident (≥ 0.8) → "exact"; otherwise null (the Admin picks).
+  const unitKey = (u: unknown) => String(u ?? "").trim().toLowerCase();
+  const exactUnits = new Map<number, Set<string>>();
+  if (b.unit && picked.length) {
+    const rows: Row[] = await m.query(
+      `SELECT mp.disclosure_id, d.canonical_unit, mp.display_unit FROM kpi_disclosure_map mp JOIN kpi_definition d ON d.id = mp.kpi_definition_id AND d.company_id IS NULL
+        WHERE mp.fit = 'exact' AND mp.disclosure_id = ANY($1::int[])`,
+      [picked.map((x) => Number(x.d!.id))],
+    );
+    for (const r of rows) {
+      const set = exactUnits.get(Number(r.disclosure_id)) ?? new Set<string>();
+      set.add(unitKey(r.canonical_unit));
+      if (r.display_unit) set.add(unitKey(r.display_unit));
+      exactUnits.set(Number(r.disclosure_id), set);
+    }
+  }
+  const suggestions = picked
     .map(({ s, d }) => ({
       disclosure_id: Number(d!.id),
       framework: d!.framework,
@@ -189,6 +207,7 @@ export async function suggestMapping(caller: KpiCaller, raw: unknown) {
       why: typeof s.why === "string" ? s.why : "",
       confidence: Number(s.confidence),
       check_this: !(Number(s.confidence) >= CHECK_THIS_BELOW),
+      fit: Number(s.confidence) >= 0.8 && exactUnits.get(Number(d!.id))?.has(unitKey(b.unit)) ? ("exact" as const) : null,
     }));
   console.log(`[kpi-ai] suggest-mapping company ${caller.companyId}: ${catalogue.size} disclosures sent, ${suggestions.length} suggested`);
   return { available: true, suggestions };

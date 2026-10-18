@@ -20,6 +20,7 @@
  * repeated in the file is `KPI_VALIDATION` (`rule: duplicate_row`). The sheet is
  * data: nothing typed in it is logged.
  */
+import { randomUUID } from "crypto";
 import * as XLSX from "xlsx";
 import { z } from "zod";
 import { AppDataSource } from "../../config/data-source";
@@ -102,7 +103,10 @@ export interface PlanIssue {
 }
 export interface PlanRow {
   row: number;
+  kpi_definition_id: number | null;
   kpi_code: string | null;
+  /** The KPI's name (also as `kpi_name`). */
+  name: string | null;
   kpi_name: string | null;
   site_id: number | null;
   site_name: string | null;
@@ -110,7 +114,10 @@ export interface PlanRow {
   period_label: string | null;
   value: number | string | null;
   unit: string | null;
+  comment: string | null;
   status: "ready" | "error" | "skipped";
+  /** The row's issue (the first; rows stop at their first problem), or null when ready. */
+  issue: PlanIssue | null;
   issues: PlanIssue[];
   /** The item a commit sends to the draft save (ready rows). */
   item?: Row;
@@ -179,7 +186,7 @@ const issueOf = (err: unknown): PlanIssue => {
   throw err;
 };
 
-export async function planTemplate(caller: KpiCaller, buffer: Buffer): Promise<{ rows: PlanRow[]; counts: { total: number; ready: number; error: number; skipped: number } }> {
+export async function planTemplate(caller: KpiCaller, buffer: Buffer, scope: { period?: string; site?: number } = {}): Promise<{ rows: PlanRow[]; counts: { total: number; ready: number; error: number; skipped: number } }> {
   const raw = readTemplate(buffer);
   const m = AppDataSource.manager;
   const owners = await ownerIndex(m, caller.companyId);
@@ -196,7 +203,7 @@ export async function planTemplate(caller: KpiCaller, buffer: Buffer): Promise<{
     const start = dayOf(r["Period start"]);
     const valueCell = r["Value"];
     const unit = text(r["Unit"]);
-    const plan: PlanRow = { row: rowNo, kpi_code: code, kpi_name: null, site_id: siteId !== null && Number.isInteger(siteId) ? siteId : null, site_name: null, period_start: start, period_label: null, value: null, unit, status: "ready", issues: [] };
+    const plan: PlanRow = { row: rowNo, kpi_definition_id: null, kpi_code: code, name: null, kpi_name: null, site_id: siteId !== null && Number.isInteger(siteId) ? siteId : null, site_name: null, period_start: start, period_label: null, value: null, unit, comment: text(r["Comment"]), status: "ready", issue: null, issues: [] };
     out.push(plan);
     if (!code && siteCell === null && !start && text(valueCell) === null) {
       plan.status = "skipped"; // an empty line
@@ -206,6 +213,8 @@ export async function planTemplate(caller: KpiCaller, buffer: Buffer): Promise<{
       if (!code || !start || (siteId !== null && !Number.isInteger(siteId))) throw new KpiError("KPI_VALIDATION", { rule: "kpi_site_and_period_needed" });
       const kpi = await findKpi(m, caller.companyId, { code });
       plan.kpi_name = kpi.name;
+      plan.name = kpi.name;
+      plan.kpi_definition_id = Number(kpi.id);
       plan.site_name = siteId === null ? null : sites.get(siteId) ?? null;
       if (siteId !== null && !sites.has(siteId)) throw new KpiError("KPI_NOT_FOUND", { site_id: siteId });
       if (text(valueCell) === null) {
@@ -234,13 +243,17 @@ export async function planTemplate(caller: KpiCaller, buffer: Buffer): Promise<{
       seen.add(key);
       // Template rows are only what the caller owns (D17), whatever their role.
       if (owners.resolve({ id: Number(kpi.id), topic: String(kpi.topic) }, siteId).owner_user_id !== caller.userId) throw new KpiError("KPI_NOT_ASSIGNED", { kpi: kpi.code, site_id: siteId });
+      // The upload is for one month and (optionally) one site, as the template was downloaded.
+      if (scope.site !== undefined && siteId !== scope.site) throw new KpiError("KPI_VALIDATION", { rule: "not_this_site", site_id: siteId });
       const v = await checkDraft(caller, item);
+      if (scope.period && String(v.period_end).slice(0, 7) !== scope.period) throw new KpiError("KPI_VALIDATION", { rule: "not_this_period", period: scope.period });
       plan.period_label = periodOf(v.period_start as string, v.frequency as never, settings.year_type).label;
       plan.unit = v.unit ?? plan.unit;
       plan.item = item;
     } catch (err) {
       plan.status = "error";
       plan.issues.push(issueOf(err));
+      plan.issue = plan.issues[0];
     }
   }
   const counts = { total: out.length, ready: 0, error: 0, skipped: 0 };
@@ -248,23 +261,58 @@ export async function planTemplate(caller: KpiCaller, buffer: Buffer): Promise<{
   return { rows: out, counts };
 }
 
-export async function uploadTemplate(caller: KpiCaller, file: { buffer: Buffer; originalname?: string } | undefined, commitRaw: unknown) {
-  if (!file?.buffer?.length) throw new KpiError("KPI_VALIDATION", { issues: [{ path: "file", message: "Attach the filled-in template (multipart field `file`)." }] });
+// Plans kept for the second step (commit by plan_id), per company and person, for 24 h, in process.
+// Only the ready rows' items are kept; a commit runs every draft rule again.
+const PLAN_MS = 24 * 60 * 60 * 1000;
+const plans = new Map<string, { companyId: number; userId: number; at: number; ready: Array<{ row: number; item: Row }> }>();
+const prunePlans = () => {
+  for (const [id, p] of plans) if (Date.now() - p.at > PLAN_MS) plans.delete(id);
+};
+
+const UploadFieldsSchema = z.object({
+  period: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM").optional()),
+  site: z.preprocess((v) => (v === "" || v === "company" ? undefined : v), z.coerce.number().int().positive().optional()),
+  plan_id: z.string().uuid().optional(),
+});
+
+async function commitReady(caller: KpiCaller, ready: Array<{ row: number; item: Row }>) {
+  const saved = ready.length ? await upsertDrafts(caller, ready.map((r) => r.item)) : { saved: 0, results: [] };
+  return {
+    saved: saved.saved,
+    results: saved.results.map((res, i) => (res.ok ? { row: ready[i].row, ok: true, value_id: Number(res.value.id) } : { row: ready[i].row, ok: false, code: res.code, message: res.message })),
+  };
+}
+
+/**
+ * POST /kpi/my/template. Two steps (the FE's bulk-upload drop and review):
+ *   plan    multipart `file` (+ `period`, `site`) → {dry_run: true, file_name, plan: {plan_id, rows, counts}}
+ *   commit  JSON {plan_id, commit: true} → {dry_run: false, plan_id, saved, results}
+ * A file with `commit=true` plans and commits in one call (as /user/upload/historical).
+ */
+export async function uploadTemplate(caller: KpiCaller, file: { buffer: Buffer; originalname?: string } | undefined, commitRaw: unknown, fieldsRaw: unknown = {}) {
   if (commitRaw !== undefined && commitRaw !== "true" && commitRaw !== "false" && commitRaw !== true && commitRaw !== false) {
     throw new KpiError("KPI_VALIDATION", { issues: [{ path: "commit", message: "commit must be true or false." }] });
   }
   const commit = commitRaw === "true" || commitRaw === true;
-  const plan = await planTemplate(caller, file.buffer);
-  const strip = (rows: PlanRow[]) => rows.map(({ item, ...r }) => r);
+  const fields = parse(UploadFieldsSchema, fieldsRaw ?? {});
+  prunePlans();
+  if (!file?.buffer?.length) {
+    if (!fields.plan_id) throw new KpiError("KPI_VALIDATION", { issues: [{ path: "file", message: "Attach the filled-in template (multipart field `file`), or commit a plan_id." }] });
+    if (!commit) throw new KpiError("KPI_VALIDATION", { issues: [{ path: "commit", message: "Send commit: true with the plan_id." }] });
+    const stored = plans.get(fields.plan_id);
+    if (!stored || stored.companyId !== caller.companyId || stored.userId !== caller.userId) throw new KpiError("KPI_NOT_FOUND", { plan_id: fields.plan_id });
+    plans.delete(fields.plan_id); // one commit per plan
+    return { dry_run: false, plan_id: fields.plan_id, ...(await commitReady(caller, stored.ready)) };
+  }
+  const plan = await planTemplate(caller, file.buffer, { period: fields.period, site: fields.site });
+  const shown = plan.rows.filter((r) => r.status !== "skipped").map(({ item, ...r }) => r);
+  const counts = { ...plan.counts, issues: plan.counts.error };
   const fileName = (file.originalname ?? "").slice(0, 200) || null;
-  if (!commit) return { dry_run: true, file_name: fileName, plan: { rows: strip(plan.rows), counts: plan.counts } };
-  const ready = plan.rows.filter((r) => r.status === "ready" && r.item);
-  const saved = ready.length ? await upsertDrafts(caller, ready.map((r) => r.item)) : { saved: 0, results: [] };
-  return {
-    dry_run: false,
-    file_name: fileName,
-    plan: { rows: strip(plan.rows), counts: plan.counts },
-    saved: saved.saved,
-    results: saved.results.map((res, i) => (res.ok ? { row: ready[i].row, ok: true, value_id: Number(res.value.id) } : { row: ready[i].row, ok: false, code: res.code, message: res.message })),
-  };
+  const ready = plan.rows.filter((r) => r.status === "ready" && r.item).map((r) => ({ row: r.row, item: r.item as Row }));
+  if (!commit) {
+    const planId = randomUUID();
+    plans.set(planId, { companyId: caller.companyId, userId: caller.userId, at: Date.now(), ready });
+    return { dry_run: true, file_name: fileName, plan: { plan_id: planId, rows: shown, counts } };
+  }
+  return { dry_run: false, file_name: fileName, plan: { plan_id: null, rows: shown, counts }, ...(await commitReady(caller, ready)) };
 }

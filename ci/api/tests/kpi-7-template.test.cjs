@@ -89,21 +89,30 @@ test("upload: plan first (row issues with codes, nothing stored), then commit th
   assert.deepEqual([byRow(2).status, byRow(2).value, byRow(2).unit, byRow(2).period_label, byRow(2).site_name], ["ready", 1200, "kL", "Sep 2026", "CI Plant A"]);
   assert.equal(byRow(3).status, "ready");
   assert.deepEqual([byRow(4).status, byRow(4).issues[0].code], ["error", "KPI_UNIT_NOT_ALLOWED"]);
-  assert.equal(byRow(5).status, "skipped");
+  assert.equal(byRow(5), undefined, "a blank value is skipped, not listed");
   assert.deepEqual([byRow(6).status, byRow(6).issues[0].code], ["error", "KPI_NOT_ASSIGNED"], "site 2 is user 7's");
   assert.deepEqual([byRow(7).status, byRow(7).issues[0].code], ["error", "KPI_NOT_FOUND"], "another company's site");
   assert.deepEqual([byRow(8).issues[0].code, byRow(8).issues[0].details.rule], ["KPI_VALIDATION", "duplicate_row"]);
   assert.deepEqual([byRow(9).issues[0].code, byRow(9).issues[0].details.rule], ["KPI_VALUE_INVALID", "a_number"]);
   assert.equal(byRow(10), undefined, "an empty line isn't a row");
-  assert.deepEqual(plan.json.plan.counts, { total: 8, ready: 2, error: 5, skipped: 1 });
+  assert.deepEqual(plan.json.plan.counts, { total: 8, ready: 2, error: 5, skipped: 1, issues: 5 });
   assert.ok(!("item" in byRow(2)));
+  // The FE's row shape: the KPI's id and name, the comment, and one issue (null when ready).
+  assert.deepEqual([byRow(2).kpi_definition_id > 0, byRow(2).name, byRow(2).comment, byRow(2).issue], [true, byRow(2).kpi_name, "From the meter", null]);
+  assert.deepEqual(byRow(4).issue.code, "KPI_UNIT_NOT_ALLOWED");
+  assert.match(plan.json.plan.plan_id, /^[0-9a-f-]{36}$/);
   assert.equal((await q(`SELECT 1 FROM kpi_value WHERE company_id = 1`)).length, 0, "a plan stores nothing");
   assert.equal((await q(`SELECT 1 FROM audit_log WHERE entity_type = 'kpi_value'`)).length, 0, "and audits nothing");
 
-  const done = await upload("user", file, { commit: true });
+  // Step two: commit the plan by its id (JSON). Someone else can't commit it; it commits once.
+  const planId = plan.json.plan.plan_id;
+  assert.equal((await call("POST", "/kpi/my/template", "multiSiteUser", { plan_id: planId, commit: true })).status, 404, "another person's plan");
+  assert.equal((await call("POST", "/kpi/my/template", "user", { plan_id: planId })).json.code, "KPI_VALIDATION", "commit: true is needed");
+  const done = await call("POST", "/kpi/my/template", "user", { plan_id: planId, commit: true });
   assert.equal(done.status, 200, JSON.stringify(done.json));
-  assert.deepEqual([done.json.dry_run, done.json.saved], [false, 2]);
+  assert.deepEqual([done.json.dry_run, done.json.plan_id, done.json.saved], [false, planId, 2]);
   assert.deepEqual(done.json.results.map((r) => [r.row, r.ok]), [[2, true], [3, true]]);
+  assert.equal((await call("POST", "/kpi/my/template", "user", { plan_id: planId, commit: true })).status, 404, "one commit per plan");
   const stored = await q(`SELECT v.status, v.value_numeric::float AS v, v.unit, v.value_canonical::float AS c, v.is_estimate, v.comment, v.entered_by, d.code FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id WHERE v.company_id = 1 ORDER BY d.code`);
   assert.deepEqual(stored.map((s) => [s.code, s.status, s.v, s.unit, s.is_estimate, s.entered_by]), [["LOST_TIME_INJURIES", "draft", 2, "count", true, 1], ["WATER_WITHDRAWAL", "draft", 1200, "kL", false, 1]]);
   assert.equal(stored.find((s) => s.code === "WATER_WITHDRAWAL").comment, "From the meter");
@@ -115,6 +124,17 @@ test("upload: plan first (row issues with codes, nothing stored), then commit th
   await q(`UPDATE kpi_value SET status = 'pending' WHERE id = ANY($1::int[])`, [ids]);
   const late = await upload("user", [withdrawal]);
   assert.equal(late.json.plan.rows[0].issues[0].code, "KPI_NOT_DRAFT");
+  // The upload's month and site (as downloaded): rows of another period or site are flagged.
+  const form = new FormData();
+  form.append("file", new Blob([fileOf([{ ...blank, Value: 0 }, { ...lti, "Period start": "2026-08-01" }])]), "x.xlsx");
+  form.append("period", "2026-09");
+  form.append("site", "1");
+  const scoped = await call("POST", "/kpi/my/template", "user", form);
+  assert.deepEqual(scoped.json.plan.rows.map((r) => r.issue?.details?.rule ?? r.status), ["ready", "not_this_period"]);
+  const form2 = new FormData();
+  form2.append("file", new Blob([fileOf([lti])]), "x.xlsx");
+  form2.append("site", "2");
+  assert.equal((await call("POST", "/kpi/my/template", "user", form2)).json.plan.rows[0].issue.details.rule, "not_this_site");
 });
 
 test("bad files and requests; tenant isolation; the Superadmin passes company_id in the query; switch off", async () => {
@@ -125,6 +145,7 @@ test("bad files and requests; tenant isolation; the Superadmin passes company_id
   assert.equal(junk.json.code, "KPI_VALIDATION");
   assert.equal((await upload("user", [{ Foo: 1 }])).json.code, "KPI_VALIDATION", "no template columns");
   assert.equal((await call("POST", "/kpi/my/template", "user", new FormData())).json.code, "KPI_VALIDATION", "no file");
+  assert.equal((await call("POST", "/kpi/my/template", "user", { plan_id: "00000000-0000-4000-8000-000000000000", commit: true })).status, 404, "an unknown plan");
   assert.equal((await upload("user", [], { commit: "maybe" })).status, 400);
   // Company 2's User uploading company 1's rows: nothing of company 1 is found or written.
   const row = { "KPI code": "WATER_WITHDRAWAL", "Site ID": 1, "Period start": "2026-10-01", Value: 1 };

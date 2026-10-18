@@ -183,6 +183,7 @@ test("suggest-mapping: Admin and Superadmin, the enabled catalogue, only disclos
   const s = r.json.suggestions[0];
   assert.deepEqual([s.framework, s.check_this, s.why, s.confidence], ["GRI", false, "same subject", 0.81]);
   assert.ok(Number.isInteger(s.disclosure_id));
+  assert.equal(s.fit, null, "no fit inferred: the disclosure takes no library KPI in m3");
   const sent = seen.find((x) => x.path === "/v1/kpi/suggest-mapping").body;
   assert.deepEqual([...new Set(sent.catalogue.map((c) => c.framework))].sort(), ["BRSR", "GRI"], "the enabled versions only");
   const pairs = sent.catalogue.map((c) => `${c.framework}|${c.code}`);

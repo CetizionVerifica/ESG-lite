@@ -220,5 +220,7 @@ myRouter.get("/my/template", handle("my KPIs template", async (req, res) => {
 }));
 myRouter.post("/my/template", templateUpload, handle("my KPIs template upload", async (req, res) => {
   const file = (req as unknown as { file?: Express.Multer.File }).file;
-  res.json(await uploadTemplate(kpiCaller(req as KpiRequest), file, (req.body ?? {}).commit ?? (req.query as Record<string, unknown>).commit));
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const query = req.query as Record<string, unknown>;
+  res.json(await uploadTemplate(kpiCaller(req as KpiRequest), file, body.commit ?? query.commit, { period: body.period ?? query.period, site: body.site ?? query.site, plan_id: body.plan_id ?? query.plan_id }));
 }));
