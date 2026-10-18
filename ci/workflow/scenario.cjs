@@ -165,4 +165,27 @@ const SUPPLIER = {
   purchase: { date: `${YEAR}-07-31`, quantity: 2.5, unit: "tonne", kg: 2500 * 8.6 },
 };
 
-module.exports = { REVIEW_V2, SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };
+/**
+ * KPI-13 (steps K1–K8, D17, D18): KPI tracking for the same client, worked by hand.
+ * The client reports FY 2026 (Apr 2025–Mar 2026), the year type of its emission rows.
+ * Water is monthly (canonical kL), waste annual (canonical tonne); Scope 1 and 2 are
+ * auto KPIs read from the approved emission rows (they must equal step 26b's report).
+ */
+const KPI = {
+  report_year: REPORT_YEAR,
+  frameworks: ["GRI", "BRSR", "ESRS"],
+  not_material: { esrs_topic: "E3", reason: "Our sites draw little water and none from stressed areas." },
+  selected: ["WATER_WITHDRAWAL", "WATER_DISCHARGE", "WASTE_GENERATED", "GHG_SCOPE1", "GHG_SCOPE2_LB"],
+  left_out_reason: "Not tracked by the workflow client yet.",
+  month: `${YEAR}-04`, // April 2025: month 4 of FY 2026
+  lock: { year: REPORT_YEAR, period: 4 },
+  // 1,200 m³ = 1,200 kL (1 m³ = 1 kL); in the GRI index 1,200 kL = 1.2 ML.
+  withdrawal: { kpi: "WATER_WITHDRAWAL", period_start: `${YEAR}-04-01`, value: 1200, unit: "m3", canonical: 1200, gri_ml: 1.2 },
+  // Sent back (the meter reading was March's), then fixed to 250 kL.
+  discharge: { kpi: "WATER_DISCHARGE", period_start: `${YEAR}-04-01`, value: 300, unit: "kL", canonical: 300, fixed: 250, reject_reason: "This meter reading is March's." },
+  // 3,500 kg = 3.5 t, for the whole FY (annual period starts 1 Apr 2025).
+  waste: { kpi: "WASTE_GENERATED", period_start: `${YEAR}-04-01`, value: 3500, unit: "kg", canonical: 3.5 },
+  evidence: { document_url: "https://files.example.invalid/workflow/water-bill-apr.pdf", document_name: "water-bill-apr.pdf" },
+};
+
+module.exports = { KPI, REVIEW_V2, SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };

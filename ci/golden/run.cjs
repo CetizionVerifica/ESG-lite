@@ -9,6 +9,9 @@
 //   UPDATE_SNAPSHOT=1 node ci/golden/run.cjs   # rewrite after an INTENDED change
 //   GOLDEN_REVIEW_V2=1 node ci/golden/run.cjs  # the same snapshot with review workflow v2 on (S3-15):
 //                                              # the User's entries are Drafts, submitted, then approved
+//   GOLDEN_KPI_TRACKING=1 node ci/golden/run.cjs  # the same snapshot with KPI tracking on for every client
+//                                              # (KPI-13): set up, every library KPI selected, auto KPIs
+//                                              # refreshed by the approvals; nothing KPI may move a figure
 //
 // A changed number is either a bug or a deliberate methodology change. For a
 // deliberate one, regenerate the snapshot and explain the change in the PR so
@@ -84,12 +87,25 @@ async function call(method, route, token, body) {
   await client.query(fs.readFileSync(path.join(__dirname, "fixture.sql"), "utf8"));
   const reviewV2 = process.env.GOLDEN_REVIEW_V2 === "1";
   if (reviewV2) await client.query(`UPDATE company SET review_workflow_v2 = true`);
+  const kpiOn = process.env.GOLDEN_KPI_TRACKING === "1";
+  if (kpiOn) {
+    // KPI-13: the KPI tables as a deploy makes them, the library seeded, every client switched on and set up.
+    const { spawnSync } = require("child_process");
+    for (const name of ["migrateKpiLibrary", "seedKpiLibrary", "migrateKpiValues", "migrateKpiSetup", "migrateKpiTopicAssignment", "migrateKpiTargets"]) {
+      const r = spawnSync(process.execPath, [path.join(ROOT, `dist/scripts/${name}.js`)], { cwd: ROOT, env: { ...process.env, TYPEORM_SYNC: "false" }, encoding: "utf8" });
+      if (r.status !== 0) throw new Error(`${name} failed:\n${r.stdout}${r.stderr}`);
+    }
+    await client.query(`UPDATE company SET kpi_tracking_enabled = true WHERE company_id > 0`);
+    await client.query(`INSERT INTO company_kpi_settings (company_id, year_type, first_year, due_day, setup_completed_at) SELECT company_id, 'CY', 2020, 15, now() FROM company ON CONFLICT (company_id) DO NOTHING`);
+    await client.query(`INSERT INTO company_framework (company_id, framework_id, framework_code) SELECT c.company_id, f.id, f.code FROM company c CROSS JOIN kpi_framework f WHERE f.active AND f.default_for_new ON CONFLICT DO NOTHING`);
+    await client.query(`INSERT INTO company_kpi (company_id, kpi_definition_id, selected) SELECT c.company_id, d.id, true FROM company c CROSS JOIN kpi_definition d WHERE d.company_id IS NULL AND d.active ON CONFLICT DO NOTHING`);
+  }
   await client.end();
 
   const logs = [];
   const server = spawn(process.execPath, [path.join(ROOT, "dist/index.js")], {
     cwd: ROOT,
-    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1" },
+    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", ...(process.env.GOLDEN_KPI_TRACKING === "1" ? { KPI_AUTO_REFRESH_DELAY_MS: "100" } : {}) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (d) => logs.push(d.toString()));
@@ -121,6 +137,20 @@ async function call(method, route, token, body) {
         status: res.status,
         message: res.status >= 300 ? res.json?.message ?? null : undefined,
       });
+    }
+
+    let kpiAuto = null;
+    if (process.env.GOLDEN_KPI_TRACKING === "1") {
+      // The approvals scheduled KPI refreshes (100 ms debounce): let them write before anything is read.
+      const counter = db();
+      await counter.connect();
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        kpiAuto = Number((await counter.query(`SELECT COUNT(*)::int AS n FROM kpi_value WHERE source = 'auto'`)).rows[0].n);
+        if (kpiAuto > 0 && i >= 8) break;
+      }
+      await counter.end();
+      if (!kpiAuto) throw new Error("KPI tracking on, but no auto KPI value was written: the KPI run didn't exercise anything");
     }
 
     const reader = db();
@@ -168,7 +198,7 @@ async function call(method, route, token, body) {
         );
         exitCode = 1;
       } else {
-        console.log(`Calculation snapshot matches (${entries.length} entries, ${reports.length} reports).`);
+        console.log(`Calculation snapshot matches (${entries.length} entries, ${reports.length} reports)${kpiAuto ? ` with KPI tracking on (${kpiAuto} auto KPI values written)` : ""}.`);
       }
     }
   } catch (err) {

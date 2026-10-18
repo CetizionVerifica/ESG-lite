@@ -233,7 +233,13 @@ const auditLock = (m: EntityManager, id: number, action: "lock" | "unlock", site
     userId || null,
   ]);
 
+/** The role first (KPI-13 probes: a User gets 403, not a validation error). */
+const assertLocker = (caller: KpiCaller) => {
+  if (!LOCKERS.has(caller.role)) throw new KpiError("KPI_FORBIDDEN", { allowed: ["Manager", "Admin", "Superadmin"] });
+};
+
 export async function lockPeriod(caller: KpiCaller, body: unknown) {
+  assertLocker(caller);
   const b = parse(KpiPeriodLockBodySchema, body ?? {});
   const period = b.period ?? null;
   const siteId = b.site_id ?? null;
@@ -267,6 +273,7 @@ export async function lockPeriod(caller: KpiCaller, body: unknown) {
 }
 
 export async function unlockPeriod(caller: KpiCaller, body: unknown) {
+  assertLocker(caller);
   const b = parse(KpiPeriodLockBodySchema, body ?? {});
   const reason = (b.reason ?? "").trim();
   if (!reason) throw new KpiError("KPI_REASON_REQUIRED", { field: "reason" });

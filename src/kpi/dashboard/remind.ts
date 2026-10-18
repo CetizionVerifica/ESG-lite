@@ -22,7 +22,7 @@ import { alreadyReminded, kpiDueNotification } from "../review/reminders";
 import { kpiSettings } from "../setup/settings";
 import { resolveOwner } from "../setup/owners";
 import { findKpi, isKpiSelected } from "../values/service";
-import { dashboardScope } from "./service";
+import { DASHBOARD_ROLES, dashboardScope } from "./service";
 
 type Row = Record<string, any>;
 
@@ -33,6 +33,8 @@ async function ownersOf(companyId: number, kpi: Row, siteId: number | null): Pro
 }
 
 export async function remind(caller: KpiCaller, body: unknown) {
+  // The role first (KPI-13 probes): a User gets 403, not a validation error.
+  if (!DASHBOARD_ROLES.has(caller.role)) throw new KpiError("KPI_FORBIDDEN", { allowed: ["Manager", "Admin", "Superadmin"] });
   const b = parse(KpiRemindSchema, body ?? {});
   const m = AppDataSource.manager;
   const scope = await dashboardScope(m, caller, b.site ?? undefined);

@@ -46,7 +46,6 @@ const unavailable = (message = AI_UNAVAILABLE) => ({ available: false as const, 
 
 // python's answer per (company, user, document, codes, period): never audited, never persisted.
 const cache = new Map<string, { at: number; body: Row }>();
-export const clearKpiAiCache = () => cache.clear();
 const cached = (key: string) => {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.body;

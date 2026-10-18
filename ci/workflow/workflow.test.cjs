@@ -638,6 +638,306 @@ step("29e a closed month refuses every write (PERIOD_LOCKED); reopening needs a 
   assert.equal(Number(again.json.emission.total_emission), tonnes(10 * SC.FACTORS.diesel.values[SC.factorYearOf(V2.late_date)]));
 });
 
+// ── KPI tracking (KPI-13: K1–K8, D17 topic owners, D18 Superadmin parity) ──
+// The same client, its FY 2026. Figures are worked by hand in scenario.cjs (KPI).
+
+const K = SC.KPI;
+const kq = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
+const kpiIds = {};
+const kv = {};
+/** The emission figures a KPI change must never move: the GHG tables and the Scope 3 report, volatile keys dropped. */
+const emissionReports = async () => {
+  const strip = (v) => (Array.isArray(v) ? v.map(strip) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().filter((k) => !/^(generated_?at|generatedAt|created_at|updated_at)$/i.test(k)).map((k) => [k, strip(v[k])])) : v);
+  const tables = await call("POST", "/user/ghg/tables", S.people.manager, { siteIds: siteIds(), year: SC.REPORT_YEAR, yearType: SC.YEAR_TYPE, frequency: "yearly" });
+  const scope3 = await call("GET", `/reports/ghg/scope3?siteIds=${siteIds().join(",")}&year=${SC.REPORT_YEAR}&yearType=${SC.YEAR_TYPE}`, S.people.manager);
+  ok(tables);
+  ok(scope3);
+  const rows = await kq(`SELECT pk_id, total_emission::text AS t, status::text AS s FROM emission WHERE site_id = ANY($1::int[]) ORDER BY pk_id`, [siteIds()]);
+  return JSON.stringify(strip({ tables: tables.json, scope3: scope3.json, rows }));
+};
+
+step("K0 before KPI tracking: the emission reports this client has (to compare once KPIs are on and off)", async () => {
+  S.kpiEmissionsBefore = await emissionReports();
+  S.kpiTables = JSON.parse(S.kpiEmissionsBefore).tables;
+});
+
+step("K1 the Superadmin switches KPI tracking on for this client; the other client stays off and sees nothing", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { kpi_tracking_enabled: true }));
+  assert.deepEqual((await call("GET", "/kpi/status", S.admin)).json, { enabled: true, setup_completed: false });
+  const note = await kq(`SELECT link FROM notification WHERE user_id = $1 AND type = 'kpi_enabled'`, [S.admin.user.user_id]);
+  assert.deepEqual(note.map((n) => n.link), ["/kpi/setup"]);
+  S.otherAdmin = await login(SC.OTHER_CLIENT.email, SC.OTHER_CLIENT.password);
+  assert.deepEqual((await call("GET", "/kpi/status", S.otherAdmin)).json, { enabled: false, setup_completed: false });
+  const off = await call("GET", "/kpi/setup", S.otherAdmin);
+  assert.deepEqual([off.status, off.json.code], [403, "KPI_TRACKING_OFF"]);
+  assert.equal((await call("GET", `/kpi/setup?company_id=${S.companyId}`, S.otherAdmin)).status, 404, "another client's id");
+});
+
+step("K2 the Admin sets up GRI + BRSR + ESRS, E3 not material with a reason, the KPIs, and finishes", async () => {
+  const setup = (await call("GET", "/kpi/setup", S.admin)).json;
+  // Monthly emission rows carry no year type, so the prefill is CY here; the Admin picks FY like the reports.
+  assert.ok(["CY", "FY"].includes(setup.settings.year_type));
+  ok(await call("PUT", "/kpi/setup", S.admin, { settings: { year_type: SC.YEAR_TYPE, first_year: K.report_year } }));
+  const fw = K.frameworks.map((code) => (setup.available_frameworks.find((f) => f.code === code && f.default_for_new) ?? setup.available_frameworks.find((f) => f.code === code)).id);
+  ok(await call("PUT", "/kpi/setup", S.admin, { frameworks: fw }));
+  const noReason = await call("PUT", "/kpi/setup", S.admin, { material_topics: [{ esrs_topic: K.not_material.esrs_topic, material: false }] });
+  assert.equal(noReason.json.code, "KPI_REASON_REQUIRED");
+  ok(await call("PUT", "/kpi/setup", S.admin, { material_topics: [{ esrs_topic: K.not_material.esrs_topic, material: false, reason: K.not_material.reason }] }));
+  const after = (await call("GET", "/kpi/setup", S.admin)).json;
+  const lib = (await call("GET", "/kpi/catalogue", S.admin)).json;
+  const defs = lib.definitions ?? lib.kpis ?? [];
+  for (const code of K.selected) kpiIds[code] = (defs.find((d) => d.code === code) ?? {}).id;
+  assert.ok(K.selected.every((c) => kpiIds[c]), JSON.stringify(Object.keys(lib)));
+  const kpis = [
+    ...K.selected.map((code) => ({ kpi_definition_id: kpiIds[code], selected: true })),
+    ...after.recommended.filter((id) => !Object.values(kpiIds).includes(id)).map((id) => ({ kpi_definition_id: id, selected: false, reason_excluded: K.left_out_reason })),
+  ];
+  const saved = await call("PUT", "/kpi/setup", S.admin, { kpis, settings: { year_type: "FY", due_day: 15, complete: true } });
+  ok(saved);
+  assert.ok(saved.json.settings.setup_completed_at);
+  assert.deepEqual(saved.json.frameworks.map((f) => f.code), K.frameworks);
+  assert.deepEqual(saved.json.kpis.filter((k) => k.selected).map((k) => k.code).sort(), [...K.selected].sort());
+  assert.deepEqual((await call("GET", "/kpi/status", S.people.userMain)).json, { enabled: true, setup_completed: true });
+});
+
+step("D17 who enters what, by topic: water and waste at the main site, water at Plant B moved from the Manager to its User", async () => {
+  const main = S.sites.main;
+  const b = S.sites.plantB;
+  const mgr = S.people.manager.user.user_id;
+  const r = await call("PUT", "/kpi/setup", S.admin, {
+    topic_assignments: [
+      { site_id: main, topic: "water", owner_user_id: S.people.userMain.user.user_id, reviewer_user_id: mgr },
+      { site_id: main, topic: "waste", owner_user_id: S.people.userMain.user.user_id },
+      { site_id: b, topic: "water", owner_user_id: mgr },
+    ],
+  });
+  ok(r);
+  assert.deepEqual(r.json.topics_in_use.map((t) => t.topic), ["climate", "water", "waste"]);
+  // The Users drawer's "KPI topics" field: Plant B's User takes water there; the toast says from whom.
+  const moved = await call("PATCH", `/company-admin/users/${S.people.userPlantB.user.user_id}`, S.admin, { kpi_topics: ["water"] });
+  ok(moved);
+  assert.deepEqual(moved.json.kpi_topic_moves.map((m) => [m.site_id, m.topic, m.from_user_id]), [[b, "water", mgr]]);
+  const owners = (await call("GET", "/kpi/setup", S.admin)).json.topic_assignments.map((t) => [t.site_id, t.topic, t.owner_user_id]);
+  assert.deepEqual(owners, [[main, "water", S.people.userMain.user.user_id], [b, "water", S.people.userPlantB.user.user_id], [main, "waste", S.people.userMain.user.user_id]]);
+  // My KPIs follows: Uma owes water and waste at the main site; Bala water at Plant B only; nobody else's.
+  const uma = (await call("GET", `/kpi/my?period=${K.month}`, S.people.userMain)).json.items.filter((i) => i.group !== "auto");
+  assert.deepEqual([...new Set(uma.map((i) => `${i.code}@${i.site_id}`))].sort(), [`WATER_DISCHARGE@${main}`, `WATER_WITHDRAWAL@${main}`]);
+  assert.ok(uma.every((i) => i.assigned_via === "topic" && i.topic_label === "Water"));
+  const bala = (await call("GET", `/kpi/my?period=${K.month}`, S.people.userPlantB)).json.items.filter((i) => i.group !== "auto");
+  assert.ok(bala.length && bala.every((i) => i.site_id === b && i.topic === "water"));
+  const notMine = await call("PUT", "/kpi/values", S.people.userPlantB, { items: [{ kpi_code: K.withdrawal.kpi, site_id: main, period_start: K.withdrawal.period_start, value_numeric: 1, unit: "kL" }] });
+  assert.equal(notMine.json.results[0].code, "KPI_NOT_ASSIGNED", "the main site's water is Uma's");
+});
+
+step("K3 the contributor enters water and waste with evidence and submits; the reviewer is told", async () => {
+  const items = [K.withdrawal, K.discharge, K.waste].map((x) => ({ kpi_code: x.kpi, site_id: S.sites.main, period_start: x.period_start, value_numeric: x.value, unit: x.unit }));
+  const r = await call("PUT", "/kpi/values", S.people.userMain, { items });
+  ok(r);
+  assert.equal(r.json.saved, 3, JSON.stringify(r.json.results));
+  for (const [i, x] of [K.withdrawal, K.discharge, K.waste].entries()) {
+    const v = r.json.results[i].value;
+    assert.deepEqual([v.status, v.value_canonical], ["draft", x.canonical], x.kpi);
+    kv[x.kpi] = v.id;
+    ok(await call("POST", `/kpi/values/${v.id}/evidence`, S.people.userMain, K.evidence), 201);
+  }
+  const sub = await call("POST", "/kpi/values/submit", S.people.userMain, { ids: Object.values(kv) });
+  ok(sub);
+  assert.deepEqual(sub.json.refused, []);
+  const notes = await kq(`SELECT user_id, link FROM notification WHERE type = 'kpi_submitted'`);
+  assert.deepEqual(notes.map((n) => [n.user_id, n.link]), [[S.people.manager.user.user_id, "/data/approvals?view=kpi"]]);
+});
+
+step("K4 auto Scope 1 and 2 equal the GHG report's figures for the same year (step 26b's report)", async () => {
+  const r = await call("POST", `/kpi/auto/refresh?year=${K.report_year}`, S.admin);
+  ok(r);
+  const totals = S.kpiTables.totals[String(SC.REPORT_YEAR)];
+  for (const [code, key] of [["GHG_SCOPE1", "scope1"], ["GHG_SCOPE2_LB", "scope2"]]) {
+    const vals = (await call("GET", `/kpi/values?kpi=${code}&frequency=annual`, S.admin)).json.values.filter((v) => v.period_start === `${SC.YEAR}-04-01`);
+    assert.ok(vals.length >= 1, code);
+    assert.ok(vals.every((v) => v.source === "auto" && v.status === "approved"));
+    const sum = vals.reduce((a, v) => a + v.value_canonical, 0);
+    assert.equal(r2(sum), r2(totals[key]), `${code}: Σ sites = the report's ${key}`);
+  }
+  // KPI tracking on and auto values written: the emission figures haven't moved.
+  assert.equal(await emissionReports(), S.kpiEmissionsBefore);
+});
+
+step("K5 the Manager approves the ready values, sends one back, the fix comes back, and April closes at the main site", async () => {
+  const mgr = S.people.manager;
+  const rej = await call("PUT", "/kpi/values/reject", mgr, { ids: [kv[K.discharge.kpi]], reason: K.discharge.reject_reason });
+  ok(rej);
+  assert.deepEqual(rej.json.updated, [kv[K.discharge.kpi]]);
+  const appr = await call("PUT", "/kpi/values/approve", mgr, { ids: [kv[K.withdrawal.kpi], kv[K.waste.kpi], kv[K.discharge.kpi]], only_ready: true });
+  ok(appr);
+  assert.deepEqual(appr.json.updated.sort(), [kv[K.withdrawal.kpi], kv[K.waste.kpi]].sort());
+  assert.deepEqual(appr.json.refused.map((x) => x.code), ["KPI_NOT_PENDING"], "the sent-back one");
+  const back = await kq(`SELECT meta->>'reason' AS reason FROM notification WHERE type = 'kpi_rejected' AND user_id = $1`, [S.people.userMain.user.user_id]);
+  assert.deepEqual(back.map((b) => b.reason), [K.discharge.reject_reason]);
+  // The lock refuses while the sent-back value is left.
+  const body = { ...K.lock, site_id: S.sites.main };
+  const refused = await call("POST", "/kpi/periods/lock", mgr, body);
+  assert.deepEqual([refused.status, refused.json.code, refused.json.details.left.map((l) => [l.code, l.reason, l.owner_user_id])], [422, "KPI_PERIOD_INCOMPLETE", [[K.discharge.kpi, "rejected", S.people.userMain.user.user_id]]]);
+  const fix = await call("PUT", "/kpi/values", S.people.userMain, { items: [{ kpi_code: K.discharge.kpi, site_id: S.sites.main, period_start: K.discharge.period_start, value_numeric: K.discharge.fixed, unit: "kL" }] });
+  assert.equal(fix.json.results[0].value.status, "draft");
+  ok(await call("POST", "/kpi/values/submit", S.people.userMain, { ids: [kv[K.discharge.kpi]] }));
+  assert.deepEqual((await call("PUT", "/kpi/values/approve", mgr, { ids: [kv[K.discharge.kpi]] })).json.updated, [kv[K.discharge.kpi]]);
+  const lock = await call("POST", "/kpi/periods/lock", mgr, body);
+  ok(lock);
+  assert.equal(lock.json.lock.site_id, S.sites.main);
+  const late = await call("PUT", "/kpi/values", S.people.userMain, { items: [{ kpi_code: K.discharge.kpi, site_id: S.sites.main, period_start: K.discharge.period_start, value_numeric: 1, unit: "kL" }] });
+  assert.equal(late.json.results[0].code, "KPI_PERIOD_LOCKED");
+});
+
+step("K6 the dashboard: coverage per framework, the gaps with their owners, the cards", async () => {
+  const d = await call("GET", `/kpi/dashboard?year=${K.report_year}`, S.people.manager);
+  ok(d);
+  assert.deepEqual(d.json.coverage.map((c) => c.framework), K.frameworks);
+  const gri = d.json.coverage.find((c) => c.framework === "GRI");
+  const state = (code) => gri.disclosures.find((x) => x.code === code)?.state;
+  assert.equal(state("305-1"), "approved", "Scope 1 is auto, from approved rows");
+  assert.equal(state("306-3"), "approved", "waste: approved at the only site that owns it");
+  assert.equal(state("303-3"), "missing", "water: 11 months at the main site and 12 at Plant B still missing");
+  assert.equal(gri.percent, Math.round((gri.approved / gri.required) * 100));
+  const esrs = d.json.coverage.find((c) => c.framework === "ESRS");
+  assert.ok(esrs.excluded_disclosures.some((x) => x.code.startsWith("E3") && x.reason_kind === "not_material" && x.reason === K.not_material.reason));
+  // Gaps: water at both sites, each with its topic owner; waste has none.
+  const gaps = d.json.gaps.map((g) => [g.code, g.site_id, g.periods_missing.length, g.owner?.id ?? null]).sort();
+  const uma = S.people.userMain.user.user_id;
+  const bala = S.people.userPlantB.user.user_id;
+  assert.deepEqual(gaps, [
+    [K.discharge.kpi, S.sites.main, 11, uma],
+    [K.discharge.kpi, S.sites.plantB, 12, bala],
+    [K.withdrawal.kpi, S.sites.main, 11, uma],
+    [K.withdrawal.kpi, S.sites.plantB, 12, bala],
+  ].sort());
+  const card = (code) => d.json.cards.find((c) => c.code === code);
+  // The card's figure rolls up every site in scope (KPI-10): Plant B has no waste value, so it reads partial.
+  assert.deepEqual([card(K.waste.kpi).value, card(K.waste.kpi).status], [K.waste.canonical, "partial"]);
+  assert.equal(r2(card("GHG_SCOPE1").value), r2(S.kpiTables.totals[String(SC.REPORT_YEAR)].scope1));
+  // The Overview tiles.
+  const ov = (await call("GET", "/kpi/overview", S.people.manager)).json;
+  assert.deepEqual(ov.readiness.map((x) => x.framework), K.frameworks);
+});
+
+step("K7 the framework exports carry exactly the approved values, in each framework's unit", async () => {
+  const gri = await call("GET", `/kpi/reports/GRI?year=${K.report_year}`, S.people.manager);
+  ok(gri);
+  const row = (code) => gri.json.rows.find((r) => r.code === code);
+  const water = row("303-3").items.find((i) => i.code === K.withdrawal.kpi);
+  assert.deepEqual([water.value, water.unit, water.complete], [K.withdrawal.gri_ml, "ML", false], "April only: 1,200 kL = 1.2 ML, the other months missing");
+  const waste = row("306-3").items.find((i) => i.code === K.waste.kpi);
+  assert.deepEqual([waste.value, waste.unit], [K.waste.canonical, "tonne"]);
+  assert.equal(r2(row("305-1").items[0].value), r2(S.kpiTables.totals[String(SC.REPORT_YEAR)].scope1));
+  assert.ok(gri.json.omissions.some((o) => o.reason === K.left_out_reason || o.reason_kind === "excluded"));
+  assert.deepEqual(gri.json.pending_ids, [], "nothing pending is in");
+  const ids = new Set(gri.json.audit_trail.map((a) => a.value_id));
+  for (const id of Object.values(kv)) if (id !== kv[K.discharge.kpi]) assert.ok(ids.has(id), `value ${id} in the audit trail`);
+  for (const fw of K.frameworks) {
+    const x = await fetch(`${process.env.API_BASE}/kpi/reports/${fw}?year=${K.report_year}&format=xlsx`, { headers: { Authorization: `Bearer ${S.people.manager.token}` } });
+    assert.equal(x.status, 200, fw);
+    assert.match(x.headers.get("content-type") || "", /spreadsheetml/);
+  }
+});
+
+step("D18 the Superadmin does what the Admin does for this client (company_id): setup, owners, targets, reopen and close, remind, reports", async () => {
+  const cid = `company_id=${S.companyId}`;
+  assert.equal((await call("GET", "/kpi/setup", S.sa)).json.code, "KPI_COMPANY_REQUIRED");
+  const setup = await call("GET", `/kpi/setup?${cid}`, S.sa);
+  ok(setup);
+  assert.ok(setup.json.people.length >= 4, "the pickers, as for the Admin");
+  ok(await call("PUT", `/kpi/people/${S.people.userPlantB.user.user_id}/topics?${cid}`, S.sa, { topics: ["water"] }));
+  const t = await call("PUT", `/kpi/targets?${cid}`, S.sa, { kpi_definition_id: kpiIds[K.waste.kpi], site_id: S.sites.main, baseline_year: K.report_year, baseline_value: K.waste.canonical, target_year: K.report_year + 4, target_value: 3, direction: "reduce" });
+  ok(t);
+  assert.equal(t.json.target.label.includes("by"), true);
+  ok(await call("DELETE", `/kpi/targets/${t.json.target.id}?${cid}`, S.sa));
+  const reopen = await call("POST", `/kpi/periods/unlock?${cid}`, S.sa, { ...K.lock, site_id: S.sites.main, reason: "Superadmin check" });
+  ok(reopen);
+  ok(await call("POST", `/kpi/periods/lock?${cid}`, S.sa, { ...K.lock, site_id: S.sites.main }));
+  const remind = await call("POST", `/kpi/dashboard/remind?${cid}`, S.sa, { kpi: kpiIds[K.withdrawal.kpi], site: S.sites.plantB });
+  ok(remind);
+  assert.deepEqual(remind.json.notified, [S.people.userPlantB.user.user_id]);
+  ok(await call("GET", `/kpi/dashboard?year=${K.report_year}&${cid}`, S.sa));
+  const x = await fetch(`${process.env.API_BASE}/kpi/reports/BRSR?year=${K.report_year}&format=xlsx&${cid}`, { headers: { Authorization: `Bearer ${S.sa.token}` } });
+  assert.equal(x.status, 200);
+});
+
+step("K8 switching off hides everything and keeps the data; the emission figures are the same as before KPIs", async () => {
+  const before = (await kq(`SELECT COUNT(*)::int AS n FROM kpi_value WHERE company_id = $1`, [S.companyId]))[0].n;
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { kpi_tracking_enabled: false }));
+  for (const who of [S.people.userMain, S.people.manager, S.admin]) {
+    const r = await call("GET", "/kpi/my", who);
+    assert.deepEqual([r.status, r.json.code], [403, "KPI_TRACKING_OFF"]);
+  }
+  assert.deepEqual((await call("GET", "/kpi/status", S.admin)).json, { enabled: false, setup_completed: false });
+  assert.equal((await kq(`SELECT COUNT(*)::int AS n FROM kpi_value WHERE company_id = $1`, [S.companyId]))[0].n, before, "data kept");
+  assert.equal(await emissionReports(), S.kpiEmissionsBefore, "byte-identical with KPI tracking on and off");
+});
+
+// KPI-13: the KPI audit probes (audit/harness/kpi-probes.cjs) in a scratch database with the API
+// fixture and their own server (KPI_PROBE_PORT): switch-off, tenant isolation and the role matrix
+// for every /kpi route. Zero findings: any fail or error is red.
+step("K9 the KPI audit probes report zero findings on this stack", async (t) => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const { Client } = require("pg");
+  const { spawnSync } = require("child_process");
+  const harness = path.resolve(__dirname, "../../audit/harness/kpi-probes.cjs");
+  const config = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USERNAME, password: process.env.DB_PASSWORD, database: "postgres" };
+  const scratch = `${process.env.DB_NAME}_kpiprobes`;
+  assert.match(scratch, /^ci_[a-z0-9_]+$/);
+  const admin = new Client(config);
+  await admin.connect();
+  await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+  await admin.query(`CREATE DATABASE "${scratch}"`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kpi-probes-"));
+  const out = path.join(dir, "kpi-probes.json");
+  try {
+    const run = spawnSync(process.execPath, [harness, path.resolve(__dirname, "../.."), out], { env: { ...process.env, DB_NAME: scratch }, encoding: "utf8", timeout: 15 * 60 * 1000 });
+    assert.ok(fs.existsSync(out), `the harness wrote no result (exit ${run.status}): ${`${run.stdout}${run.stderr}`.slice(-2000)}`);
+    const { counts, results } = JSON.parse(fs.readFileSync(out, "utf8"));
+    t.diagnostic(String(run.stdout).trim().split("\n").pop());
+    const findings = results.filter((r) => r.status === "fail" || r.status === "error");
+    assert.deepEqual(findings.map((r) => `${r.ids.join(",")}: ${String(r.observed).slice(0, 300)}`), []);
+    assert.equal(run.status, 0, `harness exited ${run.status}`);
+    assert.ok(counts.pass > 0);
+  } finally {
+    await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+    await admin.end();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// KPI-13: the emissions calculation snapshot (ci/golden) is byte-identical with KPI tracking on for
+// every client of its fixture (GOLDEN_KPI_TRACKING=1: set up, every KPI selected, auto KPIs refreshed
+// by the approvals), in a scratch database of its own.
+step("K10 the emissions golden snapshot is byte-identical with KPI tracking on", async (t) => {
+  const path = require("path");
+  const { Client } = require("pg");
+  const { spawnSync } = require("child_process");
+  const root = path.resolve(__dirname, "../..");
+  const config = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USERNAME, password: process.env.DB_PASSWORD, database: "postgres" };
+  const scratch = `${process.env.DB_NAME}_kpigold`;
+  assert.match(scratch, /^ci_[a-z0-9_]+$/);
+  const admin = new Client(config);
+  await admin.connect();
+  await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+  await admin.query(`CREATE DATABASE "${scratch}"`);
+  try {
+    const env = { ...process.env, DB_NAME: scratch, GOLDEN_KPI_TRACKING: "1", GOLDEN_PORT: String(Number(process.env.WORKFLOW_PORT || 3997) + 3) };
+    const sync = spawnSync(process.execPath, [path.join(root, "ci/schema-sync.cjs"), path.join(root, "dist")], { env, encoding: "utf8" });
+    assert.equal(sync.status, 0, sync.stderr);
+    const run = spawnSync(process.execPath, [path.join(root, "ci/golden/run.cjs")], { env, encoding: "utf8", timeout: 10 * 60 * 1000 });
+    const last = String(run.stdout).trim().split("\n").filter((l) => !l.includes("dotenv")).pop();
+    t.diagnostic(last);
+    assert.equal(run.status, 0, `${run.stdout}${run.stderr}`.slice(-3000));
+    assert.match(last, /Calculation snapshot matches .* with KPI tracking on \(\d+ auto KPI values written\)/);
+  } finally {
+    await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+    await admin.end();
+  }
+});
+
 // ── Go-live checks still to come ───────────────────────────────────────────
 
 pendingStep("27 the Scope 3 audit probes pass on this stack", "S3-16", async () => require("fs").existsSync("/mnt/project-files/audit/harness/scope3-probes.cjs"), async (t) => t.skip("run audit/harness/scope3-probes.cjs from the audit harness"));
