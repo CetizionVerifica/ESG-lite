@@ -21,6 +21,7 @@ export const KPI_ERRORS = {
   KPI_PERIOD_LOCKED: { status: 409, message: "This period is closed. Ask your manager to reopen it." },
   KPI_PERIOD_INCOMPLETE: { status: 422, message: "Some values in this period are missing or not approved yet." },
   KPI_NOT_DRAFT: { status: 409, message: "Only draft values can be changed or submitted." },
+  // Not raised since D15 was revised (2026-10-18: evidence is optional); kept so older clients still map it.
   KPI_EVIDENCE_REQUIRED: { status: 422, message: "Attach evidence before submitting this value." },
   KPI_FORMULA_INVALID: { status: 422, message: "The formula names an unknown KPI, loops back on itself, or mixes units." },
   KPI_REASON_REQUIRED: { status: 400, message: "Give a reason." },

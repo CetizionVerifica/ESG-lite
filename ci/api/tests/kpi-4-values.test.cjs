@@ -176,9 +176,7 @@ test("drafts are seen by their author, Admins and the Superadmin only; reads are
 });
 
 test("submit: draft → pending once; pending isn't editable; the Manager sees it", async () => {
-  // Water withdrawn is BRSR Core (P6-E3), so it needs evidence first.
-  assert.deepEqual((await call("POST", "/kpi/values/submit", "user", { ids: [draftId] })).json.refused, [{ id: draftId, code: "KPI_EVIDENCE_REQUIRED" }]);
-  assert.equal((await call("POST", `/kpi/values/${draftId}/evidence`, "user", { document_url: "https://files.example.invalid/meter.pdf", document_name: "meter.pdf" })).status, 201);
+  // Water withdrawn is BRSR Core (P6-E3); evidence is optional (D15 revised 2026-10-18), so it submits with none attached.
   const r = await call("POST", "/kpi/values/submit", "user", { ids: [draftId, 999999] });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.deepEqual(r.json, { submitted: [draftId], refused: [{ id: 999999, code: "KPI_NOT_FOUND" }] });
@@ -190,7 +188,7 @@ test("submit: draft → pending once; pending isn't editable; the Manager sees i
   assert.ok((await call("GET", "/kpi/values?status=pending", "manager")).json.values[0].submitted_at);
   assert.equal((await call("POST", "/kpi/values/submit", "otherManager", { ids: [draftId] })).json.refused[0].code, "KPI_NOT_FOUND", "tenant");
   assert.equal((await call("POST", "/kpi/values/submit", "user", { ids: [] })).status, 400);
-  assert.deepEqual((await audits(draftId)).map((a) => a.action), ["create", "update", "evidence_added", "submit"]);
+  assert.deepEqual((await audits(draftId)).map((a) => a.action), ["create", "update", "submit"]);
 });
 
 test("a rejected value edited by its contributor becomes a draft again", async () => {
@@ -205,12 +203,10 @@ test("a rejected value edited by its contributor becomes a draft again", async (
   assert.deepEqual(last.changed_fields.status, { old: "rejected", new: "draft" });
 });
 
-test("BRSR Core needs evidence to submit; evidence add, list and remove", async () => {
+test("evidence is optional, even for BRSR Core; evidence add, list and remove", async () => {
   const waste = await one("user", { kpi_code: "WASTE_GENERATED", site_id: 1, period_start: "2026-01-01", value_numeric: 12.4, unit: "tonne" });
   assert.equal(waste.ok, true, JSON.stringify(waste));
   const id = waste.value.id;
-  const refused = await call("POST", "/kpi/values/submit", "user", { ids: [id] });
-  assert.deepEqual(refused.json.refused, [{ id, code: "KPI_EVIDENCE_REQUIRED" }]);
 
   const form = new FormData();
   form.append("file", new Blob([Buffer.from("%PDF-1.4 manifest")], { type: "application/pdf" }), "waste-manifest.pdf");

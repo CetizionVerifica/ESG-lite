@@ -90,12 +90,13 @@ test("checks are stored on submit and on evidence changes; each one held and pas
   assert.deepEqual(c.details.KPI_CHANGE_LIMIT, { previous: 10, change_pct: 200, ratio: 3, limit_pct: 20 }, "the company's change limit");
 
   const bare = await entered("user", lti(1, "2026-08-01", 2), { bare: true });
-  assert.deepEqual((await val(bare)).checks.held, ["KPI_EVIDENCE"]);
+  // No evidence is a note for the reviewer, not a hold (D15 revised).
+  assert.deepEqual([(await val(bare)).checks.held, (await val(bare)).checks.info], [[], ["KPI_EVIDENCE"]]);
   const ev = await call("POST", `/kpi/values/${bare}/evidence`, "user", { document_url: "https://x.invalid/a.pdf", document_name: "a.pdf" });
   assert.equal(ev.status, 201);
-  assert.deepEqual((await val(bare)).checks.held, [], "evidence added: checked again");
+  assert.deepEqual((await val(bare)).checks.info, [], "evidence added: checked again");
   assert.equal((await call("DELETE", `/kpi/values/${bare}/evidence/${ev.json.evidence.id}`, "user")).status, 200);
-  assert.deepEqual((await val(bare)).checks.held, ["KPI_EVIDENCE"], "evidence removed: held again");
+  assert.deepEqual((await val(bare)).checks.info, ["KPI_EVIDENCE"], "evidence removed: the note is back");
 
   const estimate = await entered("user", lti(1, "2026-07-01", 3, { is_estimate: true }));
   assert.deepEqual((await val(estimate)).checks.held, ["KPI_ESTIMATE"]);
@@ -115,10 +116,10 @@ test("checks are stored on submit and on evidence changes; each one held and pas
   assert.deepEqual(list.find((v) => v.id === estimate).checks.held, ["KPI_ESTIMATE"]);
   assert.deepEqual(list.find((v) => v.id === jump).checks.details.KPI_CHANGE_LIMIT.ratio, 3);
 
-  // only_ready: the ready one goes, the held ones are refused with KPI_NOT_READY.
+  // only_ready: the ready ones go (no evidence is only a note since D15 was revised), the held ones are refused with KPI_NOT_READY.
   const ready = await entered("user", lti(1, "2026-06-01", 1));
   const r = await approve("manager", { ids: [ready, jump, bare, estimate], only_ready: true });
-  assert.deepEqual(r.json, { updated: [ready], refused: [{ id: jump, code: "KPI_NOT_READY" }, { id: bare, code: "KPI_NOT_READY" }, { id: estimate, code: "KPI_NOT_READY" }] });
+  assert.deepEqual(r.json, { updated: [ready, bare], refused: [{ id: jump, code: "KPI_NOT_READY" }, { id: estimate, code: "KPI_NOT_READY" }] });
   // Without only_ready a held value can still be approved, deliberately.
   assert.deepEqual((await approve("manager", { ids: [jump] })).json, { updated: [jump], refused: [] });
   assert.deepEqual((await approve("manager", { ids: [jump] })).json.refused, [{ id: jump, code: "KPI_NOT_PENDING" }]);

@@ -18,10 +18,11 @@ test("a clean value is ready", () => {
   assert.deepEqual(computeChecks(base), { ready: true, held: [], info: [], checked_at: "2026-10-17T00:00:00.000Z" });
 });
 
-test("KPI_EVIDENCE holds a manual value without evidence; auto and calculated values trace to their source", () => {
-  assert.deepEqual(computeChecks({ ...base, evidence_count: 0 }).held, ["KPI_EVIDENCE"]);
-  assert.deepEqual(computeChecks({ ...base, evidence_count: 0, source: "auto" }).held, []);
-  assert.deepEqual(computeChecks({ ...base, evidence_count: 0, source: "formula" }).held, []);
+test("KPI_EVIDENCE notes a manual value without evidence but never holds it (D15 revised); auto and calculated values trace to their source", () => {
+  const noEvidence = computeChecks({ ...base, evidence_count: 0 });
+  assert.deepEqual([noEvidence.ready, noEvidence.held, noEvidence.info], [true, [], ["KPI_EVIDENCE"]]);
+  assert.deepEqual(computeChecks({ ...base, evidence_count: 0, source: "auto" }).info, []);
+  assert.deepEqual(computeChecks({ ...base, evidence_count: 0, source: "formula" }).info, []);
 });
 
 test("KPI_CHANGE_LIMIT: more than the company's limit from the same period last year", () => {
@@ -51,7 +52,7 @@ test("KPI_UNIT_CONVERTED is informational; KPI_ESTIMATE and KPI_AUTO_STALE hold"
   assert.deepEqual(computeChecks({ ...base, is_estimate: true }).held, ["KPI_ESTIMATE"]);
   assert.deepEqual(computeChecks({ ...base, source: "auto", stale: true }).held, ["KPI_AUTO_STALE"]);
   const all = computeChecks({ ...base, evidence_count: 0, is_estimate: true, value_canonical: 300, previous: 100, unit: "m3" });
-  assert.deepEqual([all.ready, all.held, all.info], [false, ["KPI_EVIDENCE", "KPI_CHANGE_LIMIT", "KPI_ESTIMATE"], ["KPI_UNIT_CONVERTED"]]);
+  assert.deepEqual([all.ready, all.held, all.info], [false, ["KPI_CHANGE_LIMIT", "KPI_ESTIMATE"], ["KPI_EVIDENCE", "KPI_UNIT_CONVERTED"]]);
 });
 
 test("lock ranges: a month of the reporting year, or the whole year (CY and FY)", () => {

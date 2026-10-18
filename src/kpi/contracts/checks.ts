@@ -1,7 +1,7 @@
 /**
  * KPI contracts (KPI-0) §5: review check ids. KPI-8 runs them and stores the
  * result in `kpi_value.checks`; a value is Ready when no check holds it.
- * `KPI_UNIT_CONVERTED` is informational and never holds a value.
+ * `KPI_EVIDENCE` and `KPI_UNIT_CONVERTED` are informational and never hold a value.
  */
 import { z } from "zod";
 
@@ -27,7 +27,8 @@ export const KPI_CHECK_RULES: Record<KpiCheckId, string> = {
 };
 
 /** Checks that never hold a value. */
-export const KPI_INFO_CHECKS: readonly KpiCheckId[] = ["KPI_UNIT_CONVERTED"];
+// KPI_EVIDENCE is a note for reviewers since D15 was revised (2026-10-18): evidence is optional.
+export const KPI_INFO_CHECKS: readonly KpiCheckId[] = ["KPI_EVIDENCE", "KPI_UNIT_CONVERTED"];
 
 /** Breakdown parts may differ from the total by this fraction (±0.5 %). */
 export const BREAKDOWN_TOLERANCE = 0.005;

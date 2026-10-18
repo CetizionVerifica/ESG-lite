@@ -14,6 +14,7 @@
  *                       default 5 %) away from the same period last year (pending or approved);
  *                       no value last year passes; last year 0 and now not 0 holds
  *   KPI_BREAKDOWN_SUM   the parts differ from the total (as entered) by more than ±0.5 %
+ *   KPI_EVIDENCE        informational since D15 was revised (evidence is optional)
  *   KPI_UNIT_CONVERTED  informational (never holds): entered in a unit other than the canonical one
  *   KPI_ESTIMATE        marked as an estimate
  *   KPI_AUTO_STALE      kept while KPI-5's hook holds an auto value (a refresh clears it)

@@ -125,7 +125,7 @@ Notification kinds (`src/kpi/contracts/enums.ts` `KPI_NOTIFICATION_KINDS`):
 | `KPI_PERIOD_LOCKED` | 409 | writing into a locked KPI period |
 | `KPI_PERIOD_INCOMPLETE` | 422 | locking a KPI period while values are missing, draft, pending or rejected (`details.left`) |
 | `KPI_NOT_DRAFT` | 409 | submitting a value that isn't a draft |
-| `KPI_EVIDENCE_REQUIRED` | 422 | submitting a BRSR Core KPI without evidence (D15) |
+| `KPI_EVIDENCE_REQUIRED` | 422 | not raised since D15 was revised (2026-10-18): evidence is optional; kept for older clients |
 | `KPI_FORMULA_INVALID` | 422 | library or custom formula: unknown code, a cycle, or a unit mismatch |
 | `KPI_REASON_REQUIRED` | 400 | excluding a KPI, a non-material topic, or unlocking without a reason |
 

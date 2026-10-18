@@ -522,10 +522,8 @@ export async function submit(caller: KpiCaller, ids: number[]): Promise<{ submit
         await assertCanWrite(m, caller, kpi, v.site_id === null ? null : Number(v.site_id));
         if (v.status !== "draft") throw new KpiError("KPI_NOT_DRAFT");
         if (await lockedPeriod(m, caller.companyId, v.site_id === null ? null : Number(v.site_id), { start: day(v.period_start)!, end: day(v.period_end)! })) throw new KpiError("KPI_PERIOD_LOCKED");
-        if (await needsEvidence(m, caller.companyId, kpi.id)) {
-          const ev: Row[] = await m.query(`SELECT 1 FROM kpi_value_evidence WHERE kpi_value_id = $1 LIMIT 1`, [id]);
-          if (!ev.length) throw new KpiError("KPI_EVIDENCE_REQUIRED");
-        }
+        // Evidence is optional when entering and submitting (Shyam, 2026-10-18; D15 revised).
+        // Reviewers see a "No evidence" note (KPI_EVIDENCE, informational).
         await m.query(`UPDATE kpi_value SET status = 'pending', submitted_at = now(), updated_at = now() WHERE id = $1`, [id]);
         await auditValue(m, id, "submit", { status: { old: "draft", new: "pending" } }, caller.userId);
         await storeChecks(m, id); // KPI-8: the review checks, as the value goes to review
