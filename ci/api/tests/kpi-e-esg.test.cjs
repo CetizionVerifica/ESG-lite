@@ -185,7 +185,7 @@ test("headline trends: GHG Scope 1 + 2 from the approved auto values, series, ch
   const w = trend(r, "WATER_WITHDRAWAL");
   // Site 2's 500 is pending: not in. 1,000 vs 2,000 → −50 %; target 2,000 → 1,000 by 2030 reached.
   assert.deepEqual([w.value, w.previous, w.change_pct, w.direction_good, w.unit, w.decimals], [1000, 2000, -50, "down", "kL", w.decimals]);
-  assert.deepEqual(w.target, { progress_pct: 100, status: "on_track", label: "−50 % by 2030 from 2024" });
+  assert.deepEqual(w.target, { progress_pct: 100, status: "on_track", label: "−50 % by 2030 from 2024", value: 1000, year: 2030 }, "value in the trend's unit (kL), for the target line");
   assert.deepEqual([trend(r, "ENERGY_TOTAL").value, trend(r, "ENERGY_TOTAL").series.length], [null, 5]);
   assert.deepEqual([trend(r, "WASTE_GENERATED").value, trend(r, "WASTE_GENERATED").previous, trend(r, "WASTE_GENERATED").change_pct], [3, null, null], "the draft at site 2 isn't in");
   const l = trend(r, "LTIFR");

@@ -42,7 +42,7 @@ This file is binding for wave E. When wave E is built, add D19 to `docs/kpi/04-d
               topics: [{ topic, label, kpis, approved, pending, missing, coverage_pct }] }],
   trends: [{ pillar, topic, kpi_definition_id, code, name, unit, decimals, direction_good: "down"|"up"|null,
              series: [{ period, period_start, label, value }], value, previous, change_pct,
-             target: { progress_pct, status, label } | null }],
+             target: { progress_pct, status, label, value, year } | null }],
   sites: [{ site_id, name, pillars: { environment, social, governance } }],
   movers: [{ kpi_definition_id, name, pillar, change_pct, direction_good, good: boolean }],
   pending_not_in: { count, link } }

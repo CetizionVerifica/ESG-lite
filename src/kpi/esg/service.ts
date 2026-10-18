@@ -240,7 +240,8 @@ export async function esg(caller: KpiCaller, query: unknown) {
       value,
       previous,
       change_pct: changePct(value, previous),
-      target: target ? { progress_pct: target.progress.progress_pct, status: target.progress.status, label: target.label } : null,
+      // value: the target figure in the KPI's canonical unit (= `unit`), for the dashed reference line; year: the target year.
+      target: target ? { progress_pct: target.progress.progress_pct, status: target.progress.status, label: target.label, value: target.target_value, year: target.target_year } : null,
     };
   };
   const trends = [];
