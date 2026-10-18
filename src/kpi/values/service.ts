@@ -344,7 +344,30 @@ export type ItemResult =
   | { index: number; ok: true; value: ReturnType<typeof toValueOut> }
   | { index: number; ok: false; code: string; message: string; details?: unknown };
 
-async function upsertOne(caller: KpiCaller, raw: unknown): Promise<ReturnType<typeof toValueOut>> {
+/** Thrown at the end of a dry run's transaction so it rolls back, carrying what would have been saved. */
+class DryRun extends Error {
+  constructor(readonly value: ReturnType<typeof toValueOut>) {
+    super("dry run");
+  }
+}
+
+/**
+ * KPI-7 part 3 (template plan): every check of a draft save — scope, owner,
+ * period, lock, value, unit, breakdown, an existing value's status — inside a
+ * transaction that is rolled back, so nothing is stored or audited. Answers
+ * what would be saved, or throws the KpiError the save would.
+ */
+export async function checkDraft(caller: KpiCaller, raw: unknown): Promise<ReturnType<typeof toValueOut>> {
+  try {
+    await upsertOne(caller, raw, { dryRun: true });
+    throw new Error("dry run did not roll back");
+  } catch (err) {
+    if (err instanceof DryRun) return err.value;
+    throw err;
+  }
+}
+
+async function upsertOne(caller: KpiCaller, raw: unknown, opts: { dryRun?: boolean } = {}): Promise<ReturnType<typeof toValueOut>> {
   const item = parse(KpiValueItemSchema, raw);
   return AppDataSource.transaction(async (m) => {
     await holdKpiLease(m, caller.companyId);
@@ -399,7 +422,9 @@ async function upsertOne(caller: KpiCaller, raw: unknown): Promise<ReturnType<ty
     }
     const rows: Row[] = await m.query(`${VALUE_SELECT} WHERE v.id = $1`, [id]);
     const ev = await evidenceFor(m, [id]);
-    return toValueOut(rows[0], ev.get(id));
+    const out = toValueOut(rows[0], ev.get(id));
+    if (opts.dryRun) throw new DryRun(out);
+    return out;
   });
 }
 

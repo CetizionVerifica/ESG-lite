@@ -17,6 +17,9 @@
  * approved), auto. Before setup is finished: 409 KPI_SETUP_INCOMPLETE.
  */
 import { Router } from "express";
+import multer from "multer";
+import { withUploadErrors } from "../../middlewares/upload.middleware";
+import { templateWorkbook, uploadTemplate } from "./template";
 import { z } from "zod";
 import { AppDataSource } from "../../config/data-source";
 import { KpiError } from "../contracts/errors";
@@ -205,3 +208,17 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
 /** KPI-7 route, behind requireKpiTracking: GET /kpi/my?period=YYYY-MM&site= → {period, items, counts}. */
 export const myRouter = Router();
 myRouter.get("/my", handle("my KPIs", async (req, res) => res.json(await myKpis(kpiCaller(req as KpiRequest), req.query))));
+
+// KPI-7 part 3: the template (values/template.ts). XLSX download; upload plans, then commits as drafts.
+const templateUpload = withUploadErrors(multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }).single("file"));
+myRouter.get("/my/template", handle("my KPIs template", async (req, res) => {
+  const t = await templateWorkbook(kpiCaller(req as KpiRequest), req.query);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${t.fileName}"`);
+  res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+  res.send(t.buffer);
+}));
+myRouter.post("/my/template", templateUpload, handle("my KPIs template upload", async (req, res) => {
+  const file = (req as unknown as { file?: Express.Multer.File }).file;
+  res.json(await uploadTemplate(kpiCaller(req as KpiRequest), file, (req.body ?? {}).commit ?? (req.query as Record<string, unknown>).commit));
+}));
