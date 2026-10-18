@@ -5,11 +5,11 @@
 //     renders `buildMessage` and the backend stores what it sent);
 //   * by default the message goes to the DEV SINK: it is stored on the
 //     request and logged, never delivered. Only SUPPLIER_REQUEST_MAIL=live
-//     delivers through Mailgun, and that switch stays off until the product
+//     delivers through Brevo, and that switch stays off until the product
 //     owner turns it on.
 import { log } from "../utils/logger";
 import { sendEmailForApprove } from "./emailService";
-import { getMg } from "../config/mailer";
+import { mailConfigured } from "../config/mailer";
 
 export type MailMode = "sink" | "live";
 
@@ -83,8 +83,8 @@ export async function deliver(requestId: number, to: string, subject: string, te
     log.info("SupplierRequest", "Mail sunk (SUPPLIER_REQUEST_MAIL is not 'live'); copy the link from the request", { requestId, domain });
     return { mode: "sink", delivered: false, reason: "Email sending is off on this server, so the message wasn't sent. Copy the link and send it yourself." };
   }
-  if (!getMg()) {
-    log.warn("SupplierRequest", "Mail not sent: Mailgun isn't configured", { requestId, domain });
+  if (!mailConfigured()) {
+    log.warn("SupplierRequest", "Mail not sent: Brevo isn't configured", { requestId, domain });
     return { mode: "live", delivered: false, reason: "Email isn't configured on this server, so the message wasn't sent. Copy the link and send it yourself." };
   }
   try {

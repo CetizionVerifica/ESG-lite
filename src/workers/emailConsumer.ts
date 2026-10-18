@@ -26,7 +26,7 @@ const isRateLimitError = (error: any): boolean => {
   return msg.includes("too many requests") || msg.includes("429") || msg.includes("rate limit");
 };
 
-/** Small delay to avoid hammering Mailgun */
+/** Small delay to avoid hammering Brevo */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Extract action info (manager/submitter) from email job data
@@ -41,7 +41,7 @@ const getActionInfo = (data: any) => ({
 export const startEmailConsumer = async () => {
   const channel = getChannel();
 
-  // Process 1 at a time to avoid Mailgun rate limits
+  // Process 1 at a time to avoid Brevo rate limits
   channel.prefetch(1);
 
   channel.consume("email_queue", async (msg: any) => {
@@ -120,15 +120,15 @@ export const startEmailConsumer = async () => {
         html: template.html,
       });
 
-      // sendEmailForApprove returns nothing when Mailgun isn't configured.
-      console.log(sent ? `Email sent via Mailgun to ${data.email} (${data.type})` : `Email NOT sent (Mailgun not configured): ${data.email} (${data.type})`);
+      // sendEmailForApprove returns nothing when Brevo isn't configured.
+      console.log(sent ? `Email sent via Brevo to ${data.email} (${data.type})` : `Email NOT sent (Brevo not configured): ${data.email} (${data.type})`);
       channel.ack(msg);
 
-      // Throttle: wait 1s between emails to stay under Mailgun rate limits
+      // Throttle: wait 1s between emails to stay under Brevo rate limits
       await sleep(1000);
     } catch (error: any) {
       const errMsg = error?.message || error;
-      console.error("Mailgun error:", errMsg);
+      console.error("Brevo error:", errMsg);
 
       if ((data.retryCount || 0) < MAX_RETRIES) {
         const retryData = {

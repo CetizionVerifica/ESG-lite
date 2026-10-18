@@ -313,7 +313,7 @@ export const failureTemplate = (email: string) => ({
     p(`An email to <strong>${email}</strong> has permanently failed after all retry attempts.`),
     statusBar("Delivery Failed", "#dc2626", "#fef2f2"),
     details([["Recipient", email], ["Status", "All retries exhausted"]]),
-    p("Please check RabbitMQ and Mailgun logs for details."),
+    p("Please check RabbitMQ and Brevo logs for details."),
     sign(),
   ].join(""), "#dc2626"),
 });

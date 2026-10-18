@@ -1,6 +1,6 @@
 // import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import { getMg, MAILGUN_DOMAIN, MAIL_FROM, frontendBaseUrl } from "../config/mailer";
+import { mailConfigured, sendMail, frontendBaseUrl } from "../config/mailer";
 
 dotenv.config();
 
@@ -25,7 +25,7 @@ interface EmailOptions {
 
 
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
-    if (!getMg()) throw new Error("Email isn't configured on this server (MAILGUN_API_KEY is not set)");
+    if (!mailConfigured()) throw new Error("Email isn't configured on this server (BREVO_API_KEY or MAIL_FROM is not set)");
     try {
         await sendEmailForApprove({
             to: options.to,
@@ -113,17 +113,11 @@ export const sendEmailForApprove = async ({ to, subject, html }: EmailPayload) =
     //     return;
     // }
 
-    const client = getMg();
-    if (!client) {
-        console.warn(`Email skipped (Mailgun not configured): ${to} — ${subject}`);
+    if (!mailConfigured()) {
+        console.warn(`Email skipped (Brevo not configured): ${to} — ${subject}`);
         return;
     }
-    return client.messages.create(MAILGUN_DOMAIN, {
-        from: MAIL_FROM,
-        to: [to],
-        subject,
-        html,
-    });
+    return sendMail({ to, subject, html });
 };
 /** The ESGLite invitation: a link to choose a password (see services/invite.ts). */
 export const sendInviteEmail = async (
