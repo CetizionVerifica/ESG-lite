@@ -6,6 +6,11 @@
  *                                in one transaction, each step audited (`kpi_setup`)
  *   createCustomKpi(caller, b)   POST /kpi/setup/custom-kpis (Admin, Superadmin)
  *
+ * D17 (wave D): GET adds topic_assignments, topics_in_use and (setup writers)
+ * suggested_topic_assignments; PUT takes topic_assignments (the whole set,
+ * topics.ts). Per-KPI `assignments` are the exceptions (overrides), so
+ * suggested_assignments is now empty. Invite reaches every resolved owner.
+ *
  * Rules (PUT): one version per framework code; a topic marked not material and
  * a recommended KPI left out need a reason (KPI_REASON_REQUIRED); an owner is a
  * user of the site (of the company for company-level KPIs) and a reviewer a
@@ -26,6 +31,8 @@ import { formulaCodes } from "../formulas/parse";
 import { createNotification } from "../../services/notificationService";
 import { recommend, type Recommendation } from "./recommend";
 import { enabledFrameworks, kpiSettings, userSiteIds } from "./settings";
+import { ownerIndex } from "./owners";
+import { saveTopicAssignments, suggestTopicAssignments, topicAssignments, topicsInUse } from "./topics";
 
 type Row = Record<string, any>;
 
@@ -92,35 +99,6 @@ async function companyPeople(m: EntityManager, companyId: number): Promise<Array
   return rows.map((r) => ({ user_id: Number(r.user_id), name: r.name || `User ${r.user_id}`, role: r.role, site_ids: (r.site_ids as number[]).map(Number).sort((a, b) => a - b) }));
 }
 
-/**
- * Default owners (module spec, Build 5): a site-level KPI goes to the site's
- * first data-entry User and is reviewed by the site's managers (reviewer null);
- * a company-level KPI goes to the company's first Admin. Only manual KPIs need
- * an owner; pairs that already have an assignment are left out.
- */
-function suggestAssignments(
-  kpis: Row[],
-  sites: Row[],
-  people: Array<{ user_id: number; role: string; site_ids: number[] }>,
-  assigned: Set<string>,
-): Array<{ kpi_definition_id: number; site_id: number | null; owner_user_id: number; reviewer_user_id: null }> {
-  const out: Array<{ kpi_definition_id: number; site_id: number | null; owner_user_id: number; reviewer_user_id: null }> = [];
-  const admin = people.find((p) => p.role === UserRole.ADMIN);
-  for (const k of kpis) {
-    if (!k.selected || k.source !== "manual") continue;
-    if (k.level === "company") {
-      if (admin && !assigned.has(`${k.kpi_definition_id}:`)) out.push({ kpi_definition_id: k.kpi_definition_id, site_id: null, owner_user_id: admin.user_id, reviewer_user_id: null });
-      continue;
-    }
-    for (const s of sites) {
-      if (assigned.has(`${k.kpi_definition_id}:${s.site_id}`)) continue;
-      const owner = people.find((p) => p.role === UserRole.USER && p.site_ids.includes(Number(s.site_id)));
-      if (owner) out.push({ kpi_definition_id: k.kpi_definition_id, site_id: Number(s.site_id), owner_user_id: owner.user_id, reviewer_user_id: null });
-    }
-  }
-  return out;
-}
-
 export async function getSetup(caller: KpiCaller) {
   const m = AppDataSource.manager;
   const companyId = caller.companyId;
@@ -138,6 +116,8 @@ export async function getSetup(caller: KpiCaller) {
     `SELECT id, code, version, name, source_url, default_for_new FROM kpi_framework WHERE active ORDER BY CASE code WHEN 'GRI' THEN 1 WHEN 'BRSR' THEN 2 WHEN 'ESRS' THEN 3 ELSE 4 END, version`,
   );
   const sites: Row[] = await m.query(`SELECT site_id, name FROM site WHERE company_id = $1 ORDER BY name, site_id`, [companyId]);
+  const topicRows = await topicAssignments(m, companyId);
+  const inUse = await topicsInUse(m, companyId);
   const kpis = kpiRows.map((k) => ({
     company_id: companyId,
     kpi_definition_id: Number(k.kpi_definition_id),
@@ -163,18 +143,30 @@ export async function getSetup(caller: KpiCaller) {
       const recs = await recommendedFor(m, companyId);
       return { recommended: recs.map((r) => r.kpi_definition_id), recommended_reasons: recs };
     })()),
+    // D17: topic owners, and the topics the selected KPIs use (KPI_TOPICS order).
+    topic_assignments: topicRows,
+    topics_in_use: inUse.map((t) => ({ topic: t.topic, kpi_count: t.kpi_count, site_kpi_count: t.site_kpi_count, company_kpi_count: t.company_kpi_count, selected_count: t.selected_count })),
     available_frameworks: available.map((f) => ({ id: Number(f.id), code: f.code, version: f.version, name: f.name, source_url: f.source_url, default_for_new: f.default_for_new === true })),
     sites: sites.map((x) => ({ site_id: Number(x.site_id), name: x.name })),
   };
   // The pickers' data (names, roles, sites, grants) is for the people who set up.
   if (SETUP_WRITERS.has(caller.role)) {
     const people = await companyPeople(m, companyId);
-    const assigned = new Set(assignments.map((a) => `${a.kpi_definition_id}:${a.site_id ?? ""}`));
     out.people = people;
-    out.topic_grants = (
-      await m.query(`SELECT user_id, topic FROM kpi_topic_grant WHERE user_id = ANY($1::int[]) ORDER BY user_id, topic`, [people.map((p) => p.user_id)])
-    ).map((g: Row) => ({ user_id: Number(g.user_id), topic: g.topic }));
-    out.suggested_assignments = suggestAssignments(kpis, sites, people, assigned);
+    // D17: kpi_topic_grant is no longer read; a person's topics are the ones they own somewhere.
+    const grants = new Map<string, { user_id: number; topic: string }>();
+    for (const t of topicRows) grants.set(`${t.owner_user_id}|${t.topic}`, { user_id: t.owner_user_id, topic: t.topic });
+    out.topic_grants = [...grants.values()].sort((a, b) => a.user_id - b.user_id || a.topic.localeCompare(b.topic));
+    // D17: owners are suggested per topic; per-KPI rows are exceptions, so none are suggested.
+    out.suggested_assignments = [];
+    out.suggested_topic_assignments = suggestTopicAssignments(inUse, sites.map((x) => ({ site_id: Number(x.site_id) })), people, topicRows);
+    // "Different from topic owner": the per-KPI overrides whose owner differs from the topic's.
+    const owners = await ownerIndex(m, companyId);
+    const topicOf = new Map(kpis.map((k) => [k.kpi_definition_id, k.topic]));
+    out.assignments = (out.assignments as Row[]).map((a) => {
+      const t = owners.topicOwner(String(topicOf.get(a.kpi_definition_id) ?? ""), a.site_id);
+      return { ...a, topic_owner_user_id: t?.owner_user_id ?? null, differs_from_topic_owner: !t || t.owner_user_id !== a.owner_user_id };
+    });
   }
   return out;
 }
@@ -401,6 +393,7 @@ export async function putSetup(caller: KpiCaller, raw: unknown) {
     if (body.material_topics) await saveMaterialTopics(m, caller, body.material_topics);
     if (body.kpis) await saveKpis(m, caller, body.kpis);
     if (body.assignments) await saveAssignments(m, caller, body.assignments);
+    if (body.topic_assignments) await saveTopicAssignments(m, caller, body.topic_assignments);
     if (body.settings?.complete) await complete(m, caller);
   });
   return getSetup(caller);
@@ -479,24 +472,31 @@ export async function createCustomKpi(caller: KpiCaller, raw: unknown) {
 export async function inviteTeam(caller: KpiCaller): Promise<{ notified: number }> {
   assertSetupWriter(caller);
   const m = AppDataSource.manager;
-  const owners: Row[] = await m.query(
-    `SELECT a.owner_user_id, COUNT(*)::int AS n FROM kpi_assignment a
-       JOIN company_kpi ck ON ck.company_id = a.company_id AND ck.kpi_definition_id = a.kpi_definition_id AND ck.selected
-       JOIN "user" u ON u.user_id = a.owner_user_id
-      WHERE a.company_id = $1 GROUP BY a.owner_user_id ORDER BY a.owner_user_id`,
+  // D17: whoever owns each selected manual KPI × site (or the company), by override or by topic.
+  const kpis: Row[] = await m.query(
+    `SELECT d.id, d.topic, d.level FROM company_kpi ck JOIN kpi_definition d ON d.id = ck.kpi_definition_id AND d.active AND d.source = 'manual'
+      WHERE ck.company_id = $1 AND ck.selected`,
     [caller.companyId],
   );
-  for (const o of owners) {
-    const n = Number(o.n);
+  const siteIds: number[] = (await m.query(`SELECT site_id FROM site WHERE company_id = $1`, [caller.companyId])).map((r: Row) => Number(r.site_id));
+  const index = await ownerIndex(m, caller.companyId);
+  const perOwner = new Map<number, number>();
+  for (const k of kpis) {
+    for (const s of k.level === "company" ? [null] : siteIds) {
+      const o = index.resolve(k as { id: number; topic: string }, s).owner_user_id;
+      if (o !== null) perOwner.set(o, (perOwner.get(o) ?? 0) + 1);
+    }
+  }
+  const owners = [...perOwner.entries()].sort((a, b) => a[0] - b[0]);
+  for (const [userId, n] of owners) {
     await createNotification(
-      Number(o.owner_user_id),
+      userId,
       "kpi_assigned",
       "You have KPIs to enter",
       `${n} KPI${n === 1 ? " is" : "s are"} assigned to you. Open My KPIs to see what's due.`,
       "/kpi",
     );
   }
-  await auditSetup(m, caller.companyId, "invite", { notified: { old: null, new: owners.map((o) => Number(o.owner_user_id)) } }, caller.userId);
+  await auditSetup(m, caller.companyId, "invite", { notified: { old: null, new: owners.map(([u]) => u) } }, caller.userId);
   return { notified: owners.length };
 }
-

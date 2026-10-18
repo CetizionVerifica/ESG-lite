@@ -13,7 +13,7 @@ const assert = require("node:assert/strict");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const { call, withDb } = require("../helpers.cjs");
-const { setSwitch, runScript, setupCompany, clearSetup, kpiRoutes, concrete, ROOT } = require("./kpi-lib.cjs");
+const { setSwitch, runScript, setupCompany, clearSetup, kpiRoutes, concrete, setTopicOwners, ROOT } = require("./kpi-lib.cjs");
 
 const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
 const KPIS = ["LOST_TIME_INJURIES", "WATER_WITHDRAWAL", "WATER_DISCHARGE", "WATER_CONSUMPTION", "REVENUE"];
@@ -206,7 +206,12 @@ test("close a period: what's left, KPI_PERIOD_INCOMPLETE with details.left, lock
   assert.deepEqual(refused.json.details.left.map((l) => l.code).sort(), ["LOST_TIME_INJURIES", "WATER_DISCHARGE", "WATER_WITHDRAWAL"]);
   assert.ok(refused.json.details.left.every((l) => l.site_id === 1));
 
-  // An assignment on site 2 only takes the KPI off site 1's list.
+  // D17: each item left names who owes it (the resolver: here site 1's topic owner, user 1).
+  assert.ok(refused.json.details.left.every((l) => l.owner_user_id === 1 && l.owner_name === "CI User"));
+  // A KPI is expected only where it has an owner: with nobody owning water on site 1 (only
+  // withdrawal by a per-KPI override) and discharge owned on site 2, discharge leaves site 1's list.
+  await q(`DELETE FROM kpi_topic_assignment WHERE company_id = 1 AND site_id = 1 AND topic = 'water'`);
+  await q(`INSERT INTO kpi_assignment (company_id, kpi_definition_id, site_id, owner_user_id) VALUES (1, $1, 1, 1)`, [await kpiId("WATER_WITHDRAWAL")]);
   await q(`INSERT INTO kpi_assignment (company_id, kpi_definition_id, site_id, owner_user_id) VALUES (1, $1, 2, 2)`, [await kpiId("WATER_DISCHARGE")]);
   assert.ok(!(await status("manager", "?year=2026&period=11&site=1")).left.some((l) => l.code === "WATER_DISCHARGE"));
 
@@ -274,7 +279,9 @@ test("lock roles: Managers name one of their sites; Admins and the Superadmin lo
 });
 
 test("due reminders: 5 days before and on the due date, once, to whoever still owes; muted by preference", async () => {
-  // September 2026 values are due on 15 October; site 1's user still owes water discharged for September.
+  // September 2026 values are due on 15 October; site 1's user still owes water discharged for September
+  // (D17: they own water on site 1 again; the close-period test above took it away).
+  await setTopicOwners(1, { 1: 1 }, ["water"]);
   const run = (today) => {
     const script = `const {AppDataSource}=require(${JSON.stringify(path.join(ROOT, "dist/config/data-source.js"))});
       AppDataSource.initialize().then(()=>require(${JSON.stringify(path.join(ROOT, "dist/kpi/review/reminders.js"))}).sendDueReminders(${JSON.stringify(today)}))

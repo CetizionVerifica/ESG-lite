@@ -11,7 +11,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { call, withDb } = require("../helpers.cjs");
-const { setSwitch, runScript, setupCompany, clearSetup, kpiRoutes, concrete } = require("./kpi-lib.cjs");
+const { setSwitch, runScript, setupCompany, clearSetup, kpiRoutes, concrete, setTopicOwners } = require("./kpi-lib.cjs");
 
 const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
 const SELECTED = ["WATER_WITHDRAWAL", "WATER_DISCHARGE", "WATER_CONSUMPTION", "FATALITIES", "RECORDABLE_INJURIES", "HIGH_CONSEQUENCE_INJURIES", "HOURS_WORKED", "LTIFR", "REVENUE"];
@@ -42,7 +42,9 @@ test.before(async () => {
     assert.equal(r.status, 0, r.stderr + r.stdout);
   }
   await wipe();
-  await setupCompany(1, { frameworks: ["GRI", "BRSR", "ESRS"], kpis: SELECTED, frequencies: Object.fromEntries(SELECTED.map((c) => [c, "annual"])) });
+  // The coverage below was worked by hand with per-KPI assignments only (D17: no topic owners here,
+  // so a KPI with no owner anywhere is expected on every site, and one assigned on site 2 only there).
+  await setupCompany(1, { frameworks: ["GRI", "BRSR", "ESRS"], kpis: SELECTED, frequencies: Object.fromEntries(SELECTED.map((c) => [c, "annual"])), topicOwners: false });
   await setupCompany(2, { frameworks: ["GRI"], kpis: ["WATER_WITHDRAWAL"] });
   for (const code of [...SELECTED, ...EXCLUDED]) ids[code] = (await q(`SELECT id FROM kpi_definition WHERE code = $1 AND company_id IS NULL`, [code]))[0].id;
   for (const code of EXCLUDED) await q(`INSERT INTO company_kpi (company_id, kpi_definition_id, selected, reason_excluded) VALUES (1, $1, false, 'No stacks or water intensity reporting')`, [ids[code]]);
@@ -183,8 +185,15 @@ test("remind: kpi_due to the owner, at most once a day per item", async () => {
   assert.deepEqual([n.title, n.link, n.meta.kpi_definition_id, n.meta.site_id], ["Reminder: KPI values due", "/kpi?site=2", ids.HIGH_CONSEQUENCE_INJURIES, 2]);
   assert.match(n.message, /High-consequence|high-consequence|injur/i);
   assert.deepEqual((await remind("admin", { kpi: ids.HIGH_CONSEQUENCE_INJURIES, site: 2 })).json, { reminded: false, owner_name: "CI Multi User", message: "CI Multi User was already reminded today.", sent: false, notified: [], already_today: [7] }, "once a day");
-  assert.deepEqual((await remind("manager", { kpi: ids.RECORDABLE_INJURIES, site: 1 })).json.notified, [1, 7], "no assignment: the site's Users");
-  assert.deepEqual((await remind("manager", { kpi: ids.REVENUE, site: null })).json.notified, [3], "company level: the Admins");
+  // D17: unassigned is nobody's; a topic owner is reminded through the resolver.
+  assert.deepEqual((await remind("manager", { kpi: ids.RECORDABLE_INJURIES, site: 1 })).json.details, { field: "kpi", rule: "nobody_owes_it" });
+  await setTopicOwners(1, { 1: 1, company: 3 }, ["health_safety", "governance"]);
+  try {
+    assert.deepEqual((await remind("manager", { kpi: ids.RECORDABLE_INJURIES, site: 1 })).json.notified, [1], "the topic owner");
+    assert.deepEqual((await remind("manager", { kpi: ids.REVENUE, site: null })).json.notified, [3], "company level: its topic owner");
+  } finally {
+    await q(`DELETE FROM kpi_topic_assignment WHERE company_id = 1`);
+  }
   assert.equal((await remind("manager", { kpi: ids.WATER_CONSUMPTION, site: 1 })).json.code, "KPI_AUTO_READ_ONLY");
   assert.deepEqual((await remind("manager", { kpi: ids.REVENUE, site: 1 })).json.details, { field: "site", rule: "company_level_kpi" });
   assert.equal((await remind("manager", { kpi: ids.AIR_NOX, site: 1 })).json.code, "KPI_NOT_SELECTED");

@@ -6,8 +6,7 @@
  *   setupCompleted(m, company)      setup_completed_at is set
  *   companyKpiRow(m, company, kpi)  the company_kpi row (selected, frequency) or null
  *   enabledFrameworks(m, company)   framework versions the company reports on
- *   assignmentFor(m, company, kpi, site)
- *   topicGrants(m, user)            the user's KPI topics (empty = all)
+ *   (owners: setup/owners.ts resolveOwner, D17; kpi_topic_grant is no longer read)
  *   userSiteIds(m, user)            sites a user belongs to (user.site and user_sites)
  */
 import type { EntityManager } from "typeorm";
@@ -65,19 +64,6 @@ export async function enabledFrameworks(m: EntityManager, companyId: number): Pr
       WHERE cf.company_id = $1 ORDER BY CASE f.code WHEN 'GRI' THEN 1 WHEN 'BRSR' THEN 2 WHEN 'ESRS' THEN 3 ELSE 4 END, f.version`,
     [companyId],
   );
-}
-
-export async function assignmentFor(m: EntityManager, companyId: number, kpiId: number, siteId: number | null): Promise<Row | null> {
-  const rows: Row[] = await m.query(
-    `SELECT * FROM kpi_assignment WHERE company_id = $1 AND kpi_definition_id = $2 AND site_id IS NOT DISTINCT FROM $3`,
-    [companyId, kpiId, siteId],
-  );
-  return rows[0] ?? null;
-}
-
-export async function topicGrants(m: EntityManager, userId: number): Promise<Set<string>> {
-  const rows: Row[] = await m.query(`SELECT topic FROM kpi_topic_grant WHERE user_id = $1`, [userId]);
-  return new Set(rows.map((r) => String(r.topic)));
 }
 
 /** The sites a user belongs to: `user.site_id` and `user_sites`. */

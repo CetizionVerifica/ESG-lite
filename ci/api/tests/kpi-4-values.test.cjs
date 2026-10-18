@@ -168,9 +168,11 @@ test("drafts are seen by their author, Admins and the Superadmin only; reads are
   assert.equal((await call("GET", "/kpi/values?status=done", "user")).status, 400);
   assert.equal((await call("GET", "/kpi/values?kpi=NOPE_NOPE", "user")).status, 404);
 
-  // Someone else's draft can't be overwritten by another contributor.
-  const other = await one("multiSiteUser", water());
+  // Someone else's draft can't be overwritten by another person who may write there (the site's Manager);
+  // since D17 another User doesn't own the pair at all.
+  const other = await one("manager", water());
   assert.equal(other.code, "KPI_NOT_DRAFT");
+  assert.equal((await one("multiSiteUser", water())).code, "KPI_NOT_ASSIGNED");
 });
 
 test("submit: draft → pending once; pending isn't editable; the Manager sees it", async () => {

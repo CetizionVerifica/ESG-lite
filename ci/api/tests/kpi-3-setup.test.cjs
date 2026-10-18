@@ -237,12 +237,13 @@ test("step 4: owners and reviewers; an owner outside the site or a reviewer who 
   assert.equal((await put("admin", { assignments: [{ kpi_definition_id: water, site_id: 1 }] })).json.code, "KPI_VALIDATION");
   assert.equal((await audits()).filter((a) => a.action === "assignments").length, 2);
 
-  // Defaults for the cells nobody owns yet: the site's User, the company's Admin.
+  // D17: defaults are per topic (the site's first User, the company's first Admin); per-KPI rows are exceptions.
   const setup = (await call("GET", "/kpi/setup", "admin")).json;
-  const s = setup.suggested_assignments;
-  assert.ok(s.some((a) => a.site_id === 1 && a.owner_user_id === 1 && a.reviewer_user_id === null));
-  assert.ok(!s.some((a) => a.kpi_definition_id === water), "assigned cells aren't suggested");
-  assert.ok(s.filter((a) => a.site_id === null).every((a) => a.owner_user_id === 3));
+  assert.deepEqual(setup.suggested_assignments, []);
+  const s = setup.suggested_topic_assignments;
+  assert.ok(s.some((a) => a.site_id === 1 && a.topic === "water" && a.owner_user_id === 1 && a.reviewer_user_id === null));
+  assert.ok(s.filter((a) => a.site_id === null).length > 0 && s.filter((a) => a.site_id === null).every((a) => a.owner_user_id === 3));
+  assert.ok(setup.assignments.find((a) => a.kpi_definition_id === water && a.site_id === 1).differs_from_topic_owner, "no topic owner yet: the override differs");
 });
 
 test("assignments and topic grants decide who enters: the owner, never another User; a granted topic only", async () => {
@@ -267,24 +268,29 @@ test("assignments and topic grants decide who enters: the owner, never another U
   assert.equal(own.value.year_type, "FY");
   assert.equal(own.value.frequency, "quarterly");
   assert.equal((await save("manager", { site_id: 2 })).ok, true, "Managers enter on their sites");
-  // Unassigned: a User on their own site, in their topics.
-  assert.equal((await save("user", { kpi_code: "LOST_TIME_INJURIES", period_start: "2025-04-01", value_numeric: 1 })).ok, true);
+  // D17: an unassigned pair is nobody's: no more "a User's site, in their topics".
+  assert.equal((await save("user", { kpi_code: "LOST_TIME_INJURIES", period_start: "2025-04-01", value_numeric: 1 })).code, "KPI_NOT_ASSIGNED");
 
-  const grant = await call("PATCH", "/company-admin/users/1", "admin", { kpi_topics: ["water", "water"] });
+  // The wave B topics field is now an alias of PUT /kpi/people/:id/topics: user 1 owns safety on their sites.
+  const grant = await call("PATCH", "/company-admin/users/1", "admin", { kpi_topics: ["health_safety", "health_safety"] });
   assert.equal(grant.status, 200, JSON.stringify(grant.json));
-  assert.deepEqual(grant.json.kpi_topics, ["water"]);
-  assert.deepEqual(await q(`SELECT topic FROM kpi_topic_grant WHERE user_id = 1`), [{ topic: "water" }]);
-  assert.equal((await save("user", { kpi_code: "LOST_TIME_INJURIES", period_start: "2025-05-01", value_numeric: 1 })).code, "KPI_NOT_ASSIGNED", "safety isn't one of user 1's topics");
-  assert.equal((await save("user", { kpi_code: "WATER_DISCHARGE", period_start: "2025-04-01", value_numeric: 1 })).ok, true);
+  assert.deepEqual(grant.json.kpi_topics, ["health_safety"]);
+  assert.deepEqual(grant.json.kpi_topic_site_ids, [1]);
+  assert.deepEqual(await q(`SELECT site_id, topic, owner_user_id FROM kpi_topic_assignment WHERE company_id = 1 AND owner_user_id = 1`), [{ site_id: 1, topic: "health_safety", owner_user_id: 1 }]);
+  assert.deepEqual(await q(`SELECT topic FROM kpi_topic_grant WHERE user_id = 1`), [], "grants are no longer written");
+  assert.equal((await save("user", { kpi_code: "LOST_TIME_INJURIES", period_start: "2025-04-01", value_numeric: 1 })).ok, true, "safety is user 1's topic now");
+  assert.equal((await save("user", { kpi_code: "WATER_DISCHARGE", period_start: "2025-04-01", value_numeric: 1 })).code, "KPI_NOT_ASSIGNED", "water isn't");
   const setup = (await call("GET", "/kpi/setup", "admin")).json;
-  assert.deepEqual(setup.topic_grants, [{ user_id: 1, topic: "water" }]);
+  assert.deepEqual(setup.topic_grants, [{ user_id: 1, topic: "health_safety" }], "derived from topic assignments");
   assert.equal((await call("PATCH", "/company-admin/users/1", "admin", { kpi_topics: ["nope"] })).status, 400);
   assert.equal((await call("PATCH", "/company-admin/users/1", "admin", { kpi_topics: "water" })).json.code, "KPI_VALIDATION");
   assert.equal((await call("PATCH", "/company-admin/users/4", "admin", { kpi_topics: ["water"] })).status, 404, "another company's user");
   const cleared = await call("PATCH", "/company-admin/users/1", "admin", { kpi_topics: [] });
   assert.deepEqual(cleared.json.kpi_topics, []);
-  assert.deepEqual(await q(`SELECT topic FROM kpi_topic_grant WHERE user_id = 1`), []);
-  assert.ok((await audits()).filter((a) => a.action === "topic_grant").length === 2);
+  assert.deepEqual(await q(`SELECT topic FROM kpi_topic_assignment WHERE company_id = 1 AND owner_user_id = 1`), []);
+  assert.equal((await save("user", { kpi_code: "LOST_TIME_INJURIES", period_start: "2025-07-01", value_numeric: 1 })).code, "KPI_NOT_ASSIGNED");
+  const peopleAudits = await q(`SELECT 1 FROM audit_log WHERE entity_type = 'kpi_setup' AND entity_id = 1 AND action = 'people_topics'`);
+  assert.equal(peopleAudits.length, 2);
 
   // The year type can't change once values use it.
   const yt = await put("admin", { settings: { year_type: "CY" } });
@@ -365,7 +371,7 @@ test("switch off: every setup route answers KPI_TRACKING_OFF, and so does the to
     const g = await call("PATCH", "/company-admin/users/1", "admin", { kpi_topics: ["water"] });
     assert.equal(g.status, 403);
     assert.equal(g.json.code, "KPI_TRACKING_OFF");
-    assert.equal((await q(`SELECT 1 FROM kpi_topic_grant WHERE user_id = 1`)).length, 0);
+    assert.equal((await q(`SELECT 1 FROM kpi_topic_assignment WHERE owner_user_id = 1`)).length, 0);
     // The data is kept (D3).
     assert.equal((await q(`SELECT 1 FROM company_kpi_settings WHERE company_id = 1 AND setup_completed_at IS NOT NULL`)).length, 1);
   } finally {

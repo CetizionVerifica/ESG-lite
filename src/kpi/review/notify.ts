@@ -2,7 +2,8 @@
  * KPI-8 · review notifications (01-contracts §3, notification kinds):
  *
  *   notifySubmitted(company, valueIds, submitter)   `kpi_submitted`, one per reviewer per submit:
- *                                                   the assignment's reviewer, else the Managers of
+ *                                                   the resolved owner row's reviewer (D17: per-KPI
+ *                                                   override, else topic assignment), else the Managers of
  *                                                   the value's site (company level: the company's
  *                                                   Managers); never the submitter
  *   notifyRejected(company, rejected, reason)       `kpi_rejected` to whoever entered each value,
@@ -13,6 +14,7 @@
  */
 import { AppDataSource } from "../../config/data-source";
 import { createNotification } from "../../services/notificationService";
+import { ownerIndex } from "../setup/owners";
 
 type Row = Record<string, any>;
 
@@ -36,12 +38,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export async function notifySubmitted(companyId: number, valueIds: number[], submitterId: number): Promise<number> {
   if (!valueIds.length) return 0;
   try {
-    const values: Row[] = await AppDataSource.query(
-      `SELECT v.id, v.site_id, a.reviewer_user_id FROM kpi_value v
-         LEFT JOIN kpi_assignment a ON a.company_id = v.company_id AND a.kpi_definition_id = v.kpi_definition_id AND a.site_id IS NOT DISTINCT FROM v.site_id
+    const rows: Row[] = await AppDataSource.query(
+      `SELECT v.id, v.site_id, v.kpi_definition_id, d.topic FROM kpi_value v JOIN kpi_definition d ON d.id = v.kpi_definition_id
         WHERE v.company_id = $1 AND v.id = ANY($2::int[])`,
       [companyId, valueIds],
     );
+    // D17: the reviewer of the resolved owner row (per-KPI override, else the topic's).
+    const owners = await ownerIndex(AppDataSource.manager, companyId);
+    const values: Row[] = rows.map((v) => ({ ...v, reviewer_user_id: owners.resolve({ id: Number(v.kpi_definition_id), topic: String(v.topic) }, v.site_id === null ? null : Number(v.site_id)).reviewer_user_id }));
     const perReviewer = new Map<number, number>();
     const managersCache = new Map<string, number[]>();
     for (const v of values) {

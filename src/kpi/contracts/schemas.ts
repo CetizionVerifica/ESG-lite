@@ -165,7 +165,25 @@ export const KpiAssignmentSchema = z.object({
   reviewer_user_id: id.nullable().optional(),
 });
 
-/** `PUT /kpi/setup` (Admin, Superadmin): any subset of the four steps. */
+/**
+ * D17 (wave D): the owner of a KPI topic on a site (`site_id` null = company
+ * level). `owner_user_id: null` removes the row; `reviewer_user_id` null = the
+ * site's Managers.
+ */
+export const KpiTopicAssignmentSchema = z.object({
+  site_id: id.nullable(),
+  topic: KpiTopicSchema,
+  owner_user_id: id.nullable(),
+  reviewer_user_id: id.nullable().optional(),
+});
+
+/** D17: `PUT /kpi/people/:user_id/topics` (Admin, Superadmin; a Manager for their own sites). */
+export const KpiPeopleTopicsPutSchema = z.object({
+  topics: z.array(KpiTopicSchema).max(20),
+  site_ids: z.array(id).max(500).optional(),
+});
+
+/** `PUT /kpi/setup` (Admin, Superadmin): any subset of the steps. */
 export const KpiSetupPutSchema = z.object({
   settings: z
     .object({
@@ -179,6 +197,8 @@ export const KpiSetupPutSchema = z.object({
   material_topics: z.array(MaterialTopicSchema).max(10).optional(),
   kpis: z.array(CompanyKpiSelectionSchema).max(1000).optional(),
   assignments: z.array(KpiAssignmentSchema).max(5000).optional(),
+  /** D17: replaces the whole set of topic assignments. */
+  topic_assignments: z.array(KpiTopicAssignmentSchema).max(5000).optional(),
 });
 
 /** `POST /kpi/setup/custom-kpis` (Admin): a company KPI, optionally mapped. */

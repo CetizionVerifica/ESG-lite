@@ -7,7 +7,10 @@ import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { UserRole } from "../types/type";
-import { mixedCompaniesError } from "../utils/companyScope";
+import { mixedCompaniesError, resolveUserCompanyId } from "../utils/companyScope";
+// D18: the KPI topics field, as on the company user update (an alias of PUT /kpi/people/:user_id/topics)
+import { KpiError } from "../kpi/contracts/errors";
+import { assertKpiSwitchOn, parseKpiTopics, saveKpiTopics } from "../kpi/setup/topicGrants";
 
 const repo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -291,8 +294,9 @@ export const updateUser = async (req: Request, res: Response) => {
 
     const profile = profileFields(req.body);
     const hasProfileChange = Object.keys(profile.fields).length > 0 || category_ids !== undefined;
+    const kpiTopicsRaw = req.body?.kpi_topics; // D18
 
-    if (!name && !email && !password && !role && site_id === undefined && site_ids === undefined && !hasProfileChange) {
+    if (!name && !email && !password && !role && site_id === undefined && site_ids === undefined && !hasProfileChange && kpiTopicsRaw === undefined) {
       return res.status(400).json({
         message: "At least one field is required for update",
       });
@@ -312,6 +316,23 @@ export const updateUser = async (req: Request, res: Response) => {
         message: "User not found",
       });
     }
+    // D18: KPI topics for the client named by company_id (else the person's own),
+    // checked before anything is saved.
+    let kpiTopics: ReturnType<typeof parseKpiTopics> | undefined;
+    let kpiCompanyId: number | null = null;
+    if (kpiTopicsRaw !== undefined) {
+      try {
+        kpiTopics = parseKpiTopics(kpiTopicsRaw);
+        const requested = Number(req.body?.company_id);
+        kpiCompanyId = Number.isInteger(requested) && requested > 0 ? requested : await resolveUserCompanyId(user.user_id);
+        if (!kpiCompanyId) throw new KpiError("KPI_COMPANY_REQUIRED");
+        await assertKpiSwitchOn(kpiCompanyId);
+      } catch (err) {
+        if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
+        throw err;
+      }
+    }
+
     // Whether the person is internal once this save is applied.
     // Internal accounts are Managers or Users; another role clears it.
     const nextRole = role || user.role;
@@ -412,12 +433,23 @@ export const updateUser = async (req: Request, res: Response) => {
 
     await repo.save(user);
 
+    let kpiTopicResult: Awaited<ReturnType<typeof saveKpiTopics>> | undefined;
+    if (kpiTopics !== undefined && kpiCompanyId) {
+      try {
+        kpiTopicResult = await saveKpiTopics(kpiCompanyId, user.user_id, kpiTopics, callerId(req), UserRole.SUPERADMIN);
+      } catch (err) {
+        if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
+        throw err;
+      }
+    }
+
     // Reload user with relations for response
     const updatedUser = await loadUser(parseInt(id));
 
     return res.status(200).json({
       message: "User updated successfully",
       user: updatedUser,
+      ...(kpiTopicResult ? { kpi_topics: kpiTopicResult.topics, kpi_topic_site_ids: kpiTopicResult.site_ids, kpi_topic_moves: kpiTopicResult.moved } : {}),
     });
   } catch (error) {
     console.error("Update user error:", error);

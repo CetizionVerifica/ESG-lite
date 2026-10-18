@@ -15,8 +15,8 @@
  * Scope: the caller's sites (a Manager's own; `site` narrows to one of them)
  * and the company-level KPIs. Figures read approved values only. A KPI's
  * state for coverage: manual KPIs need an approved value for every target ×
- * every period of the year that has ended (`expectedSites`: assigned sites,
- * else every site); auto and calculated KPIs count the values that exist
+ * every period of the year that has ended (`expectedSites`: the sites where it
+ * has an owner through the D17 resolver, else every site); auto and calculated KPIs count the values that exist
  * (none at all = missing); nothing due yet = not_due.
  */
 import type { EntityManager } from "typeorm";
@@ -28,6 +28,7 @@ import { KpiDashboardQuerySchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { expectedSites } from "../review/lock";
+import { ownerIndex } from "../setup/owners";
 import { enabledFrameworks, kpiSettings, todayIso } from "../setup/settings";
 import { figureDefs, targetsWithProgress } from "../targets/service";
 import { periodsFor, yearRange, type KpiPeriod } from "../values/period";
@@ -82,11 +83,10 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
   const frameworks = (await enabledFrameworks(m, caller.companyId)).filter((f) => !q.framework || f.code === q.framework);
   const { byId, byCode } = await figureDefs(m, caller.companyId);
   const selected = [...byId.values()].filter((d) => d.selected && d.active);
-  const assignments: Row[] = await m.query(
-    `SELECT a.*, TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))) AS owner_name FROM kpi_assignment a LEFT JOIN "user" u ON u.user_id = a.owner_user_id WHERE a.company_id = $1`,
-    [caller.companyId],
-  );
-  const ownerOf = new Map(assignments.map((a) => [`${a.kpi_definition_id}:${a.site_id ?? ""}`, a]));
+  // D17: owners (and the expected sites) through the resolver: per-KPI override, else topic owner.
+  const owners = await ownerIndex(m, caller.companyId);
+  const allSites: number[] = (await m.query(`SELECT site_id FROM site WHERE company_id = $1`, [caller.companyId])).map((r: Row) => Number(r.site_id));
+  const assignments = owners.ownedPairs(selected.filter((d) => d.source === "manual").map((d) => ({ id: d.id, topic: String(d.topic), level: d.level })), allSites);
 
   // Values: every status for the year (states and gaps), approved ones back 11 years (cards).
   const yearValues = await loadValues(m, caller.companyId, { from: range.start, to: range.end, statuses: ["draft", "pending", "approved", "rejected"] });
@@ -121,7 +121,7 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
       });
       if (!missing.length) continue;
       anyMissing = true;
-      const owner = ownerOf.get(`${d.id}:${t ?? ""}`);
+      const owner = owners.resolve({ id: d.id, topic: String(d.topic) }, t);
       const last = missing[missing.length - 1];
       gaps.push({
         kpi_definition_id: d.id,
@@ -132,8 +132,8 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
         site_name: t === null ? null : siteName.get(t) ?? null,
         periods_missing: missing.map((p) => p.start),
         period_labels: missing.map((p) => p.label),
-        owner_user_id: owner ? Number(owner.owner_user_id) : null,
-        owner_name: owner ? owner.owner_name || null : null,
+        owner_user_id: owner.owner_user_id,
+        owner_name: owner.owner_name,
         link: `/kpi?period=${ym(last.end)}${t === null ? "" : `&site=${t}`}`,
       });
     }

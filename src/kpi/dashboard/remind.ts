@@ -1,9 +1,8 @@
 /**
  * KPI-10 · POST /kpi/dashboard/remind {kpi, site} (Manager, Admin, Superadmin):
- * a `kpi_due` notification to whoever owes the KPI there — the assignment's
- * owner; with no assignment, the site's Users who have the KPI's topic (none
- * granted = every topic), or for a company-level KPI the company's Admins (the
- * entry rule of values/service.ts and My KPIs). At most once a day per person
+ * a `kpi_due` notification to whoever owes the KPI there — its owner through
+ * `resolveOwner` (D17: the per-KPI assignment, else the topic assignment);
+ * unassigned = nobody (KPI_VALUE_INVALID nobody_owes_it). At most once a day per person
  * and item: a second call the same day sends nothing.
  *
  *   → {reminded, owner_name, message, sent (= reminded), notified: [user ids], already_today: [user ids]}
@@ -20,27 +19,17 @@ import { KpiRemindSchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { alreadyReminded, kpiDueNotification } from "../review/reminders";
-import { companyAdminIds } from "../switch";
-import { assignmentFor, kpiSettings } from "../setup/settings";
+import { kpiSettings } from "../setup/settings";
+import { resolveOwner } from "../setup/owners";
 import { findKpi, isKpiSelected } from "../values/service";
 import { dashboardScope } from "./service";
 
 type Row = Record<string, any>;
 
+/** D17: whoever owns the KPI there through the resolver (override, else topic owner); nobody = []. */
 async function ownersOf(companyId: number, kpi: Row, siteId: number | null): Promise<number[]> {
-  const m = AppDataSource.manager;
-  const a = await assignmentFor(m, companyId, Number(kpi.id), siteId);
-  if (a) return [Number(a.owner_user_id)];
-  if (siteId === null) return companyAdminIds(companyId);
-  const rows: Row[] = await m.query(
-    `SELECT DISTINCT u.user_id FROM "user" u LEFT JOIN user_sites us ON us.user_id = u.user_id
-      WHERE u.role = 'User' AND (u.site_id = $1 OR us.site_id = $1)
-        AND (NOT EXISTS (SELECT 1 FROM kpi_topic_grant g WHERE g.user_id = u.user_id)
-             OR EXISTS (SELECT 1 FROM kpi_topic_grant g WHERE g.user_id = u.user_id AND g.topic = $2))
-      ORDER BY u.user_id`,
-    [siteId, kpi.topic],
-  );
-  return rows.map((r) => Number(r.user_id));
+  const o = await resolveOwner(AppDataSource.manager, companyId, { id: Number(kpi.id), topic: String(kpi.topic) }, siteId);
+  return o.owner_user_id === null ? [] : [o.owner_user_id];
 }
 
 export async function remind(caller: KpiCaller, body: unknown) {

@@ -56,6 +56,7 @@
     "migrate:kpi-values": "ts-node src/scripts/migrateKpiValues.ts",
     "migrate:kpi-setup": "ts-node src/scripts/migrateKpiSetup.ts",
     "migrate:kpi-targets": "ts-node src/scripts/migrateKpiTargets.ts",
+    "migrate:kpi-topic-assignment": "ts-node src/scripts/migrateKpiTopicAssignment.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",

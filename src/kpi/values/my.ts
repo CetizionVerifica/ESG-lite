@@ -7,11 +7,10 @@
  * company's year type and the KPI's frequency for the company; its values are
  * due on `due_day` of the next month (D16).
  *
- * Whose items:
- *   - manual KPIs assigned to the caller (kpi_assignment.owner_user_id);
- *   - with no assignment: a User's site-level KPIs on their own sites in their
- *     topics (kpi_topic_grant), and an Admin's company-level KPIs — the same
- *     rule as entry (values/service.ts assertCanWrite);
+ * Whose items (D17, wave D): manual KPIs × sites (or the company) the caller
+ * owns through `resolveOwner` (setup/owners.ts): the per-KPI assignment, else
+ * the topic assignment of (site, the KPI's topic). Unassigned pairs are
+ * nobody's (no Admin or topic-grant fallback any more). Plus:
  *   - read-only auto and formula KPIs (group "auto") of the sites, or the
  *     company, the caller has manual items for.
  * Groups: due (nothing yet, or a draft), sent_back (rejected), done (pending or
@@ -20,11 +19,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { AppDataSource } from "../../config/data-source";
-import { UserRole } from "../../types/type";
 import { KpiError } from "../contracts/errors";
 import { kpiCaller, type KpiCaller, type KpiRequest } from "../guard";
 import { handle, parse } from "../http";
-import { kpiSettings, topicGrants } from "../setup/settings";
+import { kpiSettings } from "../setup/settings";
+import { ownerIndex, type ResolvedOwner } from "../setup/owners";
+import { topicLabel, topicOrder } from "../setup/topics";
 import { dueDate, periodsFor, reportingYearOf, type KpiPeriod, isoDay } from "./period";
 import { assertSetupDone, canSee, evidenceFor, needsEvidence, toValueOut } from "./service";
 
@@ -70,28 +70,21 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
       WHERE d.active AND (d.company_id IS NULL OR d.company_id = $1) ORDER BY d.topic, d.code`,
     [companyId],
   );
-  const assignments: Row[] = await m.query(
-    `SELECT a.*, TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))) AS reviewer_name
-       FROM kpi_assignment a LEFT JOIN "user" u ON u.user_id = a.reviewer_user_id WHERE a.company_id = $1`,
-    [companyId],
-  );
-  const assignmentOf = new Map(assignments.map((a) => [`${a.kpi_definition_id}:${a.site_id ?? ""}`, a]));
-  const grants = await topicGrants(m, caller.userId);
+  const owners = await ownerIndex(m, companyId);
 
-  // Which manual KPI × target pairs are the caller's.
-  type Pair = { def: Row; site: number | null; assignment: Row | null };
+  // Which manual KPI × target pairs are the caller's (D17 resolver).
+  type Pair = { def: Row; site: number | null; owner: ResolvedOwner | null };
   const manual: Pair[] = [];
   for (const d of defs.filter((x) => x.source === "manual")) {
     if (d.level === "company") {
       if (q.site !== undefined) continue;
-      const a = assignmentOf.get(`${d.id}:`) ?? null;
-      if (a ? Number(a.owner_user_id) === caller.userId : caller.role === UserRole.ADMIN) manual.push({ def: d, site: null, assignment: a });
+      const o = owners.resolve(d as { id: number; topic: string }, null);
+      if (o.owner_user_id === caller.userId) manual.push({ def: d, site: null, owner: o });
       continue;
     }
     for (const s of mySites) {
-      const a = assignmentOf.get(`${d.id}:${s}`) ?? null;
-      const mine = a ? Number(a.owner_user_id) === caller.userId : caller.role === UserRole.USER && (!grants.size || grants.has(d.topic));
-      if (mine) manual.push({ def: d, site: s, assignment: a });
+      const o = owners.resolve(d as { id: number; topic: string }, s);
+      if (o.owner_user_id === caller.userId) manual.push({ def: d, site: s, owner: o });
     }
   }
   // Owners assigned on a site the caller can no longer read still see it only if it's in their scope.
@@ -100,8 +93,8 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
   const readOnly: Pair[] = [];
   for (const d of defs.filter((x) => x.source !== "manual")) {
     if (d.level === "company") {
-      if (hasCompany) readOnly.push({ def: d, site: null, assignment: null });
-    } else for (const s of ownSites) readOnly.push({ def: d, site: s, assignment: null });
+      if (hasCompany) readOnly.push({ def: d, site: null, owner: null });
+    } else for (const s of ownSites) readOnly.push({ def: d, site: s, owner: null });
   }
 
   // Values of the month's periods and of the same periods last year, in one query each.
@@ -160,6 +153,7 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
       question: d.question,
       help: d.help ?? null,
       topic: d.topic,
+      topic_label: topicLabel(d.topic),
       source: d.source,
       value_type: d.value_type,
       unit_dimension: d.unit_dimension,
@@ -182,9 +176,10 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
       due_date: dueDate(period, settings.due_day),
       group,
       status: visible ? visible.status : "missing",
-      assigned: p.assignment !== null,
-      reviewer_user_id: p.assignment?.reviewer_user_id === null || p.assignment?.reviewer_user_id === undefined ? null : Number(p.assignment.reviewer_user_id),
-      reviewer_name: p.assignment?.reviewer_user_id ? p.assignment.reviewer_name || null : null,
+      assigned: p.owner !== null && p.owner.via !== null,
+      assigned_via: p.owner?.via ?? null,
+      reviewer_user_id: p.owner?.reviewer_user_id ?? null,
+      reviewer_name: p.owner?.reviewer_user_id ? p.owner.reviewer_name || null : null,
       value: visible ? toValueOut(visible, evidence.get(Number(visible.id))) : null,
       last_value: prevOk
         ? {
@@ -200,7 +195,8 @@ export async function myKpis(caller: KpiCaller, query: unknown) {
         : {}),
     });
   }
-  items.sort((a, b) => a.due_date.localeCompare(b.due_date) || (a.site_name ?? "").localeCompare(b.site_name ?? "") || a.code.localeCompare(b.code));
+  // D17: grouped under topic headings, in KPI_TOPICS order.
+  items.sort((a, b) => topicOrder(a.topic) - topicOrder(b.topic) || a.due_date.localeCompare(b.due_date) || (a.site_name ?? "").localeCompare(b.site_name ?? "") || a.code.localeCompare(b.code));
   const counts = { due: 0, sent_back: 0, done: 0, auto: 0, total: items.length };
   for (const i of items) counts[i.group as keyof typeof counts]++;
   return { period: ym, items, counts };

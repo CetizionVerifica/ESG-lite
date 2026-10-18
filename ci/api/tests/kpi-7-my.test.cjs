@@ -1,6 +1,7 @@
 // KPI-7 backend part: GET /kpi/my?period=YYYY-MM&site= lists only what the
-// caller owes — assigned KPIs, or with no assignment a User's own sites in
-// their topics and an Admin's company-level KPIs — for the periods ending in
+// caller owes — since D17 the pairs they own through the resolver (a per-KPI
+// assignment, else the topic owner of the site; kpi-lib gives site 1 to user 1,
+// site 2 to user 7 and the company level to the Admin) — for the periods ending in
 // that month, with status groups, the value, last year's value, due dates,
 // framework badges, reviewer, and read-only auto/formula items (with a
 // formula's inputs). Plus the site filter, setup-first, role and tenant
@@ -10,7 +11,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { call, withDb } = require("../helpers.cjs");
-const { setSwitch, runScript, setupCompany, clearSetup } = require("./kpi-lib.cjs");
+const { setSwitch, runScript, setupCompany, clearSetup, setTopicOwners, TOPICS } = require("./kpi-lib.cjs");
 
 const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
 const wipe = async () => {
@@ -46,7 +47,7 @@ const my = async (who, query = "?period=2026-09") => {
 };
 const find = (res, code, site) => res.items.find((i) => i.code === code && i.site_id === site);
 
-test("a User owes their site's unassigned KPIs; a pair assigned to someone else isn't theirs; auto items are read-only", async () => {
+test("a User owes the topics they own on their site; a pair assigned to someone else isn't theirs; auto items are read-only", async () => {
   const r = await my("user");
   assert.equal(r.period, "2026-09");
   assert.ok(r.items.every((i) => i.site_id === 1), "site 1 only");
@@ -54,8 +55,8 @@ test("a User owes their site's unassigned KPIs; a pair assigned to someone else 
   const lti = find(r, "LOST_TIME_INJURIES", 1);
   assert.ok(lti, "a monthly KPI of September");
   assert.deepEqual(
-    [lti.group, lti.status, lti.value, lti.period_start, lti.period_end, lti.period_label, lti.frequency, lti.year_type, lti.due_date, lti.site_name, lti.assigned],
-    ["due", "missing", null, "2026-09-01", "2026-09-30", "Sep 2026", "monthly", "CY", "2026-10-15", "CI Plant A", false],
+    [lti.group, lti.status, lti.value, lti.period_start, lti.period_end, lti.period_label, lti.frequency, lti.year_type, lti.due_date, lti.site_name, lti.assigned, lti.assigned_via, lti.topic, lti.topic_label],
+    ["due", "missing", null, "2026-09-01", "2026-09-30", "Sep 2026", "monthly", "CY", "2026-10-15", "CI Plant A", true, "topic", "health_safety", "Health and safety"],
   );
   assert.ok(Array.isArray(lti.used_in));
   assert.ok(!find(r, "WASTE_GENERATED", 1), "an annual KPI ends in December");
@@ -66,7 +67,7 @@ test("a User owes their site's unassigned KPIs; a pair assigned to someone else 
   assert.equal(r.counts.auto, r.items.filter((i) => i.group === "auto").length);
   assert.equal(r.counts.due + r.counts.sent_back + r.counts.done + r.counts.auto, r.counts.total);
   // BRSR Core needs evidence; the badges show where a KPI is used.
-  const dec = await my("multiSiteUser", "?period=2026-12");
+  const dec = await my("user", "?period=2026-12");
   const waste = find(dec, "WASTE_GENERATED", 1);
   assert.equal(waste.needs_evidence, true);
   assert.ok(waste.used_in.some((b) => b.framework === "BRSR" && b.core === true));
@@ -93,7 +94,7 @@ test("statuses group the items; last year's value; a sent-back value carries the
   const id = r.json.results[0].value.id;
   let lti = find(await my("user"), "LOST_TIME_INJURIES", 1);
   assert.deepEqual([lti.group, lti.status, lti.value.id, lti.value.value_numeric], ["due", "draft", id, 2]);
-  assert.equal(find(await my("multiSiteUser"), "LOST_TIME_INJURIES", 1).value, null, "someone else's draft isn't shown");
+  assert.equal(find(await my("multiSiteUser"), "LOST_TIME_INJURIES", 1), undefined, "D17: site 1's safety isn't user 7's (drafts of others are hidden: kpi-4)");
   await call("POST", "/kpi/values/submit", "user", { ids: [id] });
   assert.deepEqual([find(await my("user"), "LOST_TIME_INJURIES", 1).group, find(await my("user"), "LOST_TIME_INJURIES", 1).status], ["done", "pending"]);
   assert.deepEqual((await call("PUT", "/kpi/values/reject", "manager", { ids: [id], reason: "Check the logbook" })).json, { updated: [id], refused: [] });
@@ -118,14 +119,17 @@ test("a formula item shows its value and inputs once both are submitted", async 
   assert.deepEqual(c.inputs.map((i) => [i.code, i.name, i.value, i.status]), [["WATER_WITHDRAWAL", "Water withdrawn", 1200, "pending"], ["WATER_DISCHARGE", "Water discharged", 840, "pending"]]);
 });
 
-test("topic grants narrow a User's unassigned items", async () => {
-  await q(`INSERT INTO kpi_topic_grant (user_id, topic) VALUES (1, 'water')`);
+test("D17: a User owning only water on their site sees only water items; items come in topic order", async () => {
+  await setTopicOwners(1, { 1: 7 }, TOPICS.filter((t) => t !== "water"));
   try {
     const r = await my("user");
+    assert.ok(r.items.filter((i) => i.group !== "auto").length > 0);
     assert.ok(r.items.filter((i) => i.group !== "auto").every((i) => i.topic === "water"), JSON.stringify(r.items.map((i) => i.code)));
     assert.ok(find(r, "WATER_DISCHARGE", 1));
+    const order = (await my("multiSiteUser")).items.map((i) => TOPICS.indexOf(i.topic));
+    assert.deepEqual(order, [...order].sort((a, b) => a - b), "sorted by KPI_TOPICS order");
   } finally {
-    await q(`DELETE FROM kpi_topic_grant WHERE user_id = 1`);
+    await setTopicOwners(1, { 1: 1 });
   }
 });
 

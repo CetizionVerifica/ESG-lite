@@ -17,6 +17,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_value_company_site_kpi_period" ON "kpi
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_period_lock_company_site_year_period" ON "kpi_period_lock" ("company_id", (COALESCE("site_id", 0)), "year", (COALESCE("period", 0)));
 -- KPI-3 (migrate:kpi-setup).
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_assignment_company_kpi_site" ON "kpi_assignment" ("company_id", "kpi_definition_id", (COALESCE("site_id", 0)));
+-- D17 (migrate:kpi-topic-assignment).
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_topic_assignment_company_site_topic" ON "kpi_topic_assignment" ("company_id", (COALESCE("site_id", 0)), "topic");
 -- KPI-9 (migrate:kpi-targets).
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kpi_target_company_kpi_site_year" ON "kpi_target" ("company_id", "kpi_definition_id", (COALESCE("site_id", 0)), "target_year");
 

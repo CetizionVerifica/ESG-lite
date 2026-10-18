@@ -35,6 +35,7 @@ import { KpiPeriodLockBodySchema, KpiPeriodLockQuerySchema } from "../contracts/
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { kpiSettings } from "../setup/settings";
+import { ownerIndex } from "../setup/owners";
 import { isoDay, monthRange, periodsFor, yearRange, type KpiPeriod } from "../values/period";
 import { assertSetupDone, KPI_LOCK_CLASS, lockMonthYear } from "../values/service";
 
@@ -68,8 +69,9 @@ export const lockRange = (yearType: YearType, year: number, period: number | nul
   period ? monthRange(lockMonthYear(yearType, year, period), period) : yearRange(yearType, year);
 
 /**
- * Which sites a site-level KPI is expected on: those it's assigned on (when it
- * has any site assignment), else every site in `all`. Shared with KPI-10.
+ * Which sites a site-level KPI is expected on: those it has an owner on (when
+ * it has any; `assignments` = the owned KPI × site pairs from the D17 resolver,
+ * setup/owners.ts `ownedPairs`), else every site in `all`. Shared with KPI-10.
  */
 export const expectedSites = (kpiId: number, all: number[], assignments: Row[]): number[] => {
   const assigned = assignments.filter((a) => Number(a.kpi_definition_id) === kpiId && a.site_id !== null).map((a) => Number(a.site_id));
@@ -143,18 +145,21 @@ export async function periodStatus(m: EntityManager, scope: Scope, year: number,
   const yearType = settings.year_type;
   const range = lockRange(yearType, year, period);
   const kpis: Row[] = await m.query(
-    `SELECT d.id, d.code, d.name, d.level, COALESCE(ck.frequency, d.default_frequency) AS frequency
+    `SELECT d.id, d.code, d.name, d.level, d.topic, COALESCE(ck.frequency, d.default_frequency) AS frequency
        FROM kpi_definition d JOIN company_kpi ck ON ck.kpi_definition_id = d.id AND ck.company_id = $1 AND ck.selected
       WHERE d.active AND d.source = 'manual' AND (d.company_id IS NULL OR d.company_id = $1) ORDER BY d.code`,
     [scope.companyId],
   );
-  const assignments: Row[] = await m.query(`SELECT kpi_definition_id, site_id FROM kpi_assignment WHERE company_id = $1`, [scope.companyId]);
+  // D17: the expected sites are where a KPI has an owner through the resolver (override or topic).
+  const owners = await ownerIndex(m, scope.companyId);
+  const allSites: number[] = (await m.query(`SELECT site_id FROM site WHERE company_id = $1`, [scope.companyId])).map((r: Row) => Number(r.site_id));
+  const assignments = owners.ownedPairs(kpis.map((k) => ({ id: Number(k.id), topic: String(k.topic), level: k.level })), allSites);
   const values: Row[] = await m.query(
     `SELECT id, kpi_definition_id, site_id, period_start, frequency, status FROM kpi_value
       WHERE company_id = $1 AND source = 'manual' AND period_end >= $2 AND period_end <= $3`,
     [scope.companyId, range.start, range.end],
   );
-  const { left, perTarget } = periodLeft({
+  const { left: leftItems, perTarget } = periodLeft({
     range,
     yearType,
     year,
@@ -165,6 +170,12 @@ export async function periodStatus(m: EntityManager, scope: Scope, year: number,
     values: values.map((v) => ({ id: Number(v.id), kpi_definition_id: Number(v.kpi_definition_id), site_id: v.site_id === null ? null : Number(v.site_id), period_start: day(v.period_start), frequency: v.frequency, status: v.status })),
   });
 
+  // D17: who owes each item left, through the resolver.
+  const topicOf = new Map(kpis.map((k) => [Number(k.id), String(k.topic)]));
+  const left = leftItems.map((x) => {
+    const o = owners.resolve({ id: x.kpi_definition_id, topic: topicOf.get(x.kpi_definition_id) ?? "" }, x.site_id);
+    return { ...x, owner_user_id: o.owner_user_id, owner_name: o.owner_name };
+  });
   const locks: Row[] = await m.query(
     `SELECT l.*, TRIM(CONCAT(COALESCE(lb.name, ''), ' ', COALESCE(lb.last_name, ''))) AS locked_by_name, TRIM(CONCAT(COALESCE(rb.name, ''), ' ', COALESCE(rb.last_name, ''))) AS reopened_by_name
        FROM kpi_period_lock l LEFT JOIN "user" lb ON lb.user_id = l.locked_by LEFT JOIN "user" rb ON rb.user_id = l.reopened_by

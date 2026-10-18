@@ -31,7 +31,8 @@ import { parse } from "../http";
 import { recomputeForValues } from "../formulas/recompute";
 import { storeChecks } from "../review/checks";
 import { notifySubmitted } from "../review/notify";
-import { assignmentFor, companyKpiRow, kpiSettings, setupCompleted, topicGrants } from "../setup/settings";
+import { companyKpiRow, kpiSettings, setupCompleted } from "../setup/settings";
+import { resolveOwner } from "../setup/owners";
 import { isPeriodStart, monthRange, periodOf, yearRange, isoDay } from "./period";
 import { toCanonical } from "./units";
 
@@ -81,12 +82,12 @@ export async function companyKpiFrequency(m: EntityManager, companyId: number, k
 
 /**
  * Whether the caller may enter this KPI on this site (null = company level).
- * Layer rule 2, D4 and KPI-3 assignments:
+ * Layer rule 2, D4 and D17 (wave D):
  *   - Superadmin and Admin: anything of the company;
- *   - the assigned owner (kpi_assignment.owner_user_id) of the KPI × site, whatever their role;
+ *   - the owner of the KPI × site, through `resolveOwner` (setup/owners.ts): the per-KPI
+ *     assignment, else the topic assignment of (site, the KPI's topic), whatever their role;
  *   - Managers: their sites and company-level values;
- *   - Users: with no assignment for the KPI × site, site-level KPIs on their own sites in their
- *     KPI topics (kpi_topic_grant; none = every topic). A pair assigned to someone else isn't theirs.
+ *   - Users: only the pairs they own (wave B's "unassigned pairs within their topic grants" is gone).
  * Throws KPI_NOT_FOUND for another company's site, KPI_NOT_ASSIGNED otherwise.
  */
 export async function assertCanWrite(m: EntityManager, caller: KpiCaller, kpi: Row, siteId: number | null): Promise<void> {
@@ -96,16 +97,10 @@ export async function assertCanWrite(m: EntityManager, caller: KpiCaller, kpi: R
   }
   if (caller.role === UserRole.SUPERADMIN || caller.role === UserRole.ADMIN) return;
   const refuse = () => new KpiError("KPI_NOT_ASSIGNED", { kpi: kpi.code, site_id: siteId });
-  const assignment = await assignmentFor(m, caller.companyId, Number(kpi.id), siteId);
-  if (assignment && Number(assignment.owner_user_id) === caller.userId) return;
-  if (caller.role === UserRole.MANAGER) {
-    if (siteId === null || !caller.sites || caller.sites.has(siteId)) return;
-    throw refuse();
-  }
-  if (siteId === null || assignment) throw refuse();
-  if (caller.sites && !caller.sites.has(siteId)) throw refuse();
-  const grants = await topicGrants(m, caller.userId);
-  if (grants.size && !grants.has(kpi.topic)) throw refuse();
+  const owner = await resolveOwner(m, caller.companyId, { id: Number(kpi.id), topic: String(kpi.topic) }, siteId);
+  if (owner.owner_user_id === caller.userId && (siteId === null || !caller.sites || caller.sites.has(siteId))) return;
+  if (caller.role === UserRole.MANAGER && (siteId === null || !caller.sites || caller.sites.has(siteId))) return;
+  throw refuse();
 }
 
 /** The calendar year of month `month` (1–12) inside reporting year `year`. */

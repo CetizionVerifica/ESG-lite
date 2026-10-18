@@ -16,7 +16,7 @@ import {
 } from "../utils/companyScope";
 // KPI-3: the KPI topic grant field on the user update
 import { KpiError } from "../kpi/contracts/errors";
-import { parseKpiTopics, saveKpiTopics } from "../kpi/setup/topicGrants";
+import { assertKpiSwitchOn, parseKpiTopics, saveKpiTopics } from "../kpi/setup/topicGrants";
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -347,10 +347,12 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // KPI-3: grants first, so a switched-off company's refusal changes nothing.
+    // KPI topics (D17: an alias of PUT /kpi/people/:user_id/topics). The switch is
+    // checked first, so a switched-off company's refusal changes nothing; the
+    // topics are saved after the user, so they apply to the user's new sites.
     if (kpiTopics !== undefined) {
       try {
-        await saveKpiTopics(scope.companyId, user.user_id, kpiTopics, Number(req.user?.userId) || 0);
+        await assertKpiSwitchOn(scope.companyId);
       } catch (err) {
         if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
         throw err;
@@ -358,6 +360,16 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
     }
 
     await userRepo.save(user);
+
+    let kpiTopicResult: Awaited<ReturnType<typeof saveKpiTopics>> | undefined;
+    if (kpiTopics !== undefined) {
+      try {
+        kpiTopicResult = await saveKpiTopics(scope.companyId, user.user_id, kpiTopics, Number(req.user?.userId) || 0);
+      } catch (err) {
+        if (err instanceof KpiError) return res.status(err.status).json(err.toBody());
+        throw err;
+      }
+    }
 
     const updatedUser = await userRepo.findOne({
       where: { user_id: parseInt(id) },
@@ -367,7 +379,7 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
     return res.status(200).json({
       message: "User updated successfully",
       user: updatedUser,
-      ...(kpiTopics !== undefined ? { kpi_topics: kpiTopics } : {}),
+      ...(kpiTopicResult ? { kpi_topics: kpiTopicResult.topics, kpi_topic_site_ids: kpiTopicResult.site_ids, kpi_topic_moves: kpiTopicResult.moved } : {}),
     });
   } catch (error) {
     console.error("Update company user error:", error);

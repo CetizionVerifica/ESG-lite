@@ -43,7 +43,31 @@ const concrete = (p) => "/kpi" + p.replace(/:[a-z_]+/gi, "1");
  * every active library KPI selected (or only `kpis`), with `frequencies`
  * overrides by code.
  */
-const setupCompany = (companyId, { yearType = "CY", frameworks = ["GRI", "BRSR", "ESRS"], kpis = null, frequencies = {}, completed = true } = {}) =>
+/**
+ * D17 (wave D): who owns every topic in the fixture unless a test says
+ * otherwise (`topicOwners: false`, or its own map): company 1 site 1 → CI User
+ * (1), site 2 → CI Multi User (7), company level → CI Admin (3); company 2
+ * site 3 → CI Other User (4). The wave B tests relied on Users writing
+ * unassigned pairs; since D17 a User writes only what they own.
+ */
+const DEFAULT_TOPIC_OWNERS = { 1: { 1: 1, 2: 7, company: 3 }, 2: { 3: 4 } };
+const TOPICS = ["climate", "energy", "water", "waste", "pollution", "biodiversity", "materials", "workforce", "health_safety", "diversity", "training", "human_rights", "community", "customers", "governance", "ethics"];
+
+/** Topic owners straight into kpi_topic_assignment: {site_id | "company": user_id}, every topic (or `topics`). */
+const setTopicOwners = (companyId, owners, topics = TOPICS) =>
+  withDb(async (db) => {
+    for (const [site, user] of Object.entries(owners)) {
+      for (const t of topics) {
+        await db.query(
+          `INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id) VALUES ($1, $2, $3, $4)
+           ON CONFLICT (company_id, (COALESCE(site_id, 0)), topic) DO UPDATE SET owner_user_id = EXCLUDED.owner_user_id, reviewer_user_id = NULL`,
+          [companyId, site === "company" ? null : Number(site), t, user],
+        );
+      }
+    }
+  });
+
+const setupCompany = (companyId, { yearType = "CY", frameworks = ["GRI", "BRSR", "ESRS"], kpis = null, frequencies = {}, completed = true, topicOwners = DEFAULT_TOPIC_OWNERS[companyId] ?? false } = {}) =>
   withDb(async (db) => {
     await db.query(
       `INSERT INTO company_kpi_settings (company_id, year_type, first_year, due_day, setup_completed_at) VALUES ($1, $2, 2026, 15, CASE WHEN $3 THEN now() END)
@@ -63,15 +87,15 @@ const setupCompany = (companyId, { yearType = "CY", frameworks = ["GRI", "BRSR",
     for (const [code, frequency] of Object.entries(frequencies)) {
       await db.query(`UPDATE company_kpi SET frequency = $3 WHERE company_id = $1 AND kpi_definition_id = (SELECT id FROM kpi_definition WHERE code = $2 AND company_id IS NULL)`, [companyId, code, frequency]);
     }
-  });
+  }).then(() => (topicOwners ? setTopicOwners(companyId, topicOwners) : undefined));
 
 /** Removes every KPI-3 setup row of the fixture companies (1, 2) and their users' topic grants. */
 const clearSetup = () =>
   withDb(async (db) => {
-    for (const t of ["kpi_assignment", "company_kpi", "company_material_topic", "company_framework", "company_kpi_settings"]) {
+    for (const t of ["kpi_topic_assignment", "kpi_assignment", "company_kpi", "company_material_topic", "company_framework", "company_kpi_settings"]) {
       await db.query(`DELETE FROM ${t} WHERE company_id IN (1, 2)`);
     }
     await db.query(`DELETE FROM kpi_topic_grant WHERE user_id IN (1, 2, 3, 4, 6, 7)`);
   });
 
-module.exports = { setSwitch, runScript, kpiRoutes, concrete, setupCompany, clearSetup, ROOT };
+module.exports = { setSwitch, runScript, kpiRoutes, concrete, setupCompany, clearSetup, setTopicOwners, DEFAULT_TOPIC_OWNERS, TOPICS, ROOT };
