@@ -17,6 +17,7 @@ import reviewRouter from "./review/router";
 import targetsRouter from "./targets/router";
 import dashboardRouter from "./dashboard/router";
 import reportsRouter from "./reports/router";
+import aiRouter from "./ai/router";
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use(reviewRouter); // KPI-8: /kpi/values/approve|reject, /kpi/periods/loc
 router.use(targetsRouter); // KPI-9: /kpi/targets
 router.use(dashboardRouter); // KPI-10: /kpi/dashboard, /kpi/dashboard/remind
 router.use(reportsRouter); // KPI-11: /kpi/reports/:framework
+router.use(aiRouter); // KPI-12: /kpi/ai/suggest-values, /kpi/ai/suggest-mapping
 
 export default router;

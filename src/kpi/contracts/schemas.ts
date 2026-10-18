@@ -336,5 +336,19 @@ export const KpiReportQuerySchema = z.object({
   sites: z.string().regex(/^\d+(,\d+)*$/).optional(),
 });
 
-export const KpiSuggestValuesSchema = z.object({ document_id: id, site_id: id.nullable().optional(), period_start: IsoDateSchema.optional() });
+const blankToUndefined = (v: unknown) => (v === "" || v === "null" ? undefined : v);
+/**
+ * KPI-12 `POST /kpi/ai/suggest-values`: JSON `{document_id, …}`, or multipart
+ * `file` with the same fields as strings. `site_id` narrows to one of the
+ * caller's sites; `period` (YYYY-MM, default last month, as /kpi/my) picks
+ * the due items; `kpis` narrows to some of them (codes; a code the caller
+ * doesn't owe there is KPI_NOT_ASSIGNED).
+ */
+export const KpiSuggestValuesSchema = z.object({
+  document_id: z.preprocess(blankToUndefined, IdSchema.optional()),
+  site_id: z.preprocess(blankToUndefined, IdSchema.nullable().optional()),
+  period: z.preprocess(blankToUndefined, z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM").optional()),
+  period_start: z.preprocess(blankToUndefined, IsoDateSchema.optional()),
+  kpis: z.preprocess((v) => (typeof v === "string" ? (v.trim() ? v.split(",").map((x) => x.trim()) : undefined) : v), z.array(KpiCodeSchema).max(200).optional()),
+});
 export const KpiSuggestMappingSchema = z.object({ name: text(200), question: text(500), unit: unit.nullable().optional(), topic: KpiTopicSchema });

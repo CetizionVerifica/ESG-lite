@@ -18,7 +18,7 @@ src/kpi/
   targets/         targets and progress                                      (KPI-9)
   dashboard/       coverage per framework, gaps, trends                      (KPI-10)
   reports/         GRI index, BRSR tables, ESRS list; xlsx + pdf templates   (KPI-11)
-  ai/              proxy to python app/kpi (suggest only)                    (KPI-12)
+  ai/              proxy to python app/kpi (suggest only; ai/CLAUDE.md as built) (KPI-12)
 ```
 Entities: `src/entities/Kpi*.ts`. Migrations: `src/scripts/migrateKpi<Thing>.ts`, registered as `migrate:kpi-<thing>`. Seeds: `data/kpi/` (library CSV/JSON with source URLs). Tests: `ci/api/tests/kpi-<n>-*.test.cjs`, `ci/unit/kpi-*.test.cjs`, `ci/golden/kpi/`.
 
