@@ -47,6 +47,8 @@ INSERT INTO "user" (user_id, name, email, password, role, site_id) VALUES
   (5, 'CI Superadmin', 'ci-superadmin@example.invalid', 'x', 'Superadmin', NULL),
   (6, 'CI Other Manager', 'ci-other-manager@example.invalid', 'x', 'Manager', NULL),
   (7, 'CI Multi User', 'ci-multi@example.invalid', 'x', 'User', NULL);
+-- An Admin belongs to a company, not a site (migrate:user-company).
+UPDATE "user" SET site_id = NULL, company_id = 1 WHERE user_id = 3;
 INSERT INTO user_sites (user_id, site_id) VALUES (2, 1), (2, 2), (6, 3), (7, 1), (7, 2);
 INSERT INTO user_categories (user_id, category_id) VALUES (7, 1), (7, 2);
 

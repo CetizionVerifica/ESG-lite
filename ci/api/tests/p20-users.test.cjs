@@ -209,7 +209,7 @@ test("removing someone with entries is refused with 409 and keeps them", async (
 });
 
 test("removing someone without history works", async () => {
-  const created = await call("POST", "/admin/users", "superadmin", { email: "p20-remove@example.invalid", role: "Admin" });
+  const created = await call("POST", "/admin/users", "superadmin", { email: "p20-remove@example.invalid", role: "Admin", company_id: 1 });
   assert.equal(created.status, 201);
   const res = await call("DELETE", `/admin/users/${created.json.user.user_id}`, "superadmin");
   assert.equal(res.status, 200);

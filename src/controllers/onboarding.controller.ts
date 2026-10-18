@@ -109,7 +109,7 @@ export const onboardCompany = async (req: Request, res: Response) => {
             password: hashedPassword,
             phone_number: phoneNumber,
             role: UserRole.ADMIN, // Company Admin
-            site: savedSite, // Link to the main site
+            company: savedCompany, // An Admin belongs to the company, not a site
         });
         await userRepo.save(user);
 

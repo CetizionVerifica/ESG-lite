@@ -16,14 +16,14 @@ export const KPI_ENABLED_NOTIFICATION = {
   link: "/kpi/setup",
 } as const;
 
-/** Admins with a site (own or through user_sites) at the company. */
+/** The company's Admins (user.company_id; older rows: a site of the company, own or through user_sites). */
 export const companyAdminIds = async (companyId: number): Promise<number[]> => {
   const rows: Array<{ user_id: number }> = await AppDataSource.query(
     `SELECT DISTINCT u.user_id FROM "user" u
        LEFT JOIN site s ON s.site_id = u.site_id
        LEFT JOIN user_sites us ON us.user_id = u.user_id
        LEFT JOIN site s2 ON s2.site_id = us.site_id
-      WHERE u.role = 'Admin' AND (s.company_id = $1 OR s2.company_id = $1)
+      WHERE u.role = 'Admin' AND (u.company_id = $1 OR s.company_id = $1 OR s2.company_id = $1)
       ORDER BY u.user_id`,
     [companyId],
   );

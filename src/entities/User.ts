@@ -8,6 +8,7 @@ import {
   JoinTable,
 } from "typeorm";
 import { Site } from "./Site";
+import { Company } from "./Company";
 import { Category } from "./Category";
 import { UserRole } from "../types/type";
 
@@ -45,6 +46,16 @@ export class User {
 
   @Column()
   role!: UserRole;
+
+  // An Admin belongs to a company, not a site: `company_id` is set for Admins only (site_id null,
+  // no user_sites). Managers and Users have no company_id; their company comes from their sites.
+  // resolveUserCompanyId reads this first. Added by migrate:user-company.
+  @Column({ type: "int", nullable: true })
+  company_id!: number | null;
+
+  @ManyToOne(() => Company, { nullable: true, onDelete: "CASCADE" })
+  @JoinColumn({ name: "company_id" })
+  company!: Company | null;
 
   // For regular users (one site)
   @ManyToOne(() => Site, (site) => site.users, { nullable: true, onDelete: "CASCADE" })

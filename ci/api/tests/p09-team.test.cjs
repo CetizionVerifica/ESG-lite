@@ -28,7 +28,8 @@ test("a manager can't read or change an Admin's or another manager's category ac
     for (const id of [3, 6]) {
       const read = await call("GET", `/manager/users/${id}/categories`, "manager");
       assert.equal(read.status, 403, `read ${id}`);
-      assert.match(read.json.message, /User role/);
+      // An Admin is no one's site colleague (they belong to the company), another Manager isn't a User.
+      assert.match(read.json.message, /User role|not on your sites/);
       const write = await call("PUT", `/manager/users/${id}/categories`, "manager", { category_ids: [] });
       assert.equal(write.status, 403, `write ${id}`);
     }

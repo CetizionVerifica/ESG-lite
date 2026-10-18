@@ -39,7 +39,7 @@ test.before(async () => {
 });
 test.after(async () => {
   await wipe();
-  await q(`UPDATE "user" SET role = 'User' WHERE user_id = 1`);
+  await q(`UPDATE "user" SET role = 'User', site_id = 1, company_id = NULL WHERE user_id = 1`);
   await setSwitch(1, false);
 });
 
@@ -72,10 +72,11 @@ test("a KPI's frequency can't change once values exist at the old one", async ()
 });
 
 test("the user update saves the person and their KPI topics together", async () => {
-  // An Admin can't own a site topic, so this topic change is refused, and the role change with it.
-  const r = await call("PATCH", "/admin/users/1", "superadmin", { role: "Admin", kpi_topics: ["energy"], company_id: 1 });
-  assert.equal(r.json.code, "KPI_VALUE_INVALID", JSON.stringify(r.json));
-  assert.equal((await q(`SELECT role FROM "user" WHERE user_id = 1`))[0].role, "User", "role unchanged");
+  // Moving user 1 to company 2's site while giving them company 1's topics: they are no longer
+  // company 1's person, so the topics are refused, and the site move with them.
+  const r = await call("PATCH", "/admin/users/1", "superadmin", { site_id: 3, kpi_topics: ["energy"], company_id: 1 });
+  assert.equal(r.json.code, "KPI_NOT_FOUND", JSON.stringify(r.json));
+  assert.deepEqual(await q(`SELECT role, site_id FROM "user" WHERE user_id = 1`), [{ role: "User", site_id: 1 }], "user unchanged");
   // A topic change the person may hold still saves.
   const ok = await call("PATCH", "/company-admin/users/1", "admin", { kpi_topics: ["energy"] });
   assert.equal(ok.status, 200, JSON.stringify(ok.json));

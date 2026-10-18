@@ -91,8 +91,8 @@ async function companyPeople(m: EntityManager, companyId: number): Promise<Array
             COALESCE(array_agg(DISTINCT s.site_id) FILTER (WHERE s.site_id IS NOT NULL), '{}') AS site_ids
        FROM "user" u
        LEFT JOIN user_sites us ON us.user_id = u.user_id
-       JOIN site s ON (s.site_id = u.site_id OR s.site_id = us.site_id) AND s.company_id = $1
-      WHERE u.role IN ('User', 'Manager', 'Admin')
+       LEFT JOIN site s ON (s.site_id = u.site_id OR s.site_id = us.site_id) AND s.company_id = $1
+      WHERE u.role IN ('User', 'Manager', 'Admin') AND (s.site_id IS NOT NULL OR u.company_id = $1)
       GROUP BY u.user_id ORDER BY u.user_id`,
     [companyId],
   );
@@ -313,13 +313,15 @@ async function saveAssignments(m: EntityManager, caller: KpiCaller, items: Array
   );
   const roles = new Map<number, string>();
   const sitesOf = new Map<number, Set<number>>();
+  const ofCompany = new Set<number>(); // Admins of this company (user.company_id)
   const person = async (userId: number) => {
     if (!roles.has(userId)) {
-      const rows: Row[] = await m.query(`SELECT role FROM "user" WHERE user_id = $1`, [userId]);
+      const rows: Row[] = await m.query(`SELECT role, company_id FROM "user" WHERE user_id = $1`, [userId]);
       roles.set(userId, rows[0]?.role ?? "");
       sitesOf.set(userId, await userSiteIds(m, userId));
+      if (rows[0]?.company_id != null && Number(rows[0].company_id) === companyId) ofCompany.add(userId);
     }
-    return { role: roles.get(userId)!, sites: sitesOf.get(userId)! };
+    return { role: roles.get(userId)!, sites: sitesOf.get(userId)!, ofCompany: ofCompany.has(userId) };
   };
   const changed: Record<string, { old: unknown; new: unknown }> = {};
   for (let i = 0; i < items.length; i++) {
@@ -335,7 +337,7 @@ async function saveAssignments(m: EntityManager, caller: KpiCaller, items: Array
     const ownerOk =
       owner.role !== UserRole.SUPERADMIN &&
       owner.role !== "" &&
-      (a.site_id === null ? ownerSites.length > 0 : owner.role === UserRole.ADMIN ? ownerSites.length > 0 : owner.sites.has(a.site_id));
+      (a.site_id === null ? owner.ofCompany || ownerSites.length > 0 : owner.role === UserRole.ADMIN ? owner.ofCompany || ownerSites.length > 0 : owner.sites.has(a.site_id));
     if (!ownerOk) throw new KpiError("KPI_VALUE_INVALID", { field: `assignments.${i}.owner_user_id`, rule: a.site_id === null ? "user_of_the_company" : "user_of_the_site" });
 
     const reviewerId = a.reviewer_user_id ?? null;

@@ -66,7 +66,7 @@ export async function enabledFrameworks(m: EntityManager, companyId: number): Pr
   );
 }
 
-/** The sites a user belongs to: `user.site_id` and `user_sites`. */
+/** The sites a user belongs to: `user.site_id` and `user_sites` (an Admin has none: see `userCompanyId`). */
 export async function userSiteIds(m: EntityManager, userId: number): Promise<Set<number>> {
   const rows: Row[] = await m.query(
     `SELECT site_id FROM "user" WHERE user_id = $1 AND site_id IS NOT NULL
@@ -74,4 +74,10 @@ export async function userSiteIds(m: EntityManager, userId: number): Promise<Set
     [userId],
   );
   return new Set(rows.map((r) => Number(r.site_id)));
+}
+
+/** An Admin's company (`user.company_id`), or null. */
+export async function userCompanyId(m: EntityManager, userId: number): Promise<number | null> {
+  const [row]: Row[] = await m.query(`SELECT company_id FROM "user" WHERE user_id = $1`, [userId]);
+  return row?.company_id == null ? null : Number(row.company_id);
 }

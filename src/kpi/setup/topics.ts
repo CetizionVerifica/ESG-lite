@@ -123,13 +123,13 @@ export function suggestTopicAssignments(
 // Owner rules
 // ---------------------------------------------------------------------------
 
-/** Role and sites of people, cached per request. */
-export function personLookup(m: EntityManager) {
-  const cache = new Map<number, { role: string; sites: Set<number>; name: string | null }>();
+/** Role and sites of people, cached per request; `ofCompany`: an Admin of `companyId` (user.company_id). */
+export function personLookup(m: EntityManager, companyId: number) {
+  const cache = new Map<number, { role: string; sites: Set<number>; name: string | null; ofCompany: boolean }>();
   return async (userId: number) => {
     if (!cache.has(userId)) {
-      const [u]: Row[] = await m.query(`SELECT role, ${nameSql("u")} AS name FROM "user" u WHERE user_id = $1`, [userId]);
-      cache.set(userId, { role: u?.role ?? "", sites: u ? await userSiteIds(m, userId) : new Set(), name: u?.name ?? null });
+      const [u]: Row[] = await m.query(`SELECT role, company_id, ${nameSql("u")} AS name FROM "user" u WHERE user_id = $1`, [userId]);
+      cache.set(userId, { role: u?.role ?? "", sites: u ? await userSiteIds(m, userId) : new Set(), name: u?.name ?? null, ofCompany: u?.company_id != null && Number(u.company_id) === companyId });
     }
     return cache.get(userId)!;
   };
@@ -142,7 +142,7 @@ export async function assertTopicOwner(
   field: string,
 ): Promise<void> {
   const owner = await person(slot.owner_user_id);
-  const inCompany = [...owner.sites].some((s) => companySites.has(s));
+  const inCompany = owner.ofCompany || [...owner.sites].some((s) => companySites.has(s));
   const ok =
     slot.site_id === null
       ? inCompany && [UserRole.ADMIN, UserRole.MANAGER, UserRole.USER].includes(owner.role as UserRole)
@@ -193,7 +193,7 @@ export async function saveTopicAssignments(
 ): Promise<void> {
   const companyId = caller.companyId;
   const companySites = await companySiteSet(m, companyId);
-  const person = personLookup(m);
+  const person = personLookup(m, caller.companyId);
   const wanted = new Map<string, { site_id: number | null; topic: string; owner_user_id: number; reviewer_user_id: number | null }>();
   for (let i = 0; i < items.length; i++) {
     const a = items[i];
@@ -239,11 +239,13 @@ const PEOPLE_WRITERS = new Set<string>([UserRole.ADMIN, UserRole.SUPERADMIN, Use
 
 /** The person, if they belong to the company (another company's user: 404). */
 async function companyPerson(m: EntityManager, companyId: number, userId: number) {
-  const [u]: Row[] = await m.query(`SELECT user_id, role, ${nameSql("u")} AS name FROM "user" u WHERE user_id = $1`, [userId]);
+  const [u]: Row[] = await m.query(`SELECT user_id, role, company_id, ${nameSql("u")} AS name FROM "user" u WHERE user_id = $1`, [userId]);
   if (!u || u.role === UserRole.SUPERADMIN) throw new KpiError("KPI_NOT_FOUND", { user_id: userId });
   const companySites = await companySiteSet(m, companyId);
   const sites = [...(await userSiteIds(m, userId))].filter((s) => companySites.has(s)).sort((a, b) => a - b);
-  if (!sites.length) throw new KpiError("KPI_NOT_FOUND", { user_id: userId });
+  // An Admin belongs to the company itself (no sites); anyone else through a site of it.
+  const ofCompany = u.company_id != null && Number(u.company_id) === companyId;
+  if (!sites.length && !ofCompany) throw new KpiError("KPI_NOT_FOUND", { user_id: userId });
   return { user_id: Number(u.user_id), role: String(u.role), name: (u.name as string | null) ?? null, sites, companySites };
 }
 
@@ -310,7 +312,9 @@ export async function putPeopleTopics(caller: KpiCaller, userId: number, raw: un
         if (managerSites && !managerSites.has(s)) throw new KpiError("KPI_FORBIDDEN", { rule: "your_sites_only", site_id: s });
       }
     } else siteIds = managerSites ? p.sites.filter((s) => managerSites.has(s)) : p.sites;
-    const person = personLookup(m);
+    // An Admin belongs to the company, not a site, so owns no site topic (company-level ones are set in setup).
+    if (!siteIds.length && topics.length && p.role === UserRole.ADMIN) throw new KpiError("KPI_VALUE_INVALID", { field: "topics", rule: "user_of_the_site" });
+    const person = personLookup(m, caller.companyId);
     for (const s of siteIds) for (const t of topics) await assertTopicOwner(person, p.companySites, { site_id: s, owner_user_id: userId }, `site_ids.${s}`);
 
     const current: Row[] = siteIds.length

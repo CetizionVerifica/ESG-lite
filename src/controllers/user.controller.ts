@@ -6,6 +6,7 @@ import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
+import { Company } from "../entities/Company";
 import { UserRole } from "../types/type";
 import { mixedCompaniesError, resolveUserCompanyId } from "../utils/companyScope";
 // D18: the KPI topics field, as on the company user update (an alias of PUT /kpi/people/:user_id/topics)
@@ -18,7 +19,7 @@ const categoryRepo = AppDataSource.getRepository(Category);
 
 // What the Users page (redesign P20) needs per row: sites with their client,
 // and the categories the person can enter data for.
-const USER_RELATIONS = ["site", "site.company", "sites", "sites.company", "categories"];
+const USER_RELATIONS = ["company", "site", "site.company", "sites", "sites.company", "categories"];
 
 /** Keep only the client's id and name on each joined site. */
 const trimCompany = (site?: Site | null) => {
@@ -26,6 +27,29 @@ const trimCompany = (site?: Site | null) => {
     site.company = { company_id: site.company.company_id, name: site.company.name } as Site["company"];
   }
 };
+
+/** Keep only the client's id and name on an Admin's company. */
+const trimOwnCompany = (user: User) => {
+  if (user.company) user.company = { company_id: user.company.company_id, name: user.company.name } as Company;
+};
+
+const companyRepo = AppDataSource.getRepository(Company);
+
+/**
+ * An Admin belongs to a client, not a site. The client comes from `company_id`, or, from an
+ * older client of this API, from the company of `site_id` / the first of `site_ids` (the site
+ * itself is not linked). Null when none is given or the company doesn't exist.
+ */
+const adminCompanyFrom = async (body: Record<string, unknown>): Promise<number | null> => {
+  const given = Number(body?.company_id);
+  if (Number.isInteger(given) && given > 0) return (await companyRepo.findOne({ where: { company_id: given } })) ? given : null;
+  const siteId = Number(body?.site_id ?? (Array.isArray(body?.site_ids) ? body.site_ids[0] : undefined));
+  if (!Number.isInteger(siteId) || siteId <= 0) return null;
+  const site = await siteRepo.findOne({ where: { site_id: siteId }, relations: ["company"] });
+  return site?.company?.company_id ?? null;
+};
+
+const ADMIN_COMPANY_REQUIRED = { code: "FIELD_INVALID", field: "company_id", message: "An Admin belongs to a client: choose the client (company_id)." };
 
 /**
  * Adds last_login_at (select: false on the entity) to each user. Before
@@ -50,6 +74,7 @@ const withLastLogin = async (users: User[]) => {
 const loadUser = async (user_id: number) => {
   const user = await repo.findOne({ where: { user_id }, relations: USER_RELATIONS });
   if (!user) return user;
+  trimOwnCompany(user);
   trimCompany(user.site);
   for (const site of user.sites || []) trimCompany(site);
   return (await withLastLogin([user]))[0];
@@ -141,6 +166,7 @@ export const getUsers = async (_: Request, res: Response) => {
       order: { user_id: "ASC" },
     });
     for (const u of users) {
+      trimOwnCompany(u);
       trimCompany(u.site);
       for (const site of u.sites || []) trimCompany(site);
     }
@@ -246,7 +272,30 @@ export const createUser = async (req: Request, res: Response) => {
       });
     }
 
-    // For users with single site (Admin, Superadmin, or single-site assignment)
+    // An Admin belongs to a client, not a site.
+    if (role === UserRole.ADMIN) {
+      const companyId = await adminCompanyFrom(req.body);
+      if (!companyId) return res.status(400).json(ADMIN_COMPANY_REQUIRED);
+      const admin = repo.create({
+        ...profile.fields,
+        name: name?.trim(),
+        email: email.trim().toLowerCase(),
+        password: hashedPassword,
+        role,
+        company_id: companyId,
+        company: { company_id: companyId } as Company,
+        is_internal: false,
+        categories: [],
+      });
+      await repo.save(admin);
+      return res.status(201).json({
+        message: "User created successfully",
+        user: await loadUser(admin.user_id),
+        ...(generated ? { temporary_password: generated } : {}),
+      });
+    }
+
+    // For users with single site (Superadmin, or single-site assignment)
     let siteCategories: Category[] = [];
     if (site_id) {
       const siteWithCats = await siteRepo.findOne({
@@ -296,7 +345,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const hasProfileChange = Object.keys(profile.fields).length > 0 || category_ids !== undefined;
     const kpiTopicsRaw = req.body?.kpi_topics; // D18
 
-    if (!name && !email && !password && !role && site_id === undefined && site_ids === undefined && !hasProfileChange && kpiTopicsRaw === undefined) {
+    if (!name && !email && !password && !role && site_id === undefined && site_ids === undefined && !hasProfileChange && kpiTopicsRaw === undefined && req.body?.company_id === undefined) {
       return res.status(400).json({
         message: "At least one field is required for update",
       });
@@ -418,6 +467,23 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     Object.assign(user, profile.fields);
+
+    // An Admin belongs to a client, not a site: no site, sites or categories. The client is the
+    // one sent (company_id, or the company of a sent site), else the one they had, else (on
+    // promotion) the company of their sites. Any other role has no company of its own.
+    if (nextRole === UserRole.ADMIN) {
+      const sent = req.body?.company_id !== undefined || site_id !== undefined || site_ids !== undefined;
+      const companyId = (sent ? await adminCompanyFrom(req.body) : null) ?? user.company_id ?? (await resolveUserCompanyId(user.user_id));
+      if (!companyId) return res.status(400).json(ADMIN_COMPANY_REQUIRED);
+      user.company_id = companyId;
+      user.company = { company_id: companyId } as Company;
+      user.site = null as any;
+      user.sites = [];
+      user.categories = [];
+    } else if (user.company_id !== null && user.company_id !== undefined) {
+      user.company_id = null;
+      user.company = null;
+    }
 
     // Narrow categories within what the person's sites offer. Sites changed
     // above re-seeded user.categories; otherwise read the current sites.

@@ -78,8 +78,8 @@ export async function sendDueReminders(today = todayIso()): Promise<ReminderRun>
     out.companies++;
     const people: Row[] = await AppDataSource.query(
       `SELECT DISTINCT u.user_id, u.role FROM "user" u LEFT JOIN user_sites us ON us.user_id = u.user_id
-         JOIN site s ON s.site_id IN (u.site_id, us.site_id)
-        WHERE s.company_id = $1 AND u.role IN ('User', 'Manager', 'Admin') ORDER BY u.user_id`,
+         LEFT JOIN site s ON s.site_id IN (u.site_id, us.site_id) AND s.company_id = $1
+        WHERE (s.site_id IS NOT NULL OR u.company_id = $1) AND u.role IN ('User', 'Manager', 'Admin') ORDER BY u.user_id`,
       [companyId],
     );
     for (const p of people) {

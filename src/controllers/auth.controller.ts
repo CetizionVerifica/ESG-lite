@@ -14,6 +14,7 @@ import { mixedCompaniesError } from "../utils/companyScope";
 
 // Relations needed to build the session user (sites + their categories + grants).
 const SESSION_USER_RELATIONS = [
+  "company", // an Admin's company (user.company_id)
   "site",
   "site.company",
   "site.categories",

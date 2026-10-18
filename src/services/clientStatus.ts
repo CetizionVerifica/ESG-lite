@@ -36,6 +36,8 @@ const lookup = async (userId: number): Promise<boolean> => {
             SELECT s.company_id FROM site s JOIN "user" u ON u.site_id = s.site_id WHERE u.user_id = $1
             UNION
             SELECT s.company_id FROM site s JOIN user_sites us ON us.site_id = s.site_id WHERE us.user_id = $1
+            UNION
+            SELECT u.company_id FROM "user" u WHERE u.user_id = $1 AND u.company_id IS NOT NULL
       )`,
     [userId],
   );
@@ -61,7 +63,8 @@ export const closeInactiveClientStreams = async (companyId: number): Promise<voi
   const rows: { user_id: number; role: string }[] = await AppDataSource.query(
     `SELECT DISTINCT u.user_id, u.role
        FROM "user" u
-      WHERE u.site_id IN (SELECT site_id FROM site WHERE company_id = $1)
+      WHERE u.company_id = $1
+         OR u.site_id IN (SELECT site_id FROM site WHERE company_id = $1)
          OR u.user_id IN (SELECT us.user_id FROM user_sites us JOIN site s ON s.site_id = us.site_id WHERE s.company_id = $1)`,
     [companyId],
   );

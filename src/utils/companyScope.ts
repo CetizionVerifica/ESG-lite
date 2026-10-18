@@ -16,9 +16,10 @@ const ADMIN_COMPANY_RELATIONS = [
 ];
 
 /**
- * Resolve the company a user belongs to. A user has no direct company link —
- * it is derived from their single site or, for multi-site roles, their first site.
- * Returns null when the user is not linked to any company.
+ * Resolve the company a user belongs to. An Admin belongs to a company
+ * (`user.company_id`); everyone else's company is derived from their single
+ * site or, for multi-site roles, their first site. Returns null when the user
+ * is not linked to any company.
  */
 export const resolveUserCompanyId = async (
   userId: number
@@ -33,6 +34,7 @@ export const resolveUserCompanyId = async (
   }
 
   return (
+    user.company_id ??
     user.site?.company?.company_id ??
     user.sites?.[0]?.company?.company_id ??
     null
@@ -55,8 +57,10 @@ export const getCompanySiteIds = async (
  */
 export const userBelongsToCompany = (
   user: User,
-  companySiteIds: Set<number>
+  companySiteIds: Set<number>,
+  companyId?: number
 ): boolean => {
+  if (companyId !== undefined && user.company_id === companyId) return true;
   if (user.site && companySiteIds.has(user.site.site_id)) {
     return true;
   }
@@ -145,5 +149,6 @@ export const mixedCompaniesError = (sites: Site[]): string | null => {
   const names = new Map<number, string>();
   for (const site of sites) names.set(site.company?.company_id ?? 0, site.company?.name ?? "no client");
   if (names.size <= 1) return null;
-  return `A person's sites must all belong to one client. These sites belong to ${names.size} clients: ${[...names.values()].join(", ")}.`;
+  const listed = [...names.entries()].sort((a, b) => a[0] - b[0]).map(([, name]) => name);
+  return `A person's sites must all belong to one client. These sites belong to ${names.size} clients: ${listed.join(", ")}.`;
 };

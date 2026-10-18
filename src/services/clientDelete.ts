@@ -119,7 +119,9 @@ export const deleteClient = async (companyId: number): Promise<ClientDeleteResul
         await m.query(`SELECT site_id FROM site WHERE company_id = $1 ORDER BY site_id FOR UPDATE`, [companyId])
       ).map((r: { site_id: number }) => Number(r.site_id));
       const people = await linkedPeople(m, siteIds);
-      const leaving = people.filter((p) => p.onlyHere && !p.superadmin).map((p) => p.userId);
+      // The company's Admins belong to it (user.company_id) and go with it.
+      const admins: { user_id: number }[] = await m.query(`SELECT user_id FROM "user" WHERE company_id = $1`, [companyId]);
+      const leaving = [...new Set([...people.filter((p) => p.onlyHere && !p.superadmin).map((p) => p.userId), ...admins.map((a) => Number(a.user_id))])];
 
       const history = await clientHistory(m, companyId, siteIds, leaving);
       if (hasHistory(history)) return { status: "has_history", history };

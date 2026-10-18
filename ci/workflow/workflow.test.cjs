@@ -106,9 +106,11 @@ step("5a default currency is INR and Users see the total only (SE-2)", async () 
   // The session's company carries both, so the entry screens read them (SE-1).
   const me = await call("GET", "/auth/me", S.admin);
   ok(me);
+  // An Admin belongs to the company (user.company); others read it through their sites.
   const sites = me.json.user?.sites?.length ? me.json.user.sites : [me.json.user?.site].filter(Boolean);
-  assert.ok(sites.length > 0, JSON.stringify(me.json).slice(0, 300));
-  for (const s of sites) assert.deepEqual({ entry_detail: s.company?.entry_detail, default_currency: s.company?.default_currency }, { entry_detail: "total", default_currency: "INR" });
+  const companies = me.json.user?.company ? [me.json.user.company] : sites.map((s) => s.company);
+  assert.ok(companies.length > 0, JSON.stringify(me.json).slice(0, 300));
+  for (const c of companies) assert.deepEqual({ entry_detail: c?.entry_detail, default_currency: c?.default_currency }, { entry_detail: "total", default_currency: "INR" });
 });
 
 step("5b review workflow v2 (drafts and month lock) is off until the Superadmin turns it on", async () => {
