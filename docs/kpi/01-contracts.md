@@ -9,6 +9,7 @@ The single source for names, shapes and codes. Backend copy: `ESG-lite/src/kpi/c
 | `FrameworkCode` | `GRI`, `BRSR`, `ESRS` | More later (ISSB, VSME) by adding rows, not code. |
 | `RequirementLevel` | `required`, `if_material`, `voluntary`, `core` | `core` = BRSR Core (assurance subset). `if_material` = ESRS datapoints a client reports only when the topic is material. |
 | `KpiTopic` | `climate`, `energy`, `water`, `waste`, `pollution`, `biodiversity`, `materials`, `workforce`, `health_safety`, `diversity`, `training`, `human_rights`, `community`, `customers`, `governance`, `ethics` | Groups KPIs in the UI and drives the per-user topic grant (§2 `kpi_topic_grant`). |
+| `KpiPillar` | `environment`, `social`, `governance` | D19 (wave E). Labels Environment / Social / Governance, letters E / S / G. `TOPIC_PILLAR` gives each topic one: climate, energy, water, waste, pollution, biodiversity, materials → environment; workforce, health_safety, diversity, training, human_rights, community, customers → social; governance, ethics → governance. |
 | `KpiValueType` | `number`, `percent`, `integer`, `currency`, `yes_no`, `choice`, `text` | `text` is for narrative disclosures. Most KPIs are numbers. |
 | `KpiSource` | `manual`, `auto`, `formula` | `auto` = read from ESGLite data (KPI-5). `formula` = calculated from other KPIs (KPI-6). |
 | `KpiAggregation` | `sum`, `average`, `weighted_average`, `max`, `latest`, `none` | How site values roll up to the company, and months to the year. |
@@ -29,6 +30,7 @@ Plain-language labels for every value live in `src/lib/kpi/labels.ts`; pages nev
   - `aggregation`, `level`, `default_frequency`, `source`, `auto_source` (null unless `auto`), `formula` (null unless `formula`).
   - `breakdowns jsonb` (e.g. `{ "by": ["source"], "values": ["groundwater","surface","third_party"] }`).
   - `decimals`, `company_id` (null = library; set = a company's custom KPI), `active`, `created_at`.
+  - `pillar` (D19, wave E: `environment` | `social` | `governance`, not null; migrate:kpi-pillars backfills it from `TOPIC_PILLAR[topic]`; the seed and custom KPIs default it from the topic; only a Superadmin overrides it on a library KPI).
 - `kpi_framework`: `id`, `code`, `version` (e.g. `GRI 2021+`, `BRSR 2023`, `ESRS 2023`), `name`, `source_url`, `active`, `default_for_new` (bool).
 - `kpi_disclosure`
   - `id`, `framework_id`, `code` (e.g. `305-1`, `P6-E7`, `E1-6`), `title` (our own words), `section` (e.g. `GRI 305`, `Principle 6 · Essential`, `E1 Climate change`).
@@ -90,6 +92,7 @@ Audit: `audit_log.entity_type` gains `kpi_value`, `kpi_setup`, `kpi_period_lock`
 | `GET /kpi/dashboard?year=&framework=&site=&topic=` | Manager+, Admin | KPI-10 | coverage per framework, gaps, trends |
 | `POST /kpi/dashboard/remind` | Manager+, Admin | KPI-10 | `{kpi, site}` → a `kpi_due` to the owner, at most once a day per item |
 | `GET /kpi/overview` | any | KPI-10 (wave D fix 3) | `{period, year, readiness:[{framework, version, percent}], due:{due, sent_back, done}, setup_completed}`; readiness for Manager, Admin, Superadmin (`[]` for a User); before setup the empty shape with `setup_completed: false` |
+| `GET /kpi/esg?year=&site=&pillar=&topic=` | Manager (own sites), Admin, Superadmin | D19 (wave E) | `{year, year_type, label, filters:{site, pillar, topic}, pillars:[{pillar, label, kpis, approved, pending, missing, not_due, coverage_pct, change:{approved_pct_vs_last_year}, topics:[{topic, label, kpis, approved, pending, missing, coverage_pct}]}], trends:[{pillar, topic, kpi_definition_id, code, name, unit, decimals, direction_good, series:[{period, period_start, label, value}], value, previous, change_pct, target:{progress_pct, status, label} \| null}], sites:[{site_id, name, pillars:{environment, social, governance}}], movers:[{kpi_definition_id, name, pillar, change_pct, direction_good, good}], pending_not_in:{count, link}}`; approved values only, D17 expected sites; `pillars` and `sites` always carry all three pillars (honour `site` and `topic`), `trends`, `movers` and `pending_not_in` honour `pillar` too; `site` drops company-level KPIs; headlines in `src/kpi/esg/headlines.ts` (≤ 4 per pillar; series: the year's months or quarters, annual KPIs the last 5 years); a User gets 403 `KPI_FORBIDDEN` |
 | `GET /kpi/reports/:framework?year=&format=xlsx\|pdf\|json` | Manager+, Admin | KPI-11 | the framework export (approved only) |
 | `POST /kpi/ai/suggest-values` | any (their own due KPIs) | KPI-12 | JSON `{document_id, site_id?, period?, kpis?}` or multipart `file` + the same fields → `{available: true, document_id, document_name, pages, period, suggestions:[{kpi_code, kpi_definition_id, kpi_name, site_id, site_ids, value, unit, breakdown_key, period_start, period_end, site_hint, source_page, quote, confidence, why, check_this, document_id, document_name, label}]}` or `{available: false, message, suggestions: []}` (AI down; a Superadmin until python accepts their uploads) |
 | `POST /kpi/ai/suggest-mapping` | Admin, Superadmin | KPI-12 | `{name, question, unit?, topic}` → `{available, suggestions:[{disclosure_id, framework, version, code, title, section, why, confidence, check_this, fit}]}` from the company's enabled catalogue |
@@ -148,6 +151,7 @@ Plumbing codes every route may answer (not contract decisions; `errors.ts` secon
 | `kpi-review` | `/data/approvals?view=kpi` (a tab of Approvals) | Manager, Superadmin | KPI-8 |
 | `kpi-targets` | `/kpi/targets` | Manager, Admin | KPI-9 |
 | `kpi-dashboard` | `/kpi/dashboard` | Manager, Admin, Superadmin | KPI-10 |
+| `kpi-esg` | `/kpi/esg` ("ESG dashboard") | Manager, Admin, Superadmin | D19 (wave E) |
 | `kpi-reports` | `/reports/kpi/:framework` | Manager, Admin, Superadmin | KPI-11 |
 | `kpi-library` | `/setup/kpi-library` | Superadmin | KPI-2 |
 
