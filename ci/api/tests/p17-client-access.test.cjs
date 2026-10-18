@@ -1,6 +1,6 @@
 // P17 backend gaps: a deactivated client's people can't sign in or use a
 // session they already hold, and onboarding can invite the admin by email
-// instead of setting a password. CI has no Mailgun, so invites come back as
+// instead of setting a password. CI has no Brevo, so invites come back as
 // "not sent" with a warning.
 const test = require("node:test");
 const assert = require("node:assert/strict");

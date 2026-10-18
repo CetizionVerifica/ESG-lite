@@ -1,6 +1,6 @@
 # Email Notification System
 
-Emails are sent **asynchronously** via RabbitMQ + Mailgun. Controllers push jobs to the queue; a background worker picks them up, renders HTML templates, and sends via Mailgun.
+Emails are sent **asynchronously** via RabbitMQ + Brevo. Controllers push jobs to the queue; a background worker picks them up, renders HTML templates, and sends via Brevo.
 
 ---
 
@@ -16,8 +16,8 @@ queues/emailProducer.ts  →  RabbitMQ: email_queue
         ▼
 workers/emailConsumer.ts
   ├─ picks HTML template from templates/emailTemplates.ts
-  ├─ sends via services/emailService.ts → Mailgun
-  ├─ throttles 1 email/sec to avoid Mailgun rate limits
+  ├─ sends via services/emailService.ts → Brevo
+  ├─ throttles 1 email/sec to avoid Brevo rate limits
   ├─ on rate limit (429) → retry_60s (longer backoff)
   ├─ on other failure → retry_5s → retry_30s → retry_60s
   └─ after 3 retries → dlq_queue → config/dlqConsumer.ts (3 more DLQ retries)
@@ -68,7 +68,7 @@ workers/emailConsumer.ts
 | `workers/emailConsumer.ts` | Consumes queue, renders template, sends email, handles retries with rate-limit awareness |
 | `workers/deadlineScheduler.ts` | Cron jobs for 10th (user reminder) and 15th (manager escalation) |
 | `templates/emailTemplates.ts` | HTML templates for all email types |
-| `services/emailService.ts` | Thin Mailgun wrapper — `sendEmailForApprove()` |
+| `services/emailService.ts` | Thin Brevo wrapper (via `config/mailer.ts` `sendMail`) — `sendEmailForApprove()` |
 | `config/rabbitmq.ts` | Connects to RabbitMQ; declares all queues |
 | `config/dlqConsumer.ts` | Re-queues permanently failed messages (max 3 DLQ retries) |
 
@@ -88,7 +88,7 @@ workers/emailConsumer.ts
 **Rate limit protection:**
 - Consumer processes **1 email at a time** (`prefetch(1)`)
 - **1 second delay** between each successful send
-- **429 errors** always route to `retry_60s` (not `retry_5s`) to let Mailgun cool down
+- **429 errors** always route to `retry_60s` (not `retry_5s`) to let Brevo cool down
 - After all DLQ retries exhausted → message dropped + admin failure alert sent to `ADMIN_EMAIL`
 
 ---
@@ -127,8 +127,8 @@ app.listen(3000);
 | Variable | Description |
 |---|---|
 | `RABBITMQ_URL` | e.g. `amqp://localhost` |
-| `MAILGUN_DOMAIN` | Your Mailgun sending domain |
-| `MAILGUN_API_KEY` | Mailgun private key |
+| `BREVO_API_KEY` | Brevo API key (`xkeysib-…`) |
+| `MAIL_FROM` | Sender verified in Brevo, e.g. `ESGLite <no-reply@planetpulse.life>` |
 | `ADMIN_EMAIL` | Receives failure alerts (default: `info@carbonlens.com`) |
 | `FRONTEND_URL` | Used in password reset emails |
 | `CORS_ORIGIN` | Frontend origin for CORS |
@@ -146,7 +146,7 @@ Example:
 ```
 [Emission] APPROVE emission #42 by manager userId=5
 [Emission] Emailing 3 site users for APPROVED
-Email sent via Mailgun to user@example.com (APPROVED)
+Email sent via Brevo to user@example.com (APPROVED)
 ```
 
 ---
