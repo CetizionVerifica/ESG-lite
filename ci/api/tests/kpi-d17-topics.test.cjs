@@ -262,18 +262,30 @@ test("wave B per-KPI rows: one person's become the topic owner; moving the topic
   await q(`DELETE FROM kpi_topic_assignment WHERE company_id = 1 AND topic = 'waste'`);
   // A wave B setup: each waste KPI on site 1 has its own row, all user 1's.
   for (const k of [a, b]) await q(`INSERT INTO kpi_assignment (company_id, kpi_definition_id, site_id, owner_user_id) VALUES (1, $1, 1, 1)`, [k.id]);
+  // The collapse runs only on the run that creates kpi_topic_assignment: drop it (keeping its
+  // other rows) so this run is that first run.
+  const kept = await q(`SELECT company_id, site_id, topic, owner_user_id, reviewer_user_id FROM kpi_topic_assignment`);
+  await q(`DROP TABLE kpi_topic_assignment`);
   const r = runScript("migrateKpiTopicAssignment");
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.match(r.stdout, /1 from per-KPI rows held by one person/);
+  for (const k of kept) {
+    await q(
+      `INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id, reviewer_user_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (company_id, (COALESCE(site_id, 0)), topic) DO NOTHING`,
+      [k.company_id, k.site_id, k.topic, k.owner_user_id, k.reviewer_user_id],
+    );
+  }
   assert.deepEqual((await owners()).filter((o) => o.topic === "waste").map((o) => [o.site_id, o.owner_user_id]), [[1, 1]]);
-  assert.equal(runScript("migrateKpiTopicAssignment").status, 0, "twice clean");
+  const again = runScript("migrateKpiTopicAssignment");
+  assert.equal(again.status, 0, "twice clean");
+  assert.match(again.stdout, /0 from per-KPI rows/);
 
   // A real exception: C goes to user 7.
   await q(`INSERT INTO kpi_assignment (company_id, kpi_definition_id, site_id, owner_user_id) VALUES (1, $1, 1, 7)`, [c.id]);
-  // Mixed owners for a topic are never collapsed.
+  // A later run never fills an emptied topic from per-KPI rows.
   await q(`DELETE FROM kpi_topic_assignment WHERE company_id = 1 AND topic = 'waste'`);
   assert.equal(runScript("migrateKpiTopicAssignment").status, 0);
-  assert.deepEqual((await owners()).filter((o) => o.topic === "waste"), [], "users 1 and 7 both hold waste rows");
+  assert.deepEqual((await owners()).filter((o) => o.topic === "waste"), [], "emptied topic stays empty");
   await q(`INSERT INTO kpi_topic_assignment (company_id, site_id, topic, owner_user_id) VALUES (1, 1, 'waste', 1)`);
 
   // Move waste on site 1 to user 7 from the users drawer: A and B follow the topic.
