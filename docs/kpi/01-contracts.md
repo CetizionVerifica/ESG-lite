@@ -135,7 +135,7 @@ Plumbing codes every route may answer (not contract decisions; `errors.ts` secon
 
 | Id | Holds the value when |
 |---|---|
-| `KPI_EVIDENCE` | no evidence on a KPI that needs it (BRSR Core, or the company's setting) |
+| `KPI_EVIDENCE` | informational since D15 was revised (2026-10-18): a manual value has no evidence; shown to the reviewer, never holds the value |
 | `KPI_CHANGE_LIMIT` | it changes from the same period last year by more than the company's change limit (existing `Threshold`) |
 | `KPI_BREAKDOWN_SUM` | the breakdown parts don't add up to the total (±0.5 %) |
 | `KPI_UNIT_CONVERTED` | entered in a unit other than the canonical one (informational) |
