@@ -332,8 +332,11 @@ export const canon = (v: unknown): unknown =>
       : v;
 export const same = (a: unknown, b: unknown) => JSON.stringify(canon(a ?? null)) === JSON.stringify(canon(b ?? null));
 
+/** `calculation` key marking that the form's `method_options` was filled once (kept out of the hash). */
+export const METHODS_SEEDED = "method_options_seeded";
+
 export function standardHash(c: StandardContent): string {
-  const { standard_hash: _h, ...calculation } = (c.calculation ?? {}) as Record<string, unknown>;
+  const { standard_hash: _h, [METHODS_SEEDED]: _s, ...calculation } = (c.calculation ?? {}) as Record<string, unknown>;
   const content = {
     columns: (c.columns ?? []).map((x) => x.pk_id).sort((a, b) => a - b),
     column_options: c.column_options ?? null,
