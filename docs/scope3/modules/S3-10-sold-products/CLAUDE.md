@@ -38,6 +38,10 @@ A manager enters what the company sold in the year once (product, quantity, regi
 ### AI service
 None.
 
+## Method choices (S3-3 `method_options`)
+- `migrate:scope3-sold-product-forms` fills each standard form's `method_options` once, from `configs.ts` `METHOD_OPTIONS` / `UNITS_BY_METHOD` (most specific method first), and marks the form with `calculation.method_options_seeded` (kept out of `standard_hash`). After that the list is the Superadmin's: an edited, reordered or cleared list is never written back on restart.
+- Contributors (Users) don't pick a method: once the FE reads `method_options` (S3-3 FE), their rows start on `method_options[0]`. With the seeded lists that is the most detailed method: Category 10 site-specific (Quantity × Share) and Category 12 waste-type-specific. A client whose contributors only have mass sold needs a Superadmin to put `average_data` first, or narrow the list, in Capture setup. SE-5 moves these forms to `method_by_choice`.
+
 ## Golden cases
 Turn to `run` (owner S3-10):
 - ex-10.1 site-specific: gas 3,500 kWh × 0.2 + electricity 2,000 kWh × 0.5 + waste 50 kg × 0.5, share 100 % → **1,725** (L5096-5128). S3-0 follow-up: add case.

@@ -24,7 +24,7 @@ import { EmissionFactor } from "../../entities/EmissionFactor";
 import { Unit } from "../../entities/Unit";
 import type { Site } from "../../entities/Site";
 import type { Category } from "../../entities/Category";
-import { AR6_FACTOR_YEARS, REFRIGERANT_FACTORS, SEED_AR4_SOURCE, type SoldProductCategory, formFields, isLegacyUseConfig, isStandardConfig, methodOptionsFor, same, soldProductForm, standardHash } from "./configs";
+import { AR6_FACTOR_YEARS, REFRIGERANT_FACTORS, SEED_AR4_SOURCE, type SoldProductCategory, METHODS_SEEDED, formFields, isLegacyUseConfig, isStandardConfig, methodOptionsFor, same, soldProductForm, standardHash } from "./configs";
 import { EOL_FACTORS, REFRIGERANT_AR6, type SeedFactor } from "./factors";
 
 export interface FormResult {
@@ -36,13 +36,13 @@ export interface FormResult {
   factors_marked: number;
   /** Category 11 seed refrigerant rows raised to AR6 (factor years 2025 and 2026). */
   factors_raised?: number;
-  /** 1 when the form's `method_options` (S3-3) was empty and has been written. */
+  /** 1 when the form's `method_options` (S3-3) was filled (once per form; see METHODS_SEEDED). */
   methods_set?: number;
 }
 
 const stripHash = (c: unknown) => {
   if (!c || typeof c !== "object") return c;
-  const { standard_hash: _h, ...rest } = c as Record<string, unknown>;
+  const { standard_hash: _h, [METHODS_SEEDED]: _s, ...rest } = c as Record<string, unknown>;
   return rest;
 };
 
@@ -185,8 +185,10 @@ export async function ensureSoldProductForm(m: EntityManager, site_id: number, c
     config.dependent_options = fields.dependent_options;
     config.emission_category_mapping = fields.emission_category_mapping;
     // The hash of what is written: any later edit makes the form "customised" (isStandardConfig).
+    const seeded = (config.calculation as Record<string, unknown> | null | undefined)?.[METHODS_SEEDED] === true;
     config.calculation = {
       ...fields.calculation,
+      ...(seeded ? { [METHODS_SEEDED]: true } : {}),
       standard_hash: standardHash({ ...fields, columns, extra_fields: config.extra_fields, calculation: fields.calculation }),
     } as ColumnConfig["calculation"];
     await configRepo.save(config);
@@ -203,13 +205,17 @@ export async function ensureSoldProductForm(m: EntityManager, site_id: number, c
     units_added++;
   }
 
-  // S3-3: the methods the form offers, written only while the column is empty, so a
-  // Superadmin's own list is never replaced. WHERE kept on the UPDATE line for the data-safety check.
-  const [, methodsSet]: [unknown, number] = await m.query(
-    `UPDATE column_config SET method_options = $1::jsonb WHERE pk_id = $2 AND method_options IS NULL`,
-    [JSON.stringify(methodOptionsFor(n)), config.pk_id],
-  );
-  const methods_set = Number(methodsSet) || 0;
+  // S3-3: the methods the form offers, filled once per form and marked in `calculation`, so a
+  // Superadmin's own list, or one they cleared, is never written back. WHERE kept on the UPDATE line for the data-safety check.
+  let methods_set = 0;
+  if (config.pk_id) {
+    const [rows]: [Array<{ filled: boolean }>, number] = await m.query(
+      `WITH old AS (SELECT pk_id, method_options IS NULL AS filled FROM column_config WHERE pk_id = $2 AND NOT COALESCE(calculation ? $3, false) FOR UPDATE)
+       UPDATE column_config c SET method_options = COALESCE(c.method_options, $1::jsonb), calculation = COALESCE(c.calculation, '{}'::jsonb) || jsonb_build_object($3::text, true) FROM old WHERE c.pk_id = old.pk_id RETURNING old.filled`,
+      [JSON.stringify(methodOptionsFor(n)), config.pk_id, METHODS_SEEDED],
+    );
+    methods_set = rows.filter((r) => r.filled).length;
+  }
 
   const factors_raised = n === 11 ? await raiseSeedRefrigerantsToAr6(m, site_id, category_id) : 0;
   const factors_added = await ensureSeedFactors(m, site_id, category_id, n === 11 ? REFRIGERANT_AR6 : n === 12 ? EOL_FACTORS : []);

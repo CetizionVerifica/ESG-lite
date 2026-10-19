@@ -20,6 +20,10 @@ const ROOT = path.resolve(__dirname, "../../..");
 const CAT10 = 941;
 const CAT11 = 942;
 const CAT12 = 943;
+const C10_METHODS = [
+  { method: "site_specific", units: ["kWh", "litre", "kg"] },
+  { method: "average_data", units: ["kg"] },
+];
 const C12_METHODS = [
   { method: "waste_type_specific", units: ["kg"] },
   { method: "average_data", units: ["kg"] },
@@ -431,6 +435,16 @@ test("migrate:scope3-sold-product-forms runs twice: forms, units, AR6 for rows d
   assert.equal(third.status, 0, third.stderr + third.stdout);
   assert.match(third.stdout, /method options set: 0/);
   assert.deepEqual(await methodsOf(CAT12), own);
+  // A list a Superadmin cleared stays cleared: the fill runs once per form.
+  await withDb((db) => db.query(`UPDATE column_config SET method_options = NULL WHERE category_id IN ($1, $2)`, [CAT10, CAT12]));
+  const fourth = runScript("migrateScope3SoldProductForms", ["1"]);
+  assert.equal(fourth.status, 0, fourth.stderr + fourth.stdout);
+  assert.match(fourth.stdout, /method options set: 0/);
+  assert.equal(await methodsOf(CAT10), null);
+  assert.equal(await methodsOf(CAT12), null);
+  const cfg10 = await withDb((db) => db.query(`SELECT calculation FROM column_config WHERE category_id = $1`, [CAT10]));
+  assert.equal(cfg10.rows[0].calculation.method_options_seeded, true);
+  await withDb((db) => db.query(`UPDATE column_config SET method_options = $1::jsonb WHERE category_id = $2`, [JSON.stringify(C10_METHODS), CAT10]));
   await withDb((db) => db.query(`UPDATE column_config SET method_options = $1::jsonb WHERE category_id = $2`, [JSON.stringify(C12_METHODS), CAT12]));
   // The module logs nothing but the error name.
   for (const file of ["service.js", "controller.js", "forms.js", "bom.js", "rows.js"]) {
