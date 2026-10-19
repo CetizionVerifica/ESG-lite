@@ -14,6 +14,7 @@ import {
   resetPassword,
   verifyResetToken,
 } from "../controllers/passwordReset.controller";
+import { requestLoginOtp, verifyLoginOtp } from "../controllers/loginOtp.controller";
 
 const router = Router();
 
@@ -30,5 +31,10 @@ router.post("/register", authenticate, requireSuperAdmin, register);
 router.post("/forgot-password", authRateLimit("forgot-password", "all"), forgotPassword);
 router.post("/reset-password", authRateLimit("reset-password"), resetPassword);
 router.get("/verify-reset-token/:token", authRateLimit("verify-reset-token"), verifyResetToken);
+
+// Sign in with a one-time code sent by email (forgot password). Requests
+// count every call, like forgot-password; verify counts failed codes.
+router.post("/login-otp/request", authRateLimit("login-otp-request", "all", { max: 5 }), requestLoginOtp);
+router.post("/login-otp/verify", authRateLimit("login-otp-verify"), verifyLoginOtp);
 
 export default router;

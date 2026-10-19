@@ -34,10 +34,7 @@ export const login = async (req: Request, res: Response) => {
   //console.log("emailLower", emailLower)
   // Load user with both single site (for regular users) and multiple sites (for managers)
   // Also load user.categories for per-user category access control
-  const user = await userRepo.findOne({
-    where: { email : emailLower },
-    relations: SESSION_USER_RELATIONS,
-  });
+  const user = await findSessionUser(emailLower);
 
   if (!user) {
     log.warn("Auth", "Login failed — user not found", { email: emailLower });
@@ -56,6 +53,21 @@ export const login = async (req: Request, res: Response) => {
     log.warn("Auth", "Login failed — wrong password", { email: emailLower, userId: user.user_id });
     return res.status(401).json({ message: "Invalid credentials" });
   }
+
+  return completeLogin(user, res, "password");
+};
+
+/** Loads a user with everything the session response needs, or null. */
+export const findSessionUser = (emailLower: string) =>
+  userRepo.findOne({ where: { email: emailLower }, relations: SESSION_USER_RELATIONS });
+
+/**
+ * The part of sign-in after the credential was checked (password or an
+ * email code): refuse people of an inactive client, sign the token, record
+ * the login and send the session user.
+ */
+export const completeLogin = async (user: User, res: Response, method: "password" | "email-code") => {
+  const emailLower = user.email;
 
   // People of a deactivated client can't sign in (same rule as authenticate,
   // which also fails open if the lookup itself errors).
@@ -92,7 +104,7 @@ export const login = async (req: Request, res: Response) => {
     log.warn("Auth", "Could not record last login", { userId: user.user_id, error: String(err) });
   }
 
-  log.info("Auth", "Login success", { email: emailLower, userId: user.user_id, role: user.role });
+  log.info("Auth", "Login success", { email: emailLower, userId: user.user_id, role: user.role, method });
   res.json({ token, role: user.role, user: user });
 };
 

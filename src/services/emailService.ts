@@ -100,6 +100,36 @@ export const sendPasswordResetEmail = async (
 
 
 
+/** A one-time sign-in code ("Sign in with a code" on the login page). */
+export const sendLoginOtpEmail = async (
+    email: string,
+    code: string,
+    userName: string | undefined,
+    validMinutes: number,
+): Promise<void> => {
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const greeting = userName ? ` ${esc(userName)}` : "";
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="font-size: 20px;">Your ESGLite sign-in code</h1>
+        <p>Hello${greeting},</p>
+        <p>Use this code to sign in to ESGLite:</p>
+        <p style="text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; background-color: #e5e7eb; padding: 16px; border-radius: 6px;">${code}</p>
+        <p>The code expires in ${validMinutes} minutes and works once.</p>
+        <p>If you didn't ask for this code, ignore this email; nobody can sign in without it.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+    await sendEmail({ to: email, subject: `${code} is your ESGLite sign-in code`, html });
+};
+
+
 interface EmailPayload {
     to: string;
     subject: string;

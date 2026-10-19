@@ -102,6 +102,20 @@ export class User {
   @Column({ type: "timestamp", nullable: true, select: false, insert: false })
   last_login_at?: Date | null;
 
+  // One-time sign-in code sent by email ("Sign in with a code" on the login
+  // page, for people who forgot their password). Only an HMAC of the code is
+  // stored; it expires after a few minutes and is cleared on use or after too
+  // many wrong tries. select/insert false like last_login_at, so the app keeps
+  // working before migrate:user-login-otp runs. See loginOtp.controller.ts.
+  @Column({ type: "varchar", length: 64, nullable: true, select: false, insert: false })
+  login_otp_hash?: string | null;
+
+  @Column({ type: "timestamp", nullable: true, select: false, insert: false })
+  login_otp_expires?: Date | null;
+
+  @Column({ type: "int", nullable: true, select: false, insert: false })
+  login_otp_attempts?: number | null;
+
   // Per-user category access control (managed by Manager role)
   @ManyToMany(() => Category)
   @JoinTable({

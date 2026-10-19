@@ -31,6 +31,7 @@
     "migrate:supplier-requests": "ts-node src/scripts/createSupplierRequestTable.ts",
     "migrate:user-internal": "ts-node src/scripts/addUserInternalColumn.ts",
     "migrate:user-company": "ts-node src/scripts/addUserCompanyColumn.ts",
+    "migrate:user-login-otp": "ts-node src/scripts/addUserLoginOtpColumns.ts",
     "migrate:ai-import": "ts-node src/scripts/addAiImportColumns.ts",
     "migrate:mapping-profiles": "ts-node src/scripts/createImportMappingProfileTable.ts",
     "migrate:scope3-total-kgco2e": "ts-node src/scripts/addScope3TotalKgco2e.ts",
