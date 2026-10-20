@@ -29,6 +29,8 @@
  * AI summary marked unreviewed (DS-9).
  */
 
+// Docs are JSON walked by key; `any` keeps the walk short (both repos' linters accept this line).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = Record<string, any>;
 
 export const RESIZE_ENGINE_VERSION = 1;
