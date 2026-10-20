@@ -3,7 +3,8 @@
 Each lane builds on the **default**. Changing a default later means a DS-0 follow-up plus the work listed for it.
 - **Fixed by Shyam (2026-10-20):**
   - D1: one studio that absorbs RS;
-  - the mockups use the ESGLite app tokens.
+  - the mockups use the ESGLite app tokens;
+  - D8: the default check severities, including ISO 14064-1 clause 9.3.1.
 - **Carried over from RS:** R4 (full free-form editing).
 - **Open:** the rest are proposed defaults to accept or change.
 
@@ -16,7 +17,7 @@ Each lane builds on the **default**. Changing a default later means a DS-0 follo
 | D5 | Who uses it? | Admins and Managers create and edit. Only a Manager or Superadmin generates a final, approves, or makes a share link. Users have no access. | Users may comment when @mentioned: a "commenter" role view in DS-13. |
 | D6 | What does a GHG final need? | No pending emission entries in the period for the doc's sites (`GHG_PENDING_ENTRIES`), and no open error checks. There is no period lock for emissions today. | Add an emissions period lock first: a separate small plan, after which the check uses the lock. |
 | D7 | Market-based Scope 2 | It isn't recorded (`src/kpi/auto/ghg.ts:88`). Templates show the location-based figure, plus a "Market-based: not reported" row with the reason. `SCOPE2_MARKET_MISSING` is a warning. `report_inputs.scope2_instruments` lets the user describe instruments in text. | Capture market-based Scope 2 (instruments, supplier factors, residual mix): a separate data plan. The binding then resolves. |
-| D8 | GHG check severity | As in `01-contracts` §6. Missing GHG Protocol required items are errors; ISO items are warnings unless ISO 14064-1 conformance is selected. | Everything a warning (a softer gate), or everything an error (strict). |
+| D8 | GHG check severity | As in `01-contracts` §6. Missing GHG Protocol required items are errors; ISO items are warnings unless ISO 14064-1 conformance is selected. **Confirmed by Shyam 2026-10-20**, including the clause 9.3.1 responsible-person check (an error when ISO 14064-1 is selected). | Everything a warning (a softer gate), or everything an error (strict). |
 | D9 | GHG templates at launch | Four: **Inventory** (GHG Protocol, A4, about 20 pages), **ISO 14064-1** (A4, adds categories 1–6 and uncertainty), **Board brief** (16:9, 8–10 slides), **One-page summary** (A4). Each comes in three looks (Classic, Light, Night) from the brand. | Fewer to launch faster (Inventory + Summary), or more (a BRSR P6 annex, a CDP-style C6/C7 pack). |
 | D10 | AI models and budget | As RS R7 and R8: drafting `anthropic/claude-sonnet-5.5`, rewrites `google/gemini-3-flash-preview`. Per doc per day: $5 or 200 calls; per company per month: $50. Chat turns count as calls. | One model; or a higher budget for chat. |
 | D11 | Brand voice | A free-text voice (≤ 3,000 chars) on the brand kit, edited by Managers, used in every writing prompt. An empty voice uses "plain, factual, third person". | Several named voices per company. |
