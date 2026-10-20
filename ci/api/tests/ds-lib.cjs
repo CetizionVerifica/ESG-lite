@@ -85,4 +85,27 @@ const callAs = (route, who, companyId) => {
   return call(route.method, `${route.path}${sep}company_id=${companyId}`, who, hasBody ? { company_id: companyId } : undefined);
 };
 
-module.exports = { setStudio, setKpi, runScript, studioRoutes, STUDIO_CONTRACT_ROUTES, gatedStudioRoutes, concrete, callAs };
+// DS-12 · report details that answer the GHG completeness checks a design can't fix by itself
+// (consolidation, responsible person, uncertainty, verification, every Scope 3 category
+// excluded with a reason), so a test can make a final. Returns the new rev and the warning
+// ids a final must acknowledge; fails when an error check is still open.
+const FINAL_READY_INPUTS = {
+  consolidation_approach: { value: "Operational control" },
+  responsible_person: { value: "Head of Sustainability" },
+  uncertainty_statement: { value: "Activity data is metered or invoiced; factor uncertainty follows the factor sources." },
+  verification: { value: { status: "none" } },
+  exclusions: { value: Array.from({ length: 15 }, (_, i) => ({ what: `Category ${i + 1}`, reason: "Not relevant in the Scope 3 screening for this test company." })) },
+};
+async function readyForFinal(docId, who = "manager") {
+  const cur = await call("GET", `/studio/docs/${docId}/inputs`, who);
+  if (cur.status !== 200) throw new Error(`inputs: ${cur.status} ${JSON.stringify(cur.json)}`);
+  const p = await call("PATCH", `/studio/docs/${docId}/inputs`, who, { rev: cur.json.rev, inputs: FINAL_READY_INPUTS });
+  if (p.status !== 200) throw new Error(`inputs patch: ${p.status} ${JSON.stringify(p.json)}`);
+  const c = await call("POST", `/studio/docs/${docId}/checks`, who, { rev: p.json.rev });
+  if (c.status !== 200) throw new Error(`checks: ${c.status} ${JSON.stringify(c.json)}`);
+  const errors = c.json.checks.filter((x) => x.severity === "error");
+  if (errors.length) throw new Error(`errors still open: ${JSON.stringify(errors.map((e) => [e.id, e.elementId, e.message]))}`);
+  return { rev: p.json.rev, acknowledgedWarnings: c.json.warnings };
+}
+
+module.exports = { setStudio, setKpi, runScript, studioRoutes, STUDIO_CONTRACT_ROUTES, gatedStudioRoutes, concrete, callAs, FINAL_READY_INPUTS, readyForFinal };

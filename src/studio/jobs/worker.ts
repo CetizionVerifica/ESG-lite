@@ -27,6 +27,7 @@ import { kpiTrackingEnabled } from "../../kpi/guard";
 import { renderPdf, renderPng } from "../../reporting/studio/print";
 import { RENDER_HASH } from "../../reporting/studio/render";
 import type { RenderDoc } from "../../reporting/studio/render/types";
+import type { Measurement } from "../../reporting/studio/render/measure"; // DS-12
 import { createNotification } from "../../services/notificationService";
 import { renderInputs } from "./inputs";
 import { JOB_COLS, JOB_SUFFIX, OUTPUT_KEEP_DAYS, toJobRow, type JobRow } from "./service";
@@ -34,6 +35,7 @@ import { outputKey, putOutput } from "./storage";
 import { zipStore } from "./zip";
 import { setPrintBoxes } from "./printBoxes";
 import { bleedFor } from "../../reporting/studio/render/formats";
+import { layoutErrors } from "../checks/layout"; // DS-12
 
 type Row = Record<string, any>;
 
@@ -48,7 +50,7 @@ export const pageRange = (pages: [number, number] | undefined): number[] | null 
 
 /** The failure reason of an error (DS_JOB_FAILED details.reason). */
 export function failureReason(err: unknown): string {
-  if (err instanceof DsError) return "data";
+  if (err instanceof DsError) return err.code === "DS_CHECKS_BLOCKING" ? "checks" : "data"; // DS-12: a final refused by its layout checks
   const msg = String((err as Error)?.message ?? err);
   const name = String((err as Error)?.name ?? "");
   if (name === "TimeoutError" || /timed? ?out|timeout/i.test(msg)) return "timeout";
@@ -58,7 +60,7 @@ export function failureReason(err: unknown): string {
   if (/browser|chrom|executable|playwright|Target (page|closed)|context/i.test(msg)) return "chromium";
   return "chromium";
 }
-export const retryable = (reason: string) => reason !== "data";
+export const retryable = (reason: string) => reason !== "data" && reason !== "checks"; // DS-12
 
 export class JobTimeout extends Error {
   constructor(ms: number) {
@@ -148,7 +150,18 @@ export async function renderOutput(job: Pick<JobRow, "kind" | "options">, doc: R
   switch (job.kind) {
     case "proof":
     case "final": {
-      const r = await renderPdf(rdoc, inputs.data, "screen", common);
+      // DS-12: a final measures itself and stops before page.pdf on a layout error (RS-9 §5).
+      const beforePdf =
+        job.kind === "final"
+          ? (m: Measurement[]) => {
+              const errors = layoutErrors(doc, m);
+              if (errors.length) {
+                console.warn(`[studio] final ${job.kind} refused by layout checks: ${errors.map((c) => `${c.id}@${c.elementId ?? c.pageId ?? ""}`).join(", ")}`);
+                throw new DsError("DS_CHECKS_BLOCKING", { reason: "layout", checks: errors, measurements: m });
+              }
+            }
+          : undefined;
+      const r = await renderPdf(rdoc, inputs.data, "screen", { ...common, ...(beforePdf ? { beforePdf } : {}) });
       return { bytes: r.pdf, pageCount: r.pageCount, measurements: r.measurements };
     }
     case "print": {
@@ -264,7 +277,9 @@ export async function processJob(jobId: number): Promise<"done" | "failed" | "re
       await AppDataSource.query(`UPDATE report_job SET status = 'queued', error_code = $2, updated_at = now() WHERE id = $1`, [job.id, reason]);
       return "requeue";
     }
-    await AppDataSource.query(`UPDATE report_job SET status = 'failed', error_code = $2, finished_at = now(), updated_at = now(), doc = NULL WHERE id = $1`, [job.id, reason]);
+    // DS-12: a final refused by its layout checks keeps the measurements, so POST /checks can show them.
+    const measured = reason === "checks" ? ((err as DsError).details as { measurements?: unknown } | undefined)?.measurements : undefined;
+    await AppDataSource.query(`UPDATE report_job SET status = 'failed', error_code = $2, finished_at = now(), updated_at = now(), doc = NULL, measurements = COALESCE($3::jsonb, measurements) WHERE id = $1`, [job.id, reason, measured ? JSON.stringify(measured) : null]);
     return "failed";
   } finally {
     if (b) releaseBrowserSoon();

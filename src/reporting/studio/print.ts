@@ -16,6 +16,8 @@ export interface OutputOptions extends Omit<HtmlOptions, "mode" | "inlineFonts">
   /** Reuse a browser (the worker keeps one); otherwise one is launched and closed. */
   browser?: Browser;
   timeoutMs?: number;
+  /** DS-12: runs on the measurements after the document is ready and before page.pdf; throw to stop the PDF. */
+  beforePdf?: (measurements: Measurement[]) => void | Promise<void>;
 }
 
 export interface PdfResult {
@@ -62,6 +64,7 @@ export async function renderPdf(doc: RenderDoc, data: RenderData | null | undefi
   const { document } = documentHtml(doc, data, { ...opts, mode, inlineFonts: true });
   return withPage(opts, 1, async (page) => {
     const { pageCount, measurements } = await loadDocument(page, document, opts.timeoutMs);
+    if (opts.beforePdf) await opts.beforePdf(measurements); // DS-12: the final's layout gate
     const pdf = await page.pdf({ printBackground: true, preferCSSPageSize: true, tagged: true, outline: true, margin: { top: "0", right: "0", bottom: "0", left: "0" } });
     return { pdf, pageCount, measurements };
   });
