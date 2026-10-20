@@ -6,6 +6,7 @@
  */
 import type { RenderContext } from "./context";
 import { bindingHash, notReported, tokenKey, unavailableReason } from "./data";
+import { endsFootnoteRun } from "./footnotes";
 import type { DataTokenNode, TextDoc, TextNode } from "./types";
 import { esc, hex, safeHref } from "./util";
 
@@ -37,11 +38,25 @@ function marks(text: string, node: TextNode): string {
   return out;
 }
 
-function inline(nodes: (TextNode | DataTokenNode)[] | undefined, ctx: RenderContext): string {
-  return (nodes ?? []).map((n) => node(n, ctx)).join("");
+/** DS-7: the running footnote number while one TextDoc renders. */
+interface FnState {
+  next: number;
 }
 
-function node(n: TextNode | DataTokenNode, ctx: RenderContext): string {
+/** DS-7: the superscript after the last text of a footnote run. */
+const footnoteRef = (n: number): string => `<sup class="ds-fn-ref" data-fn="${n}">${n}</sup>`;
+
+function inline(nodes: (TextNode | DataTokenNode)[] | undefined, ctx: RenderContext, fn: FnState): string {
+  const list = nodes ?? [];
+  return list
+    .map((n, i) => {
+      const html = node(n, ctx, fn);
+      return n.type === "text" && endsFootnoteRun(list, i) ? html + footnoteRef(fn.next++) : html;
+    })
+    .join("");
+}
+
+function node(n: TextNode | DataTokenNode, ctx: RenderContext, fn: FnState): string {
   if (isToken(n)) return chip(n, ctx);
   switch (n.type) {
     case "text":
@@ -49,25 +64,30 @@ function node(n: TextNode | DataTokenNode, ctx: RenderContext): string {
     case "hardBreak":
       return "<br>";
     case "paragraph":
-      return `<p>${inline(n.content, ctx)}</p>`;
+      return `<p>${inline(n.content, ctx, fn)}</p>`;
     case "heading": {
       const level = n.attrs?.level === 3 || n.attrs?.level === 4 ? n.attrs.level : 2;
-      return `<h${level}>${inline(n.content, ctx)}</h${level}>`;
+      return `<h${level}>${inline(n.content, ctx, fn)}</h${level}>`;
     }
     case "bulletList":
-      return `<ul>${inline(n.content, ctx)}</ul>`;
+      return `<ul>${inline(n.content, ctx, fn)}</ul>`;
     case "orderedList":
-      return `<ol>${inline(n.content, ctx)}</ol>`;
+      return `<ol>${inline(n.content, ctx, fn)}</ol>`;
     case "listItem":
-      return `<li>${inline(n.content, ctx)}</li>`;
+      return `<li>${inline(n.content, ctx, fn)}</li>`;
     default:
-      return inline(n.content, ctx) || (n.text ? esc(n.text) : "");
+      return inline(n.content, ctx, fn) || (n.text ? esc(n.text) : "");
   }
 }
 
+/**
+ * TextDoc → HTML. Footnote runs are numbered from `ctx.footnoteBase` (the
+ * element's first number on its page, DS-7 footnotes.ts), else from 1.
+ */
 export function renderTextDoc(doc: TextDoc | undefined, ctx: RenderContext): string {
   if (!doc || !Array.isArray(doc.content)) return "";
-  return doc.content.map((n) => node(n, ctx)).join("");
+  const fn: FnState = { next: ctx.footnoteBase ?? 1 };
+  return doc.content.map((n) => node(n, ctx, fn)).join("");
 }
 
 /** Plain text of a TextDoc (aria labels, measuring). Chips count as their display. */

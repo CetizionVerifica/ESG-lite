@@ -17,6 +17,8 @@ export interface RenderContext {
   pageCount: number;
   /** Visible pages in print order (toc). */
   pages: { id: string; name: string; bookmark?: string; kind: "freeform" | "flow" }[];
+  /** DS-7: the number of the first footnote in the text being rendered (footnotes.ts). */
+  footnoteBase?: number;
 }
 
 export const assetUrl = (ctx: RenderContext, id: string | undefined): string | null => (id ? (ctx.assets.urls[id] ?? null) : null);

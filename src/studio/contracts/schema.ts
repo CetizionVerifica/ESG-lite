@@ -64,17 +64,21 @@ const SafeUrl = z
 
 // ---------------------------------------------------------------------------
 // Text (TipTap JSON): paragraph, heading(2–4), bulletList, orderedList,
-// listItem, hardBreak, text (bold, italic, link, highlight), data chips.
+// listItem, hardBreak, text (bold, italic, link, highlight, footnote), data chips.
 // ---------------------------------------------------------------------------
 
 export const TEXT_NODE_TYPES = ["paragraph", "heading", "bulletList", "orderedList", "listItem", "hardBreak", "text"] as const;
-export const TEXT_MARK_TYPES = ["bold", "italic", "link", "highlight"] as const;
+export const TEXT_MARK_TYPES = ["bold", "italic", "link", "highlight", "footnote"] as const; // footnote: DS-7
+/** DS-7: a footnote's text (factor sources, methodology notes). */
+export const MAX_FOOTNOTE_CHARS = 500;
 
 export const TextMarkSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("bold") }).strict(),
   z.object({ type: z.literal("italic") }).strict(),
   z.object({ type: z.literal("highlight"), attrs: z.object({ color: HexColorSchema.optional() }).strict().optional() }).strict(),
   z.object({ type: z.literal("link"), attrs: z.object({ href: SafeUrl }).passthrough() }).strict(),
+  // DS-7: numbered per page (free-form) or per section (flow); the note prints at the page foot.
+  z.object({ type: z.literal("footnote"), attrs: z.object({ note: z.string().trim().min(1).max(MAX_FOOTNOTE_CHARS) }).strict() }).strict(),
 ]);
 
 export interface TextNode {
@@ -92,7 +96,7 @@ export const TextNodeSchema: z.ZodType<TextNode> = z.lazy(() =>
       attrs: z.record(z.string(), z.unknown()).optional(),
       content: z.array(z.union([DataTokenSchema, TextNodeSchema])).max(2000).optional(),
       text: z.string().max(20000).optional(),
-      marks: z.array(TextMarkSchema).max(4).optional(),
+      marks: z.array(TextMarkSchema).max(TEXT_MARK_TYPES.length).optional(),
     })
     .strict()
     .superRefine((node, ctx) => {

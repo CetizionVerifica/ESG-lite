@@ -85,4 +85,5 @@ export { linearScale } from "./charts/scale";
 export { sankeyLayout } from "./charts/sankey";
 export { ICON_NAMES, SDG } from "./icons";
 export { RENDER_HASH } from "./hash";
+export { endsFootnoteRun, footnoteNotes, footnoteOf, pageFootnotes, readingOrder, sectionFootnotes, type PageFootnotes } from "./footnotes"; // DS-7
 export type * from "./types";

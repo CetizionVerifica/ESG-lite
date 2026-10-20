@@ -7,6 +7,7 @@
  */
 import { assetUrl, type RenderContext } from "./context";
 import { renderElementInner } from "./elements";
+import { pageFootnotes } from "./footnotes";
 import { bleedFor } from "./formats";
 import { contrastRatio, mix, type Theme } from "./theme";
 import type { RenderElement, RenderFreeformPage, RenderOptions } from "./types";
@@ -23,6 +24,19 @@ export function renderElement(el: RenderElement, ctx: RenderContext): string {
   return (
     `<div class="ds-el ds-el--${esc(el.type)}${out.cls ? ` ${out.cls}` : ""}" data-el-id="${esc(el.id)}" data-type="${esc(el.type)}"` +
     ` data-frame="${n3(f.x)},${n3(f.y)},${n3(f.w)},${n3(f.h)},${n3(f.rotation)}"${out.attrs ?? ""} style="${style}">${out.html}</div>`
+  );
+}
+
+/**
+ * DS-7: a free-form page's footnotes, at the foot of the safe area, above the
+ * elements. Styled inline, so a page without footnotes renders as before.
+ */
+export function footnotesHtml(notes: string[], safeMm: number): string {
+  if (!notes.length) return "";
+  const items = notes.map((n, i) => `<p class="ds-fn" style="margin:0;"><sup>${i + 1}</sup> ${esc(n)}</p>`).join("");
+  return (
+    `<div class="ds-footnotes ts-footnote" role="note" aria-label="Footnotes" style="position:absolute;left:${mm(safeMm)};right:${mm(safeMm)};bottom:${mm(safeMm)};` +
+    `z-index:9000;border-top:0.2mm solid var(--border);padding-top:1mm;">${items}</div>`
   );
 }
 
@@ -59,9 +73,10 @@ export function renderSheetHtml(page: RenderFreeformPage, ctx: RenderContext, op
   const s = ctx.format;
   const bleed = bleedFor(s.id, ctx.mode);
   const bg = hex(page.background.color);
+  const fn = pageFootnotes(page);
   const els = [...page.elements]
     .sort((a, b) => a.z - b.z)
-    .map((e) => renderElement(e, ctx))
+    .map((e) => renderElement(e, fn.bases[e.id] ? { ...ctx, footnoteBase: fn.bases[e.id] } : ctx))
     .join("");
   const bleedBox = bleed && bg ? `<div class="ds-bleed-fill" style="inset:-${mm(bleed)};background:${bg}"></div>` : "";
   const mark = opts.watermark ? `<div class="ds-watermark" aria-hidden="true"><span>${esc(opts.watermark)}</span></div>` : "";
@@ -79,6 +94,7 @@ export function renderSheetHtml(page: RenderFreeformPage, ctx: RenderContext, op
     bleedBox +
     background(page, ctx, bleed) +
     els +
+    footnotesHtml(fn.notes, s.safeMm) +
     mark +
     (ctx.mode === "sheet" && opts.guides ? guides(page, ctx) : "") +
     `</section>`
