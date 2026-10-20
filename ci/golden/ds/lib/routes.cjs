@@ -62,6 +62,7 @@ const CONTRACT_ROUTES = [
   ["GET", "/docs/:id/people", "DS-13"], ["GET", "/docs/:id/comments", "DS-13"], ["POST", "/docs/:id/comments", "DS-13"],
   ["PATCH", "/comments/:id", "DS-13"], ["DELETE", "/comments/:id", "DS-13"], ["GET", "/docs/:id/approvals", "DS-13"],
   ["GET", "/review-settings", "DS-13"], ["PUT", "/review-settings", "DS-13"], ["DELETE", "/templates/:id", "DS-13"],
+  ["GET", "/docs/:id/versions/:n/preview.html", "DS-13"],
 ].map(([method, p, module]) => ({ method, path: p, module }));
 
 // A query string a route needs to get past validation to the guard and the tenant check.

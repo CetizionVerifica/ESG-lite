@@ -17,6 +17,7 @@
  *   POST   /approvals/:id/decide            the reviewer (M) {decision, note?}
  *   DELETE /approvals/:id                   the requester → 204
  *   GET    /docs/:id/drift                  DriftResponse
+ *   GET    /docs/:id/versions/:n/preview.html   a version, read-only (sandboxed HTML)
  *   GET    /review-settings · PUT           ReviewSettings (requireReview: M; brandControls: Superadmin)
  *   POST   /templates/from-doc              → 201 ReportTemplate
  *   POST   /layouts/from-page               → 201 ReportLayout
@@ -29,7 +30,7 @@ import { Router } from "express";
 import { finalGate, registerFinalGate } from "../jobs/gate";
 import { registerCheckProvider } from "../checks/service";
 import { registerPatchGuard } from "../docs/service";
-import { studioCaller, type StudioCaller, type StudioRequest } from "../guard";
+import { requireManager, studioCaller, type StudioCaller, type StudioRequest } from "../guard";
 import { handle, routeId } from "../http";
 import type { ReportDoc } from "../contracts";
 import { AppDataSource } from "../../config/data-source";
@@ -39,6 +40,8 @@ import { collabChecks, computeDrift, getDrift } from "./drift";
 import { assertTemplateLocks } from "./locks";
 import { getReviewSettings, putReviewSettings } from "./settings";
 import { archiveTemplate, layoutFromPage, templateFromDoc } from "./templates";
+import { versionPreviewHtml } from "./versionPreview";
+import { PREVIEW_CSP } from "../jobs/preview";
 
 registerFinalGate(approvalFinalGate(finalGate()));
 registerPatchGuard(assertTemplateLocks);
@@ -67,7 +70,7 @@ router.patch("/comments/:id/task", handle("collab.task.done", async (req, res) =
 
 router.get("/docs/:id/approvals", handle("collab.approvals", async (req, res) => void res.json(await listApprovals(caller(req), routeId(req.params.id)))));
 router.post("/docs/:id/approvals", handle("collab.approval", async (req, res) => void res.status(201).json(await requestApproval(caller(req), routeId(req.params.id), req.body))));
-router.post("/approvals/:id/decide", handle("collab.approval.decide", async (req, res) => void res.json(await decideApproval(caller(req), routeId(req.params.id), req.body))));
+router.post("/approvals/:id/decide", requireManager, handle("collab.approval.decide", async (req, res) => void res.json(await decideApproval(caller(req), routeId(req.params.id), req.body))));
 router.delete(
   "/approvals/:id",
   handle("collab.approval.withdraw", async (req, res) => {
@@ -77,6 +80,20 @@ router.delete(
 );
 
 router.get("/docs/:id/drift", handle("collab.drift", async (req, res) => void res.json(await getDrift(caller(req), routeId(req.params.id)))));
+
+router.get(
+  "/docs/:id/versions/:n/preview.html",
+  handle("collab.version.preview", async (req, res) => {
+    const { html, n } = await versionPreviewHtml(caller(req), routeId(req.params.id), routeId(req.params.n), req.query);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Security-Policy", PREVIEW_CSP);
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Doc-Version", String(n));
+    res.send(html);
+  }),
+);
 
 router.get("/review-settings", handle("collab.settings", async (req, res) => void res.json(await getReviewSettings(caller(req)))));
 router.put("/review-settings", handle("collab.settings.put", async (req, res) => void res.json(await putReviewSettings(caller(req), req.body))));

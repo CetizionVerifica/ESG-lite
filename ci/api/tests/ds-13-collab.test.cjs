@@ -98,6 +98,7 @@ const DS13_ROUTES = (id, cid, aid) => [
   ["POST", `/studio/approvals/${aid}/decide`],
   ["DELETE", `/studio/approvals/${aid}`],
   ["GET", `/studio/docs/${id}/drift`],
+  ["GET", `/studio/docs/${id}/versions/1/preview.html?mode=paged`],
   ["GET", "/studio/review-settings"],
   ["PUT", "/studio/review-settings"],
   ["POST", "/studio/templates/from-doc"],
@@ -149,6 +150,7 @@ test("tenant isolation: another company's design, comment, approval and template
     ["POST", `/studio/approvals/${a.json.id}/decide`, { decision: "approve" }],
     ["DELETE", `/studio/approvals/${a.json.id}`],
     ["GET", `/studio/docs/${doc.id}/drift`],
+    ["GET", `/studio/docs/${doc.id}/versions/1/preview.html?mode=paged`],
     ["POST", "/studio/templates/from-doc", { docId: doc.id, name: "DS-13 stolen" }],
     ["POST", "/studio/layouts/from-page", { docId: doc.id, pageId: "p-cover", name: "DS-13 stolen" }],
     ["DELETE", `/studio/templates/${t.json.id}`],
@@ -399,6 +401,13 @@ test("version history: a restored version makes a new rev; pruning keeps finals 
   assert.equal(restored.status, 200, JSON.stringify(restored.json));
   assert.equal(restored.json.rev, p.json.rev + 1, "a new rev");
   assert.equal(restored.json.doc.meta.title, "DS-13 History");
+  // The snapshot previews read-only, as it was (title), while the draft moved on.
+  const pv = await call("GET", `/studio/docs/${doc.id}/versions/${snap.json.n}/preview.html?mode=paged`, "admin");
+  assert.equal(pv.status, 200);
+  assert.equal(pv.headers.get("x-doc-version"), String(snap.json.n));
+  assert.match(pv.headers.get("content-security-policy") ?? "", /default-src 'none'/);
+  assert.ok(pv.buffer.toString("utf8").includes("data-page-id"), "the version's pages are drawn");
+  assert.equal((await call("GET", `/studio/docs/${doc.id}/versions/999/preview.html`, "admin")).status, 404);
   const versions = (await call("GET", `/studio/docs/${doc.id}/versions`, "admin")).json;
   assert.ok(versions.some((v) => v.kind === "autosave" && v.note === `Restored from version ${snap.json.n}` && v.rev === restored.json.rev));
 
