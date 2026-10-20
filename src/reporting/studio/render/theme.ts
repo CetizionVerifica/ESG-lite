@@ -58,7 +58,8 @@ const LOOKS: Record<Look, Omit<Theme, "fonts" | "series" | "look">> = {
   light: {
     colors: {
       primary: "#1D4ED8",
-      accent: "#F59E0B",
+      // Amber 700: 5.0:1 on the paper (4.8:1 on the surface), so kicker text passes LOW_CONTRAST (was #F59E0B, 2.1:1).
+      accent: "#B45309",
       ink: "#1F2937",
       muted: "#6B7280",
       surface: "#F8FAFC",

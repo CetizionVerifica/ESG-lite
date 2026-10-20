@@ -23,7 +23,8 @@
         "props": {
           "mask": "rect",
           "fit": "cover",
-          "alt": "Cover image"
+          "alt": "Cover image",
+          "bleed": true
         }
       },
       {
