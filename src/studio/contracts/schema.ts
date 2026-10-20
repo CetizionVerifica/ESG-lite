@@ -46,6 +46,7 @@ import {
   SitesSchema,
   type Binding,
 } from "./sources";
+import { imageEditProps, textEditProps } from "./proProps"; // PRO-0
 
 /** The whole document is ≤ 2 MB of JSON (DS_DOC_TOO_LARGE). */
 export const MAX_DOC_BYTES = 2 * 1024 * 1024;
@@ -187,6 +188,7 @@ export const TextPropsSchema = z
     align: z.enum(["left", "center", "right", "justify"]),
     color: HexColorSchema.optional(),
     valign: z.enum(["top", "middle", "bottom"]).optional(),
+    ...textEditProps, // PRO-0: effects?, font? (PE-2)
   })
   .strict();
 export const KpiTilePropsSchema = z
@@ -247,6 +249,7 @@ export const ImagePropsSchema = z
     crop: CropSchema.optional(),
     radius: z.number().finite().min(0).optional(),
     bleed: z.boolean().optional(),
+    ...imageEditProps, // PRO-0: adjust?, filter?, duotone?, originalAssetId? (PE-1)
   })
   .strict();
 export const ShapePropsSchema = z
@@ -282,6 +285,7 @@ export const FramePropsSchema = z
     alt: z.string().max(500),
     crop: CropSchema.optional(),
     bleed: z.boolean().optional(),
+    ...imageEditProps, // PRO-0: adjust?, filter?, duotone?, originalAssetId? (PE-1)
   })
   .strict();
 /** A photo collage of n frames with a gap. */

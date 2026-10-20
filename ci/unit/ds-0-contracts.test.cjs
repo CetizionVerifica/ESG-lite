@@ -50,6 +50,8 @@ test("§5 error codes: DS codes with their statuses, RS codes renamed", () => {
     DS_LAYOUT_NOT_FOUND: 404, DS_ASSET_TYPE: 415, DS_ASSET_TOO_LARGE: 413, DS_YEAR_NOT_LOCKED: 409, DS_CHECKS_BLOCKING: 409,
     DS_JOB_RUNNING: 409, DS_JOB_FAILED: 500, DS_AI_UNAVAILABLE: 503, DS_AI_BUDGET_EXCEEDED: 429, DS_AI_OUTPUT_INVALID: 502,
     DS_VALIDATION: 400, DS_COMPANY_REQUIRED: 400,
+    // PRO-0 (docs/design-studio/pro/)
+    DS_NOT_BUILT: 501, DS_BG_UNAVAILABLE: 503, DS_FONT_TYPE: 415, DS_FONT_TOO_LARGE: 413, DS_FONT_LICENCE: 422, DS_FONT_EXISTS: 409,
   };
   assert.deepEqual(Object.fromEntries(Object.entries(c.DS_ERRORS).map(([k, v]) => [k, v.status])), expect);
   assert.ok(c.DS_ERROR_CODES.every((code) => code.startsWith("DS_")));
