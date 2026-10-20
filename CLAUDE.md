@@ -56,3 +56,12 @@
 - AI output is validated JSON with data tokens only. It is never HTML, never literal reported numbers, and never applied without a person's Accept. Log every call in `report_ai_call`.
 - Final versions are immutable. Share links serve stored PDFs only. New tables ship as idempotent `migrate:ds-*` scripts. Every new endpoint gets tenant-isolation, role and switch-off tests.
 - No Canva SDK, API, assets or names. "Canva-like" means interaction patterns only.
+
+## Insights (combined ESG + emissions view) — see docs/insights/
+- Switch: `company.insights_enabled` (default off, Superadmin only). Every `/insights` route except `/insights/status` sits behind `requireInsights` (403 `IN_OFF`). KPI-backed panels answer `availability: 'kpi_off'` (not an error) when KPI tracking is off.
+- Managers see their sites, Admins and Superadmins the company. Users never see Insights (`IN_FORBIDDEN`).
+- Enums, panel shapes, rule ids and error codes live only in `src/insights/contracts/`. Change them there first (IN-0 follow-up).
+- Insights READS the source of truth: emission totals through the functions `/manager/overview` uses, pathway through the `/user/targets/*` functions, KPI figures through `src/kpi/values/yearly.ts`, `targets/service.ts`, `esg/service.ts`. Never copy that logic; extract it into a service in a refactor-only PR.
+- New figures (index, LMDI drivers, flow widths, rule values) are computed only in `src/insights/derive/`. Approved data only; every panel returns `pending_not_in`.
+- Insight cards come from deterministic rules in `src/insights/rules/`. AI may reword a card (IN-9) with `{{v:key}}` tokens only — never numbers, never new claims. Log every call in `insight_ai_call`.
+- Don't change Overview, Targets, `/kpi/dashboard`, `/kpi/esg`, the GHG report or KPI-11 behaviour for Insights. New tables ship as idempotent `migrate:in-*` scripts. Every new endpoint gets tenant-isolation, role, site-scope and switch-off tests.

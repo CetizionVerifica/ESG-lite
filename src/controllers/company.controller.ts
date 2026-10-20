@@ -13,6 +13,7 @@ import { ENTRY_DETAILS, EntryDetailSchema } from "../scope3/contracts/schemas";
 import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currencies";
 import { auditKpiSwitch, currentKpiSwitch, notifyKpiEnabled } from "../kpi/switch";
 import { auditStudioSwitch, currentStudioSwitch } from "../studio/switch"; // DS-0
+import { auditInsightsSwitch, currentInsightsSwitch } from "../insights/switch"; // IN-0
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -70,13 +71,20 @@ export const updateCompany = async (req: Request, res: Response) => {
   }
   const studioSwitchBefore = "design_studio_enabled" in body ? await currentStudioSwitch(Number(req.params.id)) : null;
   const studioSwitchChanged = studioSwitchBefore !== null && studioSwitchBefore !== body.design_studio_enabled;
-  if (kpiSwitchChanged || studioSwitchChanged) {
+  // IN-0: Insights (Superadmin only, like the KPI switch; audited in the same transaction).
+  if ("insights_enabled" in body && typeof body.insights_enabled !== "boolean") {
+    return res.status(400).json({ code: "FIELD_INVALID", field: "insights_enabled", message: "insights_enabled must be true or false" });
+  }
+  const insightsSwitchBefore = "insights_enabled" in body ? await currentInsightsSwitch(Number(req.params.id)) : null;
+  const insightsSwitchChanged = insightsSwitchBefore !== null && insightsSwitchBefore !== body.insights_enabled;
+  if (kpiSwitchChanged || studioSwitchChanged || insightsSwitchChanged) {
     // The switch and its audit row commit together; the Admins hear about it only afterwards.
     const actorId = Number((req as AuthRequest).user?.userId) || null;
     await AppDataSource.transaction(async (m) => {
       await m.getRepository(Company).update(req.params.id, body);
       if (kpiSwitchChanged) await auditKpiSwitch(m, Number(req.params.id), kpiSwitchBefore, body.kpi_tracking_enabled, actorId);
       if (studioSwitchChanged) await auditStudioSwitch(m, Number(req.params.id), studioSwitchBefore, body.design_studio_enabled, actorId); // DS-0
+      if (insightsSwitchChanged) await auditInsightsSwitch(m, Number(req.params.id), insightsSwitchBefore, body.insights_enabled, actorId); // IN-0
     });
     if (kpiSwitchChanged && body.kpi_tracking_enabled) await notifyKpiEnabled(Number(req.params.id));
   } else {
