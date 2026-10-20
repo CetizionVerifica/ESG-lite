@@ -1,0 +1,512 @@
+[
+  {
+    "slug": "sdg-1",
+    "group": "sdg",
+    "name": "SDG 1: No poverty",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 1",
+      "no poverty"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 1,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-2",
+    "group": "sdg",
+    "name": "SDG 2: Zero hunger",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 2",
+      "zero hunger"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 2,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-3",
+    "group": "sdg",
+    "name": "SDG 3: Good health and well-being",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 3",
+      "good health and well-being"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 3,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-4",
+    "group": "sdg",
+    "name": "SDG 4: Quality education",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 4",
+      "quality education"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 4,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-5",
+    "group": "sdg",
+    "name": "SDG 5: Gender equality",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 5",
+      "gender equality"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 5,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-6",
+    "group": "sdg",
+    "name": "SDG 6: Clean water and sanitation",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 6",
+      "clean water and sanitation"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 6,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-7",
+    "group": "sdg",
+    "name": "SDG 7: Affordable and clean energy",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 7",
+      "affordable and clean energy"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 7,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-8",
+    "group": "sdg",
+    "name": "SDG 8: Decent work and economic growth",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 8",
+      "decent work and economic growth"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 8,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-9",
+    "group": "sdg",
+    "name": "SDG 9: Industry, innovation and infrastructure",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 9",
+      "industry, innovation and infrastructure"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 9,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-10",
+    "group": "sdg",
+    "name": "SDG 10: Reduced inequalities",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 10",
+      "reduced inequalities"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 10,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-11",
+    "group": "sdg",
+    "name": "SDG 11: Sustainable cities and communities",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 11",
+      "sustainable cities and communities"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 11,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-12",
+    "group": "sdg",
+    "name": "SDG 12: Responsible consumption and production",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 12",
+      "responsible consumption and production"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 12,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-13",
+    "group": "sdg",
+    "name": "SDG 13: Climate action",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 13",
+      "climate action"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 13,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-14",
+    "group": "sdg",
+    "name": "SDG 14: Life below water",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 14",
+      "life below water"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 14,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-15",
+    "group": "sdg",
+    "name": "SDG 15: Life on land",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 15",
+      "life on land"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 15,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-16",
+    "group": "sdg",
+    "name": "SDG 16: Peace, justice and strong institutions",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 16",
+      "peace, justice and strong institutions"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 16,
+        "variant": "full"
+      }
+    }
+  },
+  {
+    "slug": "sdg-17",
+    "group": "sdg",
+    "name": "SDG 17: Partnerships for the goals",
+    "tags": [
+      "sdg",
+      "un",
+      "goal",
+      "goal 17",
+      "partnerships for the goals"
+    ],
+    "license": "sdg-colours",
+    "payload": {
+      "id": "el",
+      "type": "sdg",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "goal": 17,
+        "variant": "full"
+      }
+    }
+  }
+]

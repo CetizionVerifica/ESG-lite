@@ -1,0 +1,320 @@
+[
+  {
+    "slug": "line-divider",
+    "group": "lines",
+    "name": "Divider",
+    "tags": [
+      "line",
+      "rule",
+      "separator"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "divider",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 120,
+        "h": 1,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "style": "solid"
+      }
+    }
+  },
+  {
+    "slug": "line-solid",
+    "group": "lines",
+    "name": "Line",
+    "tags": [
+      "line",
+      "straight"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 2,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 1,
+        "x2": 80,
+        "y2": 1,
+        "strokeWidth": 0.5,
+        "dash": "solid"
+      }
+    }
+  },
+  {
+    "slug": "line-thick",
+    "group": "lines",
+    "name": "Thick line",
+    "tags": [
+      "line",
+      "bold"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 3,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 1.5,
+        "x2": 80,
+        "y2": 1.5,
+        "strokeWidth": 1.5,
+        "dash": "solid"
+      }
+    }
+  },
+  {
+    "slug": "line-dashed",
+    "group": "lines",
+    "name": "Dashed line",
+    "tags": [
+      "line",
+      "dash"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 2,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 1,
+        "x2": 80,
+        "y2": 1,
+        "strokeWidth": 0.5,
+        "dash": "dashed"
+      }
+    }
+  },
+  {
+    "slug": "line-dotted",
+    "group": "lines",
+    "name": "Dotted line",
+    "tags": [
+      "line",
+      "dots"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 2,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 1,
+        "x2": 80,
+        "y2": 1,
+        "strokeWidth": 0.8,
+        "dash": "dotted"
+      }
+    }
+  },
+  {
+    "slug": "line-arrow",
+    "group": "lines",
+    "name": "Arrow",
+    "tags": [
+      "line",
+      "arrow",
+      "pointer",
+      "flow"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 4,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 2,
+        "x2": 60,
+        "y2": 2,
+        "strokeWidth": 0.8,
+        "dash": "solid",
+        "endArrow": true
+      }
+    }
+  },
+  {
+    "slug": "line-double-arrow",
+    "group": "lines",
+    "name": "Double arrow",
+    "tags": [
+      "line",
+      "arrow",
+      "both ways"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 4,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 2,
+        "x2": 60,
+        "y2": 2,
+        "strokeWidth": 0.8,
+        "dash": "solid",
+        "startArrow": true,
+        "endArrow": true
+      }
+    }
+  },
+  {
+    "slug": "line-dashed-arrow",
+    "group": "lines",
+    "name": "Dashed arrow",
+    "tags": [
+      "line",
+      "arrow",
+      "dash"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 4,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 2,
+        "x2": 60,
+        "y2": 2,
+        "strokeWidth": 0.8,
+        "dash": "dashed",
+        "endArrow": true
+      }
+    }
+  },
+  {
+    "slug": "line-vertical",
+    "group": "lines",
+    "name": "Vertical line",
+    "tags": [
+      "line",
+      "vertical",
+      "rule"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 2,
+        "h": 60,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 1,
+        "y1": 0,
+        "x2": 1,
+        "y2": 60,
+        "strokeWidth": 0.5,
+        "dash": "solid"
+      }
+    }
+  },
+  {
+    "slug": "line-diagonal-arrow",
+    "group": "lines",
+    "name": "Diagonal arrow",
+    "tags": [
+      "line",
+      "arrow",
+      "up",
+      "growth"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "line",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "x1": 0,
+        "y1": 30,
+        "x2": 40,
+        "y2": 0,
+        "strokeWidth": 0.8,
+        "dash": "solid",
+        "endArrow": true
+      }
+    }
+  }
+]

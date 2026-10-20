@@ -1,0 +1,319 @@
+{
+  "role": "period",
+  "pageKind": "about",
+  "name": "Period and base year",
+  "page": {
+    "id": "period",
+    "kind": "freeform",
+    "name": "Period and base year",
+    "background": {},
+    "elements": [
+      {
+        "id": "period.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Reporting period"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "period.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Period and base year"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "period.period_input",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 54,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "reporting_period"
+          },
+          "label": "Reporting period",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "period.base_year",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 78,
+          "y": 46,
+          "w": 54,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "base_year"
+          },
+          "label": "Base year",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "period.threshold",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 138,
+          "y": 46,
+          "w": 54,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "significance_threshold_pct"
+          },
+          "label": "Significance threshold, %",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "period.base_total",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 80,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "base_year_total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e in the base year",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "period.text",
+        "type": "text",
+        "frame": {
+          "x": 108,
+          "y": 80,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The base year is recalculated when a structural change, a change of method or an error moves it by more than the threshold."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "period.policy",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 118,
+          "w": 174,
+          "h": 64,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "recalculation_policy"
+          },
+          "label": "Recalculation policy",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "period.trend",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 190,
+          "w": 174,
+          "h": 76,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 5
+            },
+            "sites": "all"
+          },
+          "kind": "line",
+          "title": "Total emissions, last five years",
+          "options": {
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "period.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "period.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Period and base year"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "period.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 5
+}

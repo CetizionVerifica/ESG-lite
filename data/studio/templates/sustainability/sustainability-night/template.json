@@ -1,0 +1,153 @@
+{
+  "family": "sustainability-night",
+  "version": 1,
+  "kind": "sustainability",
+  "purpose": "report",
+  "format": "a4",
+  "name": "Night",
+  "description": "A dark design with bold numbers and full-height photos.",
+  "tags": [
+    "night",
+    "dark",
+    "annual report",
+    "gri",
+    "brsr",
+    "esrs"
+  ],
+  "looks": [
+    "night"
+  ],
+  "meta": {
+    "title": "{{company}} sustainability report {{period}}",
+    "frameworks": [
+      "GRI",
+      "BRSR",
+      "ESRS"
+    ]
+  },
+  "pages": [
+    {
+      "layout": "cover"
+    },
+    {
+      "flow": {
+        "name": "Contents",
+        "flowType": "toc",
+        "options": {}
+      }
+    },
+    {
+      "layout": "leadership"
+    },
+    {
+      "layout": "about"
+    },
+    {
+      "layout": "highlights"
+    },
+    {
+      "layout": "materiality"
+    },
+    {
+      "layout": "chapter",
+      "name": "Environment",
+      "text": {
+        "kicker": "Chapter 1",
+        "title": "Environment",
+        "text": "Climate, energy, water and waste."
+      }
+    },
+    {
+      "layout": "climate"
+    },
+    {
+      "layout": "energy_water"
+    },
+    {
+      "layout": "waste"
+    },
+    {
+      "layout": "targets"
+    },
+    {
+      "layout": "chapter",
+      "name": "Social",
+      "text": {
+        "kicker": "Chapter 2",
+        "title": "Social",
+        "text": "Our people, their health and safety, and training."
+      }
+    },
+    {
+      "layout": "people"
+    },
+    {
+      "layout": "safety"
+    },
+    {
+      "layout": "quote"
+    },
+    {
+      "layout": "chapter",
+      "name": "Governance",
+      "text": {
+        "kicker": "Chapter 3",
+        "title": "Governance",
+        "text": "The board, ethics and how concerns are raised."
+      }
+    },
+    {
+      "layout": "governance"
+    },
+    {
+      "flow": {
+        "name": "Performance data",
+        "flowType": "data_tables",
+        "options": {
+          "years": {
+            "last": 3
+          },
+          "groupBy": "pillar"
+        }
+      }
+    },
+    {
+      "flow": {
+        "name": "Methodology",
+        "flowType": "methodology",
+        "options": {}
+      }
+    },
+    {
+      "flow": {
+        "name": "GRI index",
+        "flowType": "gri_index",
+        "options": {}
+      }
+    },
+    {
+      "flow": {
+        "name": "BRSR index",
+        "flowType": "brsr_index",
+        "options": {}
+      }
+    },
+    {
+      "flow": {
+        "name": "ESRS index",
+        "flowType": "esrs_index",
+        "options": {}
+      }
+    },
+    {
+      "flow": {
+        "name": "Glossary",
+        "flowType": "glossary",
+        "options": {}
+      }
+    },
+    {
+      "layout": "back_cover"
+    }
+  ]
+}

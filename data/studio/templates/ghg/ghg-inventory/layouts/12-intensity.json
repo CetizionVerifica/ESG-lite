@@ -1,0 +1,350 @@
+{
+  "role": "intensity",
+  "pageKind": "data_page",
+  "name": "Intensity",
+  "page": {
+    "id": "intensity",
+    "kind": "freeform",
+    "name": "Intensity",
+    "background": {},
+    "elements": [
+      {
+        "id": "intensity.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Intensity"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "intensity.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Emissions intensity"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "intensity.revenue",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 54,
+          "h": 32,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_revenue",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Per unit of revenue",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "intensity.output",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 78,
+          "y": 46,
+          "w": 54,
+          "h": 32,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_output",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Per unit of output",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "intensity.employee",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 138,
+          "y": 46,
+          "w": 54,
+          "h": 32,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_employee",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Per employee",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "intensity.trend",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 86,
+          "w": 174,
+          "h": 90,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_revenue",
+            "years": {
+              "last": 5
+            },
+            "sites": "all"
+          },
+          "kind": "intensity_line",
+          "title": "Intensity per unit of revenue over time",
+          "options": {}
+        }
+      },
+      {
+        "id": "intensity.revenue_input",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 184,
+          "w": 54,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "revenue"
+          },
+          "label": "Revenue",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "intensity.output_input",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 78,
+          "y": 184,
+          "w": 54,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "output_units"
+          },
+          "label": "Output",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "intensity.employees_input",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 138,
+          "y": 184,
+          "w": 54,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "employees"
+          },
+          "label": "Employees",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "intensity.note",
+        "type": "callout",
+        "frame": {
+          "x": 18,
+          "y": 216,
+          "w": 174,
+          "h": 20,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The denominators come from Report details. Change them there and every intensity updates."
+                  }
+                ]
+              }
+            ]
+          },
+          "icon": "info",
+          "tone": "muted"
+        }
+      },
+      {
+        "id": "intensity.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "intensity.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Intensity"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "intensity.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 12
+}

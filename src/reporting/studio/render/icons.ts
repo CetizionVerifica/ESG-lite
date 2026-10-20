@@ -1,9 +1,12 @@
 /**
  * DS-1 · a small curated icon set, drawn for ESGLite (24 × 24, 2 px strokes,
- * round caps). Own drawings: no third-party glyphs. DS-4 may add a Lucide
- * (ISC) set later with its licence in data/studio/LICENSES.md; unknown names
- * render the `dot` icon so a page never breaks.
+ * round caps). Own drawings: no third-party glyphs. DS-4 adds a Lucide (ISC)
+ * subset, named `lucide:<name>` (iconsLucide.ts, licence in
+ * data/studio/LICENSES.md); unknown names render the `dot` icon so a page
+ * never breaks.
  */
+import { LUCIDE_ICONS } from "./iconsLucide";
+
 export const ICONS: Record<string, string> = {
   leaf: '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14z"/><path d="M5 19l8-8"/>',
   bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
@@ -28,10 +31,17 @@ export const ICONS: Record<string, string> = {
   dot: '<circle cx="12" cy="12" r="4"/>',
 };
 
-export const ICON_NAMES = Object.keys(ICONS);
+export const LUCIDE_PREFIX = "lucide:";
+export const ICON_NAMES = [...Object.keys(ICONS), ...Object.keys(LUCIDE_ICONS).map((n) => LUCIDE_PREFIX + n)];
+
+/** The inner SVG of an icon name: our own set, then `lucide:<name>`, else the dot. */
+const iconBody = (name: string): string =>
+  (Object.prototype.hasOwnProperty.call(ICONS, name) ? ICONS[name] : undefined) ??
+  (name.startsWith(LUCIDE_PREFIX) && Object.prototype.hasOwnProperty.call(LUCIDE_ICONS, name.slice(LUCIDE_PREFIX.length)) ? LUCIDE_ICONS[name.slice(LUCIDE_PREFIX.length)] : undefined) ??
+  ICONS.dot;
 
 export const iconSvg = (name: string, color: string): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ICONS.dot}</svg>`;
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconBody(name)}</svg>`;
 
 /**
  * UN Sustainable Development Goals: the goal colours (published values) and

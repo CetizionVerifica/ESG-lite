@@ -1,0 +1,285 @@
+{
+  "role": "scope1",
+  "pageKind": "data_page",
+  "name": "Scope 1",
+  "page": {
+    "id": "scope1",
+    "kind": "freeform",
+    "name": "Scope 1",
+    "background": {},
+    "elements": [
+      {
+        "id": "scope1.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Results · Scope 1"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "scope1.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Direct emissions"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "scope1.total",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e Scope 1",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "scope1.text",
+        "type": "text",
+        "frame": {
+          "x": 108,
+          "y": 46,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Scope 1 covers fuel burned on site, company vehicles, process emissions and refrigerant leaks."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "scope1.sources",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 84,
+          "w": 174,
+          "h": 80,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "source_category"
+          },
+          "kind": "bar",
+          "title": "Scope 1 by source",
+          "options": {
+            "horizontal": true,
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "scope1.gases",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 172,
+          "w": 84,
+          "h": 76,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "gas"
+          },
+          "kind": "gas_split",
+          "title": "Scope 1 by gas",
+          "options": {
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "scope1.fuels",
+        "type": "table",
+        "frame": {
+          "x": 108,
+          "y": 172,
+          "w": 84,
+          "h": 76,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "style": "zebra",
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "fuel"
+          },
+          "totalRow": true
+        }
+      },
+      {
+        "id": "scope1.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "scope1.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Scope 1"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "scope1.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 7
+}

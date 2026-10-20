@@ -1,0 +1,438 @@
+{
+  "role": "summary",
+  "pageKind": "highlights",
+  "name": "One-page summary",
+  "page": {
+    "id": "summary",
+    "kind": "freeform",
+    "name": "One-page summary",
+    "background": {},
+    "elements": [
+      {
+        "id": "summary.band",
+        "type": "shape",
+        "frame": {
+          "x": -3,
+          "y": -3,
+          "w": 216,
+          "h": 9,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "shape": "rect",
+          "bleed": true
+        }
+      },
+      {
+        "id": "summary.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 16,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "GHG emissions summary · {{period}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "summary.title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 24,
+          "w": 174,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "summary.total",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 56,
+          "w": 39.75,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e in total",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "summary.scope1",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 62.75,
+          "y": 56,
+          "w": 39.75,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Scope 1",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "summary.scope2",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 107.5,
+          "y": 56,
+          "w": 39.75,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope2_location",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Scope 2 (location-based)",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "summary.scope3",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 152.25,
+          "y": 56,
+          "w": 39.75,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope3",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Scope 3",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "summary.split",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 94,
+          "w": 84,
+          "h": 76,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "scope"
+          },
+          "kind": "scope_split",
+          "title": "Emissions by scope",
+          "options": {
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "summary.scope3_bars",
+        "type": "chart",
+        "frame": {
+          "x": 108,
+          "y": 94,
+          "w": 84,
+          "h": 76,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope3",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "scope3_category",
+            "top": 6
+          },
+          "kind": "category_bars",
+          "title": "Top Scope 3 categories",
+          "options": {
+            "horizontal": true,
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "summary.sites",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 178,
+          "w": 84,
+          "h": 64,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "site",
+            "top": 6
+          },
+          "kind": "site_bars",
+          "title": "By site",
+          "options": {
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "summary.intensity",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 178,
+          "w": 84,
+          "h": 28,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_revenue",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Intensity per unit of revenue",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "summary.market",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 210,
+          "w": 84,
+          "h": 32,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope2_market",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Scope 2 (market-based)",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "summary.notes",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 250,
+          "w": 174,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 4
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Basis"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Consolidation and methods: see the full inventory. Biogenic CO₂ ("
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "biogenic_co2",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all"
+                      },
+                      "measure": "value"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " tCO₂e) is reported separately."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "footnote",
+          "align": "left"
+        }
+      },
+      {
+        "id": "summary.source",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 276,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 14,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "From approved emission entries in ESGLite."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 1
+}

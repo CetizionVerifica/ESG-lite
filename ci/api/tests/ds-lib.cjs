@@ -60,6 +60,8 @@ const STUDIO_CONTRACT_ROUTES = [
   ["POST", "/templates/from-doc"], ["POST", "/layouts/from-page"], ["GET", "/fonts/source-sans-3.woff2"],
   // DS-2 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
   ["GET", "/inputs/prefill?kind=ghg&year=2025"], ["GET", "/data"], ["GET", "/materiality"], ["PUT", "/materiality"],
+  // DS-4 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["PATCH", "/assets/1"], ["GET", "/assets/1/file"], ["POST", "/assets/generate"],
 ].map(([method, p]) => ({ method, path: p }));
 
 /** A concrete URL for a route pattern (":id" → 1). */

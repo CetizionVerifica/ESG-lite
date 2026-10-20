@@ -1,0 +1,250 @@
+{
+  "role": "biogenic",
+  "pageKind": "data_page",
+  "name": "Biogenic CO₂ and removals",
+  "page": {
+    "id": "biogenic",
+    "kind": "freeform",
+    "name": "Biogenic CO₂ and removals",
+    "background": {},
+    "elements": [
+      {
+        "id": "biogenic.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Reported separately"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "biogenic.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Biogenic CO₂ and removals"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "biogenic.biogenic",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "biogenic_co2",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e biogenic CO₂",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "biogenic.text",
+        "type": "text",
+        "frame": {
+          "x": 108,
+          "y": 46,
+          "w": 84,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Biogenic CO₂ from burning biomass and biofuels is shown here, outside the scope totals. Removals and offsets, if any, are also shown separately and never netted off."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "biogenic.note",
+        "type": "callout",
+        "frame": {
+          "x": 18,
+          "y": 84,
+          "w": 84,
+          "h": 22,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Not included in Scope 1, 2 or 3."
+                  }
+                ]
+              }
+            ]
+          },
+          "icon": "info",
+          "tone": "accent"
+        }
+      },
+      {
+        "id": "biogenic.offsets",
+        "type": "placeholder",
+        "frame": {
+          "x": 18,
+          "y": 114,
+          "w": 174,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "accepts": [
+            "text",
+            "table"
+          ],
+          "hint": "Removals or offsets, shown separately (optional)"
+        }
+      },
+      {
+        "id": "biogenic.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "biogenic.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Biogenic CO₂"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "biogenic.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 11
+}

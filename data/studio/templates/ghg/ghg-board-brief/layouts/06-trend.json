@@ -1,0 +1,132 @@
+{
+  "role": "trend",
+  "pageKind": "targets",
+  "name": "Trend",
+  "page": {
+    "id": "trend",
+    "kind": "freeform",
+    "name": "Trend",
+    "background": {},
+    "elements": [
+      {
+        "id": "trend.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Progress"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "trend.heading",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 30,
+          "w": 298.7,
+          "h": 18,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Against the base year"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "trend.waterfall",
+        "type": "chart",
+        "frame": {
+          "x": 20,
+          "y": 52,
+          "w": 144.35,
+          "h": 118,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 2
+            },
+            "sites": "all",
+            "compare": "base"
+          },
+          "kind": "base_year_waterfall",
+          "title": "Change since the base year",
+          "options": {}
+        }
+      },
+      {
+        "id": "trend.line",
+        "type": "chart",
+        "frame": {
+          "x": 174.35,
+          "y": 52,
+          "w": 144.35,
+          "h": 118,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 5
+            },
+            "sites": "all"
+          },
+          "kind": "line",
+          "title": "Five-year trend",
+          "options": {}
+        }
+      }
+    ]
+  },
+  "sort": 6
+}

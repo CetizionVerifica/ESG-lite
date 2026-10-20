@@ -1,0 +1,332 @@
+{
+  "role": "conformance",
+  "pageKind": "about",
+  "name": "Conformance",
+  "page": {
+    "id": "conformance",
+    "kind": "freeform",
+    "name": "Conformance",
+    "background": {},
+    "elements": [
+      {
+        "id": "conformance.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Statement of conformance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "conformance.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Conformance with ISO 14064-1"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "conformance.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 174,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}} prepared this GHG inventory for {{period}} with reference to ISO 14064-1 and the GHG Protocol Corporate Standard."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "conformance.conformance",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 82,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "conformance"
+          },
+          "label": "Standards",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "conformance.responsible",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 82,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "responsible_person"
+          },
+          "label": "Responsible person",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "conformance.consolidation",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 114,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "consolidation_approach"
+          },
+          "label": "Consolidation approach",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "conformance.gwp",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 114,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "gwp_set"
+          },
+          "label": "Global warming potentials",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "conformance.period_input",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 146,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "reporting_period"
+          },
+          "label": "Reporting period",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "conformance.verification",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 146,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "verification"
+          },
+          "label": "Verification",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "conformance.signature",
+        "type": "placeholder",
+        "frame": {
+          "x": 18,
+          "y": 182,
+          "w": 84,
+          "h": 36,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "accepts": [
+            "image",
+            "text"
+          ],
+          "hint": "Signature of the responsible person"
+        }
+      },
+      {
+        "id": "conformance.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "conformance.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Conformance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "conformance.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 19
+}

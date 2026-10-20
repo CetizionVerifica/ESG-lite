@@ -77,6 +77,15 @@ const NON_TENANT_PARAMS = { fonts: "the :file is a bundled font name, the same f
 // Company-1 rows the probes need, made through the API as company 1's Manager once the route
 // exists (each module appends its own step). A step returns nothing; ID_SOURCES then finds the row.
 const SEED = [];
+// DS-4: a company-1 template and asset for the cross-tenant probe (a row is enough; uploads are tested in ds-4-library).
+SEED.push(async ({ q }) => {
+  if (!(await q(`SELECT 1 FROM report_template WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO report_template (company_id, slug, family, kind, purpose, format, name, doc, version) SELECT 1, 'c1-probe', 'c1-probe', kind, purpose, format, 'Company 1 template', doc, 1 FROM report_template WHERE company_id IS NULL AND kind = 'ghg' ORDER BY id LIMIT 1`);
+  }
+  if (!(await q(`SELECT 1 FROM report_asset WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO report_asset (company_id, kind, r2_key, mime, bytes, w, h, sha256) VALUES (1, 'image', 'studio-assets/company_1/probe.png', 'image/png', 1, 1, 1, repeat('0', 64))`);
+  }
+});
 
 const ROLES = ["user", "manager", "admin", "superadmin"];
 

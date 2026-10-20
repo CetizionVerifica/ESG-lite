@@ -1,0 +1,292 @@
+{
+  "role": "people",
+  "pageKind": "people",
+  "name": "People",
+  "page": {
+    "id": "people",
+    "kind": "freeform",
+    "name": "People",
+    "background": {},
+    "elements": [
+      {
+        "id": "people.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Social · our people"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "people.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Our people"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "people.accent",
+        "type": "shape",
+        "frame": {
+          "x": 18,
+          "y": 42,
+          "w": 24,
+          "h": 1.5,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "shape": "rect"
+        }
+      },
+      {
+        "id": "people.photo",
+        "type": "frame",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 83,
+          "h": 110,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "mask": "rect",
+          "fit": "cover",
+          "alt": "A photo of the team"
+        }
+      },
+      {
+        "id": "people.employees",
+        "type": "big_number",
+        "frame": {
+          "x": 109,
+          "y": 46,
+          "w": 83,
+          "h": 34,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "EMPLOYEES_TOTAL"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Employees",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "people.women",
+        "type": "progress",
+        "frame": {
+          "x": 109,
+          "y": 86,
+          "w": 83,
+          "h": 34,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WOMEN_IN_WORKFORCE"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "bar",
+          "label": "Women in the workforce"
+        }
+      },
+      {
+        "id": "people.turnover",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 109,
+          "y": 126,
+          "w": 83,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "EMPLOYEE_TURNOVER_RATE"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Employee turnover",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "people.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 164,
+          "w": 174,
+          "h": 80,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Describe hiring, pay equity, development and wellbeing, with one or two stories from the year."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "people.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "people.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "People"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "people.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 14
+}

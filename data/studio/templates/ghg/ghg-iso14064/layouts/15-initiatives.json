@@ -1,0 +1,426 @@
+{
+  "role": "initiatives",
+  "pageKind": "data_page",
+  "name": "Reduction initiatives",
+  "page": {
+    "id": "initiatives",
+    "kind": "freeform",
+    "name": "Reduction initiatives",
+    "background": {},
+    "elements": [
+      {
+        "id": "initiatives.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Reduction initiatives"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "How we reduce emissions"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.energy_icon",
+        "type": "icon",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 12,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "name": "bolt"
+        }
+      },
+      {
+        "id": "initiatives.energy_title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 62,
+          "w": 52.67,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Energy"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.energy_text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 72,
+          "w": 52.67,
+          "h": 50,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Describe the initiative, when it started and what it is expected to save."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.transport_icon",
+        "type": "icon",
+        "frame": {
+          "x": 78.67,
+          "y": 46,
+          "w": 12,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "name": "truck"
+        }
+      },
+      {
+        "id": "initiatives.transport_title",
+        "type": "text",
+        "frame": {
+          "x": 78.67,
+          "y": 62,
+          "w": 52.67,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Transport"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.transport_text",
+        "type": "text",
+        "frame": {
+          "x": 78.67,
+          "y": 72,
+          "w": 52.67,
+          "h": 50,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Describe the initiative, when it started and what it is expected to save."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.materials_icon",
+        "type": "icon",
+        "frame": {
+          "x": 139.33,
+          "y": 46,
+          "w": 12,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "name": "recycle"
+        }
+      },
+      {
+        "id": "initiatives.materials_title",
+        "type": "text",
+        "frame": {
+          "x": 139.33,
+          "y": 62,
+          "w": 52.67,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Materials and waste"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.materials_text",
+        "type": "text",
+        "frame": {
+          "x": 139.33,
+          "y": 72,
+          "w": 52.67,
+          "h": 50,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Describe the initiative, when it started and what it is expected to save."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.photo",
+        "type": "frame",
+        "frame": {
+          "x": 18,
+          "y": 130,
+          "w": 174,
+          "h": 90,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "mask": "rounded",
+          "fit": "cover",
+          "alt": "A photo of an initiative"
+        }
+      },
+      {
+        "id": "initiatives.note",
+        "type": "callout",
+        "frame": {
+          "x": 18,
+          "y": 228,
+          "w": 174,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Initiatives show in the figures only through approved entries. Expected savings are estimates."
+                  }
+                ]
+              }
+            ]
+          },
+          "icon": "info",
+          "tone": "muted"
+        }
+      },
+      {
+        "id": "initiatives.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 14,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "initiatives.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 15,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Reduction initiatives"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "initiatives.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 16,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 15
+}

@@ -1,0 +1,484 @@
+{
+  "role": "contents",
+  "pageKind": "contents",
+  "name": "Contents",
+  "page": {
+    "id": "contents",
+    "kind": "freeform",
+    "name": "Contents",
+    "background": {},
+    "elements": [
+      {
+        "id": "contents.toprule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 0.4,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "contents.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 22,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Contents"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 30,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "In this report"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.n1",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 50,
+          "w": 16,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "01"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.c1",
+        "type": "text",
+        "frame": {
+          "x": 40,
+          "y": 52,
+          "w": 152,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "About this report"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.n2",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 72,
+          "w": 16,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "02"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.c2",
+        "type": "text",
+        "frame": {
+          "x": 40,
+          "y": 74,
+          "w": 152,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Highlights"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.n3",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 94,
+          "w": 16,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "03"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.c3",
+        "type": "text",
+        "frame": {
+          "x": 40,
+          "y": 96,
+          "w": 152,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Environment"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.n4",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 116,
+          "w": 16,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "04"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.c4",
+        "type": "text",
+        "frame": {
+          "x": 40,
+          "y": 118,
+          "w": 152,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Social"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.n5",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 138,
+          "w": 16,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "05"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.c5",
+        "type": "text",
+        "frame": {
+          "x": 40,
+          "y": 140,
+          "w": 152,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Governance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.n6",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 160,
+          "w": 16,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 14,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "06"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.c6",
+        "type": "text",
+        "frame": {
+          "x": 40,
+          "y": 162,
+          "w": 152,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 15,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Data and indexes"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "contents.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 90,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 16,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "center"
+        }
+      }
+    ]
+  },
+  "sort": 2
+}

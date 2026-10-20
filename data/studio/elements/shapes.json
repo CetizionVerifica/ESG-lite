@@ -1,0 +1,278 @@
+[
+  {
+    "slug": "shape-rect",
+    "group": "shapes",
+    "name": "Rectangle",
+    "tags": [
+      "shape",
+      "box",
+      "block"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 40,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect"
+      }
+    }
+  },
+  {
+    "slug": "shape-square",
+    "group": "shapes",
+    "name": "Square",
+    "tags": [
+      "shape",
+      "box"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 40,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect"
+      }
+    }
+  },
+  {
+    "slug": "shape-rounded",
+    "group": "shapes",
+    "name": "Rounded rectangle",
+    "tags": [
+      "shape",
+      "box",
+      "card"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 40,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect",
+        "radius": 4
+      }
+    }
+  },
+  {
+    "slug": "shape-pill",
+    "group": "shapes",
+    "name": "Pill",
+    "tags": [
+      "shape",
+      "badge",
+      "tag"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect",
+        "radius": 7
+      }
+    }
+  },
+  {
+    "slug": "shape-circle",
+    "group": "shapes",
+    "name": "Circle",
+    "tags": [
+      "shape",
+      "round",
+      "dot"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 40,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "ellipse"
+      }
+    }
+  },
+  {
+    "slug": "shape-ellipse",
+    "group": "shapes",
+    "name": "Ellipse",
+    "tags": [
+      "shape",
+      "oval",
+      "round"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 36,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "ellipse"
+      }
+    }
+  },
+  {
+    "slug": "shape-tint",
+    "group": "shapes",
+    "name": "Tinted panel",
+    "tags": [
+      "shape",
+      "background",
+      "panel",
+      "card"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 50,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect",
+        "radius": 3,
+        "opacity": 0.12
+      }
+    }
+  },
+  {
+    "slug": "shape-bar",
+    "group": "shapes",
+    "name": "Accent bar",
+    "tags": [
+      "shape",
+      "rule",
+      "band"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 2.5,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect"
+      }
+    }
+  },
+  {
+    "slug": "shape-band",
+    "group": "shapes",
+    "name": "Full-width band",
+    "tags": [
+      "shape",
+      "background",
+      "band",
+      "bleed"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 216,
+        "h": 40,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect",
+        "bleed": true
+      }
+    }
+  },
+  {
+    "slug": "shape-column",
+    "group": "shapes",
+    "name": "Side column",
+    "tags": [
+      "shape",
+      "sidebar",
+      "band"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "shape",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 120,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "shape": "rect"
+      }
+    }
+  }
+]

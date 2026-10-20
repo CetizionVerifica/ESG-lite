@@ -1,0 +1,348 @@
+{
+  "role": "boundary",
+  "pageKind": "about",
+  "name": "Boundaries",
+  "page": {
+    "id": "boundary",
+    "kind": "freeform",
+    "name": "Boundaries",
+    "background": {},
+    "elements": [
+      {
+        "id": "boundary.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Boundaries"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "boundary.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "What this inventory covers"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "boundary.consolidation",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "consolidation_approach"
+          },
+          "label": "Consolidation approach",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "boundary.sites",
+        "type": "big_number",
+        "frame": {
+          "x": 108,
+          "y": 46,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "sites_covered",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Sites in this inventory",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "boundary.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 76,
+          "w": 84,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The inventory covers every site within the consolidation approach above. The operational boundary takes in direct emissions (Scope 1), indirect emissions from purchased energy (Scope 2) and the Scope 3 categories on the Scope 3 pages."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "boundary.map",
+        "type": "frame",
+        "frame": {
+          "x": 108,
+          "y": 76,
+          "w": 84,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "mask": "rounded",
+          "fit": "cover",
+          "alt": "Map of the sites in this inventory"
+        }
+      },
+      {
+        "id": "boundary.sites_heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 152,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Sites"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "boundary.sites_table",
+        "type": "table",
+        "frame": {
+          "x": 18,
+          "y": 162,
+          "w": 174,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "style": "zebra",
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "site"
+          },
+          "totalRow": true
+        }
+      },
+      {
+        "id": "boundary.exclusions_heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 228,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Exclusions"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "boundary.exclusions",
+        "type": "table",
+        "frame": {
+          "x": 18,
+          "y": 238,
+          "w": 174,
+          "h": 34,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "style": "lined",
+          "binding": {
+            "source": "input",
+            "key": "exclusions"
+          }
+        }
+      },
+      {
+        "id": "boundary.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "boundary.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Boundaries"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "boundary.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 4
+}

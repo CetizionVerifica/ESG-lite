@@ -1,0 +1,270 @@
+{
+  "role": "iso_categories",
+  "pageKind": "data_page",
+  "name": "ISO 14064-1 categories",
+  "page": {
+    "id": "iso_categories",
+    "kind": "freeform",
+    "name": "ISO 14064-1 categories",
+    "background": {},
+    "elements": [
+      {
+        "id": "iso_categories.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "ISO 14064-1"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "iso_categories.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Emissions by ISO category"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "iso_categories.cat1",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 84,
+          "h": 28,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Category 1: direct emissions",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "iso_categories.cat2",
+        "type": "big_number",
+        "frame": {
+          "x": 108,
+          "y": 46,
+          "w": 84,
+          "h": 28,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope2_location",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Category 2: imported energy",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "iso_categories.mapping",
+        "type": "table",
+        "frame": {
+          "x": 18,
+          "y": 82,
+          "w": 174,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "style": "lined",
+          "columns": [
+            "ISO 14064-1 category",
+            "Where it is reported"
+          ],
+          "rows": [
+            [
+              "1 · Direct emissions and removals",
+              "Scope 1"
+            ],
+            [
+              "2 · Indirect emissions from imported energy",
+              "Scope 2 (location-based)"
+            ],
+            [
+              "3 · Indirect emissions from transportation",
+              "Scope 3 categories 4, 6, 7 and 9"
+            ],
+            [
+              "4 · Indirect emissions from products the organisation uses",
+              "Scope 3 categories 1, 2, 3, 5 and 8"
+            ],
+            [
+              "5 · Indirect emissions from the use of the organisation's products",
+              "Scope 3 categories 10, 11, 12 and 13"
+            ],
+            [
+              "6 · Other indirect emissions",
+              "Scope 3 categories 14 and 15"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "iso_categories.scope3",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 160,
+          "w": 174,
+          "h": 100,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope3",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "scope3_category",
+            "top": 15
+          },
+          "kind": "category_bars",
+          "title": "Categories 3 to 6 by Scope 3 category",
+          "options": {
+            "horizontal": true,
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "iso_categories.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "iso_categories.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "ISO 14064-1 categories"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "iso_categories.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 20
+}

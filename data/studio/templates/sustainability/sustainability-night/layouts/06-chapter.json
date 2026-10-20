@@ -1,0 +1,141 @@
+{
+  "role": "chapter",
+  "pageKind": "chapter_opener",
+  "name": "Chapter opener",
+  "page": {
+    "id": "chapter",
+    "kind": "freeform",
+    "name": "Chapter opener",
+    "background": {},
+    "elements": [
+      {
+        "id": "chapter.band",
+        "type": "shape",
+        "frame": {
+          "x": 18,
+          "y": 110,
+          "w": 30,
+          "h": 3,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "shape": "rect"
+        }
+      },
+      {
+        "id": "chapter.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 120,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Chapter"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "chapter.title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 128,
+          "w": 174,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Chapter title"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "chapter.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 172,
+          "w": 120,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "One or two sentences on what this chapter covers."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "chapter.photo",
+        "type": "frame",
+        "frame": {
+          "x": 120,
+          "y": 220,
+          "w": 72,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "mask": "blob",
+          "fit": "cover",
+          "alt": "A photo for the chapter"
+        }
+      }
+    ]
+  },
+  "sort": 6
+}
