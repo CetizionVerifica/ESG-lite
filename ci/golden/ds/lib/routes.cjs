@@ -47,10 +47,11 @@ const CONTRACT_ROUTES = [
   ["POST", "/comments/:id/task", "DS-13"], ["PATCH", "/comments/:id/task", "DS-13"],
   ["POST", "/docs/:id/approvals", "DS-13"], ["POST", "/approvals/:id/decide", "DS-13"], ["DELETE", "/approvals/:id", "DS-13"],
   ["POST", "/templates/from-doc", "DS-13"], ["POST", "/layouts/from-page", "DS-13"],
+  ["GET", "/fonts/:file", "DS-1"], // the renderer's self-hosted fonts (ds-lib.cjs probes /fonts/source-sans-3.woff2)
 ].map(([method, p, module]) => ({ method, path: p, module }));
 
 // A query string a route needs to get past validation to the guard and the tenant check.
-const QUERY = { "/readiness": "?kind=ghg&year=2025", "/styles": "?kind=ghg", "/templates": "?kind=ghg", "/layouts": "?kind=ghg", "/docs/1/preview.html": "?mode=sheet" };
+const QUERY = { "/fonts/1": "",  "/readiness": "?kind=ghg&year=2025", "/styles": "?kind=ghg", "/templates": "?kind=ghg", "/layouts": "?kind=ghg", "/docs/1/preview.html": "?mode=sheet" };
 
 /** "/docs/:id/versions/:n" → "/studio/docs/1/versions/1" (+ the query it needs). */
 const concrete = (p, ids = {}) => {
@@ -59,15 +60,17 @@ const concrete = (p, ids = {}) => {
 };
 
 const key = (r) => `${r.method} ${r.path}`;
+/** The same route whatever its parameters are called ("/docs/:docId" = "/docs/:id"). */
+const shape = (r) => `${r.method} ${r.path.replace(/:[a-z_]+/gi, ":p")}`;
 
 /** Every route behind the switch: built ∪ contract, each once, without GET /status. */
 const gatedRoutes = (root) => {
   const seen = new Set();
-  const all = [...builtRoutes(root).map((r) => ({ ...r, module: (CONTRACT_ROUTES.find((c) => key(c) === key(r)) || {}).module || "built" })), ...CONTRACT_ROUTES];
-  return all.filter((r) => key(r) !== "GET /status").filter((r) => (seen.has(key(r)) ? false : seen.add(key(r))));
+  const all = [...builtRoutes(root).map((r) => ({ ...r, module: (CONTRACT_ROUTES.find((c) => shape(c) === shape(r)) || {}).module || "built" })), ...CONTRACT_ROUTES];
+  return all.filter((r) => key(r) !== "GET /status").filter((r) => (seen.has(shape(r)) ? false : seen.add(shape(r))));
 };
 
 /** True once the compiled router serves `method path` (a module has landed). */
-const isBuilt = (root, method, p) => builtRoutes(root).some((r) => r.method === method && r.path === p);
+const isBuilt = (root, method, p) => builtRoutes(root).some((r) => shape(r) === shape({ method, path: p }));
 
-module.exports = { builtRoutes, CONTRACT_ROUTES, gatedRoutes, concrete, isBuilt, key };
+module.exports = { builtRoutes, CONTRACT_ROUTES, gatedRoutes, concrete, isBuilt, key, shape };
