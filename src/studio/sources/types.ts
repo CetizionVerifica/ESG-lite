@@ -56,6 +56,8 @@ export interface ResolvedBinding {
   compare?: Comparison;
   /** KPI target and progress (single-KPI bindings with a company target). */
   target?: { baseline_year: number; baseline_value: number; target_year: number; target_value: number; progress_pct: number | null; status: string };
+  /** DS-8: months or quarters of the current year, one series per scope (month/quarter breakdowns of total and scope metrics). */
+  stacks?: Series[];
   /** Totals a share is taken of (`share` measure): the binding's own total over its breakdown. */
   total?: number | null;
   unavailable?: { reason: UnavailableReason; detail?: string };

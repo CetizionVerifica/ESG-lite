@@ -343,6 +343,25 @@ export async function breakdownPoints(L: GhgLoader, ctx: ResolveContext, b: GhgB
   return [];
 }
 
+/**
+ * DS-8 · one series per scope of the metric (Scope 1, 2, 3 for total), keyed by
+ * month or quarter of the year: the same approved monthly rows as the `month`
+ * breakdown, split by scope, so the stacks add up to that breakdown.
+ */
+export async function scopeStacks(L: GhgLoader, ctx: ResolveContext, b: GhgBinding, year: number, sites: number[]): Promise<Series[]> {
+  const scopes = SCOPE_OF[b.metric] ?? [];
+  const keys = reportingMonthKeys(ctx.yearType, year);
+  const m = await L.monthly(year, sites);
+  return scopes.map((scope) => {
+    const month = (k: string) => tidy(sum(m.filter((r) => r.scope === scope && r.month === k).map((r) => r.tco2e)));
+    const values =
+      b.breakdown === "quarter"
+        ? [0, 1, 2, 3].map((q) => ({ key: `Q${q + 1}`, value: tidy(sum(keys.slice(q * 3, q * 3 + 3).map(month))) }))
+        : keys.map((k) => ({ key: k, value: month(k) }));
+    return { label: scope, values };
+  });
+}
+
 /** Keeps the `top` keys by the current year's value and folds the rest into "Other" (in every year). */
 export function applyTop(seriesByYear: Array<{ year: number; points: Array<{ key: string; value: number | null }> }>, current: number, top?: number) {
   if (!top) return seriesByYear;
@@ -388,6 +407,8 @@ export async function resolveGhg(L: GhgLoader, ctx: ResolveContext, b: GhgBindin
     const topped = applyTop(perYear, current, b.top);
     out.series = topped.map((s) => ({ label: String(s.year), values: s.points }));
     out.total = main.value;
+    // DS-8: months (quarters) of the current year stacked by scope, for monthly_stack.
+    if ((b.breakdown === "month" || b.breakdown === "quarter") && SCOPE_OF[b.metric]) out.stacks = await scopeStacks(L, ctx, b, current, sites);
   } else if (years.length > 1) {
     const values = [];
     for (const y of years) values.push({ key: String(y), value: y === current ? main.value : (await metricValue(L, ctx, b, y, sites)).value });
