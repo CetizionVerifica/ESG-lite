@@ -25,6 +25,7 @@ const textElement = (id) => ({
   type: "text",
   frame: { x: 20, y: 40, w: 150, h: 30, rotation: 0 },
   z: 10,
+  source: "user",
   props: {
     style: "body",
     align: "left",
@@ -100,6 +101,7 @@ test("a footnote needs a note; unknown attributes and other categories are refus
     const r = await call("PATCH", `/studio/docs/${id}`, "manager", { rev, doc: withMarks(marks, options) });
     assert.equal(r.status, 422, JSON.stringify(marks));
     assert.equal(r.json.code, "DS_DOC_INVALID");
+    assert.ok(r.json.details.issues.every((i) => /marks|options|content\.0\.content\.2$/.test(i.path)), JSON.stringify(r.json.details.issues));
   }
 });
 
