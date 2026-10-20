@@ -59,6 +59,10 @@ import { KpiTopicAssignment } from "../entities/KpiTopicAssignment";
 import { KpiTemplatePlan } from "../entities/KpiTemplatePlan";
 import { KpiTarget } from "../entities/KpiTarget"; // KPI-9
 import { BrandPalette } from "../entities/BrandPalette"; // DS-3
+import { StudioTemplate } from "../entities/StudioTemplate"; // DS-4
+import { StudioLayout } from "../entities/StudioLayout"; // DS-4
+import { StudioElement } from "../entities/StudioElement"; // DS-4
+import { StudioAsset } from "../entities/StudioAsset"; // DS-4
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -142,6 +146,7 @@ const entities = [
     KpiTemplatePlan,
     KpiTarget,
     BrandPalette, // DS-3
+    StudioTemplate, StudioLayout, StudioElement, StudioAsset, // DS-4
 ];
 
 // Parse DATABASE_URL to extract connection parameters
