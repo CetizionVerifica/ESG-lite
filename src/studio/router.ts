@@ -18,7 +18,7 @@ const router = Router();
 
 router.get("/status", studioStatus); // DS-0: {enabled, kinds: {ghg, sustainability}}, answers when off
 router.use(requireDesignStudio); // DS-0: 403 DS_STUDIO_OFF / DS_ROLE below this line
-router.use("/fonts", studioFontsRouter); // DS-1: GET /studio/fonts/:file (bundled WOFF2)
+router.use(studioFontsRouter); // DS-1: GET /studio/fonts/:file (bundled WOFF2)
 router.use(sourcesRouter); // DS-2: /resolve, /docs/:id/inputs, /inputs/prefill, /data
 router.use(brandKitRouter); // DS-3: /studio/brand-kit, /studio/styles
 

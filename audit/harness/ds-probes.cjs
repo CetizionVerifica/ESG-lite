@@ -71,6 +71,9 @@ const ID_SOURCES = {
   comments: { table: "report_comment", sql: `SELECT c.id FROM report_comment c JOIN report_doc d ON d.id = c.doc_id WHERE d.company_id = 1 ORDER BY c.id LIMIT 1`, module: "DS-13" },
   approvals: { table: "report_approval", sql: `SELECT a.id FROM report_approval a JOIN report_doc d ON d.id = a.doc_id WHERE d.company_id = 1 ORDER BY a.id LIMIT 1`, module: "DS-13" },
 };
+// Route parameters that are not tenant ids: nothing company-owned to cross, so DS-P03 records n/a
+// (DS-P02 and DS-P04 still probe these routes). [Wave 1 integrate]
+const NON_TENANT_PARAMS = { fonts: "the :file is a bundled font name, the same files for every company (DS-1)" };
 // Company-1 rows the probes need, made through the API as company 1's Manager once the route
 // exists (each module appends its own step). A step returns nothing; ID_SOURCES then finds the row.
 const SEED = [];
@@ -148,6 +151,7 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
       await probe("DS-P03", `${r.method} ${r.path}: company 1's id with company 2's Manager`, "404 and the row unchanged", async () => {
         if (!isBuilt(key(r))) return na(`waits on ${r.module}: not routed yet`);
         const resource = r.path.split("/")[1];
+        if (NON_TENANT_PARAMS[resource]) return na(NON_TENANT_PARAMS[resource]);
         const src = ID_SOURCES[resource];
         if (!src) return `no ID_SOURCES entry for /${resource}: add one so this route is probed`;
         if (!(await tableExists(src.table))) return na(`waits on ${src.module}: no ${src.table} table`);

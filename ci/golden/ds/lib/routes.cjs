@@ -48,10 +48,12 @@ const CONTRACT_ROUTES = [
   ["POST", "/docs/:id/approvals", "DS-13"], ["POST", "/approvals/:id/decide", "DS-13"], ["DELETE", "/approvals/:id", "DS-13"],
   ["POST", "/templates/from-doc", "DS-13"], ["POST", "/layouts/from-page", "DS-13"],
   ["GET", "/fonts/:file", "DS-1"], // the renderer's self-hosted fonts (ds-lib.cjs probes /fonts/source-sans-3.woff2)
+  // DS-2 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["GET", "/inputs/prefill", "DS-2"], ["GET", "/data", "DS-2"], ["GET", "/materiality", "DS-2"], ["PUT", "/materiality", "DS-2"],
 ].map(([method, p, module]) => ({ method, path: p, module }));
 
 // A query string a route needs to get past validation to the guard and the tenant check.
-const QUERY = { "/fonts/1": "",  "/readiness": "?kind=ghg&year=2025", "/styles": "?kind=ghg", "/templates": "?kind=ghg", "/layouts": "?kind=ghg", "/docs/1/preview.html": "?mode=sheet" };
+const QUERY = { "/fonts/1": "", "/inputs/prefill": "?kind=ghg&year=2025", "/readiness": "?kind=ghg&year=2025", "/styles": "?kind=ghg", "/templates": "?kind=ghg", "/layouts": "?kind=ghg", "/docs/1/preview.html": "?mode=sheet" };
 
 /** "/docs/:id/versions/:n" → "/studio/docs/1/versions/1" (+ the query it needs). */
 const concrete = (p, ids = {}) => {

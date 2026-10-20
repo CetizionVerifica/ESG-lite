@@ -11,7 +11,7 @@ import { fontPath } from "./files";
 const router = Router();
 
 router.get(
-  "/:file",
+  "/fonts/:file",
   handle("fonts", async (req, res) => {
     const p = fontPath(String(req.params.file ?? ""));
     if (!p) throw new DsError("DS_DOC_NOT_FOUND");
