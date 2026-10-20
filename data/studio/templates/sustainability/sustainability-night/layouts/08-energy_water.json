@@ -1,0 +1,309 @@
+{
+  "role": "energy_water",
+  "pageKind": "data_page",
+  "name": "Energy and water",
+  "page": {
+    "id": "energy_water",
+    "kind": "freeform",
+    "name": "Energy and water",
+    "background": {},
+    "elements": [
+      {
+        "id": "energy_water.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Environment · resources"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "energy_water.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Energy and water"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "energy_water.accent",
+        "type": "shape",
+        "frame": {
+          "x": 18,
+          "y": 42,
+          "w": 24,
+          "h": 1.5,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "shape": "rect"
+        }
+      },
+      {
+        "id": "energy_water.energy",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 83,
+          "h": 80,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "ENERGY_TOTAL"
+            ],
+            "years": {
+              "last": 3
+            },
+            "sites": "all"
+          },
+          "kind": "bar",
+          "title": "Energy used",
+          "options": {
+            "showValues": true,
+            "greyPrior": true
+          }
+        }
+      },
+      {
+        "id": "energy_water.water",
+        "type": "chart",
+        "frame": {
+          "x": 109,
+          "y": 46,
+          "w": 83,
+          "h": 80,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WATER_WITHDRAWAL"
+            ],
+            "years": {
+              "last": 3
+            },
+            "sites": "all"
+          },
+          "kind": "bar",
+          "title": "Water withdrawn",
+          "options": {
+            "showValues": true,
+            "greyPrior": true
+          }
+        }
+      },
+      {
+        "id": "energy_water.renewable",
+        "type": "progress",
+        "frame": {
+          "x": 18,
+          "y": 134,
+          "w": 83,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "ENERGY_RENEWABLE_SHARE"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "bar",
+          "label": "Renewable share of energy"
+        }
+      },
+      {
+        "id": "energy_water.consumption",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 109,
+          "y": 134,
+          "w": 83,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WATER_CONSUMPTION"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Water consumed",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "energy_water.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 184,
+          "w": 174,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Explain the main uses of energy and water, the sources, and what changed. Mention sites in water-stressed areas."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "energy_water.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "energy_water.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Energy and water"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "energy_water.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 8
+}

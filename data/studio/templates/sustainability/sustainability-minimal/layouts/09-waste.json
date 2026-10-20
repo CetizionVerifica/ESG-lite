@@ -1,0 +1,248 @@
+{
+  "role": "waste",
+  "pageKind": "data_page",
+  "name": "Waste",
+  "page": {
+    "id": "waste",
+    "kind": "freeform",
+    "name": "Waste",
+    "background": {},
+    "elements": [
+      {
+        "id": "waste.toprule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 0.4,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "waste.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 22,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Environment · circularity"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "waste.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 30,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Waste"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "waste.waste",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 83,
+          "h": 110,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WASTE_GENERATED",
+              "WASTE_HAZARDOUS"
+            ],
+            "years": {
+              "last": 3
+            },
+            "sites": "all"
+          },
+          "kind": "bar",
+          "title": "Waste generated and hazardous waste",
+          "options": {
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "waste.text",
+        "type": "text",
+        "frame": {
+          "x": 109,
+          "y": 46,
+          "w": 83,
+          "h": 110,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Describe how waste is reduced, reused, recycled or disposed of, and any targets."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "waste.generated",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 164,
+          "w": 83,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WASTE_GENERATED"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Waste generated",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "waste.hazardous",
+        "type": "big_number",
+        "frame": {
+          "x": 109,
+          "y": 164,
+          "w": 83,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WASTE_HAZARDOUS"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Hazardous waste",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "waste.photo",
+        "type": "frame",
+        "frame": {
+          "x": 18,
+          "y": 202,
+          "w": 174,
+          "h": 56,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "mask": "rounded",
+          "fit": "cover",
+          "alt": "A photo of a waste or recycling initiative"
+        }
+      },
+      {
+        "id": "waste.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 90,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "center"
+        }
+      }
+    ]
+  },
+  "sort": 9
+}

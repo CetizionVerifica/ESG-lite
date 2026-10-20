@@ -1,0 +1,303 @@
+{
+  "role": "climate",
+  "pageKind": "data_page",
+  "name": "Climate",
+  "page": {
+    "id": "climate",
+    "kind": "freeform",
+    "name": "Climate",
+    "background": {},
+    "elements": [
+      {
+        "id": "climate.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Environment · climate"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "climate.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Greenhouse gas emissions"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "climate.trend",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 174,
+          "h": 100,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "GHG_SCOPE1_2"
+            ],
+            "years": {
+              "last": 5
+            },
+            "sites": "all"
+          },
+          "kind": "line",
+          "title": "Scope 1 and 2 emissions, five years",
+          "options": {
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "climate.total",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 154,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "GHG_SCOPE1_2"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Scope 1 and 2 emissions",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "climate.scope3",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 154,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "GHG_SCOPE3"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Scope 3 emissions",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "climate.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 192,
+          "w": 174,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Scope 1 and 2 emissions were "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "kpi",
+                        "kpis": [
+                          "GHG_SCOPE1_2"
+                        ],
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all"
+                      },
+                      "measure": "value"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": ", a change of "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "kpi",
+                        "kpis": [
+                          "GHG_SCOPE1_2"
+                        ],
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all",
+                        "compare": "prior"
+                      },
+                      "measure": "change_pct"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " on the previous year. Explain what drove the change."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "climate.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "climate.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Climate"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "climate.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 7
+}

@@ -1,0 +1,111 @@
+{
+  "role": "quote",
+  "pageKind": "quote",
+  "name": "Quote",
+  "page": {
+    "id": "quote",
+    "kind": "freeform",
+    "name": "Quote",
+    "background": {},
+    "elements": [
+      {
+        "id": "quote.photo",
+        "type": "frame",
+        "frame": {
+          "x": -3,
+          "y": -3,
+          "w": 216,
+          "h": 165,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "mask": "rect",
+          "fit": "cover",
+          "alt": "A photo above the quote",
+          "bleed": true
+        }
+      },
+      {
+        "id": "quote.mark",
+        "type": "icon",
+        "frame": {
+          "x": 18,
+          "y": 180,
+          "w": 14,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "name": "quote"
+        }
+      },
+      {
+        "id": "quote.quote",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 198,
+          "w": 174,
+          "h": 50,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "A quote from an employee, customer or partner about the work in this report."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "quote",
+          "align": "left"
+        }
+      },
+      {
+        "id": "quote.who",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 252,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Name, role"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 15
+}

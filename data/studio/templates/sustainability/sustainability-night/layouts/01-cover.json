@@ -1,0 +1,173 @@
+{
+  "role": "cover",
+  "pageKind": "cover",
+  "name": "Cover",
+  "page": {
+    "id": "cover",
+    "kind": "freeform",
+    "name": "Cover",
+    "background": {},
+    "elements": [
+      {
+        "id": "cover.hero",
+        "type": "frame",
+        "frame": {
+          "x": 105,
+          "y": -3,
+          "w": 108,
+          "h": 303,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "mask": "rect",
+          "fit": "cover",
+          "alt": "Cover image",
+          "bleed": true
+        }
+      },
+      {
+        "id": "cover.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 120,
+          "w": 80,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Sustainability report"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 130,
+          "w": 80,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.band",
+        "type": "shape",
+        "frame": {
+          "x": 18,
+          "y": 196,
+          "w": 24,
+          "h": 2,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "shape": "rect"
+        }
+      },
+      {
+        "id": "cover.period",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 204,
+          "w": 80,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{period}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.source",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 270,
+          "w": 120,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Figures from approved KPI values."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 1
+}

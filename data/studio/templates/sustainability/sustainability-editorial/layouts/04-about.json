@@ -1,0 +1,310 @@
+{
+  "role": "about",
+  "pageKind": "about",
+  "name": "About us",
+  "page": {
+    "id": "about",
+    "kind": "freeform",
+    "name": "About us",
+    "background": {},
+    "elements": [
+      {
+        "id": "about.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "About this report"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "about.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Who we are"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "about.about",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 83,
+          "h": 100,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Describe the company: what it makes, where it operates and how many people it employs. This text comes from Report details when it is filled in."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "about.photo",
+        "type": "frame",
+        "frame": {
+          "x": 109,
+          "y": 46,
+          "w": 83,
+          "h": 100,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "mask": "rect",
+          "fit": "cover",
+          "alt": "A photo of a site or team"
+        }
+      },
+      {
+        "id": "about.employees",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 154,
+          "w": 83,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "EMPLOYEES_TOTAL"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Employees",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "about.energy",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 109,
+          "y": 154,
+          "w": 83,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "ENERGY_TOTAL"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Energy used",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "about.scope_heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 196,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "About this report"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "about.scope",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 206,
+          "w": 174,
+          "h": 50,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The reporting period, the entities and sites covered, the frameworks used (see the indexes at the end) and who to contact with questions."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "about.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "about.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "About"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "about.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 4
+}

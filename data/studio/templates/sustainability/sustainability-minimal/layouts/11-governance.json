@@ -1,0 +1,282 @@
+{
+  "role": "governance",
+  "pageKind": "data_page",
+  "name": "Governance",
+  "page": {
+    "id": "governance",
+    "kind": "freeform",
+    "name": "Governance",
+    "background": {},
+    "elements": [
+      {
+        "id": "governance.toprule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 0.4,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "governance.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 22,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Governance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "governance.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 30,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "How we are governed"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "governance.women_board",
+        "type": "progress",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 54,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WOMEN_ON_BOARD"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "ring",
+          "label": "Women on the board"
+        }
+      },
+      {
+        "id": "governance.independence",
+        "type": "progress",
+        "frame": {
+          "x": 78,
+          "y": 46,
+          "w": 54,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "BOARD_INDEPENDENCE"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "ring",
+          "label": "Independent directors"
+        }
+      },
+      {
+        "id": "governance.training",
+        "type": "progress",
+        "frame": {
+          "x": 138,
+          "y": 46,
+          "w": 54,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "ANTI_CORRUPTION_TRAINING_SHARE"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "ring",
+          "label": "Trained on anti-corruption"
+        }
+      },
+      {
+        "id": "governance.corruption",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 98,
+          "w": 84,
+          "h": 28,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "CORRUPTION_INCIDENTS"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Confirmed corruption incidents",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "governance.complaints",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 98,
+          "w": 84,
+          "h": 28,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "COMPLAINTS_RECEIVED"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Complaints received",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "governance.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 134,
+          "w": 174,
+          "h": 110,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Describe the board, its committees and who oversees sustainability, the code of conduct and how concerns can be raised."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "governance.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 90,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "center"
+        }
+      }
+    ]
+  },
+  "sort": 11
+}
