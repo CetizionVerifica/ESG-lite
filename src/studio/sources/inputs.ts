@@ -211,6 +211,8 @@ export interface DocInputsRow {
   year: number;
   yearType: YearType;
   sites: "all" | number[];
+  /** 'final' designs refuse input edits (DS_FINAL_IMMUTABLE), as PATCH /docs/:id does. */
+  status: string;
   inputs: ReportInputs;
 }
 
@@ -232,7 +234,7 @@ const sitesOf = (draft: Row | null): "all" | number[] => {
 export async function loadDocInputs(companyId: number, docId: number): Promise<DocInputsRow> {
   if (!(await hasDocTable())) throw new DsError("DS_DOC_NOT_FOUND");
   const [r]: Row[] = await AppDataSource.query(
-    `SELECT id, kind, rev, year, year_type, inputs, draft FROM report_doc WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+    `SELECT id, kind, status, rev, year, year_type, inputs, draft FROM report_doc WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
     [docId, companyId],
   );
   if (!r) throw new DsError("DS_DOC_NOT_FOUND");
@@ -243,6 +245,7 @@ export async function loadDocInputs(companyId: number, docId: number): Promise<D
     year: Number(r.year ?? r.draft?.meta?.year),
     yearType: (r.year_type ?? r.draft?.meta?.yearType) === "FY" ? "FY" : "CY",
     sites: sitesOf(r.draft),
+    status: String(r.status ?? "draft"),
     inputs: (r.inputs ?? {}) as ReportInputs,
   };
 }

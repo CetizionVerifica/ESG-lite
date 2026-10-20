@@ -19,7 +19,7 @@ import { handle, parse, routeId } from "../http";
 import { ghgCatalog, kpiCatalog } from "./catalog";
 import { materialityRouter } from "./materiality";
 import { applyInputPatch, loadDocInputs, prefillInputs, saveDocInputs } from "./inputs";
-import { buildContext, checkSites, loadersFor, readableSites, resolveRequest } from "./resolve";
+import { assertDocSitesReadable, buildContext, checkSites, loadersFor, readableSites, resolveRequest } from "./resolve";
 
 const router = Router();
 
@@ -64,7 +64,8 @@ async function docPrefill(req: StudioRequest, docId: number) {
   const caller = studioCaller(req);
   const doc = await loadDocInputs(caller.companyId, docId);
   assertKind(caller, doc.kind);
-  const { readable } = await readableSites(caller);
+  const { readable, all } = await readableSites(caller);
+  assertDocSitesReadable(doc.sites, readable, all); // [DS review] a site-scoped caller never reads a wider design's inputs
   const siteIds = doc.sites === "all" ? readable : doc.sites.filter((s) => readable.includes(s));
   const L = loadersFor(caller.companyId, doc.yearType);
   const prefill = Number.isFinite(doc.year)
@@ -87,6 +88,7 @@ router.patch(
     const id = routeId(req.params.id);
     const { caller, doc, prefill } = await docPrefill(req as StudioRequest, id);
     const body = parse(PatchInputs, req.body ?? {});
+    if (doc.status === "final") throw new DsError("DS_FINAL_IMMUTABLE"); // [DS review] as PATCH /docs/:id
     if (body.rev !== doc.rev) throw new DsError("DS_VERSION_CONFLICT", { rev: doc.rev });
     const next = applyInputPatch(doc.inputs, body.inputs, doc.kind, caller.userId);
     const rev = await saveDocInputs(caller.companyId, id, body.rev, next, caller.userId);

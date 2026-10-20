@@ -228,6 +228,7 @@ export async function buildContext(caller: StudioCaller, req: { kind: ReportKind
   if (req.docId) {
     const doc = await loadDocInputs(caller.companyId, req.docId);
     assertKind(caller, doc.kind);
+    assertDocSitesReadable(doc.sites, readable, all);
     stored = doc.inputs;
   }
   if (req.inputs) stored = { ...stored, ...req.inputs };
@@ -243,6 +244,11 @@ export async function buildContext(caller: StudioCaller, req: { kind: ReportKind
     inputs: effectiveInputs(stored, prefill),
   };
   return { ctx, readable, all, prefill };
+}
+
+/** A design whose sites the caller can't all read is not found (as loadDocRow: 'all' needs every site). */
+export function assertDocSitesReadable(sites: "all" | number[], readable: number[], all: boolean): void {
+  if (sites === "all" ? !all : !sites.every((s) => readable.includes(s))) throw new DsError("DS_DOC_NOT_FOUND");
 }
 
 /** Every site a binding names must be readable too (404 otherwise; 'all' is the doc's sites). */

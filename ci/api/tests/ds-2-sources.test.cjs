@@ -445,3 +445,29 @@ test("materiality scores: migrate twice, round trip, points only when every mate
   await setKpi(2, false);
   await setKpi(1, false);
 });
+
+test("[DS review] report inputs follow the design's sites and freeze with a final", async () => {
+  await setStudio(1, true);
+  const wide = await newDoc(1);
+  const own = await newDoc(1, "ghg", 2025, "CY", [1]);
+  await q(`INSERT INTO user_sites (user_id, site_id) SELECT 2, s FROM unnest(ARRAY[1, 2]) s WHERE NOT EXISTS (SELECT 1 FROM user_sites WHERE user_id = 2 AND site_id = s)`);
+  await q(`DELETE FROM user_sites WHERE user_id = 2 AND site_id = 2`);
+  try {
+    // A Manager on site 1 only: the company-wide design is not found (read, write, or as a resolve docId).
+    for (const [m, p, b] of [["GET", `/studio/docs/${wide}/inputs`], ["PATCH", `/studio/docs/${wide}/inputs`, { rev: 1, inputs: {} }]]) {
+      const r = await call(m, p, "manager", b);
+      assert.equal(r.status, 404, `${m} ${p}`);
+      assert.equal(r.json.code, "DS_DOC_NOT_FOUND");
+    }
+    const viaResolve = await resolve("manager", body([ghg("total")], { sites: [1], docId: wide }));
+    assert.equal(viaResolve.status, 404);
+    assert.equal((await call("GET", `/studio/docs/${own}/inputs`, "manager")).status, 200);
+  } finally {
+    await q(`INSERT INTO user_sites (user_id, site_id) SELECT 2, 2 WHERE NOT EXISTS (SELECT 1 FROM user_sites WHERE user_id = 2 AND site_id = 2)`);
+  }
+  // A final design's inputs can't change.
+  await q(`UPDATE report_doc SET status = 'final' WHERE id = $1`, [own]);
+  const frozen = await call("PATCH", `/studio/docs/${own}/inputs`, "manager", { rev: 1, inputs: {} });
+  assert.equal(frozen.status, 409);
+  assert.equal(frozen.json.code, "DS_FINAL_IMMUTABLE");
+});
