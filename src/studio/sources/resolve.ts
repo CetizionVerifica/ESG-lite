@@ -7,6 +7,7 @@
  *                                  (company, kind, period, sites, bindings hash, data stamp)
  *   resolveAll(ctx, bindings, tokens)   the dispatcher by `source`
  *   resolveToken(resolved, token)  a DataToken's measure (value, change, share, progress, target, baseline)
+ *   `flows` in the request         rows of those ghg_factor_table / scope3_categories sections (flows.ts) → `flow`, `scope3`
  *
  * Tenant: request and binding sites must be sites the caller may read in the
  * company (another company's site → 404 DS_DOC_NOT_FOUND). `sites: 'all'` is
@@ -24,6 +25,7 @@ import {
   BindingSchema,
   DataTokenSchema,
   DsError,
+  FlowTypeSchema,
   ReportInputsSchema,
   ReportKindSchema,
   SitesSchema,
@@ -40,6 +42,7 @@ import { changeAbs, changePct, share } from "./derived";
 import { EMPTY, formatChangeAbs, formatChangePct, formatNumber } from "./format";
 import { GhgLoader, resolveGhg } from "./ghg";
 import { bindingsHash, dataHash } from "./hash";
+import { resolveFlows } from "./flows";
 import { effectiveInputs, inputDisplay, loadDocInputs, prefillInputs, type Prefill } from "./inputs";
 import { KpiLoader, resolveKpi } from "./kpi";
 import type { ResolveContext, ResolvedBinding, ResolveResponse } from "./types";
@@ -58,6 +61,8 @@ export const ResolveRequestSchema = z
     docId: z.number().int().positive().optional(),
     /** DS-2 addition: unsaved inputs (the new-design flow), over the doc's and the prefill. */
     inputs: ReportInputsSchema.optional(),
+    /** Flow sections whose rows the renderer needs (`ghg_factor_table`, `scope3_categories`; others are ignored) → `flow` / `scope3` by id. */
+    flows: z.array(z.object({ id: z.string().min(1).max(120), flowType: FlowTypeSchema }).strict()).max(100).optional(),
     /** Superadmin names the company (studioCompanyFor reads it). */
     company_id: z.union([z.number(), z.string()]).optional(),
   })
@@ -272,12 +277,13 @@ export async function resolveRequest(caller: StudioCaller, body: unknown): Promi
     req.yearType,
     ctx.siteIds.join(","),
     caller.kpiEnabled ? 1 : 0,
-    bindingsHash({ b: req.bindings, t: req.tokens, i: ctx.inputs }),
+    bindingsHash({ b: req.bindings, t: req.tokens, i: ctx.inputs, ...(req.flows ? { f: req.flows } : {}) }),
     await dataStamp(caller.companyId, ctx.allSiteIds.length ? ctx.allSiteIds : [0], range.from, range.to),
   ].join("|");
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < RESOLVE_CACHE_MS) return hit.value;
-  const value = await resolveAll(L, ctx, req.bindings, req.tokens);
+  const resolved = await resolveAll(L, ctx, req.bindings, req.tokens);
+  const value: ResolveResponse = req.flows ? { ...resolved, ...(await resolveFlows(L.ghg, ctx, req.flows)) } : resolved;
   cache.set(key, { at: Date.now(), value });
   if (cache.size > 500) for (const [k, v] of cache) if (Date.now() - v.at >= RESOLVE_CACHE_MS) cache.delete(k);
   return value;

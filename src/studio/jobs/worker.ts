@@ -256,7 +256,7 @@ export async function processJob(jobId: number): Promise<"done" | "failed" | "re
     if (job.kind === "final") {
       key = outputKey(job.companyId, job.docId, await nextVersionN(job.docId), job.kind, s.ext);
       await putOutput(key, out.output.bytes, s.mime);
-      const snapshot = { values: out.inputs.resolved.values, tokens: out.inputs.resolved.tokens, unavailable: out.inputs.resolved.unavailable, dataHash: out.inputs.resolved.dataHash };
+      const snapshot = { values: out.inputs.resolved.values, tokens: out.inputs.resolved.tokens, unavailable: out.inputs.resolved.unavailable, dataHash: out.inputs.resolved.dataHash, flow: out.inputs.resolved.flow ?? {}, scope3: out.inputs.resolved.scope3 ?? {} };
       version = await insertFinalVersion(job, out.doc, snapshot, out.inputs.resolved.dataHash, { key, sha256, pageCount: out.output.pageCount });
     } else {
       key = outputKey(job.companyId, job.docId, `j${job.id}`, job.kind, s.ext);

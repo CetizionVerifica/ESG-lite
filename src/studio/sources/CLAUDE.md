@@ -97,3 +97,9 @@ Any GHG or KPI binding in `01-contracts` §2 resolves to approved values that ma
 - Breakdowns for `scope3_category × site/month`, gases per site, and `dq_score`/`primary_data_pct` per category as series are not offered (BREAKDOWN_UNSUPPORTED).
 - No Playwright spec: the panels have no route until the editor shell (DS-5/DS-6); component tests with MSW cover them.
 - `elementHash` is provided for DS-13 drift but not wired anywhere yet.
+
+## DS fix: flow tables filled server-side (2026-10-20, branch `ds-fix-flow-tables`)
+- `flows.ts`: rows for `ghg_factor_table` and `scope3_categories` sections, by section id, as the renderer reads them (`RenderData.flow` / `.scope3`). The Scope 3 table is `computeScope3`'s 15 category rows (Unmapped left out): **reported** when the category has approved tCO₂e (computeScope3's figure, formatted once; method mix, DQ score), **excluded** when the report inputs exclude it (`exclusionFor`, with its reason), else **not addressed** with the boundary status as the reason. The factor table lists each approved row's factor snapshot (`ghg/rows.ts` `factorsUsed`, same filters as `approvedWhere`), one group per scope, one line per source category × factor (name, kgCO₂e per unit as stored, unit, source + version, GWP, entries), and notes rows without a snapshot. No figure is computed.
+- `doc.ts` `resolveDocForRender` = `resolveDoc` + those rows in the same context; `jobs/inputs.ts` `renderInputs` uses it, so preview.html, version previews, proof, print, PNG, thumbnail and final all print the rows. A final's `data_snapshot` keeps `flow` and `scope3`. `dataHash` is unchanged (values + inputs only).
+- `POST /resolve` takes optional `flows: [{id, flowType}]` and then returns `flow` / `scope3` by id (other flow types ignored; part of the cache key). Without `flows` the response is unchanged. The FE editor doesn't send it yet (FE follow-up).
+- Tests: `ci/unit/ds-fx-flow-tables.test.cjs`, `ci/api/tests/ds-fx-flow-tables.test.cjs`.

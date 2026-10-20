@@ -4,6 +4,7 @@
  * `ResolveResponse` in ESG-lite_FE src/lib/studio/contracts.ts.
  */
 import type { DataSource, ReportInputs, ReportKind, YearType } from "../contracts";
+import type { FlowTable, Scope3CategoryRow } from "../../reporting/studio/render/types";
 
 /** Why a binding has no value (01-contracts §5 DS_SOURCE_UNAVAILABLE `details.reason`). */
 export const UNAVAILABLE_REASONS = [
@@ -70,6 +71,10 @@ export interface ResolveResponse {
   tokens: ResolvedBinding[];
   dataHash: string;
   unavailable: Array<{ bindingIdx: number; reason: UnavailableReason; token?: boolean }>;
+  /** Rows of the requested `ghg_factor_table` sections, by section id (flows.ts; only when `flows` were asked for). */
+  flow?: Record<string, FlowTable>;
+  /** Rows of the requested `scope3_categories` sections, by section id. */
+  scope3?: Record<string, Scope3CategoryRow[]>;
 }
 
 /** Everything a source needs, already checked against the caller (tenant, sites, kind). */
