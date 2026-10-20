@@ -128,4 +128,4 @@ export async function renderInputs(caller: StudioCaller, doc: ReportDoc, opts: {
 }
 
 /** Clears the image cache (tests). */
-export const clearImageCache = () => cache.clear();
+export const clearImageCache = () => cache.forEach((_value, key) => cache.delete(key));

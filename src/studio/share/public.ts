@@ -65,7 +65,7 @@ const miss = (req: Request) => {
 };
 
 /** Clears the counters (tests). */
-export const resetShareRateLimit = () => hits.clear();
+export const resetShareRateLimit = () => hits.forEach((_value, key) => hits.delete(key));
 
 const common = (res: Response) => {
   res.setHeader("Cache-Control", "no-store");

@@ -283,4 +283,4 @@ export function presence(docId: number, userId: number, now = Date.now()): numbe
   }
   return others;
 }
-export const resetPresence = () => seen.clear();
+export const resetPresence = () => seen.forEach((_value, key) => seen.delete(key));

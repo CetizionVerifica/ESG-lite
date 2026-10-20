@@ -207,7 +207,7 @@ export async function resolveAll(L: Loaders, ctx: ResolveContext, bindings: Bind
 
 export const RESOLVE_CACHE_MS = 60_000;
 const cache = new Map<string, { at: number; value: ResolveResponse }>();
-export const clearResolveCache = () => cache.clear();
+export const clearResolveCache = () => cache.forEach((_value, key) => cache.delete(key));
 
 /** Changes whenever an approved emission row or KPI value in range is approved, edited, reopened or removed. */
 async function dataStamp(companyId: number, siteIds: number[], from: Date, to: Date): Promise<string> {
