@@ -212,3 +212,20 @@ test("materialityPoints: null until every material topic is scored", () => {
   assert.equal(materialityPoints([t("E1", true, 7, null)]), null);
   assert.deepEqual(materialityPoints([t("E1", true, 7, 8.5), t("E3", false, null, null)]), [{ topic: "E1", label: "E1", impact: 7, financial: 8.5 }]);
 });
+
+test("a doc's tokens and element bindings are collected in page order (fixture docs)", () => {
+  const fs = require("fs");
+  const { ReportDocSchema } = dist("studio/contracts/index.js");
+  const { collectTokens, docBindings } = dist("studio/sources/doc.js");
+  for (const name of ["ghg-doc", "sustainability-doc"]) {
+    const doc = ReportDocSchema.parse(JSON.parse(fs.readFileSync(path.resolve(`ci/fixtures/studio/${name}.json`), "utf8")));
+    const tokens = collectTokens(doc);
+    const bindings = docBindings(doc);
+    const text = JSON.stringify(doc);
+    assert.equal(tokens.length, (text.match(/"type":"data"/g) ?? []).length, `${name}: every chip`);
+    for (const t of tokens) assert.equal(t.type, "data");
+    for (const b of bindings) assert.ok(["ghg", "kpi", "input", "custom"].includes(b.source), `${name}: ${b.source}`);
+    const { collectBindings } = dist("studio/contracts/index.js");
+    assert.equal(collectBindings(doc).length, bindings.length + tokens.length, `${name}: contracts collectBindings = elements + chips`);
+  }
+});
