@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bulk site reports</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@700;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column">
+
+  <div style="height: 56px; flex-shrink: 0; background: #0e1730; color: #ffffff; display: flex; align-items: center; gap: 16px; padding: 0 20px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 17px"><span style="width: 26px; height: 26px; border-radius: 6px; background: #2572c0; display: inline-flex; align-items: center; justify-content: center; font-size: 14px">E</span>ESGLite</div>
+    <div style="color: #b9d2eb">Design Studio / Bulk reports</div>
+    <div style="flex-grow: 1"></div>
+    <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #2572c0; color: #ffffff">Plan: Pro</span>
+  </div>
+
+  <div style="flex-grow: 1; padding: 28px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; min-height: 0">
+    <div style="display: flex; align-items: flex-end; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 700">One template, every site</h1>
+        <div style="color: #5f6b7c">Each site gets its own report from its own approved data. Every output is a separate final with its own approval.</div>
+      </div>
+      <div style="display: flex; gap: 8px; font-size: 13px">
+        <span style="padding: 6px 12px; border-radius: 999px; background: #dce8f5; color: #18497b">1 Template ✓</span>
+        <span style="padding: 6px 12px; border-radius: 999px; background: #dce8f5; color: #18497b">2 Sites ✓</span>
+        <span style="padding: 6px 12px; border-radius: 999px; background: #2572c0; color: #ffffff; font-weight: 600">3 Build</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px; flex-grow: 1; min-height: 0">
+      <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px">
+        <div style="background: #ffffff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <div style="font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #5f6b7c">Template</div>
+          <div style="display: flex; gap: 12px">
+            <div style="width: 84px; height: 118px; border-radius: 4px; background: #123c6b; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 8px; box-sizing: border-box; gap: 4px"><div style="height: 6px; width: 50px; background: #92b9e0; border-radius: 2px"></div><div style="height: 6px; width: 36px; background: #ffffff; border-radius: 2px"></div></div>
+            <div style="display: flex; flex-direction: column; gap: 4px"><div style="font-weight: 600">Site fact sheet</div><div style="font-size: 13px; color: #5f6b7c">2 pages · A4 · Blue look</div><div style="font-size: 13px; color: #5f6b7c">GHG Scope 1, 2, 3 + water, waste</div></div>
+          </div>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+          <div style="font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #5f6b7c">Settings</div>
+          <div style="display: flex; justify-content: space-between"><span style="color: #5f6b7c">Period</span><span>CY 2025</span></div>
+          <div style="display: flex; justify-content: space-between"><span style="color: #5f6b7c">File names</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px">{site}-2025.pdf</span></div>
+          <div style="display: flex; justify-content: space-between"><span style="color: #5f6b7c">Approver</span><span>Sustainability lead</span></div>
+          <label style="display: flex; gap: 8px; align-items: center"><input type="checkbox" checked> Skip sites with unapproved months</label>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; min-width: 0; background: #ffffff; border: 1px solid #e1e8f0; border-radius: 14px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: grid; grid-template-columns: 40px 2fr 1.2fr 1.4fr 1fr; gap: 12px; padding: 12px 16px; background: #eef4fa; font-size: 12px; font-weight: 600; color: #5f6b7c; text-transform: uppercase; letter-spacing: 0.05em">
+          <span></span><span>Site</span><span>Approved months</span><span>Output</span><span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px 2fr 1.2fr 1.4fr 1fr; gap: 12px; padding: 14px 16px; border-top: 1px solid #e1e8f0; align-items: center">
+          <input type="checkbox" checked aria-label="Select site"><span style="font-weight: 500">[Site 1] · Riyadh</span><span style="font-family: 'IBM Plex Mono', monospace">12 / 12</span><span style="color: #16794c; font-weight: 500">✓ Built · awaiting approval</span><a href="#" style="font-size: 13px">Open</a>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px 2fr 1.2fr 1.4fr 1fr; gap: 12px; padding: 14px 16px; border-top: 1px solid #e1e8f0; align-items: center">
+          <input type="checkbox" checked aria-label="Select site"><span style="font-weight: 500">[Site 2] · Dammam</span><span style="font-family: 'IBM Plex Mono', monospace">12 / 12</span>
+          <span style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px; color: #1d5fb8">Building… page 2 of 2</span><span style="height: 6px; border-radius: 3px; background: #dce8f5"><span style="display: block; width: 60%; height: 6px; border-radius: 3px; background: #2572c0"></span></span></span><span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px 2fr 1.2fr 1.4fr 1fr; gap: 12px; padding: 14px 16px; border-top: 1px solid #e1e8f0; align-items: center">
+          <input type="checkbox" checked aria-label="Select site"><span style="font-weight: 500">[Site 3] · Jeddah</span><span style="font-family: 'IBM Plex Mono', monospace">12 / 12</span><span style="color: #5f6b7c">Queued</span><span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px 2fr 1.2fr 1.4fr 1fr; gap: 12px; padding: 14px 16px; border-top: 1px solid #e1e8f0; align-items: center; background: #fff8eb">
+          <input type="checkbox" aria-label="Select site"><span style="font-weight: 500">[Site 4] · Muscat</span><span style="font-family: 'IBM Plex Mono', monospace; color: #9a6300">11 / 12</span><span style="color: #9a6300; font-weight: 500">Skipped · Dec not approved</span><a href="#" style="font-size: 13px">Review Dec</a>
+        </div>
+        <div style="flex-grow: 1"></div>
+        <div style="padding: 14px 16px; border-top: 1px solid #e1e8f0; font-size: 13px; color: #5f6b7c">Figures come from approved entries only. A site with missing months is never built with blanks.</div>
+      </div>
+
+      <div style="width: 280px; flex-shrink: 0; background: #ffffff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+        <div style="font-weight: 600; font-size: 16px">Run</div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <div style="background: #eef4fa; border-radius: 8px; padding: 10px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 500">1</div><div style="font-size: 12px; color: #5f6b7c">Built</div></div>
+          <div style="background: #eef4fa; border-radius: 8px; padding: 10px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 500">2</div><div style="font-size: 12px; color: #5f6b7c">In queue</div></div>
+          <div style="background: #fff4d6; border-radius: 8px; padding: 10px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 500">1</div><div style="font-size: 12px; color: #6b4500">Skipped</div></div>
+          <div style="background: #eef4fa; border-radius: 8px; padding: 10px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 500">0</div><div style="font-size: 12px; color: #5f6b7c">Failed</div></div>
+        </div>
+        <div style="flex-grow: 1"></div>
+        <button style="height: 44px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit">Pause</button>
+        <button disabled style="height: 44px; border-radius: 8px; border: 0; background: #b9d2eb; color: #0b223a; font: inherit; font-weight: 600">Download all (.zip) when approved</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
