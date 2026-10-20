@@ -36,14 +36,21 @@ const texts = (node, out = []) => {
 const page = (doc, id) => doc.pages.find((p) => p.id === id);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// report_template ships with DS-4; until then the test makes it the 01-contracts §3 way.
-const ensureTemplateTable = () =>
-  q(`CREATE TABLE IF NOT EXISTS report_template (
-       id serial PRIMARY KEY, company_id integer, kind varchar(20) NOT NULL, purpose varchar(20) NOT NULL DEFAULT 'report', format varchar(20) NOT NULL DEFAULT 'a4',
-       name varchar(200) NOT NULL, tags text[] NOT NULL DEFAULT '{}', theme jsonb NOT NULL DEFAULT '{}', doc jsonb NOT NULL, thumbnail_key varchar(300),
-       version integer NOT NULL DEFAULT 1, is_active boolean NOT NULL DEFAULT true, created_by integer, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now())`);
-const addTemplate = async (companyId, kind, name, doc, format = "a4", version = 1) =>
-  (await q(`INSERT INTO report_template (company_id, kind, purpose, format, name, doc, version) VALUES ($1, $2, 'report', $3, $4, $5, $6) RETURNING id`, [companyId, kind, format, name, JSON.stringify(doc), version]))[0].id;
+// report_template is DS-4's table (migrate:ds-4-library); slug and family are required there.
+const ensureTemplateTable = () => {
+  const r = runScript("migrateDs4Library");
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+};
+let slugN = 0;
+const addTemplate = async (companyId, kind, name, doc, format = "a4", version = 1) => {
+  const slug = `ds-5-test-${Date.now()}-${++slugN}`;
+  return (
+    await q(
+      `INSERT INTO report_template (company_id, slug, family, kind, purpose, format, name, doc, version) VALUES ($1, $2, $2, $3, 'report', $4, $5, $6, $7) RETURNING id`,
+      [companyId, slug, kind, format, name, JSON.stringify(doc), version],
+    )
+  )[0].id;
+};
 
 const SUSTAINABILITY_DOC = {
   schemaVersion: 2,
@@ -79,7 +86,7 @@ const reset = async () => {
 test.before(async () => {
   const r = runScript("migrateDs5Docs");
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  await ensureTemplateTable();
+  ensureTemplateTable();
   await q(`DELETE FROM report_template WHERE name LIKE 'DS-5%'`);
   T = {
     ghg: await addTemplate(null, "ghg", "DS-5 Inventory", TEMPLATE_DOC, "a4", 2),
@@ -453,6 +460,21 @@ test("rebuild keeps people's edits; duplicate copies pages and inputs; presence;
   // A blank design has no template to rebuild from.
   const blank = await create("manager", { templateId: "blank", title: "DS-5 Blank" });
   assert.equal((await call("POST", `/studio/docs/${blank.json.id}/rebuild`, "manager", {})).json.code, "DS_LAYOUT_NOT_FOUND");
+});
+
+test("every DS-4 seed template builds into a valid design with no placeholder left", async () => {
+  await setStudio(1, true);
+  await setKpi(1, true);
+  const seeds = await q(`SELECT id, slug, kind FROM report_template WHERE company_id IS NULL AND is_active AND slug NOT LIKE 'ds-5-test-%' ORDER BY id`);
+  assert.ok(seeds.length >= 7, `DS-4 seeds present (${seeds.length})`);
+  for (const t of seeds) {
+    const r = await create("manager", { kind: t.kind, templateId: t.id, frameworks: t.kind === "ghg" ? ["GHGP"] : ["GRI"], title: `DS-5 seed ${t.slug}` });
+    assert.equal(r.status, 201, `${t.slug}: ${JSON.stringify(r.json)}`);
+    assert.equal(r.json.build.state, "done", t.slug);
+    assert.ok(r.json.doc.pages.length > 0, `${t.slug}: has pages`);
+    assert.doesNotMatch(JSON.stringify(r.json.doc), /\{\{/, `${t.slug}: no placeholder left`);
+  }
+  await setKpi(1, false);
 });
 
 test("migrate:ds-5-docs runs twice and changes nothing", async () => {

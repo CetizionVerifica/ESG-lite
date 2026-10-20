@@ -124,14 +124,18 @@ export const missingInputText = (key: ReportInputKey) => `[${INPUT_LABELS[key]}:
 export function placeholderValue(token: string, ctx: PlaceholderContext): string {
   switch (token) {
     case "company.name":
+    case "company": // DS-4 seed short form
       return ctx.companyName;
     case "meta.title":
+    case "title": // DS-4 seed short form
       return ctx.title;
     case "meta.year":
+    case "year": // DS-4 seed short form
       return String(ctx.year);
     case "meta.period":
       return ctx.periodText;
     case "meta.periodShort":
+    case "period": // DS-4 seed short form
       return periodLabel(ctx.yearType, ctx.year);
     case "meta.compareYear":
       return ctx.compareYear !== undefined ? periodLabel(ctx.yearType, ctx.compareYear) : periodLabel(ctx.yearType, ctx.year - 1);

@@ -98,6 +98,8 @@ test("placeholderValue: compare year falls back to the prior year; unknown input
   assert.equal(build.placeholderValue("meta.compareYear", c), "FY 2024–25");
   assert.equal(build.fillText("{{input:not_a_key}}", c), "{{input:not_a_key}}");
   assert.equal(build.fillText("{{ meta.year }}/{{meta.sites}}", c), "2026/All sites");
+  // DS-4 seed templates use the short forms.
+  assert.equal(build.fillText("{{company}} · {{period}} · {{year}} · {{title}}", c), `${c.companyName} · FY 2025–26 · 2026 · ${c.title}`);
   assert.equal(build.fillText("{{input:verification}}", ctx({ verification: { value: { status: "limited", provider: "Assure Co" }, source: "typed", updatedBy: 2, updatedAt: "x" } })), "Limited assurance by Assure Co");
 });
 

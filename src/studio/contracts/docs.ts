@@ -226,5 +226,8 @@ export const TEMPLATE_PAGE_HINT_KEYS = ["requires", "keepEmpty", "emptyText"] as
  *   {{meta.compareYear}} {{meta.sites}} {{meta.frameworks}} {{input:<ReportInputKey>}}
  * An input with no value becomes "[<label>: add it in Report details]" and is
  * flagged by checks later (DS-12).
+ * The DS-4 seed templates use the short forms {{company}}, {{title}}, {{year}}
+ * and {{period}}; they mean company.name, meta.title, meta.year and
+ * meta.periodShort (Wave 2 integration).
  */
-export const PLACEHOLDER_PATTERN = /\{\{\s*(company\.name|meta\.title|meta\.year|meta\.period|meta\.periodShort|meta\.compareYear|meta\.sites|meta\.frameworks|input:[a-z0-9_]+)\s*\}\}/g;
+export const PLACEHOLDER_PATTERN = /\{\{\s*(company\.name|meta\.title|meta\.year|meta\.period|meta\.periodShort|meta\.compareYear|meta\.sites|meta\.frameworks|input:[a-z0-9_]+|company|title|year|period)\s*\}\}/g;
