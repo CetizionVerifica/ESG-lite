@@ -721,6 +721,308 @@
       },
       "name": "GHG details CY 2025, both sites",
       "status": 200
+    },
+    {
+      "body": {
+        "bySite": [
+          {
+            "pctOfTotal": 84.16,
+            "scope1": 10039.95,
+            "scope2": 17730.63,
+            "scope3": 3544.57,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 31315.15
+          },
+          {
+            "pctOfTotal": 15.84,
+            "scope1": 5896,
+            "scope2": 0,
+            "scope3": 0,
+            "siteId": 2,
+            "siteName": "CI Plant B",
+            "total": 5896
+          }
+        ],
+        "intensityMonthly": [
+          {
+            "emissions": 20380,
+            "intensity": 16.983333,
+            "month": "2025-01",
+            "production": 1200,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "tonne"
+          },
+          {
+            "emissions": 5072.45,
+            "intensity": 5.336612,
+            "month": "2025-02",
+            "production": 950.5,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "tonne"
+          },
+          {
+            "emissions": 2287.5,
+            "intensity": 0,
+            "month": "2025-03",
+            "production": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "unit"
+          },
+          {
+            "emissions": 29.74,
+            "intensity": 0,
+            "month": "2025-04",
+            "production": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "unit"
+          },
+          {
+            "emissions": 0.89,
+            "intensity": 0,
+            "month": "2025-05",
+            "production": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "unit"
+          },
+          {
+            "emissions": 765.6,
+            "intensity": 0,
+            "month": "2025-06",
+            "production": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "unit"
+          },
+          {
+            "emissions": 1812.9,
+            "intensity": 0,
+            "month": "2025-07",
+            "production": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "unit"
+          },
+          {
+            "emissions": 948.6,
+            "intensity": 0,
+            "month": "2025-08",
+            "production": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "unit"
+          },
+          {
+            "emissions": 5896,
+            "intensity": 0,
+            "month": "2025-09",
+            "production": 0,
+            "siteId": 2,
+            "siteName": "CI Plant B",
+            "unit": "unit"
+          },
+          {
+            "emissions": 17.47,
+            "intensity": 0,
+            "month": "2025-12",
+            "production": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "unit"
+          }
+        ],
+        "monthlyBySite": [
+          {
+            "month": "2025-01",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 20380
+          },
+          {
+            "month": "2025-02",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 5072.45
+          },
+          {
+            "month": "2025-03",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 2287.5
+          },
+          {
+            "month": "2025-04",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 29.74
+          },
+          {
+            "month": "2025-05",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 0.89
+          },
+          {
+            "month": "2025-06",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 765.6
+          },
+          {
+            "month": "2025-07",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 1812.9
+          },
+          {
+            "month": "2025-08",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 948.6
+          },
+          {
+            "month": "2025-09",
+            "siteId": 2,
+            "siteName": "CI Plant B",
+            "total": 5896
+          },
+          {
+            "month": "2025-12",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 17.47
+          }
+        ],
+        "range": {
+          "endDate": "2025-12-31T00:00:00.000Z",
+          "frequency": "yearly",
+          "month": null,
+          "startDate": "2025-01-01T00:00:00.000Z",
+          "year": 2025
+        },
+        "renewableKwhBySite": [
+          {
+            "kwh": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "kWh"
+          },
+          {
+            "kwh": 0,
+            "siteId": 2,
+            "siteName": "CI Plant B",
+            "unit": "kWh"
+          }
+        ],
+        "savedBySite": [
+          {
+            "saved": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          },
+          {
+            "saved": 0,
+            "siteId": 2,
+            "siteName": "CI Plant B"
+          }
+        ],
+        "siteDonut": [
+          {
+            "name": "CI Plant A",
+            "pct": 84.16,
+            "value": 31315.15
+          },
+          {
+            "name": "CI Plant B",
+            "pct": 15.84,
+            "value": 5896
+          }
+        ],
+        "totals": {
+          "scope1": 15935.95,
+          "scope2": 17730.63,
+          "scope3": 3544.57,
+          "total": 37211.15
+        }
+      },
+      "name": "EDE yearly 2025, both sites (DS-2 intensity extraction)",
+      "status": 200
+    },
+    {
+      "body": {
+        "bySite": [
+          {
+            "pctOfTotal": 100,
+            "scope1": 2680,
+            "scope2": 17700,
+            "scope3": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 20380
+          }
+        ],
+        "intensityMonthly": [
+          {
+            "emissions": 20380,
+            "intensity": 16.983333,
+            "month": "2025-01",
+            "production": 1200,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "tonne"
+          }
+        ],
+        "monthlyBySite": [
+          {
+            "month": "2025-01",
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "total": 20380
+          }
+        ],
+        "range": {
+          "endDate": "2025-01-31T00:00:00.000Z",
+          "frequency": "monthly",
+          "month": 1,
+          "startDate": "2025-01-01T00:00:00.000Z",
+          "year": 2025
+        },
+        "renewableKwhBySite": [
+          {
+            "kwh": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A",
+            "unit": "kWh"
+          }
+        ],
+        "savedBySite": [
+          {
+            "saved": 0,
+            "siteId": 1,
+            "siteName": "CI Plant A"
+          }
+        ],
+        "siteDonut": [
+          {
+            "name": "CI Plant A",
+            "pct": 100,
+            "value": 20380
+          }
+        ],
+        "totals": {
+          "scope1": 2680,
+          "scope2": 17700,
+          "scope3": 0,
+          "total": 20380
+        }
+      },
+      "name": "EDE monthly 2025-01, plant A (DS-2 intensity extraction)",
+      "status": 200
     }
   ],
   "stored_emissions": [
