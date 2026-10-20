@@ -64,6 +64,7 @@ await channel.assertQueue("dlq_retry_60s", {
     deadLetterExchange: "",
     deadLetterRoutingKey: "email_queue",
 });
+    await channel.assertQueue("studio.render", { durable: true }); // DS-11: Design Studio render jobs ({jobId})
     console.log("✅ RabbitMQ connected with retry queues");
 };
 

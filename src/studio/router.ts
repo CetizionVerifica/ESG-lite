@@ -15,6 +15,7 @@ import sourcesRouter from "./sources/router"; // DS-2
 import brandKitRouter from "./brandkit/router"; // DS-3
 import libraryRouter from "./library/router"; // DS-4
 import docsRouter from "./docs/router"; // DS-5
+import jobsRouter from "./jobs/router"; // DS-11
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use(sourcesRouter); // DS-2: /resolve, /docs/:id/inputs, /inputs/prefill,
 router.use(brandKitRouter); // DS-3: /studio/brand-kit, /studio/styles
 router.use(libraryRouter); // DS-4: /studio/templates, /layouts, /elements, /assets
 router.use(docsRouter); // DS-5: /readiness, /docs, /docs/:id (+ rebuild, presence, duplicate)
+router.use(jobsRouter); // DS-11: /docs/:id/preview.html, /docs/:id/jobs, /jobs/:id(/file), /docs/:id/versions
 
 export default router;
