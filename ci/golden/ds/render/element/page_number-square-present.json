@@ -1,0 +1,14 @@
+{
+  "element": "page_number",
+  "elements": [
+    {
+      "bytes": 375,
+      "frame": "231.321,271.318,34.018,5.773,0",
+      "id": "p-summary.pn",
+      "sha256": "821fd6260ea31127cc3aef1759b91de02e5d37c28bc98ffa040c38357ee88b39"
+    }
+  ],
+  "format": "square",
+  "mode": "present",
+  "pages": 1
+}

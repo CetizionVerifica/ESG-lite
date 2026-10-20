@@ -1,0 +1,20 @@
+{
+  "element": "qr",
+  "elements": [
+    {
+      "bytes": 6144,
+      "frame": "116.286,180.303,17.619,17.677,0",
+      "id": "p-cover.qr",
+      "sha256": "ff90894dfe3133c9722ae4ad9be60f1cb6e1f1f83fad3ae8addb802d074205f6"
+    },
+    {
+      "bytes": 47004,
+      "frame": "105.714,173.232,28.19,28.283,0",
+      "id": "p-el.qr-long",
+      "sha256": "2fdfe4b78f5bac6ba0498c9ea0a8b50a4f0e72c4e6b4582bde274ea3f7ff76b5"
+    }
+  ],
+  "format": "a5",
+  "mode": "present",
+  "pages": 1
+}

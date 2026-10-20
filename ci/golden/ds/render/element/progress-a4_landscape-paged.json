@@ -1,0 +1,20 @@
+{
+  "element": "progress",
+  "elements": [
+    {
+      "bytes": 858,
+      "frame": "21.214,76.364,56.571,28.283,0",
+      "id": "p-summary.ring",
+      "sha256": "f99e8c82dde4e05f4495e29d5ac5e594aee69cca621dbf7f601c28cdce222870"
+    },
+    {
+      "bytes": 562,
+      "frame": "84.857,83.434,99,9.899,0",
+      "id": "p-summary.bar",
+      "sha256": "56583d9141e1cc48d2915fb61db57d70c290b56615a56ae2f05f54bf71809be3"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "paged",
+  "pages": 1
+}

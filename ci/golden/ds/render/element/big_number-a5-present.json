@@ -1,0 +1,14 @@
+{
+  "element": "big_number",
+  "elements": [
+    {
+      "bytes": 544,
+      "frame": "14.095,152.02,63.429,22.626,0",
+      "id": "p-cover.total",
+      "sha256": "e9eb3345fb5007c39d985fb95d39daaa6d416e2d9ba865e71796ea94196dd5fd"
+    }
+  ],
+  "format": "a5",
+  "mode": "present",
+  "pages": 1
+}

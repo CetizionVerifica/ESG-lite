@@ -1,0 +1,20 @@
+{
+  "element": "line",
+  "elements": [
+    {
+      "bytes": 701,
+      "frame": "28.286,176.768,169.714,2.828,0",
+      "id": "p-cover.line",
+      "sha256": "ee426056b457e0c32b779a681bd611fc9061b264bc961b4ec55b5254fd39b35f"
+    },
+    {
+      "bytes": 950,
+      "frame": "155.571,91.919,120.214,14.141,0",
+      "id": "p-el.dotted",
+      "sha256": "48cafd8eb8f8b0b45e70661a02794c1991fdc775808de0ab3022f2e67a411d2e"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "present",
+  "pages": 1
+}

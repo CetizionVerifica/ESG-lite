@@ -1,0 +1,20 @@
+{
+  "element": "qr",
+  "elements": [
+    {
+      "bytes": 6144,
+      "frame": "233.357,180.303,35.357,17.677,0",
+      "id": "p-cover.qr",
+      "sha256": "983327c5df2189d31d1455983b889de7746807f4407e20535cc0b24523ff88a2"
+    },
+    {
+      "bytes": 47006,
+      "frame": "212.143,173.232,56.571,28.283,0",
+      "id": "p-el.qr-long",
+      "sha256": "c0912a3c7943af500dae0eb309e5291af043166924b11dd50caca21fbdbadcfb"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "sheet",
+  "pages": 1
+}

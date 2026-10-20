@@ -1,0 +1,20 @@
+{
+  "element": "sdg",
+  "elements": [
+    {
+      "bytes": 403,
+      "frame": "225.8,97.495,40.321,16.035,0",
+      "id": "p-el.sdg13",
+      "sha256": "4fe330511ef21b85501003e3d79dd49f176fd399385625fb9824a19372de938e"
+    },
+    {
+      "bytes": 369,
+      "frame": "274.186,97.495,19.354,7.697,0",
+      "id": "p-el.sdg7",
+      "sha256": "47c22e60a5774246fcbb92b70573053ac2f41d6c8646f343940cefbdeb3e5bfe"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "sheet",
+  "pages": 1
+}

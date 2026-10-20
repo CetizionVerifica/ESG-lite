@@ -1,0 +1,26 @@
+{
+  "element": "table",
+  "elements": [
+    {
+      "bytes": 640,
+      "frame": "177.414,144.96,137.093,19.242,0",
+      "id": "p-summary.table",
+      "sha256": "02d4a72c79c357c7382aa81ec9dc32f5c34a82ce378a44d0df80f496f590eee6"
+    },
+    {
+      "bytes": 732,
+      "frame": "169.35,112.889,145.157,25.657,0",
+      "id": "p-el.table",
+      "sha256": "16e078c9f8a7e7c435c0ff5a5c964e04cf925aba78da26a22c7fd38dc12585f1"
+    },
+    {
+      "bytes": 449,
+      "frame": "24.193,134.697,137.093,19.242,0",
+      "id": "p-el.table-own",
+      "sha256": "9533158819ee927ccece3c824be8beaefd7175996eae35b1db5527344d6a9379"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "present",
+  "pages": 1
+}

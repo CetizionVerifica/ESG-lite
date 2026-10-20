@@ -1,0 +1,38 @@
+{
+  "element": "frame",
+  "elements": [
+    {
+      "bytes": 945,
+      "frame": "0,0,285.75,141.432,0",
+      "id": "p-cover.bg",
+      "sha256": "2dcaaabec998c32c2c445272d88993b6b7fcf95ea1ba8881948e1d82865e970f"
+    },
+    {
+      "bytes": 963,
+      "frame": "20.411,57.727,54.429,38.485,0",
+      "id": "p-el.f-round",
+      "sha256": "df47a569602e1e097dd4387270ac9669368f57106f103969dedc8f26a807b7e4"
+    },
+    {
+      "bytes": 958,
+      "frame": "81.643,57.727,54.429,38.485,0",
+      "id": "p-el.f-circle",
+      "sha256": "9fc28cd5038e44f7696a1f25994c73b85edc2b0adaba207e7fdaefe9a29bc7b7"
+    },
+    {
+      "bytes": 972,
+      "frame": "142.875,57.727,54.429,38.485,0",
+      "id": "p-el.f-arch",
+      "sha256": "ec4ada4baa85081468d73eaf37b2f00c441de8b8deda0e1195100ed8697fcde5"
+    },
+    {
+      "bytes": 1683,
+      "frame": "204.107,57.727,54.429,38.485,0",
+      "id": "p-el.f-blob",
+      "sha256": "1a4648286c7ead0895d34d06df1b4685fd52b792d23089201064919c40c016ee"
+    }
+  ],
+  "format": "square",
+  "mode": "paged",
+  "pages": 1
+}

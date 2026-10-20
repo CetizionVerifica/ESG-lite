@@ -1,0 +1,38 @@
+{
+  "element": "frame",
+  "elements": [
+    {
+      "bytes": 935,
+      "frame": "-3,-3,216,150,0",
+      "id": "p-cover.bg",
+      "sha256": "7d38141c66a68dcf4847fd6e876d4d08505a46bc69b9ea6c3088bba86451e0c8"
+    },
+    {
+      "bytes": 929,
+      "frame": "15,60,40,40,0",
+      "id": "p-el.f-round",
+      "sha256": "ce0477ef200733bb11a7d9a12781ffb22c8a388b989b3de5b6a944b3c5e260d9"
+    },
+    {
+      "bytes": 926,
+      "frame": "60,60,40,40,0",
+      "id": "p-el.f-circle",
+      "sha256": "d946433b94dd268ea5c95d3710c9fb22b8c4b12a1e63c6e4338af41f9ad14d03"
+    },
+    {
+      "bytes": 932,
+      "frame": "105,60,40,40,0",
+      "id": "p-el.f-arch",
+      "sha256": "572a88518f321553fb71a978904feb64765f02838136e49f280526905a414c2c"
+    },
+    {
+      "bytes": 1651,
+      "frame": "150,60,40,40,0",
+      "id": "p-el.f-blob",
+      "sha256": "ba54efdbf805634d9e4dbd3458e9fd31f4c7a328d87f38253d2099287dff21a4"
+    }
+  ],
+  "format": "a4",
+  "mode": "paged",
+  "pages": 1
+}

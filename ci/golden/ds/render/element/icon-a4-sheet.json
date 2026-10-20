@@ -1,0 +1,20 @@
+{
+  "element": "icon",
+  "elements": [
+    {
+      "bytes": 469,
+      "frame": "110,152,12,12,0",
+      "id": "p-el.icon",
+      "sha256": "c2af5ab8b6465edfbb88f9b90b70b63ba940287248f292d0708fc6989ccad3b5"
+    },
+    {
+      "bytes": 439,
+      "frame": "125,152,12,12,0",
+      "id": "p-el.icon-unknown",
+      "sha256": "24464a8ad9a9687abe28011942ea19b0574ad8ed0ab60f24b65cbefed93c1fac"
+    }
+  ],
+  "format": "a4",
+  "mode": "sheet",
+  "pages": 1
+}

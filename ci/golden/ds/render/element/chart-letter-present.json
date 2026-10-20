@@ -1,0 +1,98 @@
+{
+  "element": "chart",
+  "elements": [
+    {
+      "bytes": 2416,
+      "frame": "15.421,142.993,87.388,65.852,0",
+      "id": "p-summary.donut",
+      "sha256": "9d89fb32a0ab14a6f2071828d4abcf7faecfdd8c38263523ba595d53d4b09bb7"
+    },
+    {
+      "bytes": 2716,
+      "frame": "113.09,142.993,87.388,65.852,0",
+      "id": "p-summary.bars",
+      "sha256": "b4176fff3cd7fbfeb0f797440bfd666fe2faf5b5ba29520a7cee5af3613e5d5d"
+    },
+    {
+      "bytes": 883,
+      "frame": "15.421,212.607,87.388,28.222,0",
+      "id": "p-summary.unavail",
+      "sha256": "ff558e90e10faad87402108e9ed5b2453f3c84ad3f6e1fc9b3b8d4be6a3eba81"
+    },
+    {
+      "bytes": 3250,
+      "frame": "15.421,14.111,87.388,56.444,0",
+      "id": "p-charts.stacked",
+      "sha256": "7c6d293144dc2f20a4a1dead6cd8eb25ba87aae4ce19fce0619ca31e8a3bfa1d"
+    },
+    {
+      "bytes": 3032,
+      "frame": "113.09,14.111,87.388,56.444,0",
+      "id": "p-charts.hbar",
+      "sha256": "a62154df7e13618f0782698191a2169618be516d7f6062801ff7a7c51e503485"
+    },
+    {
+      "bytes": 3126,
+      "frame": "15.421,75.259,87.388,51.741,0",
+      "id": "p-charts.line",
+      "sha256": "e3203f02888922d4e7ba2a5cc71c213640a26194c9982e745e6ed65a113d1581"
+    },
+    {
+      "bytes": 1778,
+      "frame": "113.09,75.259,87.388,23.519,0",
+      "id": "p-charts.share",
+      "sha256": "30ebdd2b369e1bc57196035ddf99ebb4c59be1efee3d645d296bdf5474da0520"
+    },
+    {
+      "bytes": 6313,
+      "frame": "113.09,101.6,41.124,37.63,0",
+      "id": "p-charts.dots",
+      "sha256": "696a03d362e3d9ae657329158ee42aa89bc3985a3d4576a7efe38be577b204e0"
+    },
+    {
+      "bytes": 779,
+      "frame": "159.355,101.6,41.124,18.815,0",
+      "id": "p-charts.spark",
+      "sha256": "2d419a40ad534c00bc29feb0b7f7236f3b2070127816a5f0a76bfb174bde2f31"
+    },
+    {
+      "bytes": 3066,
+      "frame": "15.421,131.704,87.388,56.444,0",
+      "id": "p-charts.water",
+      "sha256": "110fe956bbf249020b7d64c717145c3df9396c7bad77caccfe5947ed119aa877"
+    },
+    {
+      "bytes": 2603,
+      "frame": "113.09,141.111,87.388,47.037,0",
+      "id": "p-charts.sankey",
+      "sha256": "d5e33ae5388511eb90e0cdc258c8a2c57ddb77dd326b222303c775a5ae30d000"
+    },
+    {
+      "bytes": 3130,
+      "frame": "15.421,192.852,87.388,56.444,0",
+      "id": "p-charts.target",
+      "sha256": "02059828b0fb0a95463e37a9c6330dd4770e94624f02975927eab5c6c81b48bb"
+    },
+    {
+      "bytes": 1978,
+      "frame": "113.09,192.852,87.388,56.444,0",
+      "id": "p-charts.matrix",
+      "sha256": "2e2d14cb27567f80dc9ef62aa25681aa059ffac71a700154f9538724ccc56282"
+    },
+    {
+      "bytes": 2674,
+      "frame": "15.421,252.119,61.686,22.578,0",
+      "id": "p-charts.custom",
+      "sha256": "04f971125a6d624b9d697f0401f6cd19e3ea8b3afdf6a89e6f311f2f6f8eee6f"
+    },
+    {
+      "bytes": 2165,
+      "frame": "82.248,252.119,51.405,22.578,0",
+      "id": "p-charts.ghgkind",
+      "sha256": "785b62f0cb877bbcb877c6d3bbfc42a93e24e42377b65289f695ffe8e8f4cf69"
+    }
+  ],
+  "format": "letter",
+  "mode": "present",
+  "pages": 1
+}

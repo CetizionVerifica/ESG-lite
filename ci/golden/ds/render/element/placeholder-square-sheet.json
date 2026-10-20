@@ -1,0 +1,14 @@
+{
+  "element": "placeholder",
+  "elements": [
+    {
+      "bytes": 339,
+      "frame": "20.411,169.333,115.661,28.864,0",
+      "id": "p-el.placeholder",
+      "sha256": "cdf3876318a78c07c66e603136638ad017ac6a2fcbb5570d3fe60cb7e2667d10"
+    }
+  ],
+  "format": "square",
+  "mode": "sheet",
+  "pages": 1
+}

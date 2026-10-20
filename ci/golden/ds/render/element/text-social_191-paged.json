@@ -1,0 +1,47 @@
+{
+  "element": "text",
+  "elements": [
+    {
+      "bytes": 380,
+      "frame": "30.238,89.481,257.024,4.474,0",
+      "id": "p-cover.kicker",
+      "sha256": "186ec898a70de5e00ceea1c524eca60f12f953f3f4b09df7991cab508b3fb0c9"
+    },
+    {
+      "bytes": 393,
+      "frame": "30.238,95.074,257.024,22.37,0",
+      "id": "p-cover.title",
+      "sha256": "5c7c088ac4940d698e8891f76d5ac1671653da30754174e6e95ebb49c9d9b7e4"
+    },
+    {
+      "bytes": 373,
+      "frame": "22.679,8.389,272.143,7.83,0",
+      "id": "p-summary.heading",
+      "sha256": "19a7a9fbbcf3ad7c334001ba985a5b87bd16f80bbe7e0c4314083b09bd76bc14"
+    },
+    {
+      "bytes": 906,
+      "frame": "22.679,17.896,272.143,19.015,0",
+      "id": "p-summary.body",
+      "sha256": "26e2656bd52371439bd6e3588eb424bdc7b9747f6e96d86cd0da33a657340c9c"
+    },
+    {
+      "bytes": 485,
+      "frame": "158.75,124.156,136.071,4.474,0",
+      "id": "p-el.overflow",
+      "sha256": "8b2319cdcabf5ab6b951df5d1a83b654522b30c8086b167ef7485a23cdb00017"
+    },
+    {
+      "bytes": 372,
+      "frame": "60.476,146.526,90.714,3.356,0",
+      "id": "p-el.tiny",
+      "sha256": "5a78164e8e677a85970eec0ebbdc8db78e4b59659bbbfb05442ee04e3850fd67"
+    }
+  ],
+  "format": "social_191",
+  "hidden": [
+    "p-el.hidden"
+  ],
+  "mode": "paged",
+  "pages": 1
+}

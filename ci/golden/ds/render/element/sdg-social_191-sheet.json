@@ -1,0 +1,20 @@
+{
+  "element": "sdg",
+  "elements": [
+    {
+      "bytes": 407,
+      "frame": "211.667,85.007,37.798,13.981,0",
+      "id": "p-el.sdg13",
+      "sha256": "96c8ff7a39de587ee20bf727c2719705ae42733728eede777862a07d0310a3c2"
+    },
+    {
+      "bytes": 369,
+      "frame": "257.024,85.007,18.143,6.711,0",
+      "id": "p-el.sdg7",
+      "sha256": "ef11d34abcf09c48feeecc7bfabc298f784a13a08198865d055bf351524dbb0d"
+    }
+  ],
+  "format": "social_191",
+  "mode": "sheet",
+  "pages": 1
+}

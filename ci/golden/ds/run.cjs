@@ -55,8 +55,22 @@ function expand(kase) {
 
   const cases = manifest.cases.flatMap(expand).filter((k) => !only.length || only.includes(k.group));
   for (const k of cases) if (!manifest.groups[k.group]) throw new Error(`${k.id}: unknown group ${k.group}`);
-  const toRun = cases.filter((k) => k.run && !(offline && manifest.groups[k.group].needs !== "build"));
+  let toRun = cases.filter((k) => k.run && !(offline && manifest.groups[k.group].needs !== "build"));
   const skipped = cases.filter((k) => !k.run);
+  // DS-14F: groups marked "chromium" (PDF renders) skip, named, where Playwright's Chromium can't start.
+  if (toRun.some((k) => manifest.groups[k.group].chromium)) {
+    let why = null;
+    try {
+      const { chromium } = require(require.resolve("playwright", { paths: [ROOT] }));
+      await (await chromium.launch()).close();
+    } catch (err) {
+      why = `Chromium (not installed: ${String(err && err.message).split("\n")[0].slice(0, 80)})`;
+    }
+    if (why) {
+      for (const k of toRun.filter((x) => manifest.groups[x.group].chromium)) skipped.push({ ...k, waits: why });
+      toRun = toRun.filter((x) => !manifest.groups[x.group].chromium);
+    }
+  }
   const failures = [];
   let matched = 0;
   let written = 0;

@@ -1,0 +1,26 @@
+{
+  "element": "kpi_tile",
+  "elements": [
+    {
+      "bytes": 932,
+      "frame": "15,70,56,32,0",
+      "id": "p-summary.tile1",
+      "sha256": "ec9337139c27899bf568aadace74b29f2e9765f6cc485057689ce5a987ebea25"
+    },
+    {
+      "bytes": 413,
+      "frame": "77,70,56,32,0",
+      "id": "p-summary.tile2",
+      "sha256": "e3d66cda00f47b6f1609008fdd8e1d2d7daf6ba896dd640f717aeefd11711009"
+    },
+    {
+      "bytes": 463,
+      "frame": "139,70,56,32,0",
+      "id": "p-summary.tile3",
+      "sha256": "8856f07a24309949851b3f155717280833a52be6dcddbba21ebb39446f605fd6"
+    }
+  ],
+  "format": "a4",
+  "mode": "present",
+  "pages": 1
+}

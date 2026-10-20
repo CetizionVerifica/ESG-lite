@@ -1,0 +1,20 @@
+{
+  "element": "qr",
+  "elements": [
+    {
+      "bytes": 6144,
+      "frame": "266.121,163.561,40.321,16.035,0",
+      "id": "p-cover.qr",
+      "sha256": "de5c675e23e810564539bdda5f617a740d938d5c251f17e22f007b5c16ac2862"
+    },
+    {
+      "bytes": 47006,
+      "frame": "241.929,157.146,64.514,25.657,0",
+      "id": "p-el.qr-long",
+      "sha256": "bbb38b733fb3e54d4475b88ac6e5ebb4e1902357bebe8514946ef025cd77ef0e"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "paged",
+  "pages": 1
+}

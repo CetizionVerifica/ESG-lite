@@ -1,0 +1,20 @@
+{
+  "element": "icon",
+  "elements": [
+    {
+      "bytes": 495,
+      "frame": "77.524,107.475,8.457,8.485,0",
+      "id": "p-el.icon",
+      "sha256": "f292b7b4dd94c8a1d5d204b7d58c7ce424a0a1bf40e96dc3c79ed54f6b775048"
+    },
+    {
+      "bytes": 465,
+      "frame": "88.095,107.475,8.457,8.485,0",
+      "id": "p-el.icon-unknown",
+      "sha256": "e0b8ecce08f6c0c2b09fbe606d1e18a07fb4a87fa612ce0e30b1d5ef06ad698a"
+    }
+  ],
+  "format": "a5",
+  "mode": "paged",
+  "pages": 1
+}

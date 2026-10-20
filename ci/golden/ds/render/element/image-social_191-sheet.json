@@ -1,0 +1,26 @@
+{
+  "element": "image",
+  "elements": [
+    {
+      "bytes": 920,
+      "frame": "22.679,8.389,90.714,22.37,0",
+      "id": "p-el.img",
+      "sha256": "76fb541d67cb30cd6b5d8de016f9a9527f4f061f1d8c2aa1baf50b08032f7f2a"
+    },
+    {
+      "bytes": 954,
+      "frame": "120.952,8.389,75.595,22.37,0",
+      "id": "p-el.img-crop",
+      "sha256": "c7a026136273fb52cf896aa767239a80c7bf70ff01adb525feb292b3ab61d422"
+    },
+    {
+      "bytes": 340,
+      "frame": "204.107,8.389,90.714,22.37,0",
+      "id": "p-el.img-missing",
+      "sha256": "4f2b476d6bf2215bfc30100a6dd6e6eee74e0372c2ca254b811db943fca87d43"
+    }
+  ],
+  "format": "social_191",
+  "mode": "sheet",
+  "pages": 1
+}

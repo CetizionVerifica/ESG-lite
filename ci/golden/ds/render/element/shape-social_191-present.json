@@ -1,0 +1,32 @@
+{
+  "element": "shape",
+  "elements": [
+    {
+      "bytes": 335,
+      "frame": "22.679,146.526,30.238,11.185,15",
+      "id": "p-summary.rot",
+      "sha256": "0c54cf65751489ec1314fc2734b43680168282b0eacf64c137633142a4420c86"
+    },
+    {
+      "bytes": 325,
+      "frame": "166.31,58.722,45.357,11.185,0",
+      "id": "p-el.ellipse",
+      "sha256": "e566e01681a05035286d57ed53502a3ce5adc1fa41a3edccc666b4c6ab899b05"
+    },
+    {
+      "bytes": 402,
+      "frame": "219.226,61.519,75.595,1.119,0",
+      "id": "p-el.hline",
+      "sha256": "2124f223f8f3bd185242ba0b050ebcef0c2e645371080cd15a9c2dbb0bd4f963"
+    },
+    {
+      "bytes": 274,
+      "frame": "3.024,139.815,45.357,5.593,0",
+      "id": "p-el.unsafe",
+      "sha256": "ae9cf458daf87e896e4320b313b659fff8aa8ca6f5caabfef21d9bd5e27322ee"
+    }
+  ],
+  "format": "social_191",
+  "mode": "present",
+  "pages": 1
+}

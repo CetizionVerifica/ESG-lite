@@ -1,0 +1,14 @@
+{
+  "element": "placeholder",
+  "elements": [
+    {
+      "bytes": 339,
+      "frame": "21.214,124.444,120.214,21.212,0",
+      "id": "p-el.placeholder",
+      "sha256": "e50344bdb6ef808812351bf9baef44fefcaadb1872873acfb1a98696a8ed9689"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "sheet",
+  "pages": 1
+}

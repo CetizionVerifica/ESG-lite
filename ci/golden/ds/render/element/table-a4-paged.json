@@ -1,0 +1,26 @@
+{
+  "element": "table",
+  "elements": [
+    {
+      "bytes": 608,
+      "frame": "110,226,85,30,0",
+      "id": "p-summary.table",
+      "sha256": "06fe4e0b2cb78ae415550cf093a4373d42238a9acda301814c8ac815ff574a35"
+    },
+    {
+      "bytes": 700,
+      "frame": "105,176,90,40,0",
+      "id": "p-el.table",
+      "sha256": "364a227c770c3652b323fc528da4ec8610c224f2a22e676f3a60b8e043b53d34"
+    },
+    {
+      "bytes": 415,
+      "frame": "15,210,85,30,0",
+      "id": "p-el.table-own",
+      "sha256": "aab7666886d3273c802712c126386892f2b81afedeca22d789d519fbbf09ec65"
+    }
+  ],
+  "format": "a4",
+  "mode": "paged",
+  "pages": 1
+}

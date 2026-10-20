@@ -1,0 +1,32 @@
+{
+  "element": "shape",
+  "elements": [
+    {
+      "bytes": 335,
+      "frame": "10.571,185.253,14.095,14.141,15",
+      "id": "p-summary.rot",
+      "sha256": "e28a7e83ce7195f18db4eba5ed73013751861b9ee3120c3923fbb6d4ac2c597a"
+    },
+    {
+      "bytes": 325,
+      "frame": "77.524,74.242,21.143,14.141,0",
+      "id": "p-el.ellipse",
+      "sha256": "bad67a9a0a1b6c893252fe7c2899d1d68a78d162a7a080f237ba77d1e507bdb2"
+    },
+    {
+      "bytes": 400,
+      "frame": "102.19,77.778,35.238,1.414,0",
+      "id": "p-el.hline",
+      "sha256": "ca92dcd9046733f6bcf350a22241207d9475e7a6f2d494c3c3871f0f65576277"
+    },
+    {
+      "bytes": 272,
+      "frame": "1.41,176.768,21.143,7.071,0",
+      "id": "p-el.unsafe",
+      "sha256": "70c9f4f0b37abd31d422ac8a74150f7a13ccf8e755dad8cd97f5b75355ffc18d"
+    }
+  ],
+  "format": "a5",
+  "mode": "paged",
+  "pages": 1
+}
