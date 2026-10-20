@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Text effects and fonts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@700;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column">
+
+  <div style="height: 56px; flex-shrink: 0; background: #0e1730; color: #ffffff; display: flex; align-items: center; gap: 16px; padding: 0 20px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 17px"><span style="width: 26px; height: 26px; border-radius: 6px; background: #2572c0; display: inline-flex; align-items: center; justify-content: center; font-size: 14px">E</span>ESGLite</div>
+    <div style="color: #b9d2eb">Design Studio /</div>
+    <div style="font-weight: 600">Sustainability Report 2025</div>
+    <div style="flex-grow: 1"></div>
+    <button style="height: 36px; padding: 0 14px; border-radius: 8px; border: 0; background: #2572c0; color: #ffffff; font: inherit; font-weight: 600">Make final</button>
+  </div>
+
+  <div role="toolbar" aria-label="Text tools" style="height: 52px; flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 8px; padding: 0 16px; box-sizing: border-box; font-size: 13px">
+    <select aria-label="Font" style="height: 34px; border-radius: 6px; border: 1px solid #e1e8f0; font: inherit; padding: 0 8px; width: 180px"><option>Midal Sans (uploaded)</option></select>
+    <select aria-label="Size" style="height: 34px; border-radius: 6px; border: 1px solid #e1e8f0; font: inherit; padding: 0 8px"><option>44 pt</option></select>
+    <button aria-label="Bold" style="width: 34px; height: 34px; border: 0; border-radius: 6px; background: #eef4fa; font: inherit; font-weight: 700">B</button>
+    <button aria-label="Italic" style="width: 34px; height: 34px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-style: italic">I</button>
+    <button aria-label="Text colour" style="width: 34px; height: 34px; border: 0; border-radius: 6px; background: transparent; font: inherit; text-decoration: underline; text-decoration-color: #2572c0; text-decoration-thickness: 3px">A</button>
+    <div style="width: 1px; height: 22px; background: #e1e8f0"></div>
+    <button aria-pressed="true" style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: #eef4fa; color: #1e5d9d; font: inherit; font-weight: 600">Effects</button>
+    <button style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit">Copy style</button>
+    <div style="flex-grow: 1"></div>
+    <button style="height: 34px; padding: 0 10px; border: 1px solid #e1e8f0; border-radius: 6px; background: #ffffff; font: inherit">Find and replace <span style="font-family: 'IBM Plex Mono', monospace; color: #5f6b7c">⌘⇧F</span></button>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0; position: relative">
+    <div style="flex-grow: 1; background: #e9eef5; display: flex; align-items: center; justify-content: center">
+      <div style="width: 560px; height: 680px; background: #123c6b; box-shadow: 0 4px 18px rgba(14,23,48,0.12); padding: 48px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; gap: 18px">
+        <div style="font-size: 13px; letter-spacing: 0.1em; color: #b9d2eb">OUR COMMITMENT</div>
+        <div style="outline: 2px solid #6299d2; outline-offset: 6px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 54px; line-height: 1.05; color: #ffffff; text-shadow: 0 6px 16px rgba(0,0,0,0.45)">Net zero<br><span style="background: #1ea79a; color: #08101f; padding: 0 10px; border-radius: 6px; text-shadow: none">by 2040</span></div>
+        <div style="font-size: 15px; line-height: 1.6; color: #dce8f5">Against our <span style="font-family: 'IBM Plex Mono', monospace; background: #1e5d9d; padding: 1px 6px; border-radius: 4px">2023</span> base year, across Scope 1, 2 and 3.</div>
+      </div>
+    </div>
+
+    <div role="dialog" aria-label="Find and replace" style="position: absolute; left: 40px; top: 20px; width: 420px; background: #ffffff; border: 1px solid #e1e8f0; border-radius: 14px; box-shadow: 0 10px 30px rgba(14,23,48,0.18); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+      <div style="font-weight: 700">Find and replace</div>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px">Find<input value="Midal Cable " style="height: 36px; border-radius: 8px; border: 1px solid #2572c0; font: inherit; padding: 0 10px"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px">Replace with<input value="Midal Cables " style="height: 36px; border-radius: 8px; border: 1px solid #e1e8f0; font: inherit; padding: 0 10px"></label>
+      <div style="display: flex; gap: 12px; font-size: 13px"><label style="display: flex; gap: 6px; align-items: center"><input type="checkbox"> Match case</label><label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" checked> Whole words</label></div>
+      <div style="font-size: 13px; padding: 8px 10px; border-radius: 8px; background: #eef4fa">7 matches on 5 pages · data chips and locked text are never changed</div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end"><button style="height: 38px; padding: 0 12px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit">Next</button><button style="height: 38px; padding: 0 12px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit">Replace</button><button style="height: 38px; padding: 0 12px; border-radius: 8px; border: 0; background: #2572c0; color: #ffffff; font: inherit; font-weight: 600">Replace all</button></div>
+    </div>
+
+    <div style="width: 340px; flex-shrink: 0; background: #ffffff; border-left: 1px solid #e1e8f0; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+      <div style="font-weight: 700; font-size: 16px">Effects</div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+        <button aria-pressed="false" style="height: 72px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><span style="font-weight: 800; font-size: 20px">Ag</span>None</button>
+        <button aria-pressed="true" style="height: 72px; border-radius: 8px; border: 2px solid #2572c0; background: #f5f9fd; font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><span style="font-weight: 800; font-size: 20px; text-shadow: 2px 3px 4px rgba(0,0,0,0.4)">Ag</span>Shadow</button>
+        <button aria-pressed="false" style="height: 72px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><span style="font-weight: 800; font-size: 20px; text-shadow: 0 6px 10px rgba(0,0,0,0.25)">Ag</span>Lift</button>
+        <button aria-pressed="false" style="height: 72px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><span style="font-weight: 800; font-size: 20px; color: #ffffff; -webkit-text-stroke: 1.5px #16202e">Ag</span>Outline</button>
+        <button aria-pressed="true" style="height: 72px; border-radius: 8px; border: 2px solid #2572c0; background: #f5f9fd; font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><span style="font-weight: 800; font-size: 20px; background: #b7e3df; padding: 0 4px; border-radius: 3px">Ag</span>Highlight</button>
+        <button aria-pressed="false" style="height: 72px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><svg width="40" height="22" viewBox="0 0 40 22" aria-hidden="true"><path id="cv" d="M2 20 Q20 0 38 20" fill="none"></path><text font-size="11" font-weight="800" fill="#16202e"><textPath href="#cv">Curve</textPath></text></svg>Curve</button>
+      </div>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span style="display: flex; justify-content: space-between">Shadow blur <span style="font-family: 'IBM Plex Mono', monospace">16</span></span><input type="range" min="0" max="50" value="16"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span style="display: flex; justify-content: space-between">Shadow offset <span style="font-family: 'IBM Plex Mono', monospace">6</span></span><input type="range" min="0" max="30" value="6"></label>
+      <div style="font-size: 12px; color: #5f6b7c">Highlight colour comes from the brand kit (teal, 7.9:1 with dark text).</div>
+
+      <div style="height: 1px; background: #e1e8f0"></div>
+      <div style="font-weight: 700; font-size: 16px">Brand fonts</div>
+      <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+        <div style="display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 8px; background: #eef4fa"><span>Midal Sans · 4 weights</span><span style="color: #16794c">Embedded in PDF</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 8px; background: #eef4fa"><span>IBM Plex Sans</span><span style="color: #5f6b7c">Built in</span></div>
+      </div>
+      <div style="border: 1px dashed #92b9e0; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+        <div style="font-weight: 600">Upload a font (WOFF2, TTF, OTF)</div>
+        <label style="display: flex; gap: 8px; align-items: flex-start"><input type="checkbox"> We hold a licence that allows embedding this font in PDFs.</label>
+        <div style="color: #5f6b7c">Managers only. Added to the brand kit for everyone in the company.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

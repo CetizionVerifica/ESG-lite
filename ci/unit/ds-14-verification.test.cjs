@@ -26,7 +26,7 @@ test("routes.cjs and ds-lib.cjs list the same contract endpoints", () => {
 });
 
 test("every contract route names its module; concrete() fills ids and the query a route needs", () => {
-  for (const r of R.CONTRACT_ROUTES) assert.match(r.module, /^DS-\d+$/, `${r.method} ${r.path}`);
+  for (const r of R.CONTRACT_ROUTES) assert.match(r.module, /^(DS|AT|PE)-\d+$/, `${r.method} ${r.path}`);
   assert.equal(R.concrete("/docs/:id/versions/:n/pdf"), "/studio/docs/1/versions/1/pdf");
   assert.equal(R.concrete("/docs/:id", { id: 42 }), "/studio/docs/42");
   assert.equal(R.concrete("/readiness"), "/studio/readiness?kind=ghg&year=2025");

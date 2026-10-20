@@ -427,6 +427,95 @@
       "pages",
       "findings",
       "image"
+    ],
+    "IMAGE_FILTERS": [
+      "none",
+      "vivid",
+      "mono",
+      "warm",
+      "cool",
+      "fade"
+    ],
+    "IMAGE_ADJUST_KEYS": [
+      "brightness",
+      "contrast",
+      "saturation",
+      "warmth",
+      "blur"
+    ],
+    "TEXT_EFFECTS": [
+      "shadow",
+      "lift",
+      "outline",
+      "highlight",
+      "curve"
+    ],
+    "BRIEF_PURPOSES": [
+      "sustainability_report",
+      "ghg_inventory",
+      "board_brief",
+      "site_fact_sheet"
+    ],
+    "BRIEF_AUDIENCES": [
+      "verifier",
+      "board",
+      "investors",
+      "public"
+    ],
+    "BRIEF_LENGTHS": [
+      "short",
+      "medium",
+      "long"
+    ],
+    "BRIEF_TONES": [
+      "formal",
+      "plain",
+      "engaging"
+    ],
+    "READINESS_BADGE_KEYS": [
+      "scope12_months",
+      "scope3_categories",
+      "kpi_coverage",
+      "targets",
+      "base_year"
+    ],
+    "READINESS_LEVELS": [
+      "ready",
+      "partial",
+      "low"
+    ],
+    "LAYOUT_OPTION_IDS": [
+      "A",
+      "B",
+      "C"
+    ],
+    "SWAP_PAGE_STATUSES": [
+      "mapped",
+      "kept",
+      "added"
+    ],
+    "IMAGE_JOB_KINDS": [
+      "remove_background"
+    ],
+    "FONT_FILE_FORMATS": [
+      "woff2",
+      "ttf",
+      "otf"
+    ],
+    "FONT_WEIGHTS": [
+      100,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900
+    ],
+    "FONT_STYLES": [
+      "normal",
+      "italic"
     ]
   },
   "reportInputKinds": {
@@ -514,7 +603,13 @@
     "DS_AI_BUDGET_EXCEEDED": 429,
     "DS_AI_OUTPUT_INVALID": 502,
     "DS_VALIDATION": 400,
-    "DS_COMPANY_REQUIRED": 400
+    "DS_COMPANY_REQUIRED": 400,
+    "DS_NOT_BUILT": 501,
+    "DS_BG_UNAVAILABLE": 503,
+    "DS_FONT_TYPE": 415,
+    "DS_FONT_TOO_LARGE": 413,
+    "DS_FONT_LICENCE": 422,
+    "DS_FONT_EXISTS": 409
   },
   "checks": {
     "YEAR_NOT_LOCKED": {

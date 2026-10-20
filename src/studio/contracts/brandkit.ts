@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { FontIdSchema, HexColorSchema, type FontId, type Look, type ReportKind } from "./enums";
+import type { BrandFont } from "./pro"; // PRO-0
 
 export const BRAND_VOICE_MAX = 3000;
 export const PALETTE_MAX_COLORS = 10;
@@ -51,6 +52,8 @@ export interface BrandKit {
   /** `company.brand_controls` (DS-13): colour pickers show brand palettes only, fonts the brand pair only. */
   brandControls: boolean;
   updatedAt: string | null;
+  /** PRO-0 (PE-2): uploaded brand fonts (GET /brand-kit/fonts has the same list); absent until PE-2 fills it. */
+  customFonts?: BrandFont[];
 }
 
 export const PaletteInputSchema = z

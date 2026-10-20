@@ -21,6 +21,10 @@ import aiRouter from "./ai/router"; // DS-9
 import resizeRouter from "./resize/router"; // DS-10
 import checksRouter from "./checks/router"; // DS-12
 import collabRouter from "./collab/router"; // DS-13
+import templateSuggestRouter from "./suggest/router"; // PRO-0 (AT-1)
+import templateSwapRouter from "./swap/router"; // PRO-0 (AT-2)
+import imagesRouter from "./images/router"; // PRO-0 (PE-1)
+import brandFontsRouter from "./fonts/router"; // PRO-0 (PE-2)
 
 const router = Router();
 
@@ -37,5 +41,9 @@ router.use(aiRouter); // DS-9: /docs/:id/ai, /docs/:id/ai/chat, /docs/:id/ai/usa
 router.use(resizeRouter); // DS-10: /docs/:id/resize, /docs/:id/source
 router.use(checksRouter); // DS-12: POST /docs/:id/checks; registers the checks gate for finals
 router.use(collabRouter); // DS-13: comments, tasks, approvals, drift, review settings, templates from a doc; wraps the final gate
+router.use(templateSuggestRouter); // PRO-0 (AT-1): POST /templates/suggest
+router.use(templateSwapRouter); // PRO-0 (AT-2): POST /docs/:id/template-swap/preview|apply
+router.use(imagesRouter); // PRO-0 (PE-1): POST /assets/:id/remove-background, GET /image-jobs/:id
+router.use(brandFontsRouter); // PRO-0 (PE-2): /brand-kit/fonts (+ /:id, /:id/files/:fileId)
 
 export default router;

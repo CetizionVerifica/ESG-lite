@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Photo edit</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@700;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column">
+
+  <div style="height: 56px; flex-shrink: 0; background: #0e1730; color: #ffffff; display: flex; align-items: center; gap: 16px; padding: 0 20px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 17px"><span style="width: 26px; height: 26px; border-radius: 6px; background: #2572c0; display: inline-flex; align-items: center; justify-content: center; font-size: 14px">E</span>ESGLite</div>
+    <div style="color: #b9d2eb">Design Studio /</div>
+    <div style="font-weight: 600">Sustainability Report 2025</div>
+    <div style="flex-grow: 1"></div>
+    <button style="height: 36px; padding: 0 14px; border-radius: 8px; border: 0; background: #2572c0; color: #ffffff; font: inherit; font-weight: 600">Make final</button>
+  </div>
+
+  <div role="toolbar" aria-label="Image tools" style="height: 52px; flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 4px; padding: 0 16px; box-sizing: border-box; font-size: 13px">
+    <button style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit">Replace</button>
+    <button style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit">Crop</button>
+    <button style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit">Flip</button>
+    <div style="width: 1px; height: 22px; background: #e1e8f0; margin: 0 6px"></div>
+    <button aria-pressed="true" style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: #eef4fa; color: #1e5d9d; font: inherit; font-weight: 600">Remove background</button>
+    <button aria-pressed="true" style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: #eef4fa; color: #1e5d9d; font: inherit; font-weight: 600">Adjust</button>
+    <button style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit">Filters</button>
+    <button style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit">Duotone</button>
+    <label style="display: flex; align-items: center; gap: 6px; margin-left: 6px">Transparency <input type="range" min="0" max="100" value="0" aria-label="Transparency" style="width: 90px"></label>
+    <div style="width: 1px; height: 22px; background: #e1e8f0; margin: 0 6px"></div>
+    <button style="height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit">Alt text</button>
+    <div style="flex-grow: 1"></div>
+    <span style="color: #5f6b7c">Original kept · edits are reversible</span>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0">
+    <div style="flex-grow: 1; background: #e9eef5; display: flex; align-items: center; justify-content: center">
+      <div style="width: 560px; height: 680px; background: #ffffff; box-shadow: 0 4px 18px rgba(14,23,48,0.12); padding: 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+        <div style="font-size: 12px; letter-spacing: 0.08em; color: #1e5d9d; font-weight: 600">04 · PEOPLE</div>
+        <div style="font-weight: 700; font-size: 26px">Safety on the shop floor</div>
+        <div style="position: relative; height: 340px; outline: 2px solid #2572c0; outline-offset: 3px; display: flex">
+          <div style="width: 50%; height: 100%; background: #c9b79c; position: relative; overflow: hidden">
+            <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 90px; background: #8a7a63"></div>
+            <div style="position: absolute; left: 30px; top: 40px; width: 90px; height: 60px; background: #a8977c"></div>
+            <div style="position: absolute; left: 110px; bottom: 50px; width: 110px; height: 220px; border-radius: 55px 55px 8px 8px; background: #1f2a44"></div>
+            <div style="position: absolute; left: 136px; bottom: 250px; width: 58px; height: 58px; border-radius: 50%; background: #c48a5a"></div>
+            <div style="position: absolute; left: 130px; bottom: 292px; width: 70px; height: 22px; border-radius: 30px 30px 4px 4px; background: #f5b301"></div>
+            <span style="position: absolute; left: 8px; top: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(8,16,31,0.7); color: #ffffff">Before</span>
+          </div>
+          <div style="width: 50%; height: 100%; position: relative; overflow: hidden; background-color: #eef4fa; background-image: linear-gradient(45deg, #dce8f5 25%, transparent 25%, transparent 75%, #dce8f5 75%), linear-gradient(45deg, #dce8f5 25%, transparent 25%, transparent 75%, #dce8f5 75%); background-size: 20px 20px; background-position: 0 0, 10px 10px">
+            <div style="position: absolute; left: -30px; bottom: 50px; width: 110px; height: 220px; border-radius: 55px 55px 8px 8px; background: #1f2a44"></div>
+            <div style="position: absolute; left: -4px; bottom: 250px; width: 58px; height: 58px; border-radius: 50%; background: #c48a5a"></div>
+            <div style="position: absolute; left: -10px; bottom: 292px; width: 70px; height: 22px; border-radius: 30px 30px 4px 4px; background: #f5b301"></div>
+            <span style="position: absolute; right: 8px; top: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #2572c0; color: #ffffff">After</span>
+          </div>
+          <div style="position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: #ffffff; box-shadow: 0 0 0 1px #2572c0"></div>
+          <button aria-label="Drag to compare" style="position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; border: 2px solid #2572c0; background: #ffffff; font: inherit; font-size: 12px">⇆</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 7px; background: #e1e8f0"></div><div style="height: 7px; background: #e1e8f0"></div><div style="height: 7px; width: 60%; background: #e1e8f0"></div></div>
+      </div>
+    </div>
+
+    <div style="width: 340px; flex-shrink: 0; background: #ffffff; border-left: 1px solid #e1e8f0; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 8px; background: #e7f5ee">
+        <div style="font-weight: 600; color: #0f5132">✓ Background removed</div>
+        <div style="font-size: 13px; color: #0f5132">Done on our server in 3 s. Saved as a new image; the original stays in Uploads.</div>
+        <div style="display: flex; gap: 8px"><button style="height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid #b7e3df; background: #ffffff; font: inherit; font-size: 13px">Touch up edges</button><button style="height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid #b7e3df; background: #ffffff; font: inherit; font-size: 13px">Undo</button></div>
+      </div>
+
+      <div style="font-weight: 700; font-size: 16px">Adjust</div>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span style="display: flex; justify-content: space-between">Brightness <span style="font-family: 'IBM Plex Mono', monospace">+12</span></span><input type="range" min="-100" max="100" value="12"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span style="display: flex; justify-content: space-between">Contrast <span style="font-family: 'IBM Plex Mono', monospace">+8</span></span><input type="range" min="-100" max="100" value="8"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span style="display: flex; justify-content: space-between">Saturation <span style="font-family: 'IBM Plex Mono', monospace">0</span></span><input type="range" min="-100" max="100" value="0"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span style="display: flex; justify-content: space-between">Warmth <span style="font-family: 'IBM Plex Mono', monospace">−5</span></span><input type="range" min="-100" max="100" value="-5"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px"><span style="display: flex; justify-content: space-between">Blur <span style="font-family: 'IBM Plex Mono', monospace">0</span></span><input type="range" min="0" max="100" value="0"></label>
+
+      <div style="font-weight: 700">Duotone in brand colours</div>
+      <div style="display: flex; gap: 8px">
+        <button aria-label="Navy and blue" style="width: 52px; height: 52px; border-radius: 8px; border: 2px solid #2572c0; padding: 0; overflow: hidden; display: flex"><span style="flex: 1; background: #0b223a"></span><span style="flex: 1; background: #2572c0"></span></button>
+        <button aria-label="Navy and teal" style="width: 52px; height: 52px; border-radius: 8px; border: 1px solid #e1e8f0; padding: 0; overflow: hidden; display: flex"><span style="flex: 1; background: #0b223a"></span><span style="flex: 1; background: #1ea79a"></span></button>
+        <button aria-label="Blue and orange" style="width: 52px; height: 52px; border-radius: 8px; border: 1px solid #e1e8f0; padding: 0; overflow: hidden; display: flex"><span style="flex: 1; background: #18497b"></span><span style="flex: 1; background: #f39a2b"></span></button>
+        <button aria-label="Grey" style="width: 52px; height: 52px; border-radius: 8px; border: 1px solid #e1e8f0; padding: 0; overflow: hidden; display: flex"><span style="flex: 1; background: #16202e"></span><span style="flex: 1; background: #e1e8f0"></span></button>
+      </div>
+      <div style="flex-grow: 1"></div>
+      <div style="font-size: 12px; color: #5f6b7c">The PDF uses the same filters as the editor, so print matches the screen.</div>
+      <button style="height: 40px; border-radius: 8px; border: 1px solid #e1e8f0; background: #ffffff; font: inherit">Reset all</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
