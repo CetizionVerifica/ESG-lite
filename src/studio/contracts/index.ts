@@ -12,6 +12,7 @@ export * from "./brandkit"; // DS-3
 export * from "./library"; // DS-4
 export * from "./docs"; // DS-5
 export * from "./jobs"; // DS-11
+export * from "./resize"; // DS-10
 
 import type { ReportKind } from "./enums";
 
