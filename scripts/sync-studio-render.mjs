@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-env node */
 // DS-1 · the renderer mirror. The same file lives in ESG-lite and ESG-lite_FE.
 //
 // ESG-lite (src/reporting/studio/render/ is the source):
