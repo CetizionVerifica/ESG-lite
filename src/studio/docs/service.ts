@@ -307,8 +307,9 @@ export async function getDoc(caller: StudioCaller, id: number, buildOnly: boolea
 
 /** PATCH /docs/:id: autosave (`doc`) and/or rename (`title`), optimistic on `rev`. */
 export async function patchDoc(caller: StudioCaller, id: number, rawBody: unknown) {
-  const body = parse(PatchDocBodySchema, rawBody ?? {});
+  // The doc first: another company's id answers 404 whatever the body (layer rule 1).
   const row = await loadDocRow(caller, id);
+  const body = parse(PatchDocBodySchema, rawBody ?? {});
   if (row.status === "final") throw new DsError("DS_FINAL_IMMUTABLE");
   if (row.build?.state === "running") throw new DsError("DS_VERSION_CONFLICT", { rev: row.rev, building: true });
   if (body.rev !== row.rev) throw new DsError("DS_VERSION_CONFLICT", { rev: row.rev });
@@ -332,8 +333,8 @@ export async function deleteDoc(caller: StudioCaller, id: number) {
 
 /** POST /docs/:id/rebuild: rebuild pages from the template's current version, keeping people's edits. */
 export async function rebuildDoc(caller: StudioCaller, id: number, rawBody: unknown) {
-  const body = parse(RebuildBodySchema, rawBody ?? {});
   const row = await loadDocRow(caller, id);
+  const body = parse(RebuildBodySchema, rawBody ?? {});
   if (row.status === "final") throw new DsError("DS_FINAL_IMMUTABLE");
   if (!row.templateId) throw new DsError("DS_LAYOUT_NOT_FOUND", { reason: "A blank design has no template to rebuild from" });
   const current = validated(row.draft);
@@ -358,8 +359,8 @@ export async function rebuildDoc(caller: StudioCaller, id: number, rawBody: unkn
 
 /** POST /docs/:id/duplicate: a new draft with the same pages and inputs (not linked; Resize links). */
 export async function duplicateDoc(caller: StudioCaller, id: number, rawBody: unknown) {
-  const body = parse(DuplicateBodySchema, rawBody ?? {});
   const row = await loadDocRow(caller, id);
+  const body = parse(DuplicateBodySchema, rawBody ?? {});
   const draft = JSON.parse(JSON.stringify(row.draft)) as Json;
   const title = (body.title ?? `${row.title} (copy)`).slice(0, 200);
   if (draft.meta && typeof draft.meta === "object") draft.meta.title = title;

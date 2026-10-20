@@ -301,6 +301,7 @@ test("tenant isolation: another company's designs are not found on every route; 
     ["POST", `/studio/docs/${doc.id}/presence`, {}],
     ["POST", `/studio/docs/${doc.id}/duplicate`, {}],
     ["GET", "/studio/docs/abc"],
+    ["PATCH", `/studio/docs/${doc.id}`, {}], // an invalid body still answers 404 first
   ];
   for (const [m, p, b] of routes) {
     const r = await call(m, p, "otherManager", b);
