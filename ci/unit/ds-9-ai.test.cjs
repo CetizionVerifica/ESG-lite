@@ -167,7 +167,7 @@ test("chat: the quick chips and common asks map to actions that fit the kind and
   assert.deepEqual(m("Draft the leadership message", "sustainability").actions, [{ action: "leadership_draft" }]);
   const layout = m("Suggest a layout for this page");
   assert.deepEqual(layout.actions, []);
-  assert.match(layout.reply, /aren't available yet/);
+  assert.match(layout.reply, /Layouts for this page/); // AT-2: the drawer has layouts now
   assert.equal(m("How are we doing on suppliers?"), null);
 });
 

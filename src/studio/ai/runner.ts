@@ -36,6 +36,7 @@ import { AiCallError, complete, parseJsonObject, type Completion } from "./clien
 import { buildAiContext, charBudget, newTextFrame, type AiContext } from "./context";
 import { guardText, literalNumberIssues, plainText, TOKEN_RE, textDocToTokens, toTextDoc, type SuggestionSource, type TokenScope } from "./guard";
 import { FINDINGS_OUTPUT, TEXT_OUTPUT, systemPrompt, userPrompt, type TaskInput } from "./prompts/common";
+import { suggestLayouts } from "../swap/layouts"; // AT-2
 
 type TextLike = Extract<Element, { type: "text" | "callout" }>;
 const isText = (e: Element | null | undefined): e is TextLike => !!e && (e.type === "text" || e.type === "callout");
@@ -163,6 +164,7 @@ export interface RunInput {
 
 export async function runAction(input: RunInput): Promise<Suggestion> {
   const { caller, doc, action } = input;
+  if (action === "suggest_layouts") return suggestLayouts(input); // AT-2: page options from library layouts (swap/layouts.ts)
   const spec = ACTIONS[action];
   if (!spec) throw unavailable(action, "isn't available yet");
   if (!spec.kinds.includes(doc.kind)) throw unavailable(action, `isn't for a ${doc.kind === "ghg" ? "GHG" : "sustainability"} report`);
