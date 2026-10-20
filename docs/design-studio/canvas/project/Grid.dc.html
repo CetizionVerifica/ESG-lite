@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grid view of pages</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Source+Serif+4:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+.tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:8px;border:0;background:transparent;color:#16202e;font:500 13px "IBM Plex Sans",sans-serif;cursor:pointer}
+.tb-o{border:1px solid #e1e8f0;background:#fff}
+.tb-p{background:#2572c0;color:#fff}
+.sep{width:1px;height:20px;background:#e1e8f0}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 900px; background: #e9eef4; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column">
+  <header style="height: 48px; flex: none; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 6px; padding: 0 12px; flex-wrap: wrap">
+    <a href="Main.dc.html" class="tb" style="text-decoration: none">← Designs</a><span class="sep"></span>
+    <button class="tb">File ▾</button><a href="Resize.dc.html" class="tb" style="text-decoration: none">Resize</a><button class="tb" aria-label="Undo">↶</button><button class="tb" aria-label="Redo">↷</button><span class="sep"></span>
+    <span style="font-weight: 600; padding: 0 6px">GHG Inventory FY 2025–26</span><span style="color: #5f6b7c; font-size: 12px">Grid view · 22 pages</span>
+    <div style="flex: 1"></div>
+    <a href="Editor.dc.html" class="tb tb-o" style="text-decoration: none">Back to editing</a><button class="tb tb-p">Download ▾</button>
+  </header>
+  <div style="height: 48px; background: #16202e; color: #fff; display: flex; align-items: center; gap: 8px; padding: 0 20px; flex-wrap: wrap">
+    <b style="font-size: 13px">2 pages selected</b><div style="flex: 1"></div>
+    <button class="tb" style="color: #fff">Duplicate</button><button class="tb" style="color: #fff">Hide</button><button class="tb" style="color: #fff">Move to chapter ▾</button><button class="tb" style="color: #fff">Add comment</button><button class="tb" style="color: #f2a091">Delete</button>
+  </div>
+  <main style="padding: 24px 28px; display: flex; flex-direction: column; gap: 24px">
+    <sc-for list="{{chapters}}" as="ch" hint-placeholder-count="4">
+      <section style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 14px">{{ch.name}}</h2><span style="font-size: 12px; color: #5f6b7c">{{ch.note}}</span></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px">
+          <sc-for list="{{ch.pages}}" as="p" hint-placeholder-count="5">
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 112px">
+              <div style="{{p.frame}}">
+                <sc-if value="{{p.isCover}}" hint-placeholder-val="{{false}}"><div style="position: absolute; left: 10px; right: 10px; bottom: 14px; color: #fff; font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 11px; line-height: 1.15">Greenhouse gas inventory FY 2025–26</div></sc-if>
+                <sc-if value="{{p.isChart}}" hint-placeholder-val="{{false}}"><div style="position: absolute; left: 10px; right: 10px; top: 12px; display: flex; flex-direction: column; gap: 4px"><div style="height: 5px; width: 70%; background: #18497b"></div><div style="height: 3px; width: 90%; background: #d5dde7"></div><div style="height: 44px; display: flex; align-items: flex-end; gap: 3px; margin-top: 8px"><div style="flex: 1; height: 40%; background: #18497b"></div><div style="flex: 1; height: 65%; background: #1d9f92"></div><div style="flex: 1; height: 100%; background: #c27b22"></div><div style="flex: 1; height: 30%; background: #c27b22"></div></div><div style="height: 3px; width: 80%; background: #d5dde7"></div><div style="height: 3px; width: 60%; background: #d5dde7"></div></div></sc-if>
+                <sc-if value="{{p.isText}}" hint-placeholder-val="{{true}}"><div style="position: absolute; left: 10px; right: 10px; top: 12px; display: flex; flex-direction: column; gap: 4px"><div style="height: 5px; width: 60%; background: #18497b"></div><div style="height: 3px; background: #d5dde7"></div><div style="height: 3px; background: #d5dde7"></div><div style="height: 3px; width: 80%; background: #d5dde7"></div><div style="height: 3px; background: #d5dde7"></div><div style="height: 3px; width: 70%; background: #d5dde7"></div></div></sc-if>
+                <sc-if value="{{p.isFlow}}" hint-placeholder-val="{{false}}"><div style="position: absolute; left: 10px; right: 10px; top: 12px; display: flex; flex-direction: column; gap: 3px"><div style="height: 5px; width: 60%; background: #18497b"></div><div style="height: 6px; background: #dce8f5"></div><div style="height: 6px; background: #eef4fa"></div><div style="height: 6px; background: #dce8f5"></div><div style="height: 6px; background: #eef4fa"></div><div style="height: 6px; background: #dce8f5"></div><div style="height: 6px; background: #eef4fa"></div></div><div style="position: absolute; right: 6px; bottom: 6px; background: #6e56cf; color: #fff; font-size: 9px; font-weight: 600; border-radius: 3px; padding: 1px 4px">Flow</div></sc-if>
+                <sc-if value="{{p.hidden}}" hint-placeholder-val="{{false}}"><div style="position: absolute; inset: 0; background: rgba(233,238,244,.7); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #5f6b7c">Hidden</div></sc-if>
+              </div>
+              <div style="display: flex; gap: 6px; font-size: 12px"><span style="color: #5f6b7c; font-family: 'IBM Plex Mono', monospace">{{p.n}}</span><span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{p.name}}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </sc-for>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const base = 'position: relative; width: 112px; height: 158px; border-radius: 2px; box-shadow: 0 1px 4px rgba(22,32,46,.15); box-sizing: border-box; ';
+    const pg = (n, name, kind, opts) => {
+      const o = opts || {};
+      let frame = base + (kind === 'cover' ? 'background: #18497b;' : 'background: #fff;');
+      if (o.selected) frame += ' outline: 3px solid #2572c0; outline-offset: 2px;';
+      return { n: String(n), name, isCover: kind === 'cover', isChart: kind === 'chart', isText: kind === 'text', isFlow: kind === 'flow', hidden: !!o.hidden, frame };
+    };
+    return {
+      chapters: [
+        { name: 'Opening', note: '4 pages', pages: [pg(1, 'Cover', 'cover'), pg(2, 'Statement of compliance', 'text'), pg(3, 'Executive summary', 'chart'), pg(4, 'Contents', 'flow')] },
+        { name: 'Boundaries and method', note: '4 pages', pages: [pg(5, 'About Northwind', 'text'), pg(6, 'Organisational boundary', 'text'), pg(7, 'Operational boundary', 'text', { selected: true }), pg(8, 'Methodology', 'text', { selected: true })] },
+        { name: 'Results', note: '7 pages', pages: [pg(9, 'Scope 1', 'chart'), pg(10, 'Scope 2', 'chart'), pg(11, 'Scope 3', 'chart'), pg(12, 'Scope 3 categories', 'flow'), pg(13, 'By site', 'chart'), pg(14, 'Biogenic CO₂', 'text'), pg(15, 'Intensity', 'chart')] },
+        { name: 'Performance and assurance', note: '4 pages', pages: [pg(16, 'Trend and base year', 'chart'), pg(17, 'Data quality', 'chart'), pg(18, 'Reduction initiatives', 'text', { hidden: true }), pg(19, 'Assurance statement', 'text')] },
+        { name: 'Annexes', note: '3 pages', pages: [pg(20, 'Emission factors', 'flow'), pg(21, 'GHG Protocol index', 'flow'), pg(22, 'Glossary', 'flow')] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

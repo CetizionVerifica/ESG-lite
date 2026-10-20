@@ -45,3 +45,14 @@
 - GHG and energy KPIs are read (KPI-5) from approved rows through the reporting layer. Never recompute an emission total in `src/kpi/`; never change `src/reporting/ghg*.ts` or `emissionWrite` for KPIs.
 - New tables and columns ship as idempotent `migrate:kpi-*` scripts; every new endpoint gets tenant-isolation, role and switch-off tests.
 - Standards text: codes, our own wording and a source link only. No copied paragraphs.
+
+## Design Studio (GHG + sustainability report designer) — see docs/design-studio/
+- Switch: `company.design_studio_enabled` (default off, Superadmin only). Every `/studio` route sits behind `requireDesignStudio` (403 `DS_STUDIO_OFF`). The `sustainability` kind also needs `requireKpiTracking` (403 `DS_KIND_OFF`). The `ghg` kind does not.
+- Admins and Managers edit. Only a Manager (or Superadmin) generates a final, approves or creates a share link. Users never see the studio. A company-wide report needs all-site access.
+- Enums, the ReportDoc v2 schema, sources, error and check codes live only in `src/studio/contracts/`. Change them there first (DS-0 follow-up).
+- Numbers in a design come only from `src/studio/sources/`: `ghg` (approved emission entries via `computeGhgTables` / `computeScope3`), `kpi` (APPROVED KPI values), `input` (report details). Derived figures are computed there. `custom` chart data is never a reported figure.
+- Do not change `src/reporting/ghg*.ts`, `blocks.ts`, `render.ts`, `print.ts`, `src/scope3/baseYear/*`, the EDE controller or KPI-11 exports for the studio. Call their exported functions read-only.
+- One renderer: `src/reporting/studio/render/` makes the HTML for the editor, Page view, Present, PNG and PDFs. It is pure TypeScript (no DB, no Node APIs) because ESG-lite_FE mirrors it byte for byte. After changing it, bump `RENDER_HASH` and sync the FE.
+- AI output is validated JSON with data tokens only. It is never HTML, never literal reported numbers, and never applied without a person's Accept. Log every call in `report_ai_call`.
+- Final versions are immutable. Share links serve stored PDFs only. New tables ship as idempotent `migrate:ds-*` scripts. Every new endpoint gets tenant-isolation, role and switch-off tests.
+- No Canva SDK, API, assets or names. "Canva-like" means interaction patterns only.

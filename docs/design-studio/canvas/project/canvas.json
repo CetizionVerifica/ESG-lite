@@ -1,0 +1,26 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-20T10:00:00Z"},
+  "title": "ESGLite Design Studio",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 900, "title": "S1 · Studio home", "expand": "fill"},
+    "Templates.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 900, "title": "S2 · New design: pick a template", "expand": "fill"},
+    "Editor.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 900, "title": "S3 · Editor: GHG Scope 3 page, Data drawer", "expand": "fill"},
+    "AI.dc.html": {"x": 0, "y": 1350, "w": 1440, "h": 900, "title": "S4 · Editor: AI panel with a suggestion", "expand": "fill"},
+    "Brand.dc.html": {"x": 1520, "y": 1350, "w": 1440, "h": 900, "title": "S5 · Editor: Brand kit and Styles", "expand": "fill"},
+    "Grid.dc.html": {"x": 3040, "y": 1350, "w": 1440, "h": 900, "title": "S3 · Grid view of all pages", "expand": "fill"},
+    "Resize.dc.html": {"x": 0, "y": 2700, "w": 1440, "h": 900, "title": "S6 · Resize and convert", "expand": "fill"},
+    "Share.dc.html": {"x": 1520, "y": 2700, "w": 1440, "h": 900, "title": "S7 + S8 · Checks, download and share", "expand": "fill"},
+    "Plan.dc.html": {"x": 3040, "y": 2700, "w": 1440, "h": 900, "title": "Plan · DS modules, lanes and milestones", "expand": "fill"}
+  },
+  "order": ["Main.dc.html", "Templates.dc.html", "Editor.dc.html", "AI.dc.html", "Brand.dc.html", "Grid.dc.html", "Resize.dc.html", "Share.dc.html", "Plan.dc.html"],
+  "notes": {
+    "row1": {"x": 0, "y": -300, "text": "Start: home, templates, the Canva-style editor", "kind": "title1", "maxW": 4480},
+    "row2": {"x": 0, "y": 1050, "text": "Design: AI, brand and styles, page grid", "kind": "title1", "maxW": 4480},
+    "row3": {"x": 0, "y": 2400, "text": "Finish: resize, checks and outputs, the build plan", "kind": "title1", "maxW": 4480},
+    "sample": {"x": 4560, "y": 0, "w": 360, "text": "All company names and figures on these screens are sample data for layout only (\"Northwind Metals\"). App chrome uses the ESGLite theme tokens (PlanetPulse blue, IBM Plex). Report pages use the client's brand.", "size": "s", "fill": "blue"}
+  },
+  "designSystems": []
+}

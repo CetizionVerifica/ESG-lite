@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Checks, download and share</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Source+Serif+4:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:8px;border:0;background:transparent;color:#16202e;font:500 13px "IBM Plex Sans",sans-serif;cursor:pointer}
+.tb-o{border:1px solid #e1e8f0;background:#fff}
+.tb-p{background:#2572c0;color:#fff}
+.sep{width:1px;height:20px;background:#e1e8f0}
+.ck{border:1px solid #e1e8f0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13px;background:#fff}
+.ck-e{border-left:4px solid #b4321f}
+.ck-w{border-left:4px solid #9a6300}
+.ck-i{border-left:4px solid #1d5fb8}
+.fix{display:inline-flex;align-items:center;height:26px;padding:0 8px;border-radius:6px;border:1px solid #e1e8f0;background:#fff;font:500 12px "IBM Plex Sans",sans-serif;color:#1e5d9d;cursor:pointer}
+.mi{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;font-size:13px}
+</style>
+</helmet>
+<div style="width: 100%; height: 900px; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; overflow: hidden; position: relative">
+  <header style="height: 48px; flex: none; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 6px; padding: 0 12px; flex-wrap: wrap">
+    <a href="Main.dc.html" class="tb" style="text-decoration: none">← Designs</a><span class="sep"></span>
+    <button class="tb">File ▾</button><a href="Resize.dc.html" class="tb" style="text-decoration: none">Resize</a><button class="tb" aria-label="Undo">↶</button><button class="tb" aria-label="Redo">↷</button><span class="sep"></span>
+    <span style="font-weight: 600; padding: 0 6px">GHG Inventory FY 2025–26</span><span style="color: #5f6b7c; font-size: 12px">In review · approval requested from A. Rao, due 28 Oct</span>
+    <div style="flex: 1"></div>
+    <button class="tb tb-o" style="color: #9a6300; border-color: #f3dcae; background: #fdf5e3" aria-pressed="true">⚑ 3 checks</button>
+    <button class="tb tb-o">Comments 2</button><button class="tb tb-o">▶ Present</button><button class="tb tb-o" style="border-color: #2572c0; color: #1e5d9d">Share ▾</button><button class="tb tb-p">Download ▾</button>
+  </header>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <!-- Checks drawer -->
+    <aside style="flex: none; width: 400px; background: #fff; border-right: 1px solid #e1e8f0; display: flex; flex-direction: column; min-height: 0" aria-label="Checks">
+      <div style="padding: 14px 16px; border-bottom: 1px solid #e1e8f0; display: flex; flex-direction: column; gap: 4px">
+        <div style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600; flex: 1">Checks before the final</span><span style="font-size: 12px; color: #5f6b7c">GHG Protocol · BRSR P6</span></div>
+        <div style="font-size: 12px; color: #5f6b7c">1 must fix · 2 to review · 2 for info</div>
+      </div>
+      <div style="flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #b4321f; font-weight: 600">Must fix</div>
+        <div class="ck ck-e">
+          <b>Scope 3 category 8 isn't reported or excluded</b>
+          <span style="color: #3a4656">The GHG Protocol asks you to report every category or give a reason for leaving it out. Categories 8, 10, 13 and 14 have neither.</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><button class="fix">Mark as excluded…</button><button class="fix">✦ Draft reasons</button><button class="fix">Go to page 12</button></div>
+        </div>
+        <div style="font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #9a6300; font-weight: 600">Review</div>
+        <div class="ck ck-w">
+          <b>Market-based Scope 2 isn't reported</b>
+          <span style="color: #3a4656">ESGLite doesn't record contractual instruments yet. The report shows “Not reported” with this reason.</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><button class="fix">Describe instruments in text</button><button class="fix">Go to page 10</button></div>
+        </div>
+        <div class="ck ck-w">
+          <b>4 emission entries wait for approval</b>
+          <span style="color: #3a4656">The final uses approved entries only. Approve or reject them first.</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><button class="fix">Open Review</button></div>
+        </div>
+        <div style="font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #1d5fb8; font-weight: 600">For info</div>
+        <div class="ck ck-i"><b>Scope 2 changed 9.4% from last year</b><span style="color: #3a4656">Page 10 doesn't say why yet.</span><div><button class="fix">✦ Explain the change</button></div></div>
+        <div class="ck ck-i"><b>One chart uses typed data</b><span style="color: #3a4656">“Solar capacity, MW” on page 18 isn't linked to approved data.</span><div><button class="fix">Go to page 18</button></div></div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid #e1e8f0; display: flex; flex-direction: column; gap: 8px">
+        <button class="tb tb-p" disabled style="justify-content: center; opacity: .55; cursor: not-allowed">Generate final PDF</button>
+        <span style="font-size: 12px; color: #5f6b7c; text-align: center">Fix 1 check and get approval to generate the final.</span>
+      </div>
+    </aside>
+
+    <!-- Canvas with Scope 2 page -->
+    <section style="flex: 1; min-width: 0; background: #e9eef4; position: relative; overflow: hidden">
+      <div style="position: absolute; left: 50%; top: 24px; transform: translateX(-60%); width: 504px; height: 713px; background: #fff; box-shadow: 0 2px 10px rgba(22,32,46,.12)">
+        <div style="position: absolute; left: 48px; top: 48px; right: 48px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: #1d9f92; font-weight: 600">Results · Scope 2</div>
+          <div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 24px; line-height: 1.12; color: #18497b">Rooftop solar cut purchased electricity emissions</div>
+        </div>
+        <table style="position: absolute; left: 48px; right: 48px; top: 150px; width: calc(100% - 96px); border-collapse: collapse; font-size: 10px">
+          <thead><tr style="border-bottom: 1.5px solid #16202e; text-align: left"><th style="padding: 6px 0">Scope 2, tCO₂e</th><th style="padding: 6px 0; text-align: right">FY 2024–25</th><th style="padding: 6px 0; text-align: right">FY 2025–26</th><th style="padding: 6px 0; text-align: right">Change</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #e1e8f0"><td style="padding: 7px 0">Location-based</td><td class="num" style="text-align: right">20,880</td><td class="num" style="text-align: right; font-weight: 500">18,920</td><td class="num" style="text-align: right; color: #16794c">▼ 9.4%</td></tr>
+            <tr style="border-bottom: 1px solid #e1e8f0; background: #fdf5e3"><td style="padding: 7px 0">Market-based</td><td colspan="3" style="text-align: right; color: #9a6300">Not reported: contractual instruments aren't recorded yet</td></tr>
+          </tbody>
+        </table>
+        <div style="position: absolute; left: 48px; right: 48px; top: 250px; font-size: 10.5px; line-height: 1.6; color: #3a4656">Electricity from the grid fell after two plants added rooftop solar. <span style="text-decoration: underline wavy #1d5fb8; text-underline-offset: 3px">Location-based Scope 2 changed this year.</span></div>
+        <div style="position: absolute; left: 48px; right: 48px; top: 310px; height: 220px; display: flex; align-items: flex-end; gap: 10px; border-bottom: 1px solid #d5dde7">
+          <div style="flex: 1; height: 63%; background: #b9d2eb"></div><div style="flex: 1; height: 59%; background: #b9d2eb"></div><div style="flex: 1; height: 63%; background: #b9d2eb"></div><div style="flex: 1; height: 58%; background: #b9d2eb"></div>
+          <div style="flex: 1; height: 55%; background: #1d9f92"></div><div style="flex: 1; height: 50%; background: #1d9f92"></div><div style="flex: 1; height: 52%; background: #1d9f92"></div><div style="flex: 1; height: 49%; background: #1d9f92"></div>
+        </div>
+        <div style="position: absolute; left: 48px; right: 48px; top: 536px; display: flex; font-size: 8.5px; color: #5f6b7c"><span style="flex: 1">FY25 quarters (grey) · FY26 quarters (teal)</span></div>
+        <div style="position: absolute; left: 48px; right: 48px; bottom: 44px; display: flex; font-size: 8px; color: #8a96a8"><span style="flex: 1">Northwind Metals · GHG inventory FY 2025–26</span><span>10</span></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Download menu -->
+  <div role="menu" aria-label="Download" style="position: absolute; right: 12px; top: 52px; width: 330px; background: #fff; border: 1px solid #e1e8f0; border-radius: 12px; box-shadow: 0 12px 32px rgba(22,32,46,.18); padding: 8px; display: flex; flex-direction: column; gap: 2px">
+    <div style="padding: 6px 10px; font-size: 12px; font-weight: 600; color: #5f6b7c">Download</div>
+    <div class="mi" role="menuitem" style="background: #eef4fa"><span style="flex: 1"><b>PDF for screens</b><br><span style="color: #5f6b7c; font-size: 12px">Proof · tagged, with bookmarks</span></span></div>
+    <div class="mi" role="menuitem"><span style="flex: 1"><b>PDF for print</b><br><span style="color: #5f6b7c; font-size: 12px">3 mm bleed · crop marks</span></span></div>
+    <div class="mi" role="menuitem"><span style="flex: 1"><b>PNG pages</b><br><span style="color: #5f6b7c; font-size: 12px">All or a range · 2× or 300 dpi</span></span></div>
+    <div style="height: 1px; background: #e1e8f0; margin: 4px 0"></div>
+    <div class="mi" role="menuitem" aria-disabled="true" style="color: #8a96a8"><span>Lock</span><span style="flex: 1"><b>Final PDF</b><br><span style="font-size: 12px">Blocked by 1 check and a pending approval</span></span></div>
+  </div>
+  <!-- Share panel -->
+  <div role="dialog" aria-label="Share" style="position: absolute; right: 352px; top: 52px; width: 340px; background: #fff; border: 1px solid #e1e8f0; border-radius: 12px; box-shadow: 0 12px 32px rgba(22,32,46,.18); padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+    <b>Share</b>
+    <div style="display: flex; align-items: center; gap: 8px"><span style="width: 28px; height: 28px; border-radius: 50%; background: #dce8f5; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600">AR</span><span style="flex: 1">A. Rao · Manager</span><span style="font-size: 12px; color: #1d5fb8">Reviewer</span></div>
+    <div style="display: flex; align-items: center; gap: 8px"><span style="width: 28px; height: 28px; border-radius: 50%; background: #dbf1ef; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600">MS</span><span style="flex: 1">M. Shah · Admin</span><span style="font-size: 12px; color: #5f6b7c">Can edit</span></div>
+    <div style="height: 1px; background: #e1e8f0"></div>
+    <b style="font-size: 12px; color: #5f6b7c">View link</b>
+    <div style="display: flex; gap: 6px"><input type="text" value="esglite.app/s/••••••••3f9a" readonly aria-label="View link" style="flex: 1; height: 32px; border: 1px solid #e1e8f0; border-radius: 8px; padding: 0 8px; font: 12px 'IBM Plex Mono', monospace"><button class="tb tb-o">Copy</button></div>
+    <div style="font-size: 12px; color: #5f6b7c">Proof v7 · expires 3 Nov 2026 · 4 views · <a href="#">Revoke</a></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

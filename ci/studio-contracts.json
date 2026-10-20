@@ -1,0 +1,746 @@
+{
+  "enums": {
+    "REPORT_KINDS": [
+      "ghg",
+      "sustainability"
+    ],
+    "PAGE_FORMATS": [
+      "a4",
+      "a4_landscape",
+      "letter",
+      "a5",
+      "slide_16_9",
+      "square",
+      "social_191"
+    ],
+    "DOC_PURPOSES": [
+      "report",
+      "summary",
+      "deck",
+      "social"
+    ],
+    "REPORT_STATUSES": [
+      "draft",
+      "in_review",
+      "approved",
+      "final"
+    ],
+    "VERSION_KINDS": [
+      "snapshot",
+      "review",
+      "final",
+      "autosave"
+    ],
+    "PAGE_KINDS": [
+      "freeform",
+      "flow"
+    ],
+    "FLOW_TYPES": [
+      "toc",
+      "narrative",
+      "data_tables",
+      "gri_index",
+      "brsr_index",
+      "esrs_index",
+      "methodology",
+      "glossary",
+      "ghgp_index",
+      "iso_index",
+      "ghg_factor_table",
+      "scope3_categories"
+    ],
+    "LAYOUT_KINDS": [
+      "cover",
+      "contents",
+      "leadership",
+      "about",
+      "highlights",
+      "chapter_opener",
+      "data_page",
+      "targets",
+      "materiality",
+      "people",
+      "quote",
+      "back_cover",
+      "blank"
+    ],
+    "ELEMENT_TYPES": [
+      "text",
+      "kpi_tile",
+      "chart",
+      "table",
+      "image",
+      "shape",
+      "icon",
+      "sdg",
+      "divider",
+      "page_number",
+      "placeholder",
+      "frame",
+      "grid",
+      "line",
+      "big_number",
+      "progress",
+      "callout",
+      "qr"
+    ],
+    "CHART_KINDS": [
+      "stacked_bar",
+      "bar",
+      "line",
+      "donut",
+      "share_bar",
+      "waterfall",
+      "sankey",
+      "target_bars",
+      "dot_grid",
+      "materiality_matrix",
+      "sparkline",
+      "scope_split",
+      "category_bars",
+      "gas_split",
+      "site_bars",
+      "monthly_stack",
+      "base_year_waterfall",
+      "intensity_line",
+      "treemap"
+    ],
+    "ELEMENT_SOURCES": [
+      "layout",
+      "auto",
+      "ai",
+      "user"
+    ],
+    "TEXT_STYLE_IDS": [
+      "kicker",
+      "title",
+      "heading",
+      "subheading",
+      "body",
+      "caption",
+      "big_number",
+      "quote",
+      "footnote"
+    ],
+    "MEASURES": [
+      "value",
+      "change_abs",
+      "change_pct",
+      "share",
+      "progress",
+      "target",
+      "baseline"
+    ],
+    "YEAR_REF_WORDS": [
+      "current",
+      "prior",
+      "base"
+    ],
+    "LOOKS": [
+      "classic",
+      "light",
+      "night"
+    ],
+    "FONT_IDS": [
+      "source-serif-4",
+      "source-sans-3",
+      "dm-serif-display",
+      "ibm-plex-sans",
+      "ibm-plex-serif",
+      "archivo",
+      "fraunces",
+      "noto-sans"
+    ],
+    "NUMBER_FORMATS": [
+      "auto",
+      "int",
+      "1dp",
+      "2dp",
+      "pct0",
+      "pct1",
+      "compact",
+      "indian"
+    ],
+    "YEAR_TYPES": [
+      "CY",
+      "FY"
+    ],
+    "SUSTAINABILITY_FRAMEWORKS": [
+      "GRI",
+      "BRSR",
+      "ESRS"
+    ],
+    "GHG_FRAMEWORKS": [
+      "GHGP",
+      "ISO14064",
+      "BRSR_P6",
+      "ESRS_E1"
+    ],
+    "FRAMEWORK_CODES": [
+      "GRI",
+      "BRSR",
+      "ESRS",
+      "GHGP",
+      "ISO14064",
+      "BRSR_P6",
+      "ESRS_E1"
+    ],
+    "DOWNLOAD_KINDS": [
+      "pdf_screen",
+      "pdf_print",
+      "png_pages"
+    ],
+    "JOB_KINDS": [
+      "proof",
+      "final",
+      "thumbnail",
+      "png",
+      "print"
+    ],
+    "JOB_STATUSES": [
+      "queued",
+      "running",
+      "done",
+      "failed"
+    ],
+    "APPROVAL_STATES": [
+      "none",
+      "requested",
+      "approved",
+      "changes_requested"
+    ],
+    "CHECK_SEVERITIES": [
+      "error",
+      "warning",
+      "info"
+    ],
+    "RENDER_MODES": [
+      "sheet",
+      "paged",
+      "present",
+      "print"
+    ],
+    "STUDIO_EDITOR_ROLES": [
+      "Admin",
+      "Manager",
+      "Superadmin"
+    ],
+    "STUDIO_MANAGER_ROLES": [
+      "Manager",
+      "Superadmin"
+    ],
+    "DATA_SOURCES": [
+      "kpi",
+      "ghg",
+      "input",
+      "custom"
+    ],
+    "GHG_METRICS": [
+      "total",
+      "scope1",
+      "scope2_location",
+      "scope2_market",
+      "scope3",
+      "scope3_category",
+      "biogenic_co2",
+      "gas_co2",
+      "gas_ch4",
+      "gas_n2o",
+      "gas_other",
+      "intensity_revenue",
+      "intensity_output",
+      "intensity_employee",
+      "base_year_total",
+      "dq_score",
+      "primary_data_pct",
+      "sites_covered",
+      "months_covered"
+    ],
+    "GHG_BREAKDOWNS": [
+      "scope",
+      "scope3_category",
+      "site",
+      "month",
+      "quarter",
+      "gas",
+      "fuel",
+      "source_category"
+    ],
+    "REPORT_INPUT_KEYS": [
+      "consolidation_approach",
+      "responsible_person",
+      "reporting_period",
+      "base_year",
+      "recalculation_policy",
+      "significance_threshold_pct",
+      "gwp_set",
+      "exclusions",
+      "scope2_instruments",
+      "uncertainty_statement",
+      "verification",
+      "conformance",
+      "revenue",
+      "revenue_ppp_rate",
+      "output_units",
+      "employees",
+      "leadership_message",
+      "about_company"
+    ],
+    "INPUT_SOURCES": [
+      "company",
+      "typed",
+      "kpi"
+    ],
+    "VERIFICATION_STATUSES": [
+      "none",
+      "limited",
+      "reasonable"
+    ],
+    "CONFORMANCE_CODES": [
+      "GHGP",
+      "ISO14064"
+    ],
+    "GWP_SETS": [
+      "AR4",
+      "AR5",
+      "AR6",
+      "MIXED"
+    ],
+    "ASSET_KINDS": [
+      "image",
+      "logo",
+      "ai_image"
+    ],
+    "FRAME_MASKS": [
+      "rect",
+      "rounded",
+      "circle",
+      "arch",
+      "blob"
+    ],
+    "TEXT_NODE_TYPES": [
+      "paragraph",
+      "heading",
+      "bulletList",
+      "orderedList",
+      "listItem",
+      "hardBreak",
+      "text"
+    ],
+    "TEXT_MARK_TYPES": [
+      "bold",
+      "italic",
+      "link",
+      "highlight"
+    ],
+    "CHECK_IDS": [
+      "YEAR_NOT_LOCKED",
+      "VALUES_MISSING",
+      "NUMBER_MISMATCH",
+      "NUMBER_UNBOUND",
+      "TEXT_OVERFLOW",
+      "OUTSIDE_SAFE_AREA",
+      "OVERLAPS_LOCKED",
+      "FONT_TOO_SMALL",
+      "LOW_CONTRAST",
+      "EMPTY_PLACEHOLDER",
+      "MISSING_ALT",
+      "AI_UNREVIEWED",
+      "LEADERSHIP_UNCONFIRMED",
+      "DATA_CHANGED",
+      "GHG_PENDING_ENTRIES",
+      "GHG_SITES_MISSING",
+      "GHG_MONTHS_MISSING",
+      "CONSOLIDATION_MISSING",
+      "PERIOD_MISSING",
+      "BASE_YEAR_MISSING",
+      "RECALC_POLICY_MISSING",
+      "SCOPE2_MARKET_MISSING",
+      "GAS_BREAKDOWN_MISSING",
+      "BIOGENIC_IN_SCOPE",
+      "BIOGENIC_NOT_SHOWN",
+      "SCOPE3_CATEGORY_UNADDRESSED",
+      "EXCLUSION_NO_REASON",
+      "SCOPE3_DQ_MISSING",
+      "EF_SOURCE_MISSING",
+      "GWP_MIXED",
+      "RESPONSIBLE_PERSON_MISSING",
+      "UNCERTAINTY_MISSING",
+      "VERIFICATION_STATEMENT_MISSING",
+      "INTENSITY_MISSING",
+      "TOTAL_MISMATCH",
+      "YOY_UNEXPLAINED",
+      "UNLINKED_DATA"
+    ],
+    "CHECK_FIXES": [
+      "replace_with_token",
+      "shrink_text",
+      "move_inside",
+      "open_values",
+      "open_inputs"
+    ],
+    "AI_ACTIONS": [
+      "draft_report",
+      "draft_page",
+      "headline",
+      "body",
+      "leadership_draft",
+      "about_report",
+      "rewrite_shorter",
+      "rewrite_longer",
+      "rewrite_formal",
+      "rewrite_plain",
+      "explain_change",
+      "add_target_context",
+      "chart_title",
+      "chart_kind",
+      "suggest_layouts",
+      "fill_page",
+      "alt_text",
+      "cover_art",
+      "honesty_check",
+      "jargon_check",
+      "missing_disclosures",
+      "design_from_brief",
+      "suggest_style",
+      "ghg_exec_summary",
+      "ghg_methodology_text",
+      "scope3_category_text",
+      "exclusion_reason_draft",
+      "summarise_for_deck",
+      "summarise_for_social",
+      "apply_brand_voice"
+    ],
+    "SUGGESTION_KINDS": [
+      "text",
+      "elements",
+      "pages",
+      "findings",
+      "image"
+    ]
+  },
+  "reportInputKinds": {
+    "consolidation_approach": [
+      "ghg"
+    ],
+    "responsible_person": [
+      "ghg"
+    ],
+    "reporting_period": [
+      "ghg",
+      "sustainability"
+    ],
+    "base_year": [
+      "ghg"
+    ],
+    "recalculation_policy": [
+      "ghg"
+    ],
+    "significance_threshold_pct": [
+      "ghg"
+    ],
+    "gwp_set": [
+      "ghg"
+    ],
+    "exclusions": [
+      "ghg"
+    ],
+    "scope2_instruments": [
+      "ghg"
+    ],
+    "uncertainty_statement": [
+      "ghg"
+    ],
+    "verification": [
+      "ghg",
+      "sustainability"
+    ],
+    "conformance": [
+      "ghg"
+    ],
+    "revenue": [
+      "ghg"
+    ],
+    "revenue_ppp_rate": [
+      "ghg"
+    ],
+    "output_units": [
+      "ghg"
+    ],
+    "employees": [
+      "ghg"
+    ],
+    "leadership_message": [
+      "sustainability"
+    ],
+    "about_company": [
+      "sustainability"
+    ]
+  },
+  "errors": {
+    "DS_STUDIO_OFF": 403,
+    "DS_KIND_OFF": 403,
+    "DS_FORMAT_INVALID": 422,
+    "DS_SOURCE_UNAVAILABLE": 422,
+    "DS_SHARE_EXPIRED": 410,
+    "DS_APPROVAL_PENDING": 409,
+    "DS_RESIZE_UNSUPPORTED": 422,
+    "DS_ROLE": 403,
+    "DS_SITES_SCOPE": 403,
+    "DS_DOC_NOT_FOUND": 404,
+    "DS_VERSION_CONFLICT": 409,
+    "DS_FINAL_IMMUTABLE": 409,
+    "DS_DOC_INVALID": 422,
+    "DS_DOC_TOO_LARGE": 413,
+    "DS_BINDING_INVALID": 422,
+    "DS_LAYOUT_NOT_FOUND": 404,
+    "DS_ASSET_TYPE": 415,
+    "DS_ASSET_TOO_LARGE": 413,
+    "DS_YEAR_NOT_LOCKED": 409,
+    "DS_CHECKS_BLOCKING": 409,
+    "DS_JOB_RUNNING": 409,
+    "DS_JOB_FAILED": 500,
+    "DS_AI_UNAVAILABLE": 503,
+    "DS_AI_BUDGET_EXCEEDED": 429,
+    "DS_AI_OUTPUT_INVALID": 502,
+    "DS_VALIDATION": 400,
+    "DS_COMPANY_REQUIRED": 400
+  },
+  "checks": {
+    "YEAR_NOT_LOCKED": {
+      "severity": "error",
+      "kinds": [
+        "sustainability"
+      ]
+    },
+    "VALUES_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "NUMBER_MISMATCH": {
+      "severity": "error",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "NUMBER_UNBOUND": {
+      "severity": "info",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "TEXT_OVERFLOW": {
+      "severity": "error",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "OUTSIDE_SAFE_AREA": {
+      "severity": "error",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "OVERLAPS_LOCKED": {
+      "severity": "warning",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "FONT_TOO_SMALL": {
+      "severity": "error",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "LOW_CONTRAST": {
+      "severity": "error",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "EMPTY_PLACEHOLDER": {
+      "severity": "error",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "MISSING_ALT": {
+      "severity": "warning",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "AI_UNREVIEWED": {
+      "severity": "warning",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "LEADERSHIP_UNCONFIRMED": {
+      "severity": "error",
+      "kinds": [
+        "sustainability"
+      ]
+    },
+    "DATA_CHANGED": {
+      "severity": "warning",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "GHG_PENDING_ENTRIES": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "GHG_SITES_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "GHG_MONTHS_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "CONSOLIDATION_MISSING": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "PERIOD_MISSING": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "BASE_YEAR_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "RECALC_POLICY_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "SCOPE2_MARKET_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "GAS_BREAKDOWN_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "BIOGENIC_IN_SCOPE": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "BIOGENIC_NOT_SHOWN": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "SCOPE3_CATEGORY_UNADDRESSED": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "EXCLUSION_NO_REASON": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "SCOPE3_DQ_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "EF_SOURCE_MISSING": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "GWP_MIXED": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "RESPONSIBLE_PERSON_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "UNCERTAINTY_MISSING": {
+      "severity": "info",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "VERIFICATION_STATEMENT_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "INTENSITY_MISSING": {
+      "severity": "warning",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "TOTAL_MISMATCH": {
+      "severity": "error",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "YOY_UNEXPLAINED": {
+      "severity": "info",
+      "kinds": [
+        "ghg"
+      ]
+    },
+    "UNLINKED_DATA": {
+      "severity": "info",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    }
+  }
+}
