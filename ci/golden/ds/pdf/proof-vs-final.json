@@ -34,7 +34,7 @@
     "8: 44 runs | R E S U LTS · S CO P E 1 Direct emissions 2,730 tCO ₂ e tCO ₂ e Scope 1 Scope 1 covers fue",
     "9: 49 runs | R E S U LTS · S CO P E 2 Purchased energy 4,056 tCO ₂ e tCO ₂ e Scope 2 (location-based) S",
     "10: 97 runs | R E S U LTS · S CO P E 3 Value-chain emissions 765 tCO ₂ e tCO ₂ e Scope 3 Not reported Fr",
-    "11: 4 runs | DS golden PDF Inventory 11 Scope 3 categories Not reported",
+    "11: 102 runs | DS golden PDF Inventory 11 Scope 3 categories Category Status tCO ₂ e Method Data quality ",
     "12: 21 runs | R E S U LTS · B Y S I T E Emissions by site Total emissions by site Total 7,551 tCO ₂ e 0 ",
     "13: 22 runs | R E P O R T E D S E PA R AT E LY Biogenic CO ₂ and removals 1.25 t CO ₂ (biogenic) tCO ₂ e",
     "14: 23 runs | I N T E N S I T Y Emissions intensity PER UNIT OF REVENUE Not reported PER UNIT OF OUTPUT ",
@@ -43,7 +43,7 @@
     "17: 17 runs | R E D U C T I O N I N I T I AT I V E S How we reduce emissions Energy Describe the initiat",
     "18: 7 runs | A S S U R A N C E Assurance statement VERIFICATION Not verified This page holds the verifi",
     "19: 4 runs | A N N E X E S Factors, indexes and glossary The emission factors behind the figures, where",
-    "20: 4 runs | DS golden PDF Inventory 20 Emission factors Not reported",
+    "20: 70 runs | DS golden PDF Inventory 20 Emission factors Source category Emission factor kgCO ₂ e per u",
     "21: 4 runs | DS golden PDF Inventory 21 GHG Protocol index Not reported",
     "22: 3 runs | DS golden PDF Inventory 22 Glossary",
     "23: 3 runs | DS Seed Cement Greenhouse gas inventory · FY 2025–26 Prepared from approved emission entri"
