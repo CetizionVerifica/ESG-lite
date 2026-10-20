@@ -40,6 +40,7 @@ function context(doc: RenderDoc, data: RenderData | null | undefined, opts: Rend
     pageNo: 1,
     pageCount: visible.length,
     pages: visible.map((p) => ({ id: p.id, name: p.name, bookmark: p.bookmark, kind: p.kind })),
+    ...(opts.customFonts?.length ? { customFonts: Object.fromEntries(opts.customFonts.map((f) => [f.ref, f])) } : {}), // PE-2
   };
 }
 
@@ -108,5 +109,6 @@ export { linearScale } from "./charts/scale";
 export { sankeyLayout } from "./charts/sankey";
 export { ICON_NAMES, SDG } from "./icons";
 export { RENDER_HASH } from "./hash";
+export { CUSTOM_FONT_FALLBACK, customFontFaceCss, customFontFamily, customFontRefs, textEffectStyle } from "./textEffects"; // PE-2
 export { endsFootnoteRun, footnoteNotes, footnoteOf, pageFootnotes, readingOrder, sectionFootnotes, type PageFootnotes } from "./footnotes"; // DS-7
 export type * from "./types";

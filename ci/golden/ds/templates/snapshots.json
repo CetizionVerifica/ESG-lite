@@ -1,64 +1,64 @@
 {
- "renderHash": "75764d366195e65a38fe025ffedb8c531e6402c4406505de2dfcda0b2c76cdb4",
+ "renderHash": "5bc3f840eecc7c2ed6a1a3c88cdc32e4cd16895a1e4ada6c5d3efb322c2ba537",
  "templates": {
   "ghg-board-brief-classic": {
-   "sha256": "4c5e2a3d2f0b9c90006b67812f36bfa1bc72a18292c99878ee5b47f5d5a24f67",
-   "bytes": 37330,
+   "sha256": "13906a2b961a772ec79df8fc017e2167a0907a26586e504e43e4c6fc6a452edc",
+   "bytes": 37580,
    "pages": 10
   },
   "ghg-board-brief-light": {
-   "sha256": "e8cdd09ab3a0938325b46dc700d218ea58ca330ae52ba5912f715d669a0c8ed7",
-   "bytes": 37328,
+   "sha256": "c8cedfb856af4f7ff1a6987b4e56b37548c2f479b511d12d3b5a895720c1a523",
+   "bytes": 37578,
    "pages": 10
   },
   "ghg-board-brief-night": {
-   "sha256": "6b9793fe1a22213ba6f260be97dfeb15b424e862c724c00d5e3436c4200e43a3",
-   "bytes": 37324,
+   "sha256": "826e0b388680971ff0885d44f3501877afed270c420ee361f84263f51b24b602",
+   "bytes": 37574,
    "pages": 10
   },
   "ghg-inventory-classic": {
-   "sha256": "a576888414aab8d3977848fe9ba3ec2dca42a65c53aac1d0c5aa8fdb9b96ceab",
-   "bytes": 96746,
+   "sha256": "ccc62f5840b0a47e8adc5ad867eb50f17427601a6bfdbded73e2e0ca316eca74",
+   "bytes": 96996,
    "pages": 23
   },
   "ghg-inventory-light": {
-   "sha256": "40530af2e2e4294c37a1457da8797dff7732a61698055c8c5f6a07e8b5effe2b",
-   "bytes": 96744,
+   "sha256": "989d18cc49a5d3cd509706e5f5a8c9dd0c9fbbc23d06adf2d489e63659b8fec6",
+   "bytes": 96994,
    "pages": 23
   },
   "ghg-inventory-night": {
-   "sha256": "40ee1e9e2f5adaeedb94985b01782d54a1d45148e6e4c7425d499741d3b365d1",
-   "bytes": 96740,
+   "sha256": "cae0ded63954f891e2be5e9b54d2394622323de7d3d5c93d91fd3bac50939ec5",
+   "bytes": 96990,
    "pages": 23
   },
   "ghg-iso14064-classic": {
-   "sha256": "fffd89acce978ce72ff632acda1aef9ffce62053279c2c7092528dab7dd421db",
-   "bytes": 104561,
+   "sha256": "77521f9c9b508760f7370b6586af7a4fa724a675b7906e78f6d0a930e742ca35",
+   "bytes": 104811,
    "pages": 25
   },
   "ghg-iso14064-light": {
-   "sha256": "b5499b9d32cdc1c31fe104f28ab4aabc6344254b2687eb1a3d0cd767105d58d7",
-   "bytes": 104559,
+   "sha256": "0fb7a88bb4091f1b5597ac70f5c141c4fc1787784c2345a67f1ea37496bc60cf",
+   "bytes": 104809,
    "pages": 25
   },
   "ghg-iso14064-night": {
-   "sha256": "1f59d355692094b5637dc4f97462d448051e940b68918014ad0783106c46dedd",
-   "bytes": 104555,
+   "sha256": "1ce0021fed189e113cd5256d9bfefb8d34ca482fa0fa5cb2b357ca06f05a32f8",
+   "bytes": 104805,
    "pages": 25
   },
   "ghg-one-page-classic": {
-   "sha256": "bb740eb54fbdb5fc8cd6670669afe14f923ddb5f183bcd0ddc32ce68f83c6484",
-   "bytes": 17242,
+   "sha256": "9dc8d6597eee190053d6fbac4ed168a5cf905666b4cdb33f880d621dfdee331e",
+   "bytes": 17492,
    "pages": 1
   },
   "ghg-one-page-light": {
-   "sha256": "d37239215e6ced7871362b40418e6e711d8b5c8352d95b95fdf337279f1f9bfb",
-   "bytes": 17240,
+   "sha256": "973eddcd4a5b968e52ed5e9700f76144c298404bd6ce9c30b48e3d26250ae878",
+   "bytes": 17490,
    "pages": 1
   },
   "ghg-one-page-night": {
-   "sha256": "32fb1726e671b10062f7293971870d1e8c7118caffe2cf7551e36d5691f919a8",
-   "bytes": 17236,
+   "sha256": "8d592da7eb979256c513444daf764c7bc6b0c092b83470dbb65b664f96e9f457",
+   "bytes": 17486,
    "pages": 1
   }
  }

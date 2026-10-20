@@ -1,0 +1,15 @@
+{
+  "effect": "lift",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.lift\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"lift\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;text-shadow:0mm 0.6mm 2.1mm rgba(15,23,42,0.295);\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></p></div></div></div>",
+  "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
+  "props": {
+    "align": "left",
+    "effects": {
+      "lift": {
+        "intensity": 50
+      }
+    },
+    "font": null
+  },
+  "sha256": "7007006120c530c8cb40b10d543d401c6b3ad5ddcd9e6b652906d38ce711cd10"
+}
