@@ -28,6 +28,8 @@
     {"name": "GHG tables CY 2025, both sites", "path": "/user/ghg/tables", "body": {"siteIds": [1, 2], "yearType": "CY", "year": 2025}},
     {"name": "GHG tables FY 2025, both sites, compare 2024", "path": "/user/ghg/tables", "body": {"siteIds": [1, 2], "yearType": "FY", "year": 2025, "compareYear": 2024}},
     {"name": "GHG tables CY 2025 July only, plant A", "path": "/user/ghg/tables", "body": {"siteIds": [1], "yearType": "CY", "year": 2025, "frequency": "monthly", "month": 7}},
-    {"name": "GHG details CY 2025, both sites", "path": "/user/ghg/details", "body": {"siteIds": [1, 2], "yearType": "CY", "year": 2025}}
+    {"name": "GHG details CY 2025, both sites", "path": "/user/ghg/details", "body": {"siteIds": [1, 2], "yearType": "CY", "year": 2025}},
+    {"name": "EDE yearly 2025, both sites (DS-2 intensity extraction)", "path": "/user/reports/ede", "body": {"siteIds": [1, 2], "frequency": "yearly", "year": 2025}},
+    {"name": "EDE monthly 2025-01, plant A (DS-2 intensity extraction)", "path": "/user/reports/ede", "body": {"siteIds": [1], "frequency": "monthly", "year": 2025, "month": 1}}
   ]
 }

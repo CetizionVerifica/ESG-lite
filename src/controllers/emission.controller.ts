@@ -5,7 +5,7 @@ import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { In, IsNull, Not, Or } from "typeorm";
-import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
+import { loadIntensityMonthly } from "../reporting/intensity"; // DS-2
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
 import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, entryFactorSnapshot, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
@@ -2385,93 +2385,8 @@ export const getEdeReport = async(req:Request, res:Response) =>{
       unit: "kWh",
     }));
 
-    const intensityEmissionsRaw = await base.clone()
-   .select([
-    `to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM') AS "month"`,
-    `site.site_id AS "siteId"`,
-    `site.name AS "siteName"`,
-    `
-      COALESCE(
-        SUM(
-          CASE 
-            WHEN category.scope IN ('Scope 1','Scope 2','Scope 3')
-            THEN emission.total_emission
-            ELSE 0
-          END
-        ),
-      0) AS "emissions"
-    `,
-  ])
-  .groupBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`)
-  .addGroupBy("site.site_id")
-  .addGroupBy("site.name")
-  .orderBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`, "ASC")
-  .addOrderBy("site.name", "ASC")
-  .getRawMany();
-
-
-  const prodRepo = AppDataSource.getRepository(ProductionData);
-
-const monthlyProductionRaw = await prodRepo
-  .createQueryBuilder("pd")
-  .leftJoin("pd.site", "site")
-  .select([
-    `to_char(date_trunc('month', pd.start_date), 'YYYY-MM') AS "month"`,
-    `site.site_id AS "siteId"`,
-    `site.name AS "siteName"`,
-    `COALESCE(SUM(pd.quantity), 0) AS "production"`,
-    `MAX(pd.unit) AS "unit"`,
-  ])
-  .where("pd.status = :status", { status: ProductionDataStatus.APPROVED })
-  .andWhere("site.site_id IN (:...siteIds)", { siteIds })
-  .andWhere("pd.start_date <= :endDate AND pd.end_date >= :startDate", {
-    startDate,
-    endDate,
-  })
-  .groupBy(`to_char(date_trunc('month', pd.start_date), 'YYYY-MM')`)
-  .addGroupBy("site.site_id")
-  .addGroupBy("site.name")
-  .orderBy(`to_char(date_trunc('month', pd.start_date), 'YYYY-MM')`, "ASC")
-  .addOrderBy("site.name", "ASC")
-  .getRawMany();
-
-  const productionBySiteMonth = new Map<string, { production: number; unit: string }>();
-
-
-monthlyProductionRaw.forEach((r) => {
-  const key = `${Number(r.siteId)}|${String(r.month)}`;
-  productionBySiteMonth.set(key, {
-    production: Number(r.production) || 0,
-    unit: String(r.unit || "unit"),
-  });
-});
-  const intensityMonthly = intensityEmissionsRaw.map((r) => {
-  const siteId = Number(r.siteId);
-  const siteName = String(r.siteName);
-  const month = String(r.month);
-  const emissions = Number(r.emissions) || 0;
-
-  const key = `${siteId}|${month}`;
-  const prod = productionBySiteMonth.get(key);
-
-  const production = prod?.production || 0;
-  const unit = prod?.unit || "unit";
-
-  const intensity =
-    production > 0
-      ? Number((emissions / production).toFixed(6))
-      : 0;
-
-  return {
-    siteId,
-    siteName,
-    month,
-    emissions,
-    production,
-    intensity,
-    unit,
-  };
-});
+    // DS-2: the intensity join lives in src/reporting/intensity.ts (unchanged; ci/golden EDE cases).
+    const intensityMonthly = await loadIntensityMonthly(base, siteIds, { startDate, endDate });
 
       return res.status(200).json({
       range: {

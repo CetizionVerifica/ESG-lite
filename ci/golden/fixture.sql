@@ -63,6 +63,15 @@ INSERT INTO column_entity (pk_id, column_name, column_type) VALUES
 INSERT INTO column_config (pk_id, config_name, site_id, category_id) VALUES (3, 'Waste', 1, 5);
 INSERT INTO column_config_columns (column_config_id, column_id) VALUES (3, 1), (3, 2);
 
+-- DS-2: production for the EDE intensity golden (src/reporting/intensity.ts must give
+-- byte-identical EDE output). Two approved months on plant A, one on plant B, one pending.
+INSERT INTO product (product_id, name, unit, site_id) VALUES (1, 'CI Steel billet', 'tonne', 1), (2, 'CI Steel rod', 'tonne', 2);
+INSERT INTO production_data (production_id, product_id, site_id, quantity, unit, start_date, end_date, status) VALUES
+  (1, 1, 1, 1200.0000, 'tonne', '2025-01-01', '2025-01-31', 'approved'),
+  (2, 1, 1, 950.5000, 'tonne', '2025-02-01', '2025-02-28', 'approved'),
+  (3, 2, 2, 400.0000, 'tonne', '2025-01-01', '2025-01-31', 'approved'),
+  (4, 1, 1, 999.0000, 'tonne', '2025-03-01', '2025-03-31', 'pending');
+
 SELECT setval(pg_get_serial_sequence('company', 'company_id'), 100);
 SELECT setval(pg_get_serial_sequence('site', 'site_id'), 100);
 SELECT setval(pg_get_serial_sequence('category', 'category_id'), 100);
@@ -70,3 +79,5 @@ SELECT setval(pg_get_serial_sequence('"user"', 'user_id'), 100);
 SELECT setval(pg_get_serial_sequence('emission_factors', 'emission_factor_id'), 100);
 SELECT setval(pg_get_serial_sequence('column_config', 'pk_id'), 100);
 SELECT setval(pg_get_serial_sequence('column_entity', 'pk_id'), 100);
+SELECT setval(pg_get_serial_sequence('product', 'product_id'), 100);
+SELECT setval(pg_get_serial_sequence('production_data', 'production_id'), 100);
