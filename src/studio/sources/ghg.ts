@@ -7,7 +7,8 @@
  *   computeGhgByFuelType  fuel within each category
  *   baseYearSummary       the frozen Scope 3 base year (S3-14)
  *   reporting/intensity   approved production per site and month (EDE)
- *   ghg/rows.ts           months, gases, biogenic CO₂, coverage: partitions of the same rows
+ *   ghg/rows.ts           months, gases, biogenic CO₂, coverage: partitions of the same rows;
+ *                         the factors used (each approved row's factor snapshot, for flows.ts)
  *
  * The filters are built as report.controller.ts builds them for /reports/ghg
  * (`ghgFilters`): sites, CY/FY, year, frequency yearly, compare year = year − 1.
@@ -29,7 +30,7 @@ import { ghgCategory } from "../../scope3/contracts/ghgCategory";
 import { DsError, type GhgBinding, type GhgBreakdown, type GhgMetric, type NumberFormat, type YearType } from "../contracts";
 import { changeAbs, changePct, intensity } from "./derived";
 import { formatNumber } from "./format";
-import { coverage, gasesByScope, monthlyByScope, reportingMonthKeys, type Coverage, type GasRow, type MonthScopeRow, type ScopeName } from "./ghg/rows";
+import { coverage, factorsUsed, gasesByScope, monthlyByScope, reportingMonthKeys, type Coverage, type FactorUsedRow, type GasRow, type MonthScopeRow, type ScopeName } from "./ghg/rows";
 import { exclusionFor } from "./inputs";
 import type { Comparison, ResolveContext, ResolvedBinding, Series, UnavailableReason } from "./types";
 
@@ -135,6 +136,7 @@ export class GhgLoader {
   monthly = (year: number, sites: number[]) => this.once(this.k("monthly", year, sites), () => monthlyByScope(this.filters(year, sites))) as Promise<MonthScopeRow[]>;
   gases = (year: number, sites: number[]) => this.once(this.k("gases", year, sites), () => gasesByScope(this.filters(year, sites))) as Promise<GasRow[] | null>;
   coverage = (year: number, sites: number[]) => this.once(this.k("coverage", year, sites), () => coverage(this.filters(year, sites))) as Promise<Coverage>;
+  factors = (year: number, sites: number[]) => this.once(this.k("factors", year, sites), () => factorsUsed(this.filters(year, sites))) as Promise<{ rows: FactorUsedRow[]; missing: number }>;
   production = (year: number, sites: number[]) =>
     this.once(this.k("production", year, sites), async () => {
       const f = this.filters(year, sites);

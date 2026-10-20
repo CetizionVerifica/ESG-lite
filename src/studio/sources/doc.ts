@@ -5,10 +5,12 @@
  *   collectTokens(doc)          every data chip in the doc (text elements and flow sections), in page order
  *   docBindings(doc)            element bindings only (contracts `collectBindings` also returns chip bindings)
  *   resolveDoc(caller, doc, …)  the doc's year, CY/FY, sites and kind → ResolveResponse (same resolver as /resolve)
+ *   resolveDocForRender(…)      the same, plus the rows of its ghg_factor_table / scope3_categories sections (flows.ts)
  */
 import type { DataToken, ReportDoc } from "../contracts";
 import { DataTokenSchema, type Binding } from "../contracts";
 import type { StudioCaller } from "../guard";
+import { dataFlows, resolveFlows } from "./flows";
 import { buildContext, loadersFor, resolveAll } from "./resolve";
 import type { ResolveResponse } from "./types";
 
@@ -57,4 +59,17 @@ export async function resolveDoc(caller: StudioCaller, doc: ReportDoc, opts: { d
   const L = loadersFor(caller.companyId, doc.meta.yearType);
   const { ctx } = await buildContext(caller, { kind: doc.kind, year: doc.meta.year, yearType: doc.meta.yearType, sites: doc.meta.sites, ...(opts.docId ? { docId: opts.docId } : {}) }, L);
   return resolveAll(L, ctx, docBindings(doc), collectTokens(doc));
+}
+
+/**
+ * resolveDoc plus the rows of the doc's data flow sections (`ghg_factor_table`,
+ * `scope3_categories`), in the same context and loaders, for every server
+ * render (preview.html, proof, print, PNG, final; jobs/inputs.ts).
+ */
+export async function resolveDocForRender(caller: StudioCaller, doc: ReportDoc, opts: { docId?: number } = {}): Promise<ResolveResponse & Required<Pick<ResolveResponse, "flow" | "scope3">>> {
+  const L = loadersFor(caller.companyId, doc.meta.yearType);
+  const { ctx } = await buildContext(caller, { kind: doc.kind, year: doc.meta.year, yearType: doc.meta.yearType, sites: doc.meta.sites, ...(opts.docId ? { docId: opts.docId } : {}) }, L);
+  const resolved = await resolveAll(L, ctx, docBindings(doc), collectTokens(doc));
+  const flows = await resolveFlows(L.ghg, ctx, dataFlows(doc));
+  return { ...resolved, flow: flows.flow, scope3: flows.scope3 };
 }

@@ -138,3 +138,66 @@ export function reportingMonthKeys(yearType: "CY" | "FY", year: number, fyStartM
   }
   return out;
 }
+
+export interface FactorUsedRow {
+  scope: ScopeName;
+  /** The source category of the rows (category.category_name). */
+  category: string;
+  /** The factor's name as stored on the row (emission_category_name); null when the snapshot has none. */
+  factor: string | null;
+  /** kgCO₂e per `unit`, as stored on the snapshot (text or number). */
+  value: string | null;
+  unit: string | null;
+  source: string | null;
+  /** dataset_version, else the factor's year. */
+  version: string | null;
+  gwp: string | null;
+  /** Approved rows that used this factor. */
+  rows: number;
+}
+
+/**
+ * The emission factors behind the approved rows (each row's
+ * `emission_factor_snapshot`, written when it was calculated), one line per
+ * scope × source category × factor. Rows without a snapshot are counted in
+ * `missing`. No figure is computed: it lists what the rows carry.
+ */
+export async function factorsUsed(filters: GhgFilters): Promise<{ rows: FactorUsedRow[]; missing: number }> {
+  if (!filters.siteIds.length) return { rows: [], missing: 0 };
+  const w = approvedWhere(filters);
+  const s = (k: string) => `NULLIF(TRIM(e.emission_factor_snapshot ->> '${k}'), '')`;
+  const rows: Row[] = await AppDataSource.query(
+    `SELECT c.scope AS scope, c.category_name AS category,
+            ${s("emission_category_name")} AS factor,
+            ${s("factor_value")} AS value,
+            ${s("denominator_unit")} AS unit,
+            COALESCE(${s("source")}, ${s("dataset")}) AS source,
+            COALESCE(${s("dataset_version")}, ${s("year")}) AS version,
+            ${s("gwp_set")} AS gwp,
+            COUNT(*) AS n
+       FROM emission e LEFT JOIN category c ON c.category_id = e.category_id
+      WHERE ${w.sql} AND c.scope IN ('Scope 1', 'Scope 2', 'Scope 3') AND e.emission_factor_snapshot IS NOT NULL
+      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+      ORDER BY 1, lower(c.category_name), 3 NULLS LAST, 4, 5, 6, 7, 8`,
+    w.params,
+  );
+  const [m]: Row[] = await AppDataSource.query(
+    `SELECT COUNT(*) AS n FROM emission e LEFT JOIN category c ON c.category_id = e.category_id
+      WHERE ${w.sql} AND c.scope IN ('Scope 1', 'Scope 2', 'Scope 3') AND e.emission_factor_snapshot IS NULL`,
+    w.params,
+  );
+  return {
+    rows: rows.map((r) => ({
+      scope: r.scope as ScopeName,
+      category: String(r.category ?? ""),
+      factor: r.factor ?? null,
+      value: r.value ?? null,
+      unit: r.unit ?? null,
+      source: r.source ?? null,
+      version: r.version ?? null,
+      gwp: r.gwp ?? null,
+      rows: Number(r.n) || 0,
+    })),
+    missing: Number(m?.n) || 0,
+  };
+}

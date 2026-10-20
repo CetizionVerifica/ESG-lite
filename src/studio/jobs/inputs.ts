@@ -3,8 +3,9 @@
  * way the editor builds it (ESG-lite_FE features/studio/editor/renderInputs.ts),
  * so Page view, Present, PNG and both PDFs equal the sheets:
  *
- *   - the numbers: DS-2 `resolveDoc` (every binding and chip, the doc's own
- *     year, sites and stored report inputs) → the renderer's RenderData;
+ *   - the numbers: DS-2 `resolveDocForRender` (every binding and chip, the doc's own
+ *     year, sites and stored report inputs, and the rows of its factor table and
+ *     Scope 3 categories sections) → the renderer's RenderData;
  *   - the brand side of the theme from the DS-3 brand kit;
  *   - every image the doc uses (company assets and the brand logos) as a
  *     data: URL, so the HTML needs no session, no network and no CSP hole.
@@ -15,7 +16,7 @@ import { AppDataSource } from "../../config/data-source";
 import { r2Enabled, r2PublicUrl } from "../../config/r2";
 import { readLocalAsset } from "../library/storage";
 import { getBrandKit } from "../brandkit/service";
-import { resolveDoc, docBindings, collectTokens } from "../sources/doc";
+import { resolveDocForRender, docBindings, collectTokens } from "../sources/doc";
 import type { ResolveResponse } from "../sources/types";
 import type { StudioCaller } from "../guard";
 import type { ReportDoc } from "../contracts";
@@ -106,8 +107,9 @@ async function assetUrls(companyId: number, doc: ReportDoc): Promise<Record<stri
 
 /** Resolves and loads everything for one render of `doc` (the caller's company; sites already checked). */
 export async function renderInputs(caller: StudioCaller, doc: ReportDoc, opts: { docId?: number } = {}): Promise<RenderInputs> {
-  const resolved = await resolveDoc(caller, doc, opts.docId ? { docId: opts.docId } : {});
-  const data = renderData(docBindings(doc) as unknown as RenderBinding[], collectTokens(doc) as never, resolved as never);
+  const resolved = await resolveDocForRender(caller, doc, opts.docId ? { docId: opts.docId } : {});
+  // The flow tables (factor table, Scope 3 categories) by section id, so Page view and the PDFs print their rows.
+  const data = renderData(docBindings(doc) as unknown as RenderBinding[], collectTokens(doc) as never, resolved as never, { flow: resolved.flow, scope3: resolved.scope3 });
   const kit = await getBrandKit(caller);
   const urls = await assetUrls(caller.companyId, doc);
   const logo = await imageDataUrl(kit.logos.primary);
