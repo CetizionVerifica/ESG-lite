@@ -81,6 +81,29 @@ export { MEASURE_JS, type Measurement } from "./measure";
 export { qrMatrix, qrSvg } from "./qr";
 export { RENDERED_ELEMENT_TYPES } from "./elements";
 export { chartRenderer, registerChart, registeredChartKinds } from "./charts/registry";
+// DS-8: GHG chart kinds, kind validity, typed-data rules.
+export {
+  ALL_CHART_KINDS,
+  CHART_KIND_LABELS,
+  CUSTOM_MAX_COLS,
+  CUSTOM_MAX_ROWS,
+  GAS_UNIT_NOTE,
+  GHG_CHART_KINDS,
+  RS_CHART_KINDS,
+  SCOPE2_BASIS_NOTE,
+  chartKindValidity,
+  defaultGhgChart,
+  reservedLabel,
+  squarify,
+  unlinkedElements,
+  validChartKinds,
+  yearCount,
+  type ChartBindingLike,
+  type GhgChartKind,
+  type KindCheck,
+} from "./charts/ghg";
+export { bridgeSteps } from "./charts/ghg/trend";
+export { pickColumns } from "./elements/table";
 export { linearScale } from "./charts/scale";
 export { sankeyLayout } from "./charts/sankey";
 export { ICON_NAMES, SDG } from "./icons";

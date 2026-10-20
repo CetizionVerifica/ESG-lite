@@ -50,7 +50,8 @@ test("the fixture is a valid ReportDoc v2 on every format, and every contract el
   const flows = new Set(a4.pages.filter((p) => p.kind === "flow").map((p) => p.flowType));
   for (const t of C.FLOW_TYPES) assert.ok(flows.has(t), `fixture lacks flow ${t}`);
   const kinds = new Set(a4.pages.flatMap((p) => (p.kind === "freeform" ? p.elements.filter((e) => e.type === "chart").map((e) => e.props.kind) : [])));
-  for (const k of R.registeredChartKinds()) assert.ok(kinds.has(k), `fixture lacks chart ${k}`);
+  // DS-8: the GHG kinds have their own fixture (ci/golden/ds/render/ghg-charts.cjs).
+  for (const k of R.registeredChartKinds()) if (!R.GHG_CHART_KINDS.includes(k)) assert.ok(kinds.has(k), `fixture lacks chart ${k}`);
 });
 
 test("deterministic: the same input gives the same HTML and CSS", () => {
@@ -87,7 +88,7 @@ test("data marks: bound elements name their binding hash and source; custom data
   assert.match(tag("p-summary.tile1"), new RegExp(`data-binding-hash="${R.bindingHash(F.B.total)}" data-source="ghg"`));
   assert.match(tag("p-summary.ring"), /data-source="kpi"/);
   assert.match(tag("p-summary.table"), /data-source="custom"[^>]*data-unlinked="true"/);
-  assert.match(html, /Typed data, not linked/);
+  assert.match(html, /Unlinked data/); // DS-8: the badge's words
   assert.match(tag("p-charts.custom"), /data-unlinked="true"/);
   // Text chips carry their marks too.
   assert.match(html, /class="ds-chip" data-source="ghg" data-binding-hash="[0-9a-f]{8}" data-measure="value">3,210<\/span>/);
@@ -290,11 +291,12 @@ test("a 300-row data table renders every row once, under a header row that repea
   assert.match(css, /\.ds-table tr\{break-inside:avoid;\}/);
 });
 
-test("charts: every RS kind is registered; GHG kinds wait for DS-8 and render a muted box", () => {
+test("charts: every RS kind is registered; the GHG kinds are DS-8's", () => {
   for (const k of ["stacked_bar", "bar", "line", "donut", "share_bar", "waterfall", "sankey", "target_bars", "dot_grid", "materiality_matrix", "sparkline"]) assert.ok(R.chartRenderer(k), k);
-  for (const k of ["scope_split", "category_bars", "gas_split", "site_bars", "monthly_stack", "base_year_waterfall", "intensity_line", "treemap"]) assert.equal(R.chartRenderer(k), null, k);
+  // DS-8: the GHG kinds are registered (ci/unit/ds-8-charts.test.cjs tests them).
+  for (const k of ["scope_split", "category_bars", "gas_split", "site_bars", "monthly_stack", "base_year_waterfall", "intensity_line", "treemap"]) assert.ok(R.chartRenderer(k), k);
   const { html } = render("sheet");
-  assert.match(html, /data-el-id="p-charts\.ghgkind"[^>]*data-chart-unsupported="scope_split"/);
+  assert.match(html, /data-el-id="p-charts\.ghgkind"(?:(?!data-el-id=).)*data-ghg-chart="scope_split"/s);
   // Static SVG with an accessible label; bars of prior years are grey.
   assert.match(html, /<svg [^>]*role="img" aria-label="Emissions fell for two years">/);
   const bars = html.slice(html.indexOf('data-el-id="p-summary.bars"'), html.indexOf('data-el-id="p-summary.unavail"'));

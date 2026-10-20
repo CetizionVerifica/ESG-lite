@@ -91,7 +91,7 @@ if (isBE) {
       // The renderer goldens travel with it: the FE test must reproduce them byte for byte.
       const gold = path.join(fe, "src/test/fixtures/studio-render");
       mkdirSync(gold, { recursive: true });
-      for (const f of ["snapshots.json", "fixture-a4.json"]) {
+      for (const f of ["snapshots.json", "fixture-a4.json", "ghg-snapshots.json", "ghg-fixture.json"]) { // DS-8: + the GHG chart goldens
         const from = path.join(ROOT, "ci/golden/ds/render", f);
         if (existsSync(from)) writeFileSync(path.join(gold, f), readFileSync(from));
       }

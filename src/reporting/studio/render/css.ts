@@ -59,7 +59,9 @@ const BASE = `
 .ds-chart-plot{flex:1;min-height:0;}
 .ds-chart-plot svg{display:block;}
 .ds-chart-caption{margin-top:1mm;}
-.ds-unlinked{display:inline-block;align-self:flex-start;margin-top:1mm;font-size:7pt;font-weight:700;color:var(--muted);border:0.25mm solid var(--border);border-radius:1mm;padding:0.2mm 1.2mm;}
+.ds-unlinked{display:none;position:absolute;top:0.8mm;right:0.8mm;z-index:1;font-size:7pt;font-weight:700;line-height:1.3;color:#92400E;background:#FEF3C7;border:0.25mm solid #F59E0B;border-radius:1mm;padding:0.2mm 1.2mm;pointer-events:none;}
+.ds-table--fixed{table-layout:fixed;}
+.ds-table td.ds-merged{vertical-align:middle;}
 .ds-table{width:100%;border-collapse:collapse;font-size:8.5pt;font-variant-numeric:tabular-nums;}
 .ds-table th{text-align:left;font-weight:700;color:var(--ink);padding:1.4mm 1.6mm;border-bottom:0.4mm solid var(--ink);}
 .ds-table td{padding:1.2mm 1.6mm;vertical-align:top;}
@@ -129,6 +131,8 @@ const SHEET = `
 .ds-guide--x{top:0;bottom:0;width:0.25mm;}
 .ds-guide--y{left:0;right:0;height:0.25mm;}
 @media print{.ds-guides{display:none;}}
+.ds-doc--sheet .ds-unlinked{display:inline-block;}
+@media print{.ds-doc--sheet .ds-unlinked{display:none;}}
 `;
 
 const PRESENT = `

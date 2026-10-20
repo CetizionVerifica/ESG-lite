@@ -1,7 +1,9 @@
 /**
  * DS-1 · chart: title, subtitle, a static SVG chart sized to what's left of the
  * frame, and a caption. Custom (typed) data is drawn too, with the
- * "Typed data, not linked" badge (01-contracts rule 2.3).
+ * "Unlinked data" badge (01-contracts rule 2.3). DS-8: the badge sits over
+ * the element's corner and shows in the editor sheet only (never printed,
+ * css.ts), so it takes no room and the layout is the same in every mode.
  */
 import { chartRenderer } from "../charts/registry";
 import { FONT, U, emptyChart } from "../charts/svg";
@@ -26,14 +28,14 @@ export const customToValue = (b: RenderBinding): RenderValue => {
   };
 };
 
-export const UNLINKED_BADGE = `<span class="ds-unlinked">Typed data, not linked</span>`;
+export const UNLINKED_BADGE = `<span class="ds-unlinked" aria-hidden="true">Unlinked data</span>`;
 
 export const chartElement: ElementRenderer<"chart"> = (el, ctx) => {
   const p = el.props;
   const custom = p.binding?.source === "custom";
   const v = custom ? customToValue(p.binding) : lookup(ctx.data, p.binding);
   const titleH = (p.title ? 6 : 0) + (p.subtitle ? 4.5 : 0);
-  const captionH = (p.caption ? 4.5 : 0) + (custom ? 4.5 : 0);
+  const captionH = p.caption ? 4.5 : 0;
   const w = el.frame.w * U;
   const h = Math.max(8, el.frame.h - titleH - captionH) * U;
   const label = p.title ?? `${p.kind} chart`;

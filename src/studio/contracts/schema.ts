@@ -202,7 +202,18 @@ export const ChartPropsSchema = z
     subtitle: z.string().max(300).optional(),
     caption: z.string().max(1000).optional(),
     options: z
-      .object({ greyPrior: z.boolean(), showValues: z.boolean(), horizontal: z.boolean(), stacked: z.boolean(), showTarget: z.boolean() })
+      .object({
+        greyPrior: z.boolean(),
+        showValues: z.boolean(),
+        horizontal: z.boolean(),
+        stacked: z.boolean(),
+        showTarget: z.boolean(),
+        // DS-8: colours (scope colours or the brand series), legend, scope_split variant and its Scope 2 basis note.
+        colors: z.enum(["scope", "brand"]),
+        showLegend: z.boolean(),
+        variant: z.enum(["bar", "donut"]),
+        basisNote: z.boolean(),
+      })
       .partial()
       .strict(),
   })
@@ -215,8 +226,15 @@ export const TablePropsSchema = z
     rows: z.array(z.array(TableCellSchema).max(20)).max(500).optional(),
     style: z.enum(["lined", "zebra", "minimal"]),
     totalRow: z.boolean().optional(),
+    // DS-8: column widths (% of the frame) and merged body cells (static tables only).
+    colWidths: z.array(z.number().finite().min(1).max(100)).max(20).optional(),
+    merges: z
+      .array(z.object({ r: z.number().int().min(0).max(499), c: z.number().int().min(0).max(19), rs: z.number().int().min(1).max(500), cs: z.number().int().min(1).max(20) }).strict())
+      .max(100)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine((t) => !t.merges?.length || !t.binding, { message: "Only a static table merges cells", path: ["merges"] });
 export const ImagePropsSchema = z
   .object({
     assetId: Id,

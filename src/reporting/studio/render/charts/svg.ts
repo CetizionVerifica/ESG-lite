@@ -11,13 +11,31 @@ export const U = 4;
 export const FONT = 7.5 * 0.3528 * U;
 export const SMALL = 6.5 * 0.3528 * U;
 
+/**
+ * Chart options (01-contracts §2 chart props). DS-8 adds: `colors` (scope
+ * colours, the default, or the brand series), `showLegend`, `variant`
+ * (scope_split: 100 % bar or donut) and `basisNote` (scope_split's Scope 2
+ * basis line).
+ */
+export interface ChartOptions {
+  greyPrior?: boolean;
+  showValues?: boolean;
+  horizontal?: boolean;
+  stacked?: boolean;
+  showTarget?: boolean;
+  colors?: "scope" | "brand";
+  showLegend?: boolean;
+  variant?: "bar" | "donut";
+  basisNote?: boolean;
+}
+
 export interface ChartInput {
   value: RenderValue;
   /** Plot box in viewBox units. */
   w: number;
   h: number;
   theme: Theme;
-  options: { greyPrior?: boolean; showValues?: boolean; horizontal?: boolean; stacked?: boolean; showTarget?: boolean };
+  options: ChartOptions;
   /** Accessible label stating the takeaway. */
   label: string;
 }
