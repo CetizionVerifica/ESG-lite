@@ -1,0 +1,187 @@
+{
+ "slides": [
+  {
+   "id": "r01-title",
+   "elements": [
+    "band1:shape",
+    "kicker:text",
+    "title:text",
+    "subtitle:text",
+    "hero1:big_number"
+   ]
+  },
+  {
+   "id": "r02-highlights",
+   "elements": [
+    "kicker:text",
+    "heading:text",
+    "hero1:kpi_tile",
+    "hero2:kpi_tile",
+    "hero3:kpi_tile",
+    "hero4:kpi_tile",
+    "chart:chart",
+    "body:text"
+   ]
+  },
+  {
+   "id": "r03-chart",
+   "elements": [
+    "kicker:text",
+    "heading:text",
+    "chart:chart",
+    "hero1:kpi_tile",
+    "body:text"
+   ]
+  },
+  {
+   "id": "r04-chart",
+   "elements": [
+    "kicker:text",
+    "heading:text",
+    "chart:chart",
+    "hero1:kpi_tile",
+    "hero2:kpi_tile"
+   ]
+  },
+  {
+   "id": "r05-chart",
+   "elements": [
+    "kicker:text",
+    "heading:text",
+    "chart:chart",
+    "hero1:kpi_tile",
+    "hero2:progress"
+   ]
+  },
+  {
+   "id": "r06-chart",
+   "elements": [
+    "kicker:text",
+    "heading:text",
+    "chart:chart"
+   ]
+  },
+  {
+   "id": "r07-chart",
+   "elements": [
+    "kicker:text",
+    "heading:text",
+    "chart:chart",
+    "hero1:kpi_tile"
+   ]
+  },
+  {
+   "id": "r08-text",
+   "elements": [
+    "kicker:text",
+    "heading:text",
+    "body:text",
+    "side1:callout"
+   ]
+  },
+  {
+   "id": "r09-full_report",
+   "elements": [
+    "band1:shape",
+    "title:text",
+    "body:text"
+   ]
+  },
+  {
+   "id": "r10-close",
+   "elements": [
+    "band1:shape",
+    "title:text",
+    "caption:text"
+   ]
+  }
+ ],
+ "figures": [
+  {
+   "slide": "r01-title",
+   "element": "r01-title.hero1",
+   "type": "big_number",
+   "metric": "total",
+   "figure": "77,044"
+  },
+  {
+   "slide": "r02-highlights",
+   "element": "r02-highlights.hero1",
+   "type": "kpi_tile",
+   "metric": "total",
+   "figure": "77,044"
+  },
+  {
+   "slide": "r02-highlights",
+   "element": "r02-highlights.hero2",
+   "type": "kpi_tile",
+   "metric": "scope1",
+   "figure": "85,723"
+  },
+  {
+   "slide": "r02-highlights",
+   "element": "r02-highlights.hero3",
+   "type": "kpi_tile",
+   "metric": "scope2_location",
+   "figure": "67,401"
+  },
+  {
+   "slide": "r02-highlights",
+   "element": "r02-highlights.hero4",
+   "type": "kpi_tile",
+   "metric": "scope3",
+   "figure": "80,483"
+  },
+  {
+   "slide": "r03-chart",
+   "element": "r03-chart.hero1",
+   "type": "kpi_tile",
+   "metric": "scope1",
+   "figure": "87,165"
+  },
+  {
+   "slide": "r04-chart",
+   "element": "r04-chart.hero1",
+   "type": "kpi_tile",
+   "metric": "scope2_location",
+   "figure": "10,388"
+  },
+  {
+   "slide": "r04-chart",
+   "element": "r04-chart.hero2",
+   "type": "kpi_tile",
+   "metric": "scope2_market",
+   "figure": "67,175"
+  },
+  {
+   "slide": "r05-chart",
+   "element": "r05-chart.hero1",
+   "type": "kpi_tile",
+   "metric": "scope3",
+   "figure": "82,885"
+  },
+  {
+   "slide": "r07-chart",
+   "element": "r07-chart.hero1",
+   "type": "kpi_tile",
+   "metric": "base_year_total",
+   "figure": "24,499"
+  }
+ ],
+ "dropped": [
+  "p01-cover.conformance",
+  "p04-exec_summary.waterfall",
+  "p04-exec_summary.intensity",
+  "p04-exec_summary.market",
+  "p04-exec_summary.biogenic",
+  "p08-scope1.gases",
+  "p08-scope1.fuels",
+  "p09-scope2.months",
+  "p09-scope2.instruments",
+  "p10-scope3.dq",
+  "p10-scope3.table",
+  "p12-sites.table",
+  "p15-trend.line",
+  "p15-trend.base_year"
+ ]
+}
