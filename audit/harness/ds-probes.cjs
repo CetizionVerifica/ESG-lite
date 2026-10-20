@@ -86,6 +86,10 @@ SEED.push(async ({ q }) => {
     await q(`INSERT INTO report_asset (company_id, kind, r2_key, mime, bytes, w, h, sha256) VALUES (1, 'image', 'studio-assets/company_1/probe.png', 'image/png', 1, 1, 1, repeat('0', 64))`);
   }
 });
+// DS-5: a blank company-1 design (no template needed), so DS-P03 and DS-P10 have a report_doc row.
+SEED.push(async ({ call }) => {
+  await call("POST", "/studio/docs", "manager", { kind: "ghg", templateId: "blank", year: 2025, yearType: "CY", title: "DS probes design" });
+});
 
 const ROLES = ["user", "manager", "admin", "superadmin"];
 
@@ -231,7 +235,7 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
     await probe("DS-P10", "PATCH /studio/docs/:id with a doc over 2 MB", "413 DS_DOC_TOO_LARGE and the doc unchanged", async () => {
       if (!isBuilt("PATCH /docs/:id")) return na("waits on DS-5: PATCH /docs/:id is not routed");
       if (!(await tableExists("report_doc"))) return na("waits on DS-5: no report_doc table");
-      const [row] = await q(`SELECT id, rev, doc FROM report_doc WHERE company_id = 1 ORDER BY id LIMIT 1`);
+      const [row] = await q(`SELECT id, rev, draft AS doc FROM report_doc WHERE company_id = 1 AND deleted_at IS NULL ORDER BY id LIMIT 1`); // DS-5: the ReportDoc is report_doc.draft
       if (!row) return na("no company-1 report_doc row: add a SEED step (DS-5)");
       const big = JSON.parse(JSON.stringify(row.doc));
       big.meta = { ...(big.meta || {}), subtitle: "x".repeat(2 * 1024 * 1024 + 1) };

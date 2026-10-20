@@ -14,6 +14,7 @@ import studioFontsRouter from "../reporting/studio/fonts/route"; // DS-1
 import sourcesRouter from "./sources/router"; // DS-2
 import brandKitRouter from "./brandkit/router"; // DS-3
 import libraryRouter from "./library/router"; // DS-4
+import docsRouter from "./docs/router"; // DS-5
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use(studioFontsRouter); // DS-1: GET /studio/fonts/:file (bundled WOFF2)
 router.use(sourcesRouter); // DS-2: /resolve, /docs/:id/inputs, /inputs/prefill, /data
 router.use(brandKitRouter); // DS-3: /studio/brand-kit, /studio/styles
 router.use(libraryRouter); // DS-4: /studio/templates, /layouts, /elements, /assets
+router.use(docsRouter); // DS-5: /readiness, /docs, /docs/:id (+ rebuild, presence, duplicate)
 
 export default router;

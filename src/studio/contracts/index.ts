@@ -10,6 +10,7 @@ export * from "./checks";
 export * from "./ai";
 export * from "./brandkit"; // DS-3
 export * from "./library"; // DS-4
+export * from "./docs"; // DS-5
 
 import type { ReportKind } from "./enums";
 

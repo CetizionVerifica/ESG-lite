@@ -66,6 +66,7 @@
     "migrate:ds-3-brand-kit": "ts-node src/scripts/migrateDs3BrandKit.ts",
     "migrate:ds-4-library": "ts-node src/scripts/migrateDs4Library.ts",
     "seeds:ds-4": "ts-node src/scripts/buildStudioSeeds.ts",
+    "migrate:ds-5-docs": "ts-node src/scripts/migrateDs5Docs.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
