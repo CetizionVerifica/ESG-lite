@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Resize and convert</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@700&amp;family=Source+Serif+4:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.tb{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid #e1e8f0;background:#fff;color:#16202e;font:500 14px "IBM Plex Sans",sans-serif;cursor:pointer}
+.tb-p{background:#2572c0;border-color:#2572c0;color:#fff}
+.opt{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #e1e8f0;border-radius:10px;font-size:14px;cursor:pointer}
+.opt-on{border-color:#2572c0;background:#eef4fa}
+.shape{flex:none;border:1.5px solid #5f6b7c;border-radius:2px}
+.sl{border-radius:3px;box-shadow:0 1px 4px rgba(22,32,46,.18);position:relative;overflow:hidden;box-sizing:border-box}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 900px; background: rgba(22,32,46,.55); color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; align-items: center; justify-content: center; padding: 40px 16px; box-sizing: border-box">
+  <div role="dialog" aria-labelledby="rz" style="width: 100%; max-width: 1080px; background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.3); display: flex; flex-direction: column; overflow: hidden">
+    <div style="padding: 18px 24px; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 12px">
+      <div style="flex: 1"><h1 id="rz" style="margin: 0; font-size: 18px; font-family: 'Plus Jakarta Sans', sans-serif">Resize and convert</h1><div style="font-size: 13px; color: #5f6b7c">From GHG Inventory FY 2025–26 · A4 · 22 pages. Copies keep your brand and stay linked to the same data.</div></div>
+      <button class="tb" aria-label="Close" style="width: 36px; padding: 0; justify-content: center">✕</button>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; min-height: 560px">
+      <div style="flex: 1 1 320px; max-width: 380px; padding: 20px 24px; border-right: 1px solid #e1e8f0; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box">
+        <div style="font-size: 12px; font-weight: 600; color: #5f6b7c">Make copies as</div>
+        <label class="opt opt-on"><input type="checkbox" checked><span class="shape" style="width: 28px; height: 16px"></span><span style="flex: 1">Board deck <span style="color: #5f6b7c">16:9</span></span><span class="num" style="font-size: 12px; color: #5f6b7c">9 slides</span></label>
+        <label class="opt opt-on"><input type="checkbox" checked><span class="shape" style="width: 14px; height: 20px"></span><span style="flex: 1">One-page summary <span style="color: #5f6b7c">A4</span></span><span class="num" style="font-size: 12px; color: #5f6b7c">1 page</span></label>
+        <label class="opt"><input type="checkbox"><span class="shape" style="width: 18px; height: 18px"></span><span style="flex: 1">Social card <span style="color: #5f6b7c">1:1</span></span></label>
+        <label class="opt"><input type="checkbox"><span class="shape" style="width: 28px; height: 15px"></span><span style="flex: 1">Social card <span style="color: #5f6b7c">1.91:1</span></span></label>
+        <label class="opt"><input type="checkbox"><span class="shape" style="width: 12px; height: 17px"></span><span style="flex: 1">Booklet <span style="color: #5f6b7c">A5</span></span></label>
+        <div style="height: 1px; background: #e1e8f0; margin: 6px 0"></div>
+        <div style="font-size: 12px; font-weight: 600; color: #5f6b7c">Chapters to include</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px">
+          <span style="padding: 4px 10px; border-radius: 99px; background: #2572c0; color: #fff">Summary</span>
+          <span style="padding: 4px 10px; border-radius: 99px; background: #2572c0; color: #fff">Scope 1 and 2</span>
+          <span style="padding: 4px 10px; border-radius: 99px; background: #2572c0; color: #fff">Scope 3</span>
+          <span style="padding: 4px 10px; border-radius: 99px; background: #2572c0; color: #fff">Trend</span>
+          <span style="padding: 4px 10px; border-radius: 99px; background: #eef4fa; color: #5f6b7c">Methodology</span>
+          <span style="padding: 4px 10px; border-radius: 99px; background: #eef4fa; color: #5f6b7c">Annexes</span>
+        </div>
+        <label style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px; margin-top: 6px"><input type="checkbox" checked style="margin-top: 3px"><span><b>Summarise text with AI</b><br><span style="color: #5f6b7c">Shorter text for slides, marked for your review. Numbers stay linked.</span></span></label>
+      </div>
+      <div style="flex: 999 1 480px; min-width: 0; padding: 20px 24px; background: #f7fafd; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; gap: 6px; font-size: 13px"><span style="padding: 6px 12px; border-radius: 8px; background: #fff; border: 1px solid #2572c0; color: #1e5d9d; font-weight: 600">Board deck</span><span style="padding: 6px 12px; border-radius: 8px; color: #5f6b7c">One-page summary</span></div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+          <div class="sl" style="aspect-ratio: 16 / 9; max-width: 100%; background: #123c6b; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: space-between">
+            <div style="font-size: 10px; color: #92b9e0; letter-spacing: .08em; text-transform: uppercase">Northwind Metals · Board brief FY26</div>
+            <div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 22px; line-height: 1.1">Emissions are 12% below our base year</div>
+            <div style="font-size: 10px; color: #b9d2eb">Slide 1 · Title</div>
+          </div>
+          <div class="sl" style="aspect-ratio: 16 / 9; max-width: 100%; background: #fff; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+            <div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 14px; color: #18497b">Where our 95,710 tCO₂e come from</div>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+              <div style="border-top: 3px solid #18497b; padding-top: 4px"><div class="num" style="font-size: 15px">12,480</div><div style="font-size: 9px; color: #5f6b7c">Scope 1</div></div>
+              <div style="border-top: 3px solid #1d9f92; padding-top: 4px"><div class="num" style="font-size: 15px">18,920</div><div style="font-size: 9px; color: #5f6b7c">Scope 2</div></div>
+              <div style="border-top: 3px solid #c27b22; padding-top: 4px"><div class="num" style="font-size: 15px">64,310</div><div style="font-size: 9px; color: #5f6b7c">Scope 3</div></div>
+            </div>
+            <div style="height: 18px; display: flex; gap: 2px"><div style="flex: 13; background: #18497b"></div><div style="flex: 20; background: #1d9f92"></div><div style="flex: 67; background: #c27b22"></div></div>
+            <div style="font-size: 10px; color: #3a4656; background: rgba(110,86,207,.08); border-left: 0; padding: 4px 6px; border-radius: 4px">✦ Two thirds is in our supply chain. Supplier data is the lever.</div>
+          </div>
+          <div class="sl" style="aspect-ratio: 16 / 9; max-width: 100%; background: #fff; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 14px; color: #18497b">Scope 3: purchased goods lead</div>
+            <div style="display: flex; flex-direction: column; gap: 5px; font-size: 9px">
+              <div style="display: flex; align-items: center; gap: 6px"><span style="width: 90px">Purchased goods</span><div style="height: 10px; width: 60%; background: #c27b22"></div></div>
+              <div style="display: flex; align-items: center; gap: 6px"><span style="width: 90px">Upstream transport</span><div style="height: 10px; width: 15.5%; background: #c27b22"></div></div>
+              <div style="display: flex; align-items: center; gap: 6px"><span style="width: 90px">Fuel and energy</span><div style="height: 10px; width: 8.5%; background: #e0a458"></div></div>
+              <div style="display: flex; align-items: center; gap: 6px"><span style="width: 90px">Downstream</span><div style="height: 10px; width: 7.7%; background: #e0a458"></div></div>
+            </div>
+          </div>
+          <div class="sl" style="aspect-ratio: 16 / 9; max-width: 100%; background: #fff; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 14px; color: #18497b">Against our base year</div>
+            <div style="flex: 1; display: flex; align-items: flex-end; gap: 14px; border-bottom: 1px solid #d5dde7; padding: 0 20px">
+              <div style="flex: 1; height: 100%; background: #b9d2eb"></div><div style="flex: 1; height: 93%; background: #b9d2eb"></div><div style="flex: 1; height: 88%; background: #18497b"></div>
+            </div>
+            <div style="display: flex; gap: 14px; padding: 0 20px; font-size: 9px; color: #5f6b7c"><span style="flex: 1; text-align: center">FY22</span><span style="flex: 1; text-align: center">FY25</span><span style="flex: 1; text-align: center">FY26</span></div>
+          </div>
+        </div>
+        <div style="font-size: 12px; color: #5f6b7c">Showing 4 of 9 slides. Methodology and annexes become one “Read the full report” slide.</div>
+      </div>
+    </div>
+    <div style="padding: 14px 24px; border-top: 1px solid #e1e8f0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+      <span style="font-size: 13px; color: #5f6b7c; flex: 1">Each copy opens as a new design marked “Made from GHG Inventory FY 2025–26”.</span>
+      <a href="Editor.dc.html" class="tb" style="text-decoration: none">Cancel</a>
+      <button class="tb tb-p">Create 2 copies</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

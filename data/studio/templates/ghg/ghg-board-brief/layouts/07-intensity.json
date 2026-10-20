@@ -1,0 +1,186 @@
+{
+  "role": "intensity",
+  "pageKind": "data_page",
+  "name": "Intensity",
+  "page": {
+    "id": "intensity",
+    "kind": "freeform",
+    "name": "Intensity",
+    "background": {},
+    "elements": [
+      {
+        "id": "intensity.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Efficiency"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "intensity.heading",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 30,
+          "w": 298.7,
+          "h": 21,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Emissions intensity"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "intensity.revenue",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 20,
+          "y": 52,
+          "w": 94.23,
+          "h": 36,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_revenue",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Per unit of revenue",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "intensity.output",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 122.23,
+          "y": 52,
+          "w": 94.23,
+          "h": 36,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_output",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Per unit of output",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "intensity.employee",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 224.47,
+          "y": 52,
+          "w": 94.23,
+          "h": 36,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_employee",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Per employee",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "intensity.line",
+        "type": "chart",
+        "frame": {
+          "x": 20,
+          "y": 96,
+          "w": 298.7,
+          "h": 74,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_revenue",
+            "years": {
+              "last": 5
+            },
+            "sites": "all"
+          },
+          "kind": "intensity_line",
+          "title": "Intensity per unit of revenue",
+          "options": {}
+        }
+      }
+    ]
+  },
+  "sort": 7
+}

@@ -2,6 +2,7 @@
 // OpenRouter. It only writes prose — never the numbers (those come from SQL and
 // are passed in). Returns null on any failure so the report falls back to
 // concise built-in text (accuracy-first, never blocks generation).
+import { openRouterFetch, openRouterKey } from "../lib/openrouter";
 
 export interface Narrative {
   summary: string[];
@@ -35,7 +36,7 @@ function extractJson(text: string): any {
 }
 
 export async function writeNarrative(d: NarrativeInput): Promise<Narrative | null> {
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = openRouterKey();
   if (!key) return null;
   const model = process.env.OPENROUTER_MODEL || "google/gemini-3-flash-preview";
 
@@ -62,11 +63,8 @@ export async function writeNarrative(d: NarrativeInput): Promise<Narrative | nul
     `Write numbers exactly as given (thousands separators, no decimals).`;
 
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "HTTP-Referer": "https://esg-lite.local", "X-Title": "ESG-Lite GHG" },
-      body: JSON.stringify({ model, max_tokens: 2200, temperature: 0.7, messages: [{ role: "user", content: prompt }] }),
-    });
+    // DS-9: the request is sent by the shared helper (src/lib/openrouter.ts), byte-identical.
+    const res = await openRouterFetch({ model, max_tokens: 2200, temperature: 0.7, messages: [{ role: "user", content: prompt }] }, { apiKey: key, title: "ESG-Lite GHG" });
     if (!res.ok) return null;
     const j: any = await res.json();
     const txt = j?.choices?.[0]?.message?.content;

@@ -1,0 +1,14 @@
+{
+  "element": "divider",
+  "elements": [
+    {
+      "bytes": 279,
+      "frame": "10.571,120.202,126.857,1.414,0",
+      "id": "p-el.divider",
+      "sha256": "8bf3fed57c35c80a5ea710ca4a52c8b6a090fa58fb048d5733f7e74bf0a8fa2a"
+    }
+  ],
+  "format": "a5",
+  "mode": "present",
+  "pages": 1
+}

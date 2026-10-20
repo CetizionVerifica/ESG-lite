@@ -955,6 +955,369 @@ step("K10 the emissions golden snapshot is byte-identical with KPI tracking on",
   }
 });
 
+// ── Design Studio (DS-14: DS-W0–DS-W11) ── DS-14 ─────────────────────────────
+// The same client. DS-W1 and DS-W9 run now (DS-0); the steps between wait on the module that
+// routes them and are filled by DS-14 final (ci/golden/ds/CLAUDE.md). DS-W10 runs the DS
+// audit probes and DS-W11 the DS goldens, each in a scratch database of its own.
+const DS_ROOT = require("path").resolve(__dirname, "../..");
+const dsRoutes = require("../golden/ds/lib/routes.cjs");
+const dsBuilt = (method, p) => async () => dsRoutes.isBuilt(DS_ROOT, method, p);
+const dsLater = (module) => async (t) => t.skip(`${module} is routed; DS-14 final writes this step's checks`);
+// The switch's own audit rows (DS-13's review_settings rows share the entity; DS-W6 checks those). [Wave 5 integrate]
+const dsAudit = () => kq(`SELECT changed_fields FROM audit_log WHERE entity_type = 'design_studio' AND entity_id = $1 AND changed_fields ? 'design_studio_enabled' ORDER BY id`, [S.companyId]);
+/** A scratch ci_* database next to DB_NAME for `fn(name)`, dropped afterwards. */
+async function dsScratch(suffix, fn) {
+  const { Client } = require("pg");
+  const scratch = `${process.env.DB_NAME}_${suffix}`;
+  assert.match(scratch, /^ci_[a-z0-9_]+$/);
+  const admin = new Client({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USERNAME, password: process.env.DB_PASSWORD, database: "postgres" });
+  await admin.connect();
+  await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+  await admin.query(`CREATE DATABASE "${scratch}"`);
+  try {
+    return await fn(scratch);
+  } finally {
+    await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+    await admin.end();
+  }
+}
+
+step("DS-W0 before Design Studio: the emission reports this client has (to compare once the studio is on and off)", async () => {
+  S.dsEmissionsBefore = await emissionReports();
+});
+
+step("DS-W1 the Superadmin switches Design Studio on for this client; GHG only (KPI off); Users and the other client stay out", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { design_studio_enabled: true }));
+  assert.deepEqual((await dsAudit()).map((r) => r.changed_fields), [{ design_studio_enabled: { old: false, new: true } }]);
+  for (const who of [S.admin, S.people.manager, S.people.userMain]) assert.deepEqual((await call("GET", "/studio/status", who)).json, { enabled: true, kinds: { ghg: true, sustainability: false } });
+  const user = await call("GET", "/studio/docs", S.people.userMain);
+  assert.deepEqual([user.status, user.json.code], [403, "DS_ROLE"]);
+  const other = S.otherAdmin || (await login(SC.OTHER_CLIENT.email, SC.OTHER_CLIENT.password));
+  assert.deepEqual((await call("GET", "/studio/status", other)).json, { enabled: false, kinds: { ghg: false, sustainability: false } });
+  const off = await call("GET", "/studio/docs", other);
+  assert.deepEqual([off.status, off.json.code], [403, "DS_STUDIO_OFF"]);
+  const named = await call("GET", `/studio/status?company_id=${S.companyId}`, other);
+  assert.deepEqual([named.status, named.json.code], [404, "DS_DOC_NOT_FOUND"], "another client's id");
+});
+
+// ── DS-14F · the studio main path (DS-W2–W8), as the client's Manager ── DS-14F ───────────────
+const dsGhg = (metric, extra = {}) => ({ source: "ghg", metric, years: { last: 1 }, sites: "all", ...extra });
+const dsScope = () => ({ kind: "ghg", year: SC.REPORT_YEAR, yearType: SC.YEAR_TYPE, sites: siteIds() });
+const dsResolve = async (bindings, tokens = []) => {
+  const r = await call("POST", "/studio/resolve", S.people.manager, { ...dsScope(), bindings, tokens });
+  ok(r);
+  return r.json;
+};
+const dsGet = async (id) => {
+  const r = await call("GET", `/studio/docs/${id}`, S.people.manager);
+  ok(r);
+  return r.json;
+};
+const dsPatch = async (id, rev, doc) => {
+  const r = await call("PATCH", `/studio/docs/${id}`, S.people.manager, { rev, doc });
+  ok(r);
+  return r.json.rev;
+};
+const dsChecks = async (id, rev) => {
+  const r = await call("POST", `/studio/docs/${id}/checks`, S.people.manager, { rev });
+  ok(r);
+  return r.json;
+};
+const dsClose = (a, b, what) => assert.ok(Math.abs(Number(a) - Number(b)) < 0.01, `${what}: ${a} vs ${b}`);
+/** A file the API streams (a PDF): status and bytes. */
+async function dsFile(route, who) {
+  const res = await fetch(`${process.env.API_BASE}${route}`, { headers: who ? { Authorization: `Bearer ${who.token}` } : {} });
+  return { status: res.status, buffer: Buffer.from(await res.arrayBuffer()), type: res.headers.get("content-type") || "" };
+}
+const dsSha = (buf) => require("crypto").createHash("sha256").update(buf).digest("hex");
+async function dsJob(body) {
+  const r = await call("POST", `/studio/docs/${S.ds.id}/jobs`, S.people.manager, body);
+  assert.equal(r.status, 202, JSON.stringify(r.json));
+  for (let i = 0; i < 600; i++) {
+    const j = await call("GET", `/studio/jobs/${r.json.id}`, S.people.manager);
+    ok(j);
+    if (j.json.status === "done") return j.json;
+    if (j.json.status === "failed") assert.fail(`${body.kind} job failed: ${JSON.stringify(j.json)}`);
+    await new Promise((res) => setTimeout(res, 500));
+  }
+  assert.fail(`${body.kind} job still running after 5 minutes`);
+}
+let dsChromium = null;
+async function dsHasChromium() {
+  if (dsChromium === null) {
+    try {
+      const { chromium } = require("playwright");
+      await (await chromium.launch()).close();
+      dsChromium = true;
+    } catch {
+      dsChromium = false;
+    }
+  }
+  return dsChromium;
+}
+
+pendingStep("DS-W2 GHG report page → Design this report → the Manager builds a GHG Inventory", "DS-5", dsBuilt("POST", "/docs"), async () => {
+  const m = S.people.manager;
+  // "Design this report" carries the GHG page's year, year type and sites into the new-design flow: readiness first.
+  const ready = await call("GET", `/studio/readiness?kind=ghg&year=${SC.REPORT_YEAR}&yearType=${SC.YEAR_TYPE}&sites=${siteIds().join(",")}`, m);
+  ok(ready);
+  assert.equal(ready.json.kind, "ghg");
+  assert.notEqual(ready.json.state, "ready", "step 26 left a pending and a rejected row");
+  assert.ok(ready.json.pendingRows >= 1 && ready.json.rejectedRows >= 1, JSON.stringify(ready.json));
+  assert.equal(ready.json.sitesTotal, 2);
+  const templates = await call("GET", "/studio/templates?kind=ghg&format=a4", m);
+  ok(templates);
+  const inventory = templates.json.find((t) => t.slug === "ghg-inventory-classic");
+  assert.ok(inventory, templates.json.map((t) => t.slug).join(", "));
+  const built = await call("POST", "/studio/docs", m, { kind: "ghg", templateId: inventory.id, year: SC.REPORT_YEAR, yearType: SC.YEAR_TYPE, sites: siteIds(), compareYear: SC.REPORT_YEAR - 1, frameworks: ["GHGP"], inputs: {}, ai: false });
+  assert.equal(built.status, 201, JSON.stringify(built.json));
+  assert.equal(built.json.build.state, "done");
+  assert.ok(built.json.doc.pages.length >= 15, `${built.json.doc.pages.length} pages`);
+  S.ds = { id: built.json.id, rev: built.json.rev };
+  // The design's numbers are the GHG report's (step 26b): same approved rows, same totals.
+  const t = (await call("POST", "/user/ghg/tables", m, { siteIds: siteIds(), year: SC.REPORT_YEAR, yearType: SC.YEAR_TYPE, frequency: "yearly" })).json.totals[String(SC.REPORT_YEAR)];
+  const [total, s1, s2, s3] = (await dsResolve([dsGhg("total"), dsGhg("scope1"), dsGhg("scope2_location"), dsGhg("scope3")])).values;
+  dsClose(total.value, t.total, "total");
+  dsClose(s1.value, t.scope1, "Scope 1");
+  dsClose(s2.value, t.scope2, "Scope 2");
+  dsClose(s3.value, t.scope3, "Scope 3");
+  // Listed on the studio home; the Admin sees it, a User and the other client don't.
+  assert.ok((await call("GET", "/studio/docs?kind=ghg", S.admin)).json.some((d) => d.id === S.ds.id));
+  assert.equal((await call("GET", `/studio/docs/${S.ds.id}`, S.people.userMain)).json.code, "DS_ROLE");
+});
+
+pendingStep("DS-W3 the Manager edits: moves a chart, adds a data chip (PATCH with rev)", "DS-5, DS-6", dsBuilt("PATCH", "/docs/:id"), async () => {
+  const cur = await dsGet(S.ds.id);
+  const doc = cur.doc;
+  const page = doc.pages.find((p) => p.kind !== "flow" && p.elements.some((e) => e.type === "chart"));
+  assert.ok(page, "the Inventory has a chart");
+  const chart = page.elements.find((e) => e.type === "chart");
+  const moved = { ...chart.frame, x: chart.frame.x + 5, y: chart.frame.y + 4 };
+  chart.frame = moved;
+  // A note with a Scope 1 chip, and Scope 1 typed by hand 30 % too high (the mismatch DS-W5 finds).
+  const s1 = (await dsResolve([dsGhg("scope1")])).values[0].value;
+  S.dsWrong = (Math.round(s1 * 1.3 * 10) / 10).toLocaleString("en-US");
+  S.dsNote = { pageId: page.id, id: `${page.id}.ds-note` };
+  page.elements.push({
+    id: S.dsNote.id,
+    type: "text",
+    frame: { x: 20, y: 262, w: 120, h: 12, rotation: 0 },
+    z: 90,
+    source: "user",
+    props: {
+      style: "body",
+      align: "left",
+      doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Scope 1 came to " }, { type: "data", attrs: { binding: dsGhg("scope1"), measure: "value" } }, { type: "text", text: ` tCO₂e; the plant log says ${S.dsWrong} tCO₂e.` }] }] },
+    },
+  });
+  const stale = await call("PATCH", `/studio/docs/${S.ds.id}`, S.people.manager, { rev: cur.rev - 1, doc });
+  assert.deepEqual([stale.status, stale.json.code], [409, "DS_VERSION_CONFLICT"], "an old rev never overwrites");
+  S.ds.rev = await dsPatch(S.ds.id, cur.rev, doc);
+  assert.equal(S.ds.rev, cur.rev + 1);
+  const after = (await dsGet(S.ds.id)).doc.pages.find((p) => p.id === page.id);
+  assert.deepEqual(after.elements.find((e) => e.id === chart.id).frame, moved);
+  const chip = JSON.stringify(after.elements.find((e) => e.id === S.dsNote.id).props.doc);
+  assert.match(chip, /"type":"data".*"metric":"scope1"/);
+  // The page view renders the chip with the approved figure.
+  const html = await dsFile(`/studio/docs/${S.ds.id}/preview.html?mode=sheet&pageId=${page.id}`, S.people.manager);
+  assert.equal(html.status, 200);
+  const shown = (await dsResolve([], [{ type: "data", attrs: { binding: dsGhg("scope1"), measure: "value" } }])).tokens[0].display;
+  assert.ok(html.buffer.toString("utf8").includes(shown), `the preview shows Scope 1 (${shown})`);
+});
+
+pendingStep("DS-W4 resize to a Board brief deck (a linked copy, bound elements carried over)", "DS-10", dsBuilt("POST", "/docs/:id/resize"), async () => {
+  const r = await call("POST", `/studio/docs/${S.ds.id}/resize`, S.people.manager, { format: "slide_16_9", purpose: "deck" });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.ok(r.json.pageCount >= 6 && r.json.pageCount <= 12, `${r.json.pageCount} slides`);
+  const deck = await dsGet(r.json.id);
+  assert.equal(deck.doc.format, "slide_16_9");
+  assert.equal(deck.doc.purpose, "deck");
+  assert.equal(deck.doc.source.docId, S.ds.id);
+  const bound = deck.doc.pages.flatMap((p) => (p.kind === "flow" ? [] : p.elements)).filter((e) => e.props?.binding?.source === "ghg");
+  assert.ok(bound.some((e) => e.props.binding.metric === "total"), "the total travels to the deck");
+  const src = await call("GET", `/studio/docs/${r.json.id}/source`, S.people.manager);
+  ok(src);
+  const link = src.json.source ?? src.json;
+  assert.deepEqual([link.docId, link.exists, link.dataChanged], [S.ds.id, true, false]);
+  S.dsDeck = r.json.id;
+});
+
+pendingStep("DS-W5 checks: the planted mismatch is found, fixed, and the doc passes", "DS-12", dsBuilt("POST", "/docs/:id/checks"), async () => {
+  const first = await dsChecks(S.ds.id, S.ds.rev);
+  assert.equal(first.blocking, true);
+  assert.equal(first.checks[0].id, "GHG_PENDING_ENTRIES", "pending entries lead the list");
+  assert.ok(first.checks[0].details.pending >= 1 && first.checks[0].details.rejected >= 1);
+  const mm = first.checks.find((c) => c.id === "NUMBER_MISMATCH" && c.elementId === S.dsNote.id);
+  assert.ok(mm, JSON.stringify(first.checks.map((c) => `${c.id}@${c.elementId ?? ""}`)));
+  assert.equal(mm.severity, "error");
+  // The fix: the chip the check suggests when the near figure is a single one, else the Manager picks Scope 1 in the Data drawer.
+  const chip = mm.fix === "replace_with_token" ? mm.details.chip : { binding: dsGhg("scope1"), measure: "value" };
+  // The typed figure becomes the chip; the template's empty placeholders go.
+  const cur = await dsGet(S.ds.id);
+  const empty = new Set(first.checks.filter((c) => c.id === "EMPTY_PLACEHOLDER").map((c) => c.elementId));
+  for (const p of cur.doc.pages) if (p.kind !== "flow") p.elements = p.elements.filter((e) => !empty.has(e.id));
+  const note = cur.doc.pages.find((p) => p.id === S.dsNote.pageId).elements.find((e) => e.id === S.dsNote.id);
+  const para = note.props.doc.content[0].content;
+  para.splice(2, 1, { type: "text", text: " tCO₂e; the plant log agrees: " }, { type: "data", attrs: chip }, { type: "text", text: " tCO₂e." });
+  S.ds.rev = await dsPatch(S.ds.id, cur.rev, cur.doc);
+  // Report details the data can't give: who is responsible, uncertainty, verification, and a
+  // reason for every Scope 3 category the boundary leaves without data.
+  const inputs = await call("GET", `/studio/docs/${S.ds.id}/inputs`, S.people.manager);
+  ok(inputs);
+  const was = inputs.json.inputs.exclusions?.value ?? inputs.json.prefill.exclusions?.value ?? [];
+  const mid = await dsChecks(S.ds.id, S.ds.rev);
+  const unaddressed = mid.checks.filter((c) => c.id === "SCOPE3_CATEGORY_UNADDRESSED").map((c) => c.details.category);
+  const patch = {
+    consolidation_approach: { value: "Operational control" },
+    responsible_person: { value: "Plant head, CI Workflow" },
+    uncertainty_statement: { value: "Activity data is metered or invoiced; factor uncertainty follows the published sources." },
+    verification: { value: { status: "none" } },
+    exclusions: { value: [...was, ...unaddressed.map((n) => ({ what: `Category ${n}`, reason: "Not relevant for this client in the Scope 3 screening." }))] },
+  };
+  const saved = await call("PATCH", `/studio/docs/${S.ds.id}/inputs`, S.people.manager, { rev: S.ds.rev, inputs: patch });
+  ok(saved);
+  S.ds.rev = saved.json.rev;
+  const last = await dsChecks(S.ds.id, S.ds.rev);
+  assert.ok(!last.checks.some((c) => c.id === "NUMBER_MISMATCH"), "the mismatch is gone");
+  // What is left blocking is the data itself: step 26's pending and rejected rows (DS-W7).
+  assert.deepEqual(last.checks.filter((c) => c.severity === "error").map((c) => c.id), ["GHG_PENDING_ENTRIES"]);
+});
+
+pendingStep("DS-W6 request approval; the reviewer approves the current rev", "DS-13", dsBuilt("POST", "/docs/:id/approvals"), async () => {
+  // [Wave 5 integrate] The Manager requires an approval before finals (audited); the Admin asks the Manager.
+  assert.equal((await call("PUT", "/studio/review-settings", S.admin, { requireReview: true })).json.code, "DS_ROLE", "Admins don't set require-review");
+  const set = await call("PUT", "/studio/review-settings", S.people.manager, { requireReview: true });
+  ok(set);
+  assert.equal(set.json.requireReview, true);
+  const [audit] = await kq(`SELECT changed_fields FROM audit_log WHERE entity_type = 'design_studio' AND entity_id = $1 AND action = 'review_settings' ORDER BY id`, [S.companyId]);
+  assert.deepEqual(audit.changed_fields, { report_require_review: { old: false, new: true } });
+  const final = () => call("POST", `/studio/docs/${S.ds.id}/jobs`, S.people.manager, { kind: "final", rev: S.ds.rev });
+  let gate = await final();
+  assert.deepEqual([gate.status, gate.json.code, gate.json.details?.reason], [409, "DS_APPROVAL_PENDING", "none"], JSON.stringify(gate.json));
+  const managerId = S.people.manager.user.user_id;
+  const asked = await call("POST", `/studio/docs/${S.ds.id}/approvals`, S.admin, { reviewerId: managerId, rev: S.ds.rev, note: "Ready for the board pack" });
+  assert.equal(asked.status, 201, JSON.stringify(asked.json));
+  gate = await final();
+  assert.deepEqual([gate.status, gate.json.code, gate.json.details?.reason], [409, "DS_APPROVAL_PENDING", "requested"], JSON.stringify(gate.json));
+  assert.equal((await call("POST", `/studio/approvals/${asked.json.id}/decide`, S.admin, { decision: "approve" })).json.code, "DS_ROLE", "an Admin can't approve");
+  ok(await call("POST", `/studio/approvals/${asked.json.id}/decide`, S.people.manager, { decision: "approve" }));
+  const list = await call("GET", `/studio/docs/${S.ds.id}/approvals`, S.admin);
+  ok(list);
+  assert.deepEqual([list.json.current.id, list.json.current.state, list.json.current.rev, list.json.stale, list.json.requireReview], [asked.json.id, "approved", S.ds.rev, false, true]);
+  // The approval lets the final through to DS-12's checks gate: DS-W7 still finds the period unsettled.
+});
+
+pendingStep("DS-W7 the Manager generates the final; it is immutable and its SHA matches the download", "DS-11", dsBuilt("POST", "/docs/:id/jobs"), async (t) => {
+  if (!(await dsHasChromium())) return t.skip("Chromium is not installed (npx playwright install chromium)");
+  // Nothing the studio did so far moved an emission figure.
+  assert.equal(await emissionReports(), S.dsEmissionsBefore, "byte-identical with the studio on");
+  assert.equal((await call("POST", `/studio/docs/${S.ds.id}/jobs`, S.admin, { kind: "final", rev: S.ds.rev })).json.code, "DS_ROLE", "Admins don't make finals");
+  const blocked = await call("POST", `/studio/docs/${S.ds.id}/jobs`, S.people.manager, { kind: "final", rev: S.ds.rev });
+  assert.deepEqual([blocked.status, blocked.json.code, blocked.json.details.checks[0].id], [409, "DS_CHECKS_BLOCKING", "GHG_PENDING_ENTRIES"]);
+  // The Manager settles the period in Review: approves the pending row, deletes the rejected one.
+  ok(await call("PUT", `/user/emissions/${S.rows["diesel-mar-pending"].id}/approve`, S.people.manager, {}));
+  ok(await call("DELETE", `/user/emissions/${S.rows["diesel-jun-wrong"].id}`, S.people.manager));
+  // Review moved the figures, not the studio: DS-W9 compares with this.
+  S.dsEmissionsBefore = await emissionReports();
+  const proof = await dsJob({ kind: "proof", rev: S.ds.rev });
+  assert.ok(proof.pageCount >= 15);
+  const c = await dsChecks(S.ds.id, S.ds.rev);
+  assert.deepEqual(c.checks.filter((x) => x.severity === "error").map((x) => `${x.id}@${x.elementId ?? ""}`), [], "nothing blocks once the period is settled");
+  assert.equal(c.layout, "render", "the proof's measurements count");
+  const final = await dsJob({ kind: "final", rev: S.ds.rev, acknowledgedWarnings: c.warnings });
+  assert.equal(final.pageCount, proof.pageCount, "proof and final have the same pages");
+  const [v] = await kq(`SELECT id, n, kind, rev, pdf_sha256, doc FROM report_doc_version WHERE id = $1`, [final.versionId]);
+  assert.deepEqual([v.kind, v.rev], ["final", S.ds.rev]);
+  const file = await dsFile(final.downloadUrl, S.people.manager);
+  assert.equal(file.status, 200);
+  assert.match(file.type, /application\/pdf/);
+  assert.equal(dsSha(file.buffer), v.pdf_sha256, "the download is the stored final");
+  assert.equal(dsSha((await dsFile(`/studio/docs/${S.ds.id}/versions/${v.n}/pdf`, S.admin)).buffer), v.pdf_sha256);
+  // Immutable: editing the draft afterwards leaves the final as it was.
+  const cur = await dsGet(S.ds.id);
+  cur.doc.meta.title = `${cur.doc.meta.title} (draft after the final)`;
+  S.ds.rev = await dsPatch(S.ds.id, cur.rev, cur.doc);
+  const [v2] = await kq(`SELECT pdf_sha256, doc FROM report_doc_version WHERE id = $1`, [final.versionId]);
+  assert.equal(v2.pdf_sha256, v.pdf_sha256);
+  assert.deepEqual(v2.doc, v.doc);
+  assert.equal(dsSha((await dsFile(`/studio/docs/${S.ds.id}/versions/${v.n}/pdf`, S.people.manager)).buffer), v.pdf_sha256);
+  S.dsFinal = { versionId: final.versionId, n: v.n, sha: v.pdf_sha256 };
+});
+
+pendingStep("DS-W8 a share link serves the stored final PDF; revoked, it answers 410", "DS-11", dsBuilt("POST", "/docs/:id/shares"), async (t) => {
+  if (!S.dsFinal) return t.skip("no final (DS-W7 skipped)");
+  assert.equal((await call("POST", `/studio/docs/${S.ds.id}/shares`, S.admin, { versionId: S.dsFinal.versionId })).json.code, "DS_ROLE", "links are Manager only");
+  const made = await call("POST", `/studio/docs/${S.ds.id}/shares`, S.people.manager, { versionId: S.dsFinal.versionId, expiresInDays: 30 });
+  assert.equal(made.status, 201, JSON.stringify(made.json));
+  const token = new URL(made.json.url).pathname.split("/").pop();
+  const page = await dsFile(`/s/${token}`, null);
+  assert.equal(page.status, 200);
+  assert.match(page.type, /text\/html/);
+  const pdf = await dsFile(`/s/${token}/file`, null);
+  assert.equal(pdf.status, 200);
+  assert.equal(dsSha(pdf.buffer), S.dsFinal.sha, "the link serves the stored final, logged out");
+  assert.equal((await call("DELETE", `/studio/shares/${made.json.id}`, S.people.manager)).status, 204);
+  assert.equal((await dsFile(`/s/${token}`, null)).status, 410);
+  assert.equal((await dsFile(`/s/${token}/file`, null)).status, 410);
+  // A second link stays active: switching the studio off (DS-W9) must stop it too.
+  const keep = await call("POST", `/studio/docs/${S.ds.id}/shares`, S.people.manager, { versionId: S.dsFinal.versionId });
+  assert.equal(keep.status, 201);
+  S.dsShareToken = new URL(keep.json.url).pathname.split("/").pop();
+  assert.equal((await dsFile(`/s/${S.dsShareToken}/file`, null)).status, 200);
+});
+
+step("DS-W9 switching off hides everything: /studio/* answers 403 DS_STUDIO_OFF; the emission figures are the same as before the studio", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { design_studio_enabled: false }));
+  assert.deepEqual((await dsAudit()).map((r) => r.changed_fields.design_studio_enabled), [{ old: false, new: true }, { old: true, new: false }]);
+  for (const who of [S.admin, S.people.manager, S.people.userMain]) assert.deepEqual((await call("GET", "/studio/status", who)).json, { enabled: false, kinds: { ghg: false, sustainability: false } }, "the FE hides the nav item and routes on this");
+  const wrong = [];
+  for (const r of dsRoutes.gatedRoutes(DS_ROOT)) {
+    for (const who of [S.admin, S.people.manager, S.people.userMain]) {
+      const res = await call(r.method, dsRoutes.concrete(r.path), who, r.method === "GET" || r.method === "DELETE" ? undefined : {});
+      if (!(res.status === 403 && res.json?.code === "DS_STUDIO_OFF")) wrong.push(`${who.user.role} ${r.method} ${r.path}: ${res.status} ${res.json?.code ?? ""}`);
+    }
+  }
+  assert.deepEqual(wrong, []);
+  if (S.dsShareToken) assert.equal((await dsFile(`/s/${S.dsShareToken}/file`, null)).status, 410, "a view link stops with the studio off"); // DS-14F
+  assert.equal(await emissionReports(), S.dsEmissionsBefore, "byte-identical with the studio on and off");
+});
+
+step("DS-W10 the Design Studio audit probes report zero findings on this stack", async (t) => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const { spawnSync } = require("child_process");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ds-probes-"));
+  const out = path.join(dir, "ds-probes.json");
+  try {
+    await dsScratch("dsprobes", async (scratch) => {
+      const port = process.env.DS_PROBE_PORT || process.env.API_TEST_PORT || String(Number(process.env.WORKFLOW_PORT || 3997) + 4);
+      const run = spawnSync(process.execPath, [path.join(DS_ROOT, "audit/harness/ds-probes.cjs"), DS_ROOT, out], { env: { ...process.env, DB_NAME: scratch, DS_PROBE_PORT: port }, encoding: "utf8", timeout: 15 * 60 * 1000 });
+      assert.ok(fs.existsSync(out), `the harness wrote no result (exit ${run.status}): ${`${run.stdout}${run.stderr}`.slice(-2000)}`);
+      const { counts, results } = JSON.parse(fs.readFileSync(out, "utf8"));
+      t.diagnostic(String(run.stdout).trim().split("\n").pop());
+      assert.deepEqual(results.filter((r) => r.status === "fail" || r.status === "error").map((r) => `${r.ids.join(",")} ${r.title}: ${String(r.observed).slice(0, 300)}`), []);
+      assert.equal(run.status, 0, `harness exited ${run.status}`);
+      assert.ok(counts.pass > 0);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+step("DS-W11 the Design Studio goldens match (ci/golden/ds)", async (t) => {
+  const path = require("path");
+  const { spawnSync } = require("child_process");
+  await dsScratch("dsgold", async (scratch) => {
+    const port = process.env.DS_GOLDEN_PORT || process.env.GOLDEN_PORT || String(Number(process.env.WORKFLOW_PORT || 3997) + 5);
+    const run = spawnSync(process.execPath, [path.join(DS_ROOT, "ci/golden/ds/run.cjs")], { env: { ...process.env, DB_NAME: scratch, DS_GOLDEN_PORT: port, UPDATE_SNAPSHOT: "" }, encoding: "utf8", timeout: 10 * 60 * 1000 });
+    const last = String(run.stdout).trim().split("\n").pop();
+    t.diagnostic(last);
+    assert.equal(run.status, 0, `${run.stdout}${run.stderr}`.slice(-3000));
+    assert.match(last, /^DS golden: (\d+) run, \1 matched, 0 failed/);
+  });
+});
+
 // ── Go-live checks still to come ───────────────────────────────────────────
 
 pendingStep("27 the Scope 3 audit probes pass on this stack", "S3-16", async () => require("fs").existsSync("/mnt/project-files/audit/harness/scope3-probes.cjs"), async (t) => t.skip("run audit/harness/scope3-probes.cjs from the audit harness"));

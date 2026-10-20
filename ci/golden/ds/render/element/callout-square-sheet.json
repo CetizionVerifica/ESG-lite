@@ -1,0 +1,14 @@
+{
+  "element": "callout",
+  "elements": [
+    {
+      "bytes": 711,
+      "frame": "183.696,103.909,81.643,38.485,0",
+      "id": "p-summary.callout",
+      "sha256": "dc2222941cb0c53def181fe4bd803b0c2ae79cecebccd17053f9384f5197bd55"
+    }
+  ],
+  "format": "square",
+  "mode": "sheet",
+  "pages": 1
+}

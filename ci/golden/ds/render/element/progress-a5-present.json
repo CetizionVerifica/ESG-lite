@@ -1,0 +1,20 @@
+{
+  "element": "progress",
+  "elements": [
+    {
+      "bytes": 856,
+      "frame": "10.571,76.364,28.19,28.283,0",
+      "id": "p-summary.ring",
+      "sha256": "d65a0312839e3ea4a1bbff6742142a2df013d6373b9c1161119e367ce53b155f"
+    },
+    {
+      "bytes": 570,
+      "frame": "42.286,83.434,49.333,9.899,0",
+      "id": "p-summary.bar",
+      "sha256": "fdfa80ed22aa9dbddf97bffedc5f64ca0fccae8ed07843769baf0301ff91b8e4"
+    }
+  ],
+  "format": "a5",
+  "mode": "present",
+  "pages": 1
+}

@@ -1,0 +1,274 @@
+{
+  "bindings": [
+    {
+      "kpis": [
+        "ENERGY_TOTAL"
+      ],
+      "sites": "all",
+      "source": "kpi",
+      "unit": "GJ",
+      "years": {
+        "last": 2
+      }
+    },
+    {
+      "kpis": [
+        "ENERGY_TOTAL"
+      ],
+      "sites": [
+        1,
+        2
+      ],
+      "source": "kpi",
+      "unit": "GJ",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "kpis": [
+        "ENERGY_TOTAL"
+      ],
+      "sites": [
+        1
+      ],
+      "source": "kpi",
+      "years": [
+        2024
+      ]
+    },
+    {
+      "kpis": [
+        "WATER"
+      ],
+      "sites": [
+        1,
+        2
+      ],
+      "source": "kpi",
+      "years": {
+        "last": 2
+      }
+    }
+  ],
+  "bytes": 1524,
+  "checks": [
+    "YEAR_NOT_LOCKED",
+    "VALUES_MISSING",
+    "NUMBER_MISMATCH",
+    "NUMBER_UNBOUND",
+    "TEXT_OVERFLOW",
+    "OUTSIDE_SAFE_AREA",
+    "OVERLAPS_LOCKED",
+    "FONT_TOO_SMALL",
+    "LOW_CONTRAST",
+    "EMPTY_PLACEHOLDER",
+    "MISSING_ALT",
+    "AI_UNREVIEWED",
+    "LEADERSHIP_UNCONFIRMED",
+    "DATA_CHANGED",
+    "UNLINKED_DATA",
+    "TEXT_TRUNCATED",
+    "OPEN_TASK"
+  ],
+  "format": "a4",
+  "kind": "sustainability",
+  "pages": [
+    {
+      "elements": [
+        "p1.tile:kpi_tile",
+        "p1.text:text"
+      ],
+      "id": "p1",
+      "kind": "freeform",
+      "layoutId": null
+    },
+    {
+      "flowType": "narrative",
+      "id": "p2",
+      "kind": "flow"
+    }
+  ],
+  "purpose": "report",
+  "underCap": true,
+  "upgraded": {
+    "assets": [],
+    "design": {
+      "templateId": "classic",
+      "templateVersion": 3,
+      "theme": {
+        "look": "night"
+      }
+    },
+    "format": "a4",
+    "kind": "sustainability",
+    "meta": {
+      "frameworks": [
+        "GRI"
+      ],
+      "language": "en",
+      "sites": [
+        1,
+        2
+      ],
+      "title": "Annual report 2025",
+      "year": 2025,
+      "yearType": "FY"
+    },
+    "pages": [
+      {
+        "background": {},
+        "elements": [
+          {
+            "frame": {
+              "h": 30,
+              "rotation": 0,
+              "w": 50,
+              "x": 10,
+              "y": 10
+            },
+            "id": "p1.tile",
+            "props": {
+              "binding": {
+                "kpis": [
+                  "ENERGY_TOTAL"
+                ],
+                "sites": "all",
+                "source": "kpi",
+                "unit": "GJ",
+                "years": {
+                  "last": 2
+                }
+              },
+              "showDelta": true,
+              "showSparkline": false,
+              "variant": "card"
+            },
+            "source": "layout",
+            "type": "kpi_tile",
+            "z": 0
+          },
+          {
+            "frame": {
+              "h": 30,
+              "rotation": 0,
+              "w": 190,
+              "x": 10,
+              "y": 50
+            },
+            "id": "p1.text",
+            "props": {
+              "align": "left",
+              "doc": {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Energy fell to ",
+                        "type": "text"
+                      },
+                      {
+                        "attrs": {
+                          "binding": {
+                            "kpis": [
+                              "ENERGY_TOTAL"
+                            ],
+                            "sites": [
+                              1,
+                              2
+                            ],
+                            "source": "kpi",
+                            "unit": "GJ",
+                            "years": {
+                              "last": 1
+                            }
+                          },
+                          "format": "int",
+                          "measure": "value",
+                          "year": "current"
+                        },
+                        "type": "data"
+                      },
+                      {
+                        "text": ", from ",
+                        "type": "text"
+                      },
+                      {
+                        "attrs": {
+                          "binding": {
+                            "kpis": [
+                              "ENERGY_TOTAL"
+                            ],
+                            "sites": [
+                              1
+                            ],
+                            "source": "kpi",
+                            "years": [
+                              2024
+                            ]
+                          },
+                          "measure": "value",
+                          "year": 2024
+                        },
+                        "type": "data"
+                      }
+                    ],
+                    "type": "paragraph"
+                  }
+                ],
+                "type": "doc"
+              },
+              "style": "body"
+            },
+            "source": "user",
+            "type": "text",
+            "z": 1
+          }
+        ],
+        "id": "p1",
+        "kind": "freeform",
+        "name": "Highlights"
+      },
+      {
+        "content": {
+          "content": [
+            {
+              "content": [
+                {
+                  "attrs": {
+                    "binding": {
+                      "kpis": [
+                        "WATER"
+                      ],
+                      "sites": [
+                        1,
+                        2
+                      ],
+                      "source": "kpi",
+                      "years": {
+                        "last": 2
+                      }
+                    },
+                    "measure": "change_pct",
+                    "year": "prior"
+                  },
+                  "type": "data"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "doc"
+        },
+        "flowType": "narrative",
+        "id": "p2",
+        "kind": "flow",
+        "name": "Notes",
+        "options": {}
+      }
+    ],
+    "purpose": "report",
+    "schemaVersion": 2
+  },
+  "valid": true
+}

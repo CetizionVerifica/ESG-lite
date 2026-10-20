@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "kind": "ghg",
+  "purpose": "report",
+  "format": "a4",
+  "meta": {
+    "title": "ACME GHG inventory 2025",
+    "subtitle": "Scope 1, 2 and 3 under the GHG Protocol",
+    "year": 2025,
+    "yearType": "CY",
+    "sites": "all",
+    "frameworks": ["GHGP", "ISO14064"],
+    "compareYear": 2024,
+    "language": "en"
+  },
+  "design": { "templateId": "ghg-inventory", "templateVersion": 1, "styleId": "brand-classic", "theme": { "look": "classic", "colors": { "primary": "#0F5132", "accent": "#F59E0B" }, "fonts": { "heading": "fraunces", "body": "source-sans-3" } } },
+  "pages": [
+    {
+      "id": "p-cover",
+      "kind": "freeform",
+      "name": "Cover",
+      "layoutId": "ghg-cover",
+      "background": { "color": "#0F5132" },
+      "notes": "Welcome the board; the headline is total emissions.",
+      "guides": [{ "axis": "x", "mm": 20 }],
+      "elements": [
+        { "id": "p-cover.bg", "type": "frame", "frame": { "x": -3, "y": -3, "w": 216, "h": 160, "rotation": 0 }, "z": 0, "source": "layout", "templateLocked": true, "props": { "mask": "rect", "assetId": "a-plant", "fit": "cover", "alt": "The Bahrain plant at dawn", "bleed": true } },
+        { "id": "p-cover.title", "type": "text", "frame": { "x": 20, "y": 180, "w": 170, "h": 30, "rotation": 0 }, "z": 1, "source": "layout", "props": { "style": "title", "align": "left", "color": "#FFFFFF", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Greenhouse gas inventory 2025" }] }] } } },
+        { "id": "p-cover.total", "type": "big_number", "frame": { "x": 20, "y": 220, "w": 80, "h": 30, "rotation": 0 }, "z": 2, "source": "auto", "props": { "binding": { "source": "ghg", "metric": "total", "years": { "last": 1 }, "sites": "all", "compare": "prior" }, "measure": "value", "format": "compact", "label": "tCO₂e in 2025", "showDelta": true } },
+        { "id": "p-cover.qr", "type": "qr", "frame": { "x": 170, "y": 260, "w": 25, "h": 25, "rotation": 0 }, "z": 3, "source": "user", "props": { "url": "https://acme.example/ghg-2025" } }
+      ]
+    },
+    {
+      "id": "p-summary",
+      "kind": "freeform",
+      "name": "Executive summary",
+      "layoutId": "ghg-exec-summary",
+      "background": {},
+      "elements": [
+        { "id": "p-summary.heading", "type": "text", "frame": { "x": 20, "y": 20, "w": 170, "h": 15, "rotation": 0 }, "z": 0, "source": "layout", "props": { "style": "heading", "align": "left", "doc": { "type": "doc", "content": [{ "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Executive summary" }] }] } } },
+        { "id": "p-summary.body", "type": "text", "frame": { "x": 20, "y": 40, "w": 170, "h": 40, "rotation": 0 }, "z": 1, "source": "ai", "reviewed": true, "basedOnHash": "sha256:abc", "props": { "style": "body", "align": "justify", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Scope 1 emissions were " }, { "type": "data", "attrs": { "binding": { "source": "ghg", "metric": "scope1", "years": { "last": 1 }, "sites": "all" }, "measure": "value", "format": "1dp" } }, { "type": "text", "text": " tCO₂e, ", "marks": [{ "type": "bold" }] }, { "type": "data", "attrs": { "binding": { "source": "ghg", "metric": "total", "years": [2024, 2025], "sites": "all", "compare": "prior" }, "measure": "change_pct", "format": "pct1" } }, { "type": "text", "text": " versus 2024." }] }] } } },
+        { "id": "p-summary.split", "type": "chart", "frame": { "x": 20, "y": 90, "w": 80, "h": 80, "rotation": 0 }, "z": 2, "source": "auto", "props": { "kind": "scope_split", "title": "Emissions by scope", "binding": { "source": "ghg", "metric": "total", "years": { "last": 1 }, "sites": "all", "breakdown": "scope" }, "options": { "showValues": true } } },
+        { "id": "p-summary.waterfall", "type": "chart", "frame": { "x": 110, "y": 90, "w": 80, "h": 80, "rotation": 0 }, "z": 3, "source": "auto", "props": { "kind": "base_year_waterfall", "binding": { "source": "ghg", "metric": "total", "years": { "last": 2 }, "sites": "all", "compare": "base" }, "options": {} } },
+        { "id": "p-summary.s3", "type": "progress", "frame": { "x": 20, "y": 180, "w": 50, "h": 50, "rotation": 0 }, "z": 4, "source": "user", "props": { "binding": { "source": "ghg", "metric": "primary_data_pct", "years": { "last": 1 }, "sites": "all" }, "variant": "ring", "label": "Primary data share" } },
+        { "id": "p-summary.market", "type": "kpi_tile", "frame": { "x": 80, "y": 180, "w": 50, "h": 30, "rotation": 0 }, "z": 5, "source": "auto", "props": { "binding": { "source": "ghg", "metric": "scope2_market", "years": { "last": 1 }, "sites": "all" }, "label": "Scope 2 (market-based)", "showDelta": false, "showSparkline": false, "variant": "card" } },
+        { "id": "p-summary.note", "type": "callout", "frame": { "x": 140, "y": 180, "w": 50, "h": 40, "rotation": 0 }, "z": 6, "source": "user", "opacity": 0.9, "props": { "icon": "info", "tone": "accent", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Biogenic CO₂ is reported separately." }] }] } } },
+        { "id": "p-summary.rule", "type": "line", "frame": { "x": 20, "y": 240, "w": 170, "h": 2, "rotation": 0 }, "z": 7, "source": "user", "props": { "x1": 0, "y1": 1, "x2": 170, "y2": 1, "strokeWidth": 0.5, "dash": "dashed", "endArrow": true } },
+        { "id": "p-summary.pn", "type": "page_number", "frame": { "x": 180, "y": 285, "w": 10, "h": 6, "rotation": 0 }, "z": 8, "source": "layout", "props": { "format": "n", "align": "right" } }
+      ]
+    },
+    {
+      "id": "p-scope3",
+      "kind": "freeform",
+      "name": "Scope 3",
+      "background": { "color": "#FFFFFF" },
+      "elements": [
+        { "id": "p-scope3.bars", "type": "chart", "frame": { "x": 20, "y": 20, "w": 170, "h": 90, "rotation": 0 }, "z": 0, "source": "auto", "props": { "kind": "category_bars", "binding": { "source": "ghg", "metric": "scope3", "years": { "last": 1 }, "sites": "all", "breakdown": "scope3_category", "top": 10 }, "options": { "horizontal": true } } },
+        { "id": "p-scope3.cat4", "type": "kpi_tile", "frame": { "x": 20, "y": 120, "w": 60, "h": 30, "rotation": 0 }, "z": 1, "source": "user", "props": { "binding": { "source": "ghg", "metric": "scope3_category", "scope3Category": 4, "years": { "last": 1 }, "sites": [1, 2] }, "label": "Category 4: Upstream transportation and distribution", "showDelta": true, "showSparkline": true, "variant": "plain" } },
+        { "id": "p-scope3.consolidation", "type": "text", "frame": { "x": 90, "y": 120, "w": 100, "h": 20, "rotation": 0 }, "z": 2, "source": "layout", "props": { "style": "caption", "align": "left", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Consolidation: operational control." }] }] } } },
+        { "id": "p-scope3.custom", "type": "chart", "frame": { "x": 20, "y": 160, "w": 80, "h": 60, "rotation": 0 }, "z": 3, "source": "user", "props": { "kind": "bar", "title": "Supplier engagement (typed)", "binding": { "source": "custom", "columns": ["Year", "Suppliers engaged"], "rows": [["2024", 12], ["2025", 30]] }, "options": {} } },
+        { "id": "p-scope3.photos", "type": "grid", "frame": { "x": 110, "y": 160, "w": 80, "h": 60, "rotation": 0 }, "z": 4, "source": "user", "props": { "columns": 2, "gap": 2, "mask": "rounded", "cells": [{ "assetId": "a-truck", "alt": "A delivery truck" }, { "alt": "" }] } },
+        { "id": "p-scope3.table", "type": "table", "frame": { "x": 20, "y": 230, "w": 170, "h": 50, "rotation": 0 }, "z": 5, "source": "auto", "props": { "binding": { "source": "ghg", "metric": "total", "years": { "last": 1 }, "sites": "all", "breakdown": "site" }, "style": "zebra", "totalRow": true } }
+      ]
+    },
+    {
+      "id": "p-categories",
+      "kind": "flow",
+      "name": "Scope 3 categories",
+      "flowType": "scope3_categories",
+      "options": { "columns": 1, "categories": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], "showDq": true, "showMethod": true }
+    },
+    {
+      "id": "p-factors",
+      "kind": "flow",
+      "name": "Emission factors",
+      "flowType": "ghg_factor_table",
+      "options": { "columns": 2 },
+      "content": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Factors and their sources, as used in the data." }] }] }
+    }
+  ],
+  "assets": [
+    { "id": "a-plant", "kind": "image", "w": 2400, "h": 1600, "alt": "The Bahrain plant at dawn" },
+    { "id": "a-truck", "kind": "image", "w": 1200, "h": 800, "alt": "A delivery truck" }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "action": "body",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "metric": "scope3",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    }
+  ],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "Scope 3 was ⟨scope3|current|value⟩ tCO₂e, the largest part of the total of ⟨total|current|value⟩ tCO₂e.",
+  "sources": [
+    {
+      "metric": "scope3",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "total",
+      "source": "ghg",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

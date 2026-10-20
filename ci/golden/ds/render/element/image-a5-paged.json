@@ -1,0 +1,26 @@
+{
+  "element": "image",
+  "elements": [
+    {
+      "bytes": 924,
+      "frame": "10.571,10.606,42.286,28.283,0",
+      "id": "p-el.img",
+      "sha256": "a8d52f2db46bb8c2dc52ec6a2fbe8ecf321dc53f082a741ffe4a976a80a8da4c"
+    },
+    {
+      "bytes": 956,
+      "frame": "56.381,10.606,35.238,28.283,0",
+      "id": "p-el.img-crop",
+      "sha256": "00321ce5d2077e5ec65d18d3ed97b3966d7434c397a2820a5f3fb940f5fcd036"
+    },
+    {
+      "bytes": 342,
+      "frame": "95.143,10.606,42.286,28.283,0",
+      "id": "p-el.img-missing",
+      "sha256": "9db7220ca251d796fbeb568c843d8b8083e65ea979a1512f1fe34440fe81ae2d"
+    }
+  ],
+  "format": "a5",
+  "mode": "paged",
+  "pages": 1
+}

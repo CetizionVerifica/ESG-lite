@@ -1,0 +1,93 @@
+{
+  "role": "close",
+  "pageKind": "back_cover",
+  "name": "Closing slide",
+  "page": {
+    "id": "close",
+    "kind": "freeform",
+    "name": "Closing slide",
+    "background": {},
+    "elements": [
+      {
+        "id": "close.band",
+        "type": "shape",
+        "frame": {
+          "x": 0,
+          "y": 0,
+          "w": 338.7,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "shape": "rect",
+          "bleed": true
+        }
+      },
+      {
+        "id": "close.title",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 70,
+          "w": 298.7,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Questions and discussion"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "center"
+        }
+      },
+      {
+        "id": "close.source",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 108,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}} · GHG emissions {{period}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "center"
+        }
+      }
+    ]
+  },
+  "sort": 10
+}

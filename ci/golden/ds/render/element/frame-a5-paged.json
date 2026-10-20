@@ -1,0 +1,38 @@
+{
+  "element": "frame",
+  "elements": [
+    {
+      "bytes": 967,
+      "frame": "-2.114,-2.121,152.229,106.061,0",
+      "id": "p-cover.bg",
+      "sha256": "f09a3337daf8a49ecd4eb0497a80425f200b42fd0e772ed35b6c47494ca463f5"
+    },
+    {
+      "bytes": 961,
+      "frame": "10.571,42.424,28.19,28.283,0",
+      "id": "p-el.f-round",
+      "sha256": "207fad49466cc860827595fa5f0d2671878489ae8d0e02dbcb7f9edad4814609"
+    },
+    {
+      "bytes": 956,
+      "frame": "42.286,42.424,28.19,28.283,0",
+      "id": "p-el.f-circle",
+      "sha256": "29ac4674c88b6b4d96e2abf84e8b04cbb117c554d25f81e3009007d314b23c8d"
+    },
+    {
+      "bytes": 960,
+      "frame": "74,42.424,28.19,28.283,0",
+      "id": "p-el.f-arch",
+      "sha256": "3abd5ceb574973ae71e340546e05c6c39c27939847ee9d27b14290ab249a0352"
+    },
+    {
+      "bytes": 1681,
+      "frame": "105.714,42.424,28.19,28.283,0",
+      "id": "p-el.f-blob",
+      "sha256": "8ad4de5905735011f44241de28f97dd46a925b93e226015b1545ec8a713af748"
+    }
+  ],
+  "format": "a5",
+  "mode": "paged",
+  "pages": 1
+}

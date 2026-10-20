@@ -1,0 +1,20 @@
+{
+  "element": "progress",
+  "elements": [
+    {
+      "bytes": 854,
+      "frame": "15.421,101.6,41.124,37.63,0",
+      "id": "p-summary.ring",
+      "sha256": "66f3742657726f5fc282c43c3cbafeabb6afacb49ea6cc7c04445c5f02904535"
+    },
+    {
+      "bytes": 572,
+      "frame": "61.686,111.007,71.967,13.17,0",
+      "id": "p-summary.bar",
+      "sha256": "62693fc4f31000b501cfd24dcd047d9811f6f9f7b9fdeef85bf48ae8a51d2c11"
+    }
+  ],
+  "format": "letter",
+  "mode": "paged",
+  "pages": 1
+}

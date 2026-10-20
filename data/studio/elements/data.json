@@ -1,0 +1,490 @@
+[
+  {
+    "slug": "data-big-number",
+    "group": "data",
+    "name": "Big number",
+    "tags": [
+      "data",
+      "number",
+      "figure",
+      "headline"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "big_number",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 70,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "total",
+          "years": {
+            "last": 1
+          },
+          "sites": "all",
+          "compare": "prior"
+        },
+        "label": "tCO₂e",
+        "showDelta": true
+      }
+    }
+  },
+  {
+    "slug": "data-kpi-tile",
+    "group": "data",
+    "name": "KPI tile",
+    "tags": [
+      "data",
+      "tile",
+      "card",
+      "kpi"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "kpi_tile",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 70,
+        "h": 30,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "total",
+          "years": {
+            "last": 1
+          },
+          "sites": "all",
+          "compare": "prior"
+        },
+        "label": "Total emissions",
+        "showDelta": true,
+        "showSparkline": false,
+        "variant": "card"
+      }
+    }
+  },
+  {
+    "slug": "data-progress-ring",
+    "group": "data",
+    "name": "Progress ring",
+    "tags": [
+      "data",
+      "progress",
+      "ring",
+      "percentage"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "progress",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 40,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "primary_data_pct",
+          "years": {
+            "last": 1
+          },
+          "sites": "all"
+        },
+        "variant": "ring",
+        "label": "Supplier-specific data"
+      }
+    }
+  },
+  {
+    "slug": "data-progress-bar",
+    "group": "data",
+    "name": "Progress bar",
+    "tags": [
+      "data",
+      "progress",
+      "bar",
+      "percentage"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "progress",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 20,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "primary_data_pct",
+          "years": {
+            "last": 1
+          },
+          "sites": "all"
+        },
+        "variant": "bar",
+        "label": "Supplier-specific data"
+      }
+    }
+  },
+  {
+    "slug": "data-callout",
+    "group": "data",
+    "name": "Callout",
+    "tags": [
+      "data",
+      "note",
+      "box",
+      "highlight"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "callout",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 24,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "doc": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A short note that stands out."
+                }
+              ]
+            }
+          ]
+        },
+        "icon": "info",
+        "tone": "accent"
+      }
+    }
+  },
+  {
+    "slug": "data-chart-split",
+    "group": "data",
+    "name": "Chart: by scope",
+    "tags": [
+      "data",
+      "chart",
+      "donut",
+      "scope"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "chart",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 70,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "total",
+          "years": {
+            "last": 1
+          },
+          "sites": "all",
+          "breakdown": "scope"
+        },
+        "kind": "scope_split",
+        "title": "Emissions by scope",
+        "options": {
+          "showValues": true
+        }
+      }
+    }
+  },
+  {
+    "slug": "data-chart-bars",
+    "group": "data",
+    "name": "Chart: bars",
+    "tags": [
+      "data",
+      "chart",
+      "bar",
+      "categories"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "chart",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 120,
+        "h": 80,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "scope3",
+          "years": {
+            "last": 1
+          },
+          "sites": "all",
+          "breakdown": "scope3_category",
+          "top": 8
+        },
+        "kind": "category_bars",
+        "title": "Scope 3 by category",
+        "options": {
+          "horizontal": true,
+          "showValues": true
+        }
+      }
+    }
+  },
+  {
+    "slug": "data-chart-line",
+    "group": "data",
+    "name": "Chart: trend",
+    "tags": [
+      "data",
+      "chart",
+      "line",
+      "trend"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "chart",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 120,
+        "h": 70,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "total",
+          "years": {
+            "last": 5
+          },
+          "sites": "all"
+        },
+        "kind": "line",
+        "title": "Five-year trend",
+        "options": {
+          "showValues": true
+        }
+      }
+    }
+  },
+  {
+    "slug": "data-table",
+    "group": "data",
+    "name": "Table",
+    "tags": [
+      "data",
+      "table",
+      "rows",
+      "sites"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "table",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 120,
+        "h": 60,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "binding": {
+          "source": "ghg",
+          "metric": "total",
+          "years": {
+            "last": 1
+          },
+          "sites": "all",
+          "breakdown": "site"
+        },
+        "style": "zebra",
+        "totalRow": true
+      }
+    }
+  },
+  {
+    "slug": "data-text",
+    "group": "data",
+    "name": "Text box",
+    "tags": [
+      "data",
+      "text",
+      "paragraph"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "text",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 20,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "doc": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Add your text"
+                }
+              ]
+            }
+          ]
+        },
+        "style": "body",
+        "align": "left"
+      }
+    }
+  },
+  {
+    "slug": "data-page-number",
+    "group": "data",
+    "name": "Page number",
+    "tags": [
+      "data",
+      "page",
+      "number",
+      "footer"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "page_number",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 6,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "format": "n",
+        "align": "right"
+      }
+    }
+  },
+  {
+    "slug": "data-qr",
+    "group": "data",
+    "name": "QR code",
+    "tags": [
+      "data",
+      "qr",
+      "link",
+      "url"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "qr",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 25,
+        "h": 25,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "url": "https://example.com"
+      }
+    }
+  },
+  {
+    "slug": "data-placeholder",
+    "group": "data",
+    "name": "Placeholder",
+    "tags": [
+      "data",
+      "placeholder",
+      "slot"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "placeholder",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 50,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "accepts": [
+          "image",
+          "chart",
+          "text"
+        ],
+        "hint": "Drop an image, chart or text here"
+      }
+    }
+  }
+]

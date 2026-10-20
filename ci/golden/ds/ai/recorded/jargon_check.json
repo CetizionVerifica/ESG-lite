@@ -1,0 +1,14 @@
+{
+  "action": "jargon_check",
+  "built": true,
+  "findings": [
+    {
+      "message": "Explain 'location-based' the first time it appears.",
+      "pageId": "p-summary",
+      "severity": "info"
+    }
+  ],
+  "group": "rewrites",
+  "output": "findings",
+  "valid": true
+}

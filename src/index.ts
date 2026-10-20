@@ -17,6 +17,9 @@ import internalImportsRouter from "./routes/internalImports.routes";
 import scope3Router from "./scope3/router";
 import kpiRouter from "./kpi/router";
 import { kpiAuthenticate } from "./kpi/auth";
+import studioRouter from "./studio/router"; // DS-0
+import shareViewer from "./studio/share/public"; // DS-11
+import { recoverStudioJobs, startStudioRenderConsumer } from "./queues/studioRenderConsumer"; // DS-11
 import { fxRouter } from "./scope3/spend/router";
 import { periodsRouter } from "./scope3/review/router";
 import { startFxJob } from "./scope3/spend/fxJob";
@@ -34,6 +37,7 @@ import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 import { startBaseYearScheduler } from "./scope3/baseYear/job"; // S3-14
 import { startKpiDueScheduler } from "./kpi/review/reminders"; // KPI-8
+import { startStudioHistoryScheduler } from "./studio/collab/history"; // DS-13
 import { logMailStatus } from "./config/mailer";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
@@ -101,6 +105,8 @@ app.use("/internal/imports", internalImportsRouter); // IM4, service key
 app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, no account
 app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
 app.use("/suppliers", authenticate, suppliersRouter); // S3-6 suppliers, their figures and coverage
+app.use("/studio", authenticate, studioRouter); // DS-0; each Design Studio module adds its routes in src/studio/router.ts
+app.use("/s", shareViewer); // DS-11: public read-only view links (no session; stored PDFs only)
 
 let server: any;
 
@@ -152,6 +158,8 @@ connectWithRetry()
         });
         startBaseYearScheduler(); // S3-14: nightly Scope 3 base-year check
         startKpiDueScheduler(); // KPI-8: daily kpi_due reminders (KPI_DUE_JOB=off turns it off)
+        startStudioHistoryScheduler(); // DS-13: nightly version-history pruning (STUDIO_HISTORY_JOB=off turns it off)
+        setTimeout(() => void recoverStudioJobs().catch((err) => console.warn("⚠️ Studio render jobs not recovered:", err?.message || "")), 5000).unref(); // DS-11
 
         // Connect RabbitMQ in background (non-blocking)
         connectRabbitMQ()
@@ -159,6 +167,7 @@ connectWithRetry()
                 await startEmailConsumer();
                 await startDLQConsumer();
                 startDeadlineScheduler();
+                await startStudioRenderConsumer().catch((err) => console.warn("⚠️ Studio render worker not started:", err?.message || "")); // DS-11
             })
             .catch((err) => {
                 console.warn("⚠️ RabbitMQ not available — email notifications disabled.", err?.message || "");

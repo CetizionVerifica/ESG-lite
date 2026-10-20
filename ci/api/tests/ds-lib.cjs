@@ -1,0 +1,119 @@
+// Shared bits for the Design Studio API tests (ci/api/tests/ds-*.test.cjs), DS-0.
+const path = require("path");
+const { spawnSync } = require("child_process");
+const { call, withDb } = require("../helpers.cjs");
+
+const ROOT = path.resolve(__dirname, "../../..");
+
+/** Sets company.design_studio_enabled directly (the switch itself is tested in ds-0). */
+const setStudio = (companyId, on) =>
+  withDb((db) => db.query(`UPDATE company SET design_studio_enabled = $1 WHERE company_id = $2`, [on, companyId]));
+
+/** Sets company.kpi_tracking_enabled directly (the sustainability kind needs it). */
+const setKpi = (companyId, on) =>
+  withDb((db) => db.query(`UPDATE company SET kpi_tracking_enabled = $1 WHERE company_id = $2`, [on, companyId]));
+
+/** Runs a compiled migrate script (dist/scripts/<name>.js) against the test database. */
+const runScript = (name) =>
+  spawnSync(process.execPath, [path.join(ROOT, `dist/scripts/${name}.js`)], {
+    cwd: ROOT,
+    env: { ...process.env, TYPEORM_SYNC: "false" },
+    encoding: "utf8",
+  });
+
+/** Every route of the compiled /studio router: [{method, path}], walked from its Express stack. */
+const studioRoutes = () => {
+  const router = require(path.join(ROOT, "dist/studio/router.js")).default;
+  const out = [];
+  const walk = (stack) => {
+    for (const layer of stack) {
+      if (layer.route) {
+        for (const method of Object.keys(layer.route.methods)) if (method !== "_all") out.push({ method: method.toUpperCase(), path: layer.route.path });
+      } else if (layer.handle && Array.isArray(layer.handle.stack)) {
+        walk(layer.handle.stack);
+      }
+    }
+  };
+  walk(router.stack);
+  return out;
+};
+
+/**
+ * Every endpoint of 01-contracts §4 under /studio (ids as 1), so the switch-off
+ * gate is checked for routes no module has built yet as well as for built ones.
+ */
+const STUDIO_CONTRACT_ROUTES = [
+  ["GET", "/readiness?kind=ghg&year=2025"],
+  ["GET", "/brand-kit"], ["PUT", "/brand-kit"], ["GET", "/styles?kind=ghg"],
+  ["GET", "/templates?kind=ghg"], ["GET", "/templates/1"], ["GET", "/layouts?kind=ghg"], ["GET", "/elements"],
+  ["POST", "/assets"], ["GET", "/assets"], ["DELETE", "/assets/1"],
+  ["POST", "/resolve"], ["GET", "/docs/1/inputs"], ["PATCH", "/docs/1/inputs"],
+  ["GET", "/docs"], ["POST", "/docs"], ["GET", "/docs/1"], ["PATCH", "/docs/1"], ["DELETE", "/docs/1"],
+  ["POST", "/docs/1/rebuild"], ["POST", "/docs/1/presence"], ["POST", "/docs/1/duplicate"], ["POST", "/docs/1/resize"],
+  ["GET", "/docs/1/preview.html?mode=sheet"], ["POST", "/docs/1/jobs"], ["GET", "/jobs/1"],
+  ["GET", "/docs/1/versions"], ["POST", "/docs/1/versions"], ["POST", "/docs/1/versions/1/restore"], ["GET", "/docs/1/versions/1/pdf"],
+  ["POST", "/docs/1/shares"], ["GET", "/docs/1/shares"], ["DELETE", "/shares/1"],
+  ["POST", "/docs/1/ai"], ["POST", "/docs/1/ai/chat"], ["GET", "/docs/1/ai/usage"],
+  ["POST", "/docs/1/checks"], ["GET", "/docs/1/drift"],
+  ["POST", "/comments/1/task"], ["PATCH", "/comments/1/task"],
+  ["POST", "/docs/1/approvals"], ["POST", "/approvals/1/decide"], ["DELETE", "/approvals/1"],
+  ["POST", "/templates/from-doc"], ["POST", "/layouts/from-page"], ["GET", "/fonts/source-sans-3.woff2"],
+  // DS-2 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["GET", "/inputs/prefill?kind=ghg&year=2025"], ["GET", "/data"], ["GET", "/materiality"], ["PUT", "/materiality"],
+  // DS-4 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["PATCH", "/assets/1"], ["GET", "/assets/1/file"], ["POST", "/assets/generate"],
+  // DS-11 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["GET", "/docs/1/jobs"], ["GET", "/jobs/1/file"],
+  // DS-9 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["POST", "/ai/brief"],
+  // DS-10 addition outside 01-contracts §4 (awaiting a DS-0 contracts follow-up): the linked-source chip
+  ["GET", "/docs/1/source"],
+  // DS-13 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["GET", "/docs/1/people"], ["GET", "/docs/1/comments"], ["POST", "/docs/1/comments"], ["PATCH", "/comments/1"], ["DELETE", "/comments/1"],
+  ["GET", "/docs/1/approvals"], ["GET", "/review-settings"], ["PUT", "/review-settings"], ["DELETE", "/templates/1"],
+  ["GET", "/docs/1/versions/1/preview.html?mode=paged"],
+].map(([method, p]) => ({ method, path: p }));
+
+/** A concrete URL for a route pattern (":id" → 1). */
+const concrete = (p) => "/studio" + p.replace(/:[a-z_]+/gi, "1");
+
+/** Every gated route: the built ones (walked) and the contract list, without GET /status. */
+const gatedStudioRoutes = () => {
+  const seen = new Set();
+  return [...studioRoutes().map((r) => ({ method: r.method, path: concrete(r.path) })), ...STUDIO_CONTRACT_ROUTES.map((r) => ({ method: r.method, path: "/studio" + r.path }))]
+    .filter((r) => !(r.method === "GET" && r.path === "/studio/status"))
+    .filter((r) => (seen.has(`${r.method} ${r.path}`) ? false : seen.add(`${r.method} ${r.path}`)));
+};
+
+/** Calls a route as `who`; a Superadmin names the company (query and body). */
+const callAs = (route, who, companyId) => {
+  const hasBody = route.method !== "GET" && route.method !== "DELETE";
+  if (who !== "superadmin") return call(route.method, route.path, who, hasBody ? {} : undefined);
+  const sep = route.path.includes("?") ? "&" : "?";
+  return call(route.method, `${route.path}${sep}company_id=${companyId}`, who, hasBody ? { company_id: companyId } : undefined);
+};
+
+// DS-12 · report details that answer the GHG completeness checks a design can't fix by itself
+// (consolidation, responsible person, uncertainty, verification, every Scope 3 category
+// excluded with a reason), so a test can make a final. Returns the new rev and the warning
+// ids a final must acknowledge; fails when an error check is still open.
+const FINAL_READY_INPUTS = {
+  consolidation_approach: { value: "Operational control" },
+  responsible_person: { value: "Head of Sustainability" },
+  uncertainty_statement: { value: "Activity data is metered or invoiced; factor uncertainty follows the factor sources." },
+  verification: { value: { status: "none" } },
+  exclusions: { value: Array.from({ length: 15 }, (_, i) => ({ what: `Category ${i + 1}`, reason: "Not relevant in the Scope 3 screening for this test company." })) },
+};
+async function readyForFinal(docId, who = "manager") {
+  const cur = await call("GET", `/studio/docs/${docId}/inputs`, who);
+  if (cur.status !== 200) throw new Error(`inputs: ${cur.status} ${JSON.stringify(cur.json)}`);
+  const p = await call("PATCH", `/studio/docs/${docId}/inputs`, who, { rev: cur.json.rev, inputs: FINAL_READY_INPUTS });
+  if (p.status !== 200) throw new Error(`inputs patch: ${p.status} ${JSON.stringify(p.json)}`);
+  const c = await call("POST", `/studio/docs/${docId}/checks`, who, { rev: p.json.rev });
+  if (c.status !== 200) throw new Error(`checks: ${c.status} ${JSON.stringify(c.json)}`);
+  const errors = c.json.checks.filter((x) => x.severity === "error");
+  if (errors.length) throw new Error(`errors still open: ${JSON.stringify(errors.map((e) => [e.id, e.elementId, e.message]))}`);
+  return { rev: p.json.rev, acknowledgedWarnings: c.json.warnings };
+}
+
+module.exports = { setStudio, setKpi, runScript, studioRoutes, STUDIO_CONTRACT_ROUTES, gatedStudioRoutes, concrete, callAs, FINAL_READY_INPUTS, readyForFinal };

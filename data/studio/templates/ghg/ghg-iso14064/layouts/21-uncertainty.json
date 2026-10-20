@@ -1,0 +1,265 @@
+{
+  "role": "uncertainty",
+  "pageKind": "data_page",
+  "name": "Uncertainty",
+  "page": {
+    "id": "uncertainty",
+    "kind": "freeform",
+    "name": "Uncertainty",
+    "background": {},
+    "elements": [
+      {
+        "id": "uncertainty.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Uncertainty"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "uncertainty.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Uncertainty assessment"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "uncertainty.statement",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 174,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "uncertainty_statement"
+          },
+          "label": "Uncertainty statement",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "uncertainty.primary",
+        "type": "progress",
+        "frame": {
+          "x": 18,
+          "y": 124,
+          "w": 54,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "primary_data_pct",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "ring",
+          "label": "Supplier-specific data"
+        }
+      },
+      {
+        "id": "uncertainty.dq",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 78,
+          "y": 124,
+          "w": 54,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "dq_score",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Data quality score (1 best, 5 worst)",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "uncertainty.months",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 138,
+          "y": 124,
+          "w": 54,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "months_covered",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Months with data",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "uncertainty.method",
+        "type": "placeholder",
+        "frame": {
+          "x": 18,
+          "y": 176,
+          "w": 174,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "accepts": [
+            "text",
+            "table"
+          ],
+          "hint": "How uncertainty was assessed: the sources of uncertainty and their ranges"
+        }
+      },
+      {
+        "id": "uncertainty.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "uncertainty.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Uncertainty"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "uncertainty.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 21
+}

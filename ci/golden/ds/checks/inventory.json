@@ -1,0 +1,23 @@
+{
+ "template": "ghg-inventory-classic",
+ "row": ["id", "severity", "pageId", "elementId", "fix", "category"],
+ "checks": [
+  ["EMPTY_PLACEHOLDER","error","p02-compliance","p02-compliance.signature",null,null],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",2],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",3],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",5],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",9],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",10],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",11],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",12],
+  ["SCOPE3_CATEGORY_UNADDRESSED","error","p11-scope3_categories",null,"mark_excluded",15],
+  ["EMPTY_PLACEHOLDER","error","p13-biogenic","p13-biogenic.offsets",null,null],
+  ["EMPTY_PLACEHOLDER","error","p15-trend","p15-trend.targets",null,null],
+  ["EMPTY_PLACEHOLDER","error","p18-assurance","p18-assurance.statement",null,null],
+  ["RESPONSIBLE_PERSON_MISSING","warning","p02-compliance","p02-compliance.responsible","open_inputs",null],
+  ["VERIFICATION_STATEMENT_MISSING","warning","p02-compliance","p02-compliance.verification","open_inputs",null],
+  ["BASE_YEAR_MISSING","warning","p04-exec_summary","p04-exec_summary.waterfall","open_inputs",null],
+  ["SCOPE2_MARKET_MISSING","warning","p04-exec_summary","p04-exec_summary.market","open_inputs",null],
+  ["UNCERTAINTY_MISSING","info","p16-data_quality","p16-data_quality.uncertainty","open_inputs",null]
+ ]
+}

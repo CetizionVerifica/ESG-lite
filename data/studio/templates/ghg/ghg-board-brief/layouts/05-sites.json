@@ -1,0 +1,108 @@
+{
+  "role": "sites",
+  "pageKind": "data_page",
+  "name": "Sites",
+  "page": {
+    "id": "sites",
+    "kind": "freeform",
+    "name": "Sites",
+    "background": {},
+    "elements": [
+      {
+        "id": "sites.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Operations"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "sites.heading",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 30,
+          "w": 298.7,
+          "h": 21,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Emissions by site"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "sites.bars",
+        "type": "chart",
+        "frame": {
+          "x": 20,
+          "y": 52,
+          "w": 298.7,
+          "h": 118,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "site"
+          },
+          "kind": "site_bars",
+          "options": {
+            "stacked": true,
+            "showValues": true
+          }
+        }
+      }
+    ]
+  },
+  "sort": 5
+}

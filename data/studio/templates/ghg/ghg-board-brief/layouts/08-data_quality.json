@@ -1,0 +1,189 @@
+{
+  "role": "data_quality",
+  "pageKind": "data_page",
+  "name": "Data quality",
+  "page": {
+    "id": "data_quality",
+    "kind": "freeform",
+    "name": "Data quality",
+    "background": {},
+    "elements": [
+      {
+        "id": "data_quality.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Confidence"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "data_quality.heading",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 30,
+          "w": 298.7,
+          "h": 21,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Data quality and gaps"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "data_quality.primary",
+        "type": "progress",
+        "frame": {
+          "x": 20,
+          "y": 56,
+          "w": 94.23,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "primary_data_pct",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "ring",
+          "label": "Supplier-specific data"
+        }
+      },
+      {
+        "id": "data_quality.months",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 122.23,
+          "y": 56,
+          "w": 94.23,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "months_covered",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Months with data",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "data_quality.sites",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 224.47,
+          "y": 56,
+          "w": 94.23,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "sites_covered",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Sites with approved data",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "data_quality.gaps",
+        "type": "callout",
+        "frame": {
+          "x": 20,
+          "y": 128,
+          "w": 298.7,
+          "h": 34,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Gaps to close before the final report: list the missing sites, months or categories here."
+                  }
+                ]
+              }
+            ]
+          },
+          "icon": "alert",
+          "tone": "warn"
+        }
+      }
+    ]
+  },
+  "sort": 8
+}

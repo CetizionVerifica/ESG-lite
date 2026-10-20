@@ -1,0 +1,47 @@
+{
+  "element": "text",
+  "elements": [
+    {
+      "bytes": 382,
+      "frame": "32.257,102.626,274.186,5.131,0",
+      "id": "p-cover.kicker",
+      "sha256": "c7bebf62e96fd534ca49e249a7a3ff95759788838ddd7c45b43c46bf04aaf131"
+    },
+    {
+      "bytes": 395,
+      "frame": "32.257,109.04,274.186,25.657,0",
+      "id": "p-cover.title",
+      "sha256": "df54dd40f1dcecdd648ba33293a43c258488493406180c0e75ce21eb50ec8d15"
+    },
+    {
+      "bytes": 373,
+      "frame": "24.193,9.621,290.314,8.98,0",
+      "id": "p-summary.heading",
+      "sha256": "304dbf3e29e801d45572d0b24e244a73825ffcff5fef59dfa94de17ce2179358"
+    },
+    {
+      "bytes": 906,
+      "frame": "24.193,20.525,290.314,21.808,0",
+      "id": "p-summary.body",
+      "sha256": "b4ff9bd21eb3d10289303288815469db4108e2dc29888ed98bb10c57930c7ca9"
+    },
+    {
+      "bytes": 485,
+      "frame": "169.35,142.394,145.157,5.131,0",
+      "id": "p-el.overflow",
+      "sha256": "7f7e881feb7c2bdbfd041bcc578868b6f686df040d61b4d456a410bcdf995258"
+    },
+    {
+      "bytes": 372,
+      "frame": "64.514,168.051,96.771,3.848,0",
+      "id": "p-el.tiny",
+      "sha256": "38182df2ef7df2b13823fe8af0df2f349d6dfef3934dcbfe12ab8d45fa474e18"
+    }
+  ],
+  "format": "slide_16_9",
+  "hidden": [
+    "p-el.hidden"
+  ],
+  "mode": "present",
+  "pages": 1
+}

@@ -1,0 +1,154 @@
+{
+  "role": "chapter",
+  "pageKind": "chapter_opener",
+  "name": "Chapter opener",
+  "page": {
+    "id": "chapter",
+    "kind": "freeform",
+    "name": "Chapter opener",
+    "background": {},
+    "elements": [
+      {
+        "id": "chapter.number",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 70,
+          "w": 60,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "01"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "big_number",
+          "align": "left"
+        }
+      },
+      {
+        "id": "chapter.rule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 104,
+          "w": 174,
+          "h": 0.4,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "chapter.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 110,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Chapter"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "chapter.title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 118,
+          "w": 174,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Chapter title"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "chapter.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 152,
+          "w": 120,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "One or two sentences on what this chapter covers."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 6
+}

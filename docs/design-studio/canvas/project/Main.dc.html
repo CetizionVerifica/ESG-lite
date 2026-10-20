@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design Studio home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;family=Source+Serif+4:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:4px;font-size:12px;font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;font:500 14px "IBM Plex Sans",sans-serif;border:1px solid #e1e8f0;background:#fff;color:#16202e;cursor:pointer}
+.btn-primary{background:#2572c0;border-color:#2572c0;color:#fff}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 900px; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column">
+  <header style="height: 56px; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 24px; padding: 0 24px; flex-wrap: wrap">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <div style="width: 28px; height: 28px; border-radius: 7px; background: #2572c0; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 7px; box-sizing: border-box" aria-hidden="true">
+        <div style="height: 3px; background: #fff; border-radius: 2px"></div><div style="height: 3px; width: 70%; background: #fff; border-radius: 2px"></div><div style="height: 3px; background: #fff; border-radius: 2px"></div>
+      </div>
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 17px">ESGLite</span>
+    </div>
+    <nav style="display: flex; gap: 4px; flex-wrap: wrap" aria-label="Main">
+      <a href="#" style="padding: 8px 12px; border-radius: 8px; color: #5f6b7c; text-decoration: none">Overview</a>
+      <a href="#" style="padding: 8px 12px; border-radius: 8px; color: #5f6b7c; text-decoration: none">Data</a>
+      <a href="#" style="padding: 8px 12px; border-radius: 8px; color: #5f6b7c; text-decoration: none">Review</a>
+      <a href="#" style="padding: 8px 12px; border-radius: 8px; color: #5f6b7c; text-decoration: none">KPI</a>
+      <a href="#" style="padding: 8px 12px; border-radius: 8px; background: #eef4fa; color: #1e5d9d; text-decoration: none; font-weight: 600">Reports</a>
+    </nav>
+    <div style="flex: 1"></div>
+    <span style="color: #5f6b7c">Northwind Metals (sample)</span>
+    <div style="width: 32px; height: 32px; border-radius: 50%; background: #dce8f5; color: #18497b; display: flex; align-items: center; justify-content: center; font-weight: 600">AK</div>
+  </header>
+
+  <main style="width: 100%; max-width: 1280px; margin: 0 auto; padding: 28px 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+    <div style="display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+      <div style="flex: 1; min-width: 260px">
+        <div style="font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #5f6b7c; font-weight: 600">Reports</div>
+        <h1 style="margin: 4px 0 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px">Design Studio</h1>
+        <p style="margin: 6px 0 0; color: #5f6b7c">Design GHG and sustainability reports from your approved data. Every number stays linked.</p>
+      </div>
+      <button class="btn">Brand kit</button>
+      <button class="btn">Design from a brief</button>
+      <button class="btn btn-primary">+ New design</button>
+    </div>
+
+    <section aria-labelledby="start" style="display: flex; flex-direction: column; gap: 12px">
+      <h2 id="start" style="margin: 0; font-size: 16px">What will you design?</h2>
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px">
+        <a href="Templates.dc.html" style="text-decoration: none; color: inherit; background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 120px; border-radius: 8px; background: #eef4fa; display: flex; align-items: center; justify-content: center">
+            <div style="width: 66px; height: 94px; background: #18497b; border-radius: 3px; box-shadow: 0 2px 6px rgba(22,32,46,.18); display: flex; flex-direction: column; justify-content: flex-end; padding: 8px; box-sizing: border-box; gap: 4px">
+              <div style="height: 4px; width: 80%; background: #fff; border-radius: 2px"></div><div style="height: 3px; width: 50%; background: #8fd3cd; border-radius: 2px"></div>
+            </div>
+          </div>
+          <div><div style="font-weight: 600">GHG report</div><div style="color: #5f6b7c; font-size: 13px">A4 · Scope 1, 2 and 3 inventory</div></div>
+        </a>
+        <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 120px; border-radius: 8px; background: #edf8f7; display: flex; align-items: center; justify-content: center">
+            <div style="width: 66px; height: 94px; background: #fff; border-radius: 3px; box-shadow: 0 2px 6px rgba(22,32,46,.18); padding: 8px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
+              <div style="height: 34px; background: #1ea79a; border-radius: 2px"></div><div style="height: 4px; width: 80%; background: #16202e; border-radius: 2px"></div><div style="height: 3px; width: 60%; background: #b7e3df; border-radius: 2px"></div>
+            </div>
+          </div>
+          <div><div style="font-weight: 600">Sustainability report</div><div style="color: #5f6b7c; font-size: 13px">A4 · GRI, BRSR, ESRS</div></div>
+        </div>
+        <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 120px; border-radius: 8px; background: #eef4fa; display: flex; align-items: center; justify-content: center">
+            <div style="width: 116px; height: 66px; background: #fff; border-radius: 3px; box-shadow: 0 2px 6px rgba(22,32,46,.18); padding: 8px; box-sizing: border-box; display: flex; gap: 6px; align-items: flex-end">
+              <div style="width: 14px; height: 30px; background: #18497b"></div><div style="width: 14px; height: 40px; background: #1d9f92"></div><div style="width: 14px; height: 22px; background: #c27b22"></div>
+            </div>
+          </div>
+          <div><div style="font-weight: 600">Board deck</div><div style="color: #5f6b7c; font-size: 13px">16:9 · 8–10 slides</div></div>
+        </div>
+        <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 120px; border-radius: 8px; background: #eef4fa; display: flex; align-items: center; justify-content: center">
+            <div style="width: 66px; height: 94px; background: #fff; border-radius: 3px; box-shadow: 0 2px 6px rgba(22,32,46,.18); padding: 8px; box-sizing: border-box; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start">
+              <div style="height: 16px; background: #dce8f5"></div><div style="height: 16px; background: #dce8f5"></div><div style="height: 16px; background: #dce8f5"></div><div style="height: 16px; background: #dce8f5"></div><div style="height: 22px; background: #b9d2eb; grid-column: span 2"></div>
+            </div>
+          </div>
+          <div><div style="font-weight: 600">One-page summary</div><div style="color: #5f6b7c; font-size: 13px">A4 · for suppliers and customers</div></div>
+        </div>
+        <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 120px; border-radius: 8px; background: #eef4fa; display: flex; align-items: center; justify-content: center">
+            <div style="width: 84px; height: 84px; background: #123c6b; border-radius: 3px; box-shadow: 0 2px 6px rgba(22,32,46,.18); padding: 10px; box-sizing: border-box; color: #fff; font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 18px; display: flex; align-items: flex-end">−12%</div>
+          </div>
+          <div><div style="font-weight: 600">Social card</div><div style="color: #5f6b7c; font-size: 13px">1:1 or 1.91:1</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="ready" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+      <h2 id="ready" style="margin: 0; font-size: 16px; grid-column: 1 / -1">Readiness · FY 2025–26</h2>
+      <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600; flex: 1">GHG report</span><span class="chip" style="background: #fdf5e3; color: #9a6300">Almost ready</span></div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+          <div><div class="num" style="font-size: 22px; font-weight: 500">1,284</div><div style="color: #5f6b7c; font-size: 12px">approved entries</div></div>
+          <div><div class="num" style="font-size: 22px; font-weight: 500; color: #9a6300">4</div><div style="color: #5f6b7c; font-size: 12px">pending approval</div></div>
+          <div><div class="num" style="font-size: 22px; font-weight: 500">6 / 7</div><div style="color: #5f6b7c; font-size: 12px">sites with data</div></div>
+          <div><div class="num" style="font-size: 22px; font-weight: 500">11 / 15</div><div style="color: #5f6b7c; font-size: 12px">Scope 3 categories addressed</div></div>
+        </div>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+          <li style="display: flex; gap: 8px"><span style="color: #9a6300">●</span><span style="flex: 1">4 entries wait for approval. A final needs them approved.</span><a href="#">Open Review</a></li>
+          <li style="display: flex; gap: 8px"><span style="color: #9a6300">●</span><span style="flex: 1">Pune warehouse has no approved data for this year.</span><a href="#">Open site</a></li>
+          <li style="display: flex; gap: 8px"><span style="color: #5f6b7c">●</span><span style="flex: 1">Categories 8, 10, 13 and 14 are neither reported nor excluded.</span><a href="#">Scope 3 screening</a></li>
+        </ul>
+      </div>
+      <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600; flex: 1">Sustainability report</span><span class="chip" style="background: #e1f3ea; color: #16794c">Year locked 14 Apr 2026</span></div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+          <div><div class="num" style="font-size: 22px; font-weight: 500">96%</div><div style="color: #5f6b7c; font-size: 12px">GRI coverage</div></div>
+          <div><div class="num" style="font-size: 22px; font-weight: 500">100%</div><div style="color: #5f6b7c; font-size: 12px">BRSR coverage</div></div>
+          <div><div class="num" style="font-size: 22px; font-weight: 500">88%</div><div style="color: #5f6b7c; font-size: 12px">ESRS coverage</div></div>
+        </div>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+          <li style="display: flex; gap: 8px"><span style="color: #9a6300">●</span><span style="flex: 1">3 KPI values are missing for two sites.</span><a href="#">Fix in KPI review</a></li>
+          <li style="display: flex; gap: 8px"><span style="color: #5f6b7c">●</span><span style="flex: 1">Needs KPI tracking, which is on for your company.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section aria-labelledby="recent" style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 12px"><h2 id="recent" style="margin: 0; font-size: 16px; flex: 1">Recent designs</h2><span style="color: #5f6b7c; font-size: 13px">All kinds ▾</span></div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+        <a href="Editor.dc.html" style="text-decoration: none; color: inherit; background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column">
+          <div style="height: 150px; background: #eef4fa; display: flex; align-items: center; justify-content: center; gap: 8px">
+            <div style="width: 84px; height: 118px; background: #18497b; border-radius: 2px; padding: 10px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px"><div style="color: #fff; font-family: 'Source Serif 4', serif; font-size: 11px; font-weight: 700; line-height: 1.1">GHG Inventory FY 2025–26</div><div style="height: 3px; width: 50%; background: #8fd3cd"></div></div>
+            <div style="width: 84px; height: 118px; background: #fff; border-radius: 2px; padding: 8px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px"><div style="height: 4px; width: 70%; background: #16202e"></div><div style="display: flex; gap: 3px; align-items: flex-end; height: 50px"><div style="flex: 1; height: 60%; background: #18497b"></div><div style="flex: 1; height: 85%; background: #1d9f92"></div><div style="flex: 1; height: 100%; background: #c27b22"></div></div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+            <div style="font-weight: 600">GHG Inventory FY 2025–26</div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap"><span class="chip" style="background: #e3edfb; color: #1d5fb8">GHG</span><span class="chip" style="background: #eef4fa; color: #5f6b7c">A4 · 22 pages</span><span class="chip" style="background: #fdf5e3; color: #9a6300">Draft</span></div>
+            <div style="color: #5f6b7c; font-size: 12px">Edited 2 h ago by you</div>
+          </div>
+        </a>
+        <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column">
+          <div style="height: 150px; background: #eef4fa; display: flex; align-items: center; justify-content: center">
+            <div style="width: 180px; height: 101px; background: #0b223a; border-radius: 2px; padding: 12px; box-sizing: border-box; color: #fff; display: flex; flex-direction: column; justify-content: space-between"><div style="font-size: 10px; color: #92b9e0">Board brief</div><div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 14px">Emissions down 12% vs base year</div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+            <div style="font-weight: 600">Board brief FY26</div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap"><span class="chip" style="background: #e3edfb; color: #1d5fb8">GHG</span><span class="chip" style="background: #eef4fa; color: #5f6b7c">16:9 · 9 slides</span><span class="chip" style="background: #e3edfb; color: #1d5fb8">In review</span></div>
+            <div style="color: #5f6b7c; font-size: 12px">Made from GHG Inventory FY26 · yesterday</div>
+          </div>
+        </div>
+        <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column">
+          <div style="height: 150px; background: #edf8f7; display: flex; align-items: center; justify-content: center">
+            <div style="width: 84px; height: 118px; background: #fff; border-radius: 2px; padding: 8px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px"><div style="height: 50px; background: #1ea79a"></div><div style="height: 5px; width: 80%; background: #16202e"></div><div style="height: 3px; width: 60%; background: #b7e3df"></div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+            <div style="font-weight: 600">Sustainability Report FY 2024–25</div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap"><span class="chip" style="background: #edf8f7; color: #136b63">Sustainability</span><span class="chip" style="background: #eef4fa; color: #5f6b7c">A4 · 46 pages</span><span class="chip" style="background: #e1f3ea; color: #16794c">Final v2</span></div>
+            <div style="color: #5f6b7c; font-size: 12px">12 Jun 2025 · SHA 9f2c…e1</div>
+          </div>
+        </div>
+        <div style="background: #fff; border: 1px dashed #b9d2eb; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; text-align: center">
+          <div style="font-weight: 600">Start from your GHG report</div>
+          <div style="color: #5f6b7c; font-size: 13px">Open Reports › GHG report and choose “Design this report”. Your filters come with you.</div>
+          <a href="#" class="btn">Go to GHG report</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

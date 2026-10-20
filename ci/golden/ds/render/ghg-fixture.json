@@ -1,0 +1,1145 @@
+{
+  "doc": {
+    "schemaVersion": 2,
+    "kind": "ghg",
+    "purpose": "report",
+    "format": "a4",
+    "meta": {
+      "title": "Seed Co GHG inventory 2025",
+      "year": 2025,
+      "yearType": "CY",
+      "sites": "all",
+      "frameworks": [
+        "GHGP"
+      ],
+      "language": "en"
+    },
+    "design": {
+      "templateId": "ghg-inventory",
+      "templateVersion": 1,
+      "theme": {
+        "look": "classic"
+      }
+    },
+    "pages": [
+      {
+        "id": "p-ghg",
+        "kind": "freeform",
+        "name": "GHG charts",
+        "background": {},
+        "elements": [
+          {
+            "id": "g.scope_split",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 10,
+              "y": 10,
+              "w": 90,
+              "h": 40
+            },
+            "z": 0,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "total",
+                "years": {
+                  "last": 1
+                },
+                "sites": "all",
+                "breakdown": "scope"
+              },
+              "kind": "scope_split",
+              "options": {},
+              "title": "Scope 3 is the largest share"
+            }
+          },
+          {
+            "id": "g.scope_donut",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 110,
+              "y": 10,
+              "w": 90,
+              "h": 55
+            },
+            "z": 1,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "total",
+                "years": {
+                  "last": 3
+                },
+                "sites": "all",
+                "breakdown": "scope"
+              },
+              "kind": "scope_split",
+              "options": {
+                "variant": "donut",
+                "basisNote": false
+              }
+            }
+          },
+          {
+            "id": "g.category_bars",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 10,
+              "y": 55,
+              "w": 90,
+              "h": 60
+            },
+            "z": 2,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "scope3",
+                "years": {
+                  "last": 1
+                },
+                "sites": "all",
+                "breakdown": "scope3_category",
+                "top": 8
+              },
+              "kind": "category_bars",
+              "options": {},
+              "title": "Purchased goods lead Scope 3"
+            }
+          },
+          {
+            "id": "g.category_prior",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 110,
+              "y": 70,
+              "w": 90,
+              "h": 50
+            },
+            "z": 3,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "scope3",
+                "years": {
+                  "last": 2
+                },
+                "sites": "all",
+                "breakdown": "scope3_category",
+                "top": 5
+              },
+              "kind": "category_bars",
+              "options": {
+                "greyPrior": true
+              }
+            }
+          },
+          {
+            "id": "g.gas_split",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 10,
+              "y": 120,
+              "w": 60,
+              "h": 45
+            },
+            "z": 4,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "total",
+                "years": {
+                  "last": 2
+                },
+                "sites": "all",
+                "breakdown": "gas"
+              },
+              "kind": "gas_split",
+              "options": {}
+            }
+          },
+          {
+            "id": "g.site_bars",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 75,
+              "y": 125,
+              "w": 60,
+              "h": 40
+            },
+            "z": 5,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "total",
+                "years": {
+                  "last": 1
+                },
+                "sites": "all",
+                "breakdown": "site",
+                "top": 10
+              },
+              "kind": "site_bars",
+              "options": {
+                "colors": "brand"
+              }
+            }
+          },
+          {
+            "id": "g.monthly_stack",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 140,
+              "y": 125,
+              "w": 60,
+              "h": 45
+            },
+            "z": 6,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "total",
+                "years": {
+                  "last": 1
+                },
+                "sites": "all",
+                "breakdown": "month"
+              },
+              "kind": "monthly_stack",
+              "options": {}
+            }
+          },
+          {
+            "id": "g.monthly_plain",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 10,
+              "y": 170,
+              "w": 60,
+              "h": 35
+            },
+            "z": 7,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "scope2_location",
+                "years": {
+                  "last": 1
+                },
+                "sites": "all",
+                "breakdown": "quarter"
+              },
+              "kind": "monthly_stack",
+              "options": {
+                "showLegend": false
+              }
+            }
+          },
+          {
+            "id": "g.base_year_waterfall",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 75,
+              "y": 170,
+              "w": 65,
+              "h": 45
+            },
+            "z": 8,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "total",
+                "years": [
+                  2022,
+                  2025
+                ],
+                "sites": "all",
+                "breakdown": "scope"
+              },
+              "kind": "base_year_waterfall",
+              "options": {},
+              "title": "Since the 2022 base year"
+            }
+          },
+          {
+            "id": "g.bridge_compare",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 145,
+              "y": 175,
+              "w": 55,
+              "h": 40
+            },
+            "z": 9,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "total",
+                "years": {
+                  "last": 2
+                },
+                "sites": "all",
+                "compare": "base"
+              },
+              "kind": "base_year_waterfall",
+              "options": {}
+            }
+          },
+          {
+            "id": "g.intensity_line",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 10,
+              "y": 220,
+              "w": 60,
+              "h": 40
+            },
+            "z": 10,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "intensity_revenue",
+                "years": {
+                  "last": 5
+                },
+                "sites": "all"
+              },
+              "kind": "intensity_line",
+              "options": {}
+            }
+          },
+          {
+            "id": "g.treemap",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 75,
+              "y": 220,
+              "w": 65,
+              "h": 55
+            },
+            "z": 11,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "scope3",
+                "years": {
+                  "last": 1
+                },
+                "sites": "all",
+                "breakdown": "scope3_category"
+              },
+              "kind": "treemap",
+              "options": {}
+            }
+          },
+          {
+            "id": "g.treemap_brand",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 145,
+              "y": 220,
+              "w": 55,
+              "h": 30
+            },
+            "z": 12,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "ghg",
+                "metric": "scope3",
+                "years": {
+                  "last": 1
+                },
+                "sites": "all",
+                "breakdown": "scope3_category"
+              },
+              "kind": "treemap",
+              "options": {
+                "colors": "brand",
+                "showValues": false
+              }
+            }
+          },
+          {
+            "id": "g.custom",
+            "type": "chart",
+            "frame": {
+              "rotation": 0,
+              "x": 145,
+              "y": 255,
+              "w": 55,
+              "h": 30
+            },
+            "z": 13,
+            "source": "user",
+            "props": {
+              "binding": {
+                "source": "custom",
+                "columns": [
+                  "Initiative",
+                  "Saved"
+                ],
+                "rows": [
+                  [
+                    "LED retrofit",
+                    120
+                  ],
+                  [
+                    "Solar PPA",
+                    860
+                  ],
+                  [
+                    "Fleet EVs",
+                    310
+                  ]
+                ]
+              },
+              "kind": "bar",
+              "options": {
+                "horizontal": true
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "assets": []
+  },
+  "data": {
+    "values": {
+      "{\"breakdown\":\"scope\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
+        "display": "12,480",
+        "value": 12480,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "Scope 1",
+                "value": 3410
+              },
+              {
+                "key": "Scope 2",
+                "value": 5800
+              },
+              {
+                "key": "Scope 3",
+                "value": 3270
+              }
+            ]
+          }
+        ],
+        "total": 12480
+      },
+      "{\"breakdown\":\"scope\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":3}}": {
+        "display": "12,480",
+        "value": 12480,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2023",
+            "values": [
+              {
+                "key": "Scope 1",
+                "value": 3600
+              },
+              {
+                "key": "Scope 2",
+                "value": 6100
+              },
+              {
+                "key": "Scope 3",
+                "value": 3520
+              }
+            ]
+          },
+          {
+            "label": "2024",
+            "values": [
+              {
+                "key": "Scope 1",
+                "value": 3500
+              },
+              {
+                "key": "Scope 2",
+                "value": 6000
+              },
+              {
+                "key": "Scope 3",
+                "value": 3530
+              }
+            ]
+          },
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "Scope 1",
+                "value": 3410
+              },
+              {
+                "key": "Scope 2",
+                "value": 5800
+              },
+              {
+                "key": "Scope 3",
+                "value": 3270
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"scope3_category\",\"metric\":\"scope3\",\"sites\":\"all\",\"source\":\"ghg\",\"top\":8,\"years\":{\"last\":1}}": {
+        "display": "3,270",
+        "value": 3270,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "1 · Purchased goods and services",
+                "value": 1290
+              },
+              {
+                "key": "4 · Upstream transportation and distribution",
+                "value": 620
+              },
+              {
+                "key": "6 · Business travel",
+                "value": 410
+              },
+              {
+                "key": "7 · Employee commuting",
+                "value": 300
+              },
+              {
+                "key": "5 · Waste generated in operations",
+                "value": 210
+              },
+              {
+                "key": "3 · Fuel- and energy-related activities",
+                "value": 180
+              },
+              {
+                "key": "2 · Capital goods",
+                "value": 140
+              },
+              {
+                "key": "9 · Downstream transportation and distribution",
+                "value": 70
+              },
+              {
+                "key": "Other",
+                "value": 50
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"scope3_category\",\"metric\":\"scope3\",\"sites\":\"all\",\"source\":\"ghg\",\"top\":5,\"years\":{\"last\":2}}": {
+        "display": "3,270",
+        "value": 3270,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2024",
+            "values": [
+              {
+                "key": "1 · Purchased goods and services",
+                "value": 1400
+              },
+              {
+                "key": "4 · Upstream transportation and distribution",
+                "value": 600
+              },
+              {
+                "key": "6 · Business travel",
+                "value": 380
+              },
+              {
+                "key": "7 · Employee commuting",
+                "value": 310
+              },
+              {
+                "key": "5 · Waste generated in operations",
+                "value": 240
+              },
+              {
+                "key": "Other",
+                "value": 600
+              }
+            ]
+          },
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "1 · Purchased goods and services",
+                "value": 1290
+              },
+              {
+                "key": "4 · Upstream transportation and distribution",
+                "value": 620
+              },
+              {
+                "key": "6 · Business travel",
+                "value": 410
+              },
+              {
+                "key": "7 · Employee commuting",
+                "value": 300
+              },
+              {
+                "key": "5 · Waste generated in operations",
+                "value": 210
+              },
+              {
+                "key": "Other",
+                "value": 440
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"gas\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":2}}": {
+        "display": "12,480",
+        "value": 12480,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2024",
+            "values": [
+              {
+                "key": "CO₂",
+                "value": 8600
+              },
+              {
+                "key": "CH₄",
+                "value": 21.4
+              },
+              {
+                "key": "N₂O",
+                "value": 3.1
+              }
+            ]
+          },
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "CO₂",
+                "value": 8350
+              },
+              {
+                "key": "CH₄",
+                "value": 19.8
+              },
+              {
+                "key": "N₂O",
+                "value": 2.9
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"site\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"top\":10,\"years\":{\"last\":1}}": {
+        "display": "12,480",
+        "value": 12480,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "Manama plant",
+                "value": 6900
+              },
+              {
+                "key": "Sitra warehouse",
+                "value": 2380
+              },
+              {
+                "key": "Head office",
+                "value": 1200
+              },
+              {
+                "key": "Muharraq depot",
+                "value": 2000
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"month\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
+        "display": "12,480",
+        "value": 12480,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "2025-01",
+                "value": 1130
+              },
+              {
+                "key": "2025-02",
+                "value": 1050
+              },
+              {
+                "key": "2025-03",
+                "value": 1060
+              },
+              {
+                "key": "2025-04",
+                "value": 1010
+              },
+              {
+                "key": "2025-05",
+                "value": 1020
+              },
+              {
+                "key": "2025-06",
+                "value": 1055
+              },
+              {
+                "key": "2025-07",
+                "value": 1075
+              },
+              {
+                "key": "2025-08",
+                "value": 1092
+              },
+              {
+                "key": "2025-09",
+                "value": 1060
+              },
+              {
+                "key": "2025-10",
+                "value": 1045
+              },
+              {
+                "key": "2025-11",
+                "value": 1055
+              },
+              {
+                "key": "2025-12",
+                "value": 978
+              }
+            ]
+          }
+        ],
+        "stacks": [
+          {
+            "label": "Scope 1",
+            "values": [
+              {
+                "key": "2025-01",
+                "value": 310
+              },
+              {
+                "key": "2025-02",
+                "value": 290
+              },
+              {
+                "key": "2025-03",
+                "value": 300
+              },
+              {
+                "key": "2025-04",
+                "value": 270
+              },
+              {
+                "key": "2025-05",
+                "value": 260
+              },
+              {
+                "key": "2025-06",
+                "value": 250
+              },
+              {
+                "key": "2025-07",
+                "value": 255
+              },
+              {
+                "key": "2025-08",
+                "value": 262
+              },
+              {
+                "key": "2025-09",
+                "value": 270
+              },
+              {
+                "key": "2025-10",
+                "value": 280
+              },
+              {
+                "key": "2025-11",
+                "value": 300
+              },
+              {
+                "key": "2025-12",
+                "value": 313
+              }
+            ]
+          },
+          {
+            "label": "Scope 2",
+            "values": [
+              {
+                "key": "2025-01",
+                "value": 520
+              },
+              {
+                "key": "2025-02",
+                "value": 480
+              },
+              {
+                "key": "2025-03",
+                "value": 470
+              },
+              {
+                "key": "2025-04",
+                "value": 455
+              },
+              {
+                "key": "2025-05",
+                "value": 470
+              },
+              {
+                "key": "2025-06",
+                "value": 510
+              },
+              {
+                "key": "2025-07",
+                "value": 540
+              },
+              {
+                "key": "2025-08",
+                "value": 545
+              },
+              {
+                "key": "2025-09",
+                "value": 500
+              },
+              {
+                "key": "2025-10",
+                "value": 470
+              },
+              {
+                "key": "2025-11",
+                "value": 455
+              },
+              {
+                "key": "2025-12",
+                "value": 385
+              }
+            ]
+          },
+          {
+            "label": "Scope 3",
+            "values": [
+              {
+                "key": "2025-01",
+                "value": 300
+              },
+              {
+                "key": "2025-02",
+                "value": 280
+              },
+              {
+                "key": "2025-03",
+                "value": 290
+              },
+              {
+                "key": "2025-04",
+                "value": 285
+              },
+              {
+                "key": "2025-05",
+                "value": 290
+              },
+              {
+                "key": "2025-06",
+                "value": 295
+              },
+              {
+                "key": "2025-07",
+                "value": 280
+              },
+              {
+                "key": "2025-08",
+                "value": 285
+              },
+              {
+                "key": "2025-09",
+                "value": 290
+              },
+              {
+                "key": "2025-10",
+                "value": 295
+              },
+              {
+                "key": "2025-11",
+                "value": 300
+              },
+              {
+                "key": "2025-12",
+                "value": 280
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"quarter\",\"metric\":\"scope2_location\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
+        "display": "5,800",
+        "value": 5800,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "Q1",
+                "value": 1470
+              },
+              {
+                "key": "Q2",
+                "value": 1435
+              },
+              {
+                "key": "Q3",
+                "value": 1585
+              },
+              {
+                "key": "Q4",
+                "value": 1310
+              }
+            ]
+          }
+        ],
+        "stacks": [
+          {
+            "label": "Scope 2",
+            "values": [
+              {
+                "key": "Q1",
+                "value": 1470
+              },
+              {
+                "key": "Q2",
+                "value": 1435
+              },
+              {
+                "key": "Q3",
+                "value": 1585
+              },
+              {
+                "key": "Q4",
+                "value": 1310
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"scope\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":[2022,2025]}": {
+        "display": "12,480",
+        "value": 12480,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2022",
+            "values": [
+              {
+                "key": "Scope 1",
+                "value": 3900
+              },
+              {
+                "key": "Scope 2",
+                "value": 6600
+              },
+              {
+                "key": "Scope 3",
+                "value": 3400
+              }
+            ]
+          },
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "Scope 1",
+                "value": 3410
+              },
+              {
+                "key": "Scope 2",
+                "value": 5800
+              },
+              {
+                "key": "Scope 3",
+                "value": 3270
+              }
+            ]
+          }
+        ]
+      },
+      "{\"compare\":\"base\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":2}}": {
+        "display": "12,480",
+        "value": 12480,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "Total emissions",
+            "values": [
+              {
+                "key": "2024",
+                "value": 13030
+              },
+              {
+                "key": "2025",
+                "value": 12480
+              }
+            ]
+          }
+        ],
+        "compare": {
+          "against": "base",
+          "year": 2022,
+          "value": 13900,
+          "change_abs": -1420,
+          "change_pct": -10.2
+        }
+      },
+      "{\"metric\":\"intensity_revenue\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":5}}": {
+        "display": "41.6",
+        "value": 41.6,
+        "unit": "tCO₂e per unit of revenue",
+        "source": "ghg",
+        "series": [
+          {
+            "label": "Intensity per revenue",
+            "values": [
+              {
+                "key": "2021",
+                "value": 52.3
+              },
+              {
+                "key": "2022",
+                "value": 49.8
+              },
+              {
+                "key": "2023",
+                "value": 46.1
+              },
+              {
+                "key": "2024",
+                "value": 44
+              },
+              {
+                "key": "2025",
+                "value": 41.6
+              }
+            ]
+          }
+        ]
+      },
+      "{\"breakdown\":\"scope3_category\",\"metric\":\"scope3\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
+        "display": "3,270",
+        "value": 3270,
+        "unit": "tCO₂e",
+        "source": "ghg",
+        "approvedAt": "2026-04-12T09:30:00.000Z",
+        "series": [
+          {
+            "label": "2025",
+            "values": [
+              {
+                "key": "1 · Purchased goods and services",
+                "value": 1290
+              },
+              {
+                "key": "4 · Upstream transportation and distribution",
+                "value": 620
+              },
+              {
+                "key": "6 · Business travel",
+                "value": 410
+              },
+              {
+                "key": "7 · Employee commuting",
+                "value": 300
+              },
+              {
+                "key": "5 · Waste generated in operations",
+                "value": 210
+              },
+              {
+                "key": "3 · Fuel- and energy-related activities",
+                "value": 180
+              },
+              {
+                "key": "2 · Capital goods",
+                "value": 140
+              },
+              {
+                "key": "9 · Downstream transportation and distribution",
+                "value": 70
+              },
+              {
+                "key": "12 · End-of-life treatment of sold products",
+                "value": 50
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "tokens": {}
+  }
+}

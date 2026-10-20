@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Editor: Brand and Styles</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Source+Serif+4:wght@600;700&amp;family=DM+Serif+Display&amp;family=Fraunces:wght@600&amp;family=Archivo:wght@600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:8px;border:0;background:transparent;color:#16202e;font:500 13px "IBM Plex Sans",sans-serif;cursor:pointer}
+.tb-o{border:1px solid #e1e8f0;background:#fff}
+.tb-p{background:#2572c0;color:#fff}
+.rail{display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:8px 0;border-radius:8px;border:0;background:transparent;color:#5f6b7c;font:500 11px "IBM Plex Sans",sans-serif;cursor:pointer}
+.rail-on{background:#eef4fa;color:#1e5d9d}
+.sep{width:1px;height:20px;background:#e1e8f0}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#5f6b7c;font-weight:600}
+.sw{width:26px;height:26px;border-radius:6px;border:1px solid rgba(22,32,46,.12)}
+.style{border:1px solid #e1e8f0;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;background:#fff;cursor:pointer}
+.dot{width:14px;height:14px;border-radius:50%}
+</style>
+</helmet>
+<div style="width: 100%; height: 900px; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; overflow: hidden">
+  <header style="height: 48px; flex: none; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 6px; padding: 0 12px; flex-wrap: wrap">
+    <a href="Main.dc.html" class="tb" style="text-decoration: none">← Designs</a><span class="sep"></span>
+    <button class="tb">File ▾</button><a href="Resize.dc.html" class="tb" style="text-decoration: none">Resize</a><button class="tb" aria-label="Undo">↶</button><button class="tb" aria-label="Redo">↷</button><span class="sep"></span>
+    <span style="font-weight: 600; padding: 0 6px">Sustainability Report FY 2025–26</span><span style="color: #5f6b7c; font-size: 12px">Draft · Saved just now</span>
+    <div style="flex: 1"></div>
+    <button class="tb tb-o" style="color: #9a6300; border-color: #f3dcae; background: #fdf5e3">⚑ 5 checks</button>
+    <button class="tb tb-o">Comments 0</button><button class="tb tb-o">▶ Present</button><button class="tb tb-o">Share ▾</button><button class="tb tb-p">Download ▾</button>
+  </header>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <nav style="flex: none; width: 72px; background: #fff; border-right: 1px solid #e1e8f0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0" aria-label="Insert">
+      <a href="Templates.dc.html" class="rail" style="text-decoration: none">▦<span>Templates</span></a>
+      <button class="rail">◇<span>Elements</span></button>
+      <button class="rail">T<span>Text</span></button>
+      <button class="rail rail-on" aria-current="true">◐<span>Brand</span></button>
+      <button class="rail">⇪<span>Uploads</span></button>
+      <a href="Editor.dc.html" class="rail" style="text-decoration: none">≋<span>Data</span></a>
+      <button class="rail">▥<span>Charts</span></button>
+      <a href="AI.dc.html" class="rail" style="text-decoration: none; color: #6e56cf">✦<span>AI</span></a>
+      <a href="Grid.dc.html" class="rail" style="text-decoration: none">❐<span>Pages</span></a>
+    </nav>
+
+    <aside style="flex: none; width: 340px; background: #fff; border-right: 1px solid #e1e8f0; display: flex; flex-direction: column; min-height: 0" aria-label="Brand">
+      <div style="padding: 14px 16px; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 8px"><span style="font-weight: 600; flex: 1">Brand kit</span><a href="#" style="font-size: 12px">Edit brand kit</a></div>
+      <div style="flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 18px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div class="lbl">Logos</div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+            <div style="height: 56px; border: 1px solid #e1e8f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; font-family: 'Archivo', sans-serif; font-weight: 600; color: #0e4d47"><span style="width: 16px; height: 16px; background: #1ea79a; transform: rotate(45deg)"></span>NORTHWIND</div>
+            <div style="height: 56px; border-radius: 8px; background: #0e4d47; display: flex; align-items: center; justify-content: center; gap: 6px; font-family: 'Archivo', sans-serif; font-weight: 600; color: #fff"><span style="width: 16px; height: 16px; background: #8fd3cd; transform: rotate(45deg)"></span>NORTHWIND</div>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div class="lbl">Palettes</div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #5f6b7c">Primary</span><div style="display: flex; gap: 6px"><span class="sw" style="background: #0e4d47"></span><span class="sw" style="background: #1ea79a"></span><span class="sw" style="background: #8fd3cd"></span><span class="sw" style="background: #f4efe4"></span><span class="sw" style="background: #16202e"></span></div></div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #5f6b7c">Charts</span><div style="display: flex; gap: 6px"><span class="sw" style="background: #18497b"></span><span class="sw" style="background: #1d9f92"></span><span class="sw" style="background: #c27b22"></span><span class="sw" style="background: #6e56cf"></span><span class="sw" style="background: #5f7f1f"></span></div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div class="lbl">Fonts</div>
+          <div style="border: 1px solid #e1e8f0; border-radius: 8px; padding: 8px 10px"><div style="font-family: 'Fraunces', serif; font-size: 18px">Fraunces</div><div style="font-size: 11px; color: #5f6b7c">Headings</div></div>
+          <div style="border: 1px solid #e1e8f0; border-radius: 8px; padding: 8px 10px"><div style="font-size: 15px">IBM Plex Sans</div><div style="font-size: 11px; color: #5f6b7c">Body and numbers</div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: center"><div class="lbl" style="flex: 1">Styles</div><button class="tb tb-o" style="height: 28px">⇄ Shuffle</button></div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+            <div class="style" style="border: 2px solid #2572c0"><div style="display: flex; gap: 3px"><span class="dot" style="background: #0e4d47"></span><span class="dot" style="background: #1ea79a"></span><span class="dot" style="background: #f4efe4; border: 1px solid #e1e8f0"></span></div><div style="font-family: 'Fraunces', serif; font-size: 20px">Aa</div><div style="font-size: 11px; color: #5f6b7c">Northwind · Fraunces</div></div>
+            <div class="style"><div style="display: flex; gap: 3px"><span class="dot" style="background: #0e4d47"></span><span class="dot" style="background: #8fd3cd"></span><span class="dot" style="background: #fff; border: 1px solid #e1e8f0"></span></div><div style="font-family: 'DM Serif Display', serif; font-size: 20px">Aa</div><div style="font-size: 11px; color: #5f6b7c">Northwind · DM Serif</div></div>
+            <div class="style"><div style="display: flex; gap: 3px"><span class="dot" style="background: #16202e"></span><span class="dot" style="background: #1ea79a"></span><span class="dot" style="background: #0b1222"></span></div><div style="font-family: 'Archivo', sans-serif; font-size: 20px">Aa</div><div style="font-size: 11px; color: #5f6b7c">Night · Archivo</div></div>
+            <div class="style"><div style="display: flex; gap: 3px"><span class="dot" style="background: #18497b"></span><span class="dot" style="background: #c27b22"></span><span class="dot" style="background: #fff; border: 1px solid #e1e8f0"></span></div><div style="font-family: 'Source Serif 4', serif; font-size: 20px">Aa</div><div style="font-size: 11px; color: #5f6b7c">Classic · Source Serif</div></div>
+          </div>
+          <button class="tb tb-p" style="justify-content: center">Apply to all 46 pages</button>
+          <div style="font-size: 12px; color: #5f6b7c">Hover a style to preview it on this page. You can undo.</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div class="lbl">Brand voice</div>
+          <div style="border: 1px solid #e1e8f0; border-radius: 8px; padding: 8px 10px; font-size: 12px; color: #3a4656; line-height: 1.5">Plain, confident, specific. Lead with the number, then why it moved. Name what we haven't fixed yet. No “journey”, no “passionate”.</div>
+        </div>
+      </div>
+    </aside>
+
+    <section style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <div style="height: 44px; flex: none; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 4px; padding: 0 10px" role="toolbar" aria-label="Page">
+        <button class="tb tb-o"><span style="width: 14px; height: 14px; border-radius: 3px; background: #0e4d47"></span> Background</button>
+        <button class="tb">Layout: Chapter opener ▾</button><button class="tb">Reset to layout</button>
+        <div style="flex: 1"></div><span style="font-size: 12px; color: #5f6b7c">Nothing selected</span>
+      </div>
+      <div style="flex: 1; min-height: 0; background: #e9eef4; position: relative; overflow: hidden">
+        <div style="position: absolute; left: 50%; top: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 12px; color: #5f6b7c">Page 14 · Climate (chapter opener)</div>
+          <div style="width: 504px; height: 713px; background: #0e4d47; box-shadow: 0 2px 10px rgba(22,32,46,.12); position: relative; color: #fff; overflow: hidden">
+            <div style="position: absolute; right: -80px; top: -80px; width: 360px; height: 360px; border-radius: 50%; background: #1ea79a; opacity: .35"></div>
+            <div style="position: absolute; right: 40px; top: 120px; width: 200px; height: 260px; border-radius: 100px 100px 0 0; background: linear-gradient(160deg, #8fd3cd, #1ea79a); display: flex; align-items: center; justify-content: center; color: #0e4d47; font-size: 11px">Photo frame (arch)</div>
+            <div style="position: absolute; left: 48px; top: 60px; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #8fd3cd; font-weight: 600">Chapter 3</div>
+            <div style="position: absolute; left: 48px; top: 420px; right: 48px; font-family: 'Fraunces', serif; font-weight: 600; font-size: 46px; line-height: 1.02">Climate</div>
+            <div style="position: absolute; left: 48px; top: 490px; width: 300px; font-size: 11px; line-height: 1.55; color: #dbf1ef">We cut total emissions 12% from our base year. The harder part, supplier emissions, is where the next five years go.</div>
+            <div style="position: absolute; left: 48px; bottom: 60px; right: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 12px">
+              <div><div class="num" style="font-size: 20px">95,710</div><div style="font-size: 9px; color: #b7e3df">tCO₂e total</div></div>
+              <div><div class="num" style="font-size: 20px">▼ 12%</div><div style="font-size: 9px; color: #b7e3df">vs FY22 base year</div></div>
+              <div><div class="num" style="font-size: 20px">31%</div><div style="font-size: 9px; color: #b7e3df">renewable electricity</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <footer style="height: 40px; flex: none; background: #fff; border-top: 1px solid #e1e8f0; display: flex; align-items: center; gap: 12px; padding: 0 12px; font-size: 12px; color: #5f6b7c">
+        <button class="tb">Notes</button><span>Page 14 of 46</span><div style="flex: 1"></div><span class="num">68%</span><a href="Grid.dc.html" class="tb" style="text-decoration: none">⊞ Grid</a>
+      </footer>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

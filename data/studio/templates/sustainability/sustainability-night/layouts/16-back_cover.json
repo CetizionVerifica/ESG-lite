@@ -1,0 +1,126 @@
+{
+  "role": "back_cover",
+  "pageKind": "back_cover",
+  "name": "Back cover",
+  "page": {
+    "id": "back_cover",
+    "kind": "freeform",
+    "name": "Back cover",
+    "background": {},
+    "elements": [
+      {
+        "id": "back_cover.photo",
+        "type": "frame",
+        "frame": {
+          "x": -3,
+          "y": 200,
+          "w": 216,
+          "h": 100,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "mask": "rect",
+          "fit": "cover",
+          "alt": "A closing photo",
+          "bleed": true
+        }
+      },
+      {
+        "id": "back_cover.company",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 120,
+          "w": 174,
+          "h": 20,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "back_cover.what",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 144,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Sustainability report · {{period}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "back_cover.contact",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 154,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Questions about this report: add a contact."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 16
+}

@@ -99,6 +99,22 @@ export class Company {
   @Column({ default: false })
   kpi_tracking_enabled!: boolean;
 
+  // DS-0: Design Studio (docs/design-studio/). Off by default: with it off every
+  // /studio route except /studio/status answers DS_STUDIO_OFF. Superadmin
+  // toggles it through PUT /admin/companies/:id (migrate:ds-0-switch).
+  @Column({ default: false })
+  design_studio_enabled!: boolean;
+
+  // DS-13: review settings for Design Studio (migrate:ds-13-collab). With
+  // report_require_review on, a final needs an approval for the current rev
+  // (Managers set it); brand_controls limits colours and fonts to the brand
+  // kit and keeps template-locked elements locked for Admins (Superadmin sets it).
+  @Column({ default: false })
+  report_require_review!: boolean;
+
+  @Column({ default: false })
+  brand_controls!: boolean;
+
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];
 }

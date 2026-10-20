@@ -1,0 +1,141 @@
+{
+  "role": "cover",
+  "pageKind": "cover",
+  "name": "Cover",
+  "page": {
+    "id": "cover",
+    "kind": "freeform",
+    "name": "Cover",
+    "background": {},
+    "elements": [
+      {
+        "id": "cover.rule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 60,
+          "w": 174,
+          "h": 0.4,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "cover.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 66,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Sustainability report · {{period}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 76,
+          "w": 150,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.mark",
+        "type": "frame",
+        "frame": {
+          "x": 132,
+          "y": 180,
+          "w": 60,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "mask": "circle",
+          "fit": "cover",
+          "alt": "A small image or your logo"
+        }
+      },
+      {
+        "id": "cover.source",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 270,
+          "w": 120,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Figures from approved KPI values."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 1
+}

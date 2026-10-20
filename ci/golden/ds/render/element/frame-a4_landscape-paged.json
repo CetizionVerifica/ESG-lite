@@ -1,0 +1,38 @@
+{
+  "element": "frame",
+  "elements": [
+    {
+      "bytes": 951,
+      "frame": "-3,-2.121,303,106.061,0",
+      "id": "p-cover.bg",
+      "sha256": "8b35e85476c4445f3c9257a3556d52a1f9f93a5b86fa42ef060c3c01500397c8"
+    },
+    {
+      "bytes": 963,
+      "frame": "21.214,42.424,56.571,28.283,0",
+      "id": "p-el.f-round",
+      "sha256": "e55db30dd77bdfc1a689534816134f7c614ef85f43e126ba30fceda3b20891f3"
+    },
+    {
+      "bytes": 958,
+      "frame": "84.857,42.424,56.571,28.283,0",
+      "id": "p-el.f-circle",
+      "sha256": "db5d2f8421f156701c5d5e046a77a6ea165909800adac3925ca3fa5eedbc245e"
+    },
+    {
+      "bytes": 968,
+      "frame": "148.5,42.424,56.571,28.283,0",
+      "id": "p-el.f-arch",
+      "sha256": "8d3803d037492ec25976013d6c0cb0eab1664f67f7837b762159193fbaf3112d"
+    },
+    {
+      "bytes": 1683,
+      "frame": "212.143,42.424,56.571,28.283,0",
+      "id": "p-el.f-blob",
+      "sha256": "9bc516cd57bf83119ea5d711b859d6aa16c517cc80217b8707e141fdbe452310"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "paged",
+  "pages": 1
+}

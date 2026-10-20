@@ -1,0 +1,32 @@
+{
+  "element": "shape",
+  "elements": [
+    {
+      "bytes": 335,
+      "frame": "24.193,168.051,32.257,12.828,15",
+      "id": "p-summary.rot",
+      "sha256": "1b93e907628c4fcc4de1be32155ce28a44ed834928326d392407d1ae93d6008b"
+    },
+    {
+      "bytes": 327,
+      "frame": "177.414,67.348,48.386,12.828,0",
+      "id": "p-el.ellipse",
+      "sha256": "d1fdee50f1e87f034906e05cf24af76a64b0f6ef1c8df38d40853886f6786ed8"
+    },
+    {
+      "bytes": 402,
+      "frame": "233.864,70.556,80.643,1.283,0",
+      "id": "p-el.hline",
+      "sha256": "74bab2c3f59e0ba204b9a60c01c5029cbf3462848867c2ce5bb5ca2dcedfd615"
+    },
+    {
+      "bytes": 274,
+      "frame": "3.226,160.354,48.386,6.414,0",
+      "id": "p-el.unsafe",
+      "sha256": "5d2436c65d6bf090eb820b857b69efb53580d361240b4cda7c3251b8c32b7e10"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "present",
+  "pages": 1
+}

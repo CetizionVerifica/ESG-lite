@@ -1,0 +1,233 @@
+{
+  "role": "headline",
+  "pageKind": "highlights",
+  "name": "Headline numbers",
+  "page": {
+    "id": "headline",
+    "kind": "freeform",
+    "name": "Headline numbers",
+    "background": {},
+    "elements": [
+      {
+        "id": "headline.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "At a glance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "headline.heading",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 30,
+          "w": 298.7,
+          "h": 21,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Our footprint this year"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "headline.total",
+        "type": "big_number",
+        "frame": {
+          "x": 20,
+          "y": 54,
+          "w": 143.35,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e in total",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "headline.scope1",
+        "type": "big_number",
+        "frame": {
+          "x": 175.35,
+          "y": 54,
+          "w": 143.35,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e Scope 1",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "headline.scope2",
+        "type": "big_number",
+        "frame": {
+          "x": 20,
+          "y": 104,
+          "w": 143.35,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope2_location",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e Scope 2 (location-based)",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "headline.scope3",
+        "type": "big_number",
+        "frame": {
+          "x": 175.35,
+          "y": 104,
+          "w": 143.35,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope3",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e Scope 3",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "headline.note",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 158,
+          "w": 298.7,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Change on the year before: "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "total",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all",
+                        "compare": "prior"
+                      },
+                      "measure": "change_pct"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": "."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 2
+}

@@ -1,0 +1,43 @@
+{
+  "action": "scope3_category_text",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "metric": "scope3_category",
+        "scope3Category": 4,
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "metric": "scope3_category",
+        "scope3Category": 4,
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "change_pct"
+    }
+  ],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "Scope 3 Category 4: Upstream transportation and distribution covers inbound freight paid for by the company. It was ⟨scope3_category.4|current|value⟩ tCO₂e in 2025, a change of ⟨scope3_category.4|current|change_pct⟩ on the prior year.",
+  "sources": [
+    {
+      "metric": "scope3_category",
+      "scope3Category": 4,
+      "source": "ghg",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

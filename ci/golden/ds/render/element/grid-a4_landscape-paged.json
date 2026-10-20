@@ -1,0 +1,14 @@
+{
+  "element": "grid",
+  "elements": [
+    {
+      "bytes": 3607,
+      "frame": "21.214,74.242,127.286,42.424,0",
+      "id": "p-el.grid",
+      "sha256": "b6873badce4d09a20804250c386bc3657ba871a986af7a59b5f49766a0ab0059"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "paged",
+  "pages": 1
+}

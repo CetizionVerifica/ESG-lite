@@ -1,0 +1,354 @@
+{
+  "role": "highlights",
+  "pageKind": "highlights",
+  "name": "Highlights",
+  "page": {
+    "id": "highlights",
+    "kind": "freeform",
+    "name": "Highlights",
+    "background": {},
+    "elements": [
+      {
+        "id": "highlights.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Highlights"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "highlights.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The year in numbers"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "highlights.ghg",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 50,
+          "w": 54,
+          "h": 56,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "GHG_SCOPE1_2"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Scope 1 and 2 emissions",
+          "showDelta": true,
+          "showSparkline": true,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "highlights.energy",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 78,
+          "y": 50,
+          "w": 54,
+          "h": 56,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "ENERGY_TOTAL"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Energy used",
+          "showDelta": true,
+          "showSparkline": true,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "highlights.water",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 138,
+          "y": 50,
+          "w": 54,
+          "h": 56,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WATER_WITHDRAWAL"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Water withdrawn",
+          "showDelta": true,
+          "showSparkline": true,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "highlights.waste",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 112,
+          "w": 54,
+          "h": 56,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WASTE_GENERATED"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Waste generated",
+          "showDelta": true,
+          "showSparkline": true,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "highlights.people",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 78,
+          "y": 112,
+          "w": 54,
+          "h": 56,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "EMPLOYEES_TOTAL"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Employees",
+          "showDelta": true,
+          "showSparkline": true,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "highlights.women",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 138,
+          "y": 112,
+          "w": 54,
+          "h": 56,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "kpi",
+            "kpis": [
+              "WOMEN_IN_WORKFORCE"
+            ],
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "Women in the workforce",
+          "showDelta": true,
+          "showSparkline": true,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "highlights.note",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 250,
+          "w": 174,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Change against the previous year. KPIs the company doesn't track show as not reported."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "highlights.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "highlights.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Highlights"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "highlights.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 5
+}

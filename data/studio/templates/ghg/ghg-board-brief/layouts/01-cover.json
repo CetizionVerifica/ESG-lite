@@ -1,0 +1,173 @@
+{
+  "role": "cover",
+  "pageKind": "cover",
+  "name": "Title slide",
+  "page": {
+    "id": "cover",
+    "kind": "freeform",
+    "name": "Title slide",
+    "background": {},
+    "elements": [
+      {
+        "id": "cover.hero",
+        "type": "frame",
+        "frame": {
+          "x": 190,
+          "y": 0,
+          "w": 148.7,
+          "h": 190.5,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "mask": "rect",
+          "fit": "cover",
+          "alt": "Cover image",
+          "bleed": true
+        }
+      },
+      {
+        "id": "cover.band",
+        "type": "shape",
+        "frame": {
+          "x": 20,
+          "y": 60,
+          "w": 40,
+          "h": 3,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "shape": "rect"
+        }
+      },
+      {
+        "id": "cover.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 70,
+          "w": 160,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "GHG emissions · board brief"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.title",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 80,
+          "w": 160,
+          "h": 44,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.period",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 128,
+          "w": 160,
+          "h": 12,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{period}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.source",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 166,
+          "w": 160,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "From approved emission entries."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 1
+}

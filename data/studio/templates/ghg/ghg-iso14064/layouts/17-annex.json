@@ -1,0 +1,123 @@
+{
+  "role": "annex",
+  "pageKind": "chapter_opener",
+  "name": "Annexes",
+  "page": {
+    "id": "annex",
+    "kind": "freeform",
+    "name": "Annexes",
+    "background": {},
+    "elements": [
+      {
+        "id": "annex.band",
+        "type": "shape",
+        "frame": {
+          "x": 18,
+          "y": 120,
+          "w": 40,
+          "h": 3,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "shape": "rect"
+        }
+      },
+      {
+        "id": "annex.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 130,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Annexes"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "annex.title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 138,
+          "w": 174,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Factors, indexes and glossary"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "annex.text",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 172,
+          "w": 120,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The emission factors behind the figures, where each disclosure sits in this report, and the terms we use."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 17
+}

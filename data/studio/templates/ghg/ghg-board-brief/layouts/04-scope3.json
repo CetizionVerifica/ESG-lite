@@ -1,0 +1,162 @@
+{
+  "role": "scope3",
+  "pageKind": "data_page",
+  "name": "Scope 3",
+  "page": {
+    "id": "scope3",
+    "kind": "freeform",
+    "name": "Scope 3",
+    "background": {},
+    "elements": [
+      {
+        "id": "scope3.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Value chain"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "scope3.heading",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 30,
+          "w": 298.7,
+          "h": 21,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Scope 3 by category"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "scope3.bars",
+        "type": "chart",
+        "frame": {
+          "x": 20,
+          "y": 52,
+          "w": 200,
+          "h": 118,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope3",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "scope3_category",
+            "top": 8
+          },
+          "kind": "category_bars",
+          "options": {
+            "horizontal": true,
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "scope3.total",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 230,
+          "y": 56,
+          "w": 88,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope3",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e Scope 3",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "scope3.primary",
+        "type": "progress",
+        "frame": {
+          "x": 230,
+          "y": 104,
+          "w": 88,
+          "h": 60,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "primary_data_pct",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "variant": "bar",
+          "label": "From supplier-specific data"
+        }
+      }
+    ]
+  },
+  "sort": 4
+}

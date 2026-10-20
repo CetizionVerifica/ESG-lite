@@ -1,0 +1,534 @@
+{
+  "role": "exec_summary",
+  "pageKind": "highlights",
+  "name": "Executive summary",
+  "page": {
+    "id": "exec_summary",
+    "kind": "freeform",
+    "name": "Executive summary",
+    "background": {},
+    "elements": [
+      {
+        "id": "exec_summary.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Executive summary"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "exec_summary.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Our emissions at a glance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "exec_summary.total",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e in total",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "exec_summary.scope1",
+        "type": "big_number",
+        "frame": {
+          "x": 108,
+          "y": 46,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope1",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Scope 1",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "exec_summary.scope2",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 74,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope2_location",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Scope 2 (location-based)",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "exec_summary.scope3",
+        "type": "big_number",
+        "frame": {
+          "x": 108,
+          "y": 74,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope3",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "tCO₂e Scope 3",
+          "showDelta": false
+        }
+      },
+      {
+        "id": "exec_summary.split",
+        "type": "chart",
+        "frame": {
+          "x": 18,
+          "y": 104,
+          "w": 84,
+          "h": 72,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "breakdown": "scope"
+          },
+          "kind": "scope_split",
+          "title": "Emissions by scope",
+          "options": {
+            "showValues": true
+          }
+        }
+      },
+      {
+        "id": "exec_summary.waterfall",
+        "type": "chart",
+        "frame": {
+          "x": 108,
+          "y": 104,
+          "w": 84,
+          "h": 72,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 2
+            },
+            "sites": "all",
+            "compare": "base"
+          },
+          "kind": "base_year_waterfall",
+          "title": "Change since the base year",
+          "options": {}
+        }
+      },
+      {
+        "id": "exec_summary.summary",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 182,
+          "w": 174,
+          "h": 32,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Total emissions were "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "total",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all"
+                      },
+                      "measure": "value"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " tCO₂e in {{period}}, a change of "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "total",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all",
+                        "compare": "prior"
+                      },
+                      "measure": "change_pct"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " on the year before."
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Scope 1 was "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "scope1",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all"
+                      },
+                      "measure": "value"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " tCO₂e, Scope 2 (location-based) "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "scope2_location",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all"
+                      },
+                      "measure": "value"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " tCO₂e and Scope 3 "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "scope3",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all"
+                      },
+                      "measure": "value"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " tCO₂e."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "exec_summary.intensity",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 220,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "intensity_revenue",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Intensity per unit of revenue",
+          "showDelta": true,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "exec_summary.market",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 220,
+          "w": 84,
+          "h": 24,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "scope2_market",
+            "years": {
+              "last": 1
+            },
+            "sites": "all"
+          },
+          "label": "Scope 2 (market-based)",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "exec_summary.biogenic",
+        "type": "callout",
+        "frame": {
+          "x": 18,
+          "y": 250,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Biogenic CO₂: "
+                  },
+                  {
+                    "type": "data",
+                    "attrs": {
+                      "binding": {
+                        "source": "ghg",
+                        "metric": "biogenic_co2",
+                        "years": {
+                          "last": 1
+                        },
+                        "sites": "all"
+                      },
+                      "measure": "value"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": " tCO₂e, reported separately."
+                  }
+                ]
+              }
+            ]
+          },
+          "icon": "leaf",
+          "tone": "good"
+        }
+      },
+      {
+        "id": "exec_summary.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "exec_summary.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 14,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Executive summary"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "exec_summary.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 15,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 3
+}

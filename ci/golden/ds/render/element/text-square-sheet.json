@@ -1,0 +1,47 @@
+{
+  "element": "text",
+  "elements": [
+    {
+      "bytes": 382,
+      "frame": "27.214,153.939,231.321,7.697,0",
+      "id": "p-cover.kicker",
+      "sha256": "053e0e54d9efd2ace2fbbcf3e6e66ea38c56d20681e06a77c7fe95afe9566437"
+    },
+    {
+      "bytes": 397,
+      "frame": "27.214,163.561,231.321,38.485,0",
+      "id": "p-cover.title",
+      "sha256": "94c680676fe7405c0dbe8423da86e4aa94254d783d77f1d9c23f6fcf901ff2c1"
+    },
+    {
+      "bytes": 377,
+      "frame": "20.411,14.432,244.929,13.47,0",
+      "id": "p-summary.heading",
+      "sha256": "16a0e4fbf20c0d6ee022bdcd52b363ff90d4653e31d072d581fcc9cc0bddf5c7"
+    },
+    {
+      "bytes": 906,
+      "frame": "20.411,30.788,244.929,32.712,0",
+      "id": "p-summary.body",
+      "sha256": "6ea5d0d589d39e39c68bfe1137fd7912456bd499682e8c8dd77717cae1f882c2"
+    },
+    {
+      "bytes": 487,
+      "frame": "142.875,213.591,122.464,7.697,0",
+      "id": "p-el.overflow",
+      "sha256": "1d002b592c55545de3b8a054e94eb23b031d39bacc4cc8f0e77903e5d0462aa7"
+    },
+    {
+      "bytes": 372,
+      "frame": "54.429,252.076,81.643,5.773,0",
+      "id": "p-el.tiny",
+      "sha256": "b14248f80b8792f87ccf1bfc4755889184261b390433d9599151d7d73bc3affe"
+    }
+  ],
+  "format": "square",
+  "hidden": [
+    "p-el.hidden"
+  ],
+  "mode": "sheet",
+  "pages": 1
+}

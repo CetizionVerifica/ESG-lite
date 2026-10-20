@@ -1,0 +1,20 @@
+{
+  "element": "icon",
+  "elements": [
+    {
+      "bytes": 497,
+      "frame": "177.414,97.495,19.354,7.697,0",
+      "id": "p-el.icon",
+      "sha256": "af1e7310d1c144c530fb55641c6169d8886bd4f57eb3193139fd700083d8f3a5"
+    },
+    {
+      "bytes": 467,
+      "frame": "201.607,97.495,19.354,7.697,0",
+      "id": "p-el.icon-unknown",
+      "sha256": "ac300db437c26520010396a311ea20b719f5ad91b7d83ba36f4d8971e00b9d5f"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "paged",
+  "pages": 1
+}

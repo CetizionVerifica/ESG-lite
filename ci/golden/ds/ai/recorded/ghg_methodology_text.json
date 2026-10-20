@@ -1,0 +1,20 @@
+{
+  "action": "ghg_methodology_text",
+  "built": true,
+  "chips": [],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "This inventory follows the GHG Protocol Corporate Standard and uses the Operational control approach for the period Calendar year 2025 (1 January – 31 December 2025).\nEmissions are calculated from approved activity data multiplied by published emission factors, using AR6 global warming potentials. Scope 3 categories were screened for relevance; excluded categories are listed with their reasons.",
+  "sources": [
+    {
+      "key": "consolidation_approach",
+      "source": "input"
+    },
+    {
+      "key": "reporting_period",
+      "source": "input"
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

@@ -1,0 +1,266 @@
+{
+  "studio off, kpi off": {
+    "admin": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "manager": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "multiSiteUser": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "otherManager": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "superadmin": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "user": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    }
+  },
+  "studio off, kpi on": {
+    "admin": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "manager": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "multiSiteUser": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "otherManager": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "superadmin": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    },
+    "user": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_STUDIO_OFF",
+      "status": 200
+    }
+  },
+  "studio on, kpi off": {
+    "admin": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": false
+        }
+      },
+      "status": 200
+    },
+    "manager": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": false
+        }
+      },
+      "status": 200
+    },
+    "multiSiteUser": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_ROLE",
+      "status": 200
+    },
+    "otherManager": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "status": 200
+    },
+    "superadmin": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": false
+        }
+      },
+      "status": 200
+    },
+    "user": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": false
+        }
+      },
+      "guard": "403 DS_ROLE",
+      "status": 200
+    }
+  },
+  "studio on, kpi on": {
+    "admin": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": true
+        }
+      },
+      "status": 200
+    },
+    "manager": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": true
+        }
+      },
+      "status": 200
+    },
+    "multiSiteUser": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": true
+        }
+      },
+      "guard": "403 DS_ROLE",
+      "status": 200
+    },
+    "otherManager": {
+      "body": {
+        "enabled": false,
+        "kinds": {
+          "ghg": false,
+          "sustainability": false
+        }
+      },
+      "status": 200
+    },
+    "superadmin": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": true
+        }
+      },
+      "status": 200
+    },
+    "user": {
+      "body": {
+        "enabled": true,
+        "kinds": {
+          "ghg": true,
+          "sustainability": true
+        }
+      },
+      "guard": "403 DS_ROLE",
+      "status": 200
+    }
+  }
+}

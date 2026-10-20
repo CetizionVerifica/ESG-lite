@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design Studio build plan</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 900px; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; padding: 32px 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+  <div style="display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+    <div style="flex: 1; min-width: 300px">
+      <div style="font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #5f6b7c; font-weight: 600">plans/design-studio · planning only</div>
+      <h1 style="margin: 4px 0 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px">15 modules, 5 lanes, 6 waves</h1>
+      <p style="margin: 6px 0 0; color: #5f6b7c; max-width: 760px">One studio for GHG and sustainability reports. It absorbs the RS report studio plan. Each box is a module spec (<code>modules/DS-n/CLAUDE.md</code>); the label under it names its RS base.</p>
+    </div>
+    <div style="display: flex; gap: 12px; font-size: 12px; flex-wrap: wrap">
+      <span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #dce8f5; border: 1px solid #92b9e0"></span>Backend + renderer</span>
+      <span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #dbf1ef; border: 1px solid #5dc0b6"></span>Frontend</span>
+      <span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #f0edfb; border: 1px solid #b3a6ea"></span>AI</span>
+      <span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #fdf5e3; border: 1px solid #e7c27a"></span>Both + verification</span>
+    </div>
+  </div>
+
+  <div style="overflow-x: auto">
+    <div style="display: grid; grid-template-columns: 170px repeat(6, minmax(150px, 1fr)); gap: 8px; min-width: 1100px">
+      <div></div>
+      <sc-for list="{{waves}}" as="w" hint-placeholder-count="6">
+        <div style="font-size: 12px; font-weight: 600; color: #5f6b7c; padding: 4px 8px; border-bottom: 2px solid #b9d2eb">{{w}}</div>
+      </sc-for>
+      <sc-for list="{{lanes}}" as="lane" hint-placeholder-count="5">
+        <div style="padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid #e1e8f0"><b style="font-size: 13px">{{lane.id}}</b><span style="font-size: 12px; color: #5f6b7c">{{lane.name}}</span></div>
+        <sc-for list="{{lane.cells}}" as="c" hint-placeholder-count="6">
+          <div style="min-height: 74px; display: flex; flex-direction: column; gap: 6px">
+            <sc-for list="{{c.mods}}" as="m" hint-placeholder-count="1">
+              <div style="{{m.style}}"><div style="display: flex; gap: 6px; align-items: baseline"><b style="font-family: 'IBM Plex Mono', monospace; font-size: 12px">{{m.id}}</b><span style="font-size: 12px; font-weight: 600">{{m.name}}</span></div><div style="font-size: 11px; color: #5f6b7c">{{m.base}}</div></div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+    <sc-for list="{{milestones}}" as="ms" hint-placeholder-count="5">
+      <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #1e5d9d; font-weight: 500">{{ms.id}}</div>
+        <b style="font-size: 14px">{{ms.name}}</b>
+        <span style="font-size: 12px; color: #5f6b7c; line-height: 1.45">{{ms.text}}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; font-size: 13px">
+    <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 12px; padding: 12px 14px"><b>Adopted from Canva</b><div style="color: #5f6b7c; margin-top: 4px; line-height: 1.5">Side rail with drawers, contextual toolbar, Position and Layers, scroll/strip/grid views, rulers and guides, Brand kit, Styles and shuffle, templates and layouts, Resize, AI writing in brand voice, comments, tasks, approval, version history, Present, print PDF.</div></div>
+    <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 12px; padding: 12px 14px"><b>Where we go further</b><div style="color: #5f6b7c; margin-top: 4px; line-height: 1.5">Every number bound to approved data, long tables that flow across pages, real contents page, GHG Protocol completeness checks, framework indexes, frozen finals with a data snapshot and SHA-256.</div></div>
+    <div style="background: #fff; border: 1px solid #e1e8f0; border-radius: 12px; padding: 12px 14px"><b>Left out (D3)</b><div style="color: #5f6b7c; margin-top: 4px; line-height: 1.5">Live co-editing, video and animation, whiteboards, websites, stock photo library, CMYK, translation, PPTX and DOCX, custom font uploads, any Canva SDK or asset.</div></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tone = {
+      be: 'background: #dce8f5; border: 1px solid #92b9e0;',
+      fe: 'background: #dbf1ef; border: 1px solid #5dc0b6;',
+      ai: 'background: #f0edfb; border: 1px solid #b3a6ea;',
+      both: 'background: #fdf5e3; border: 1px solid #e7c27a;'
+    };
+    const m = (id, name, base, t) => ({ id, name, base, style: tone[t] + ' border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px' });
+    const row = (cells) => cells.map((mods) => ({ mods }));
+    return {
+      waves: ['Wave 0', 'Wave 1', 'Wave 2', 'Wave 3', 'Wave 4', 'Wave 5'],
+      lanes: [
+        { id: 'L1', name: 'Render + output', cells: row([[m('DS-0', 'Contracts + switch', 'replaces RS-0', 'both')], [m('DS-1', 'Renderer v2', 'RS-1 + formats', 'be')], [], [m('DS-11', 'Download, present, share', 'RS-5 +', 'both')], [m('DS-12', 'Checks + GHG gate', 'RS-9 +', 'both')], []]) },
+        { id: 'L2', name: 'Data + documents', cells: row([[], [m('DS-2', 'GHG + KPI data', 'RS-2 +', 'be')], [m('DS-5', 'Home, new design', 'RS-4 +', 'both')], [], [], [m('DS-13', 'Comments, approval, history', 'RS-10 +', 'both')]]) },
+        { id: 'L3', name: 'Brand + library', cells: row([[], [m('DS-3', 'Brand kit + Styles', 'new', 'both')], [m('DS-4', 'Templates + elements', 'RS-3 +', 'both')], [m('DS-4', 'GHG templates ×3 looks', 'continued', 'both')], [m('DS-10', 'Resize + convert', 'new', 'both')], []]) },
+        { id: 'L4', name: 'Editor (FE)', cells: row([[], [m('DS-6', 'Editor on mocks', 'RS-6 + Canva chrome', 'fe')], [m('DS-6', 'Editor wired', 'continued', 'fe')], [m('DS-7', 'Text + data chips', 'RS-7', 'fe')], [m('DS-8', 'Charts + tables', 'new', 'fe')], []]) },
+        { id: 'L5', name: 'AI + verification', cells: row([[], [m('DS-14', 'Goldens draft', 'RS-11', 'both')], [], [], [m('DS-9', 'AI assistant', 'RS-8 +', 'ai')], [m('DS-14', 'Workflow test', 'final', 'both')]]) }
+      ],
+      milestones: [
+        { id: 'DS-M1', name: 'GHG report, designed', text: 'Template → branded draft from approved emissions → proof PDF. No editing yet.' },
+        { id: 'DS-M2', name: 'Canva editing', text: 'Rail, drawers, toolbar, free placement, data chips, charts and tables.' },
+        { id: 'DS-M3', name: 'Sustainability report', text: 'The RS annual report inside the same studio, from KPI data.' },
+        { id: 'DS-M4', name: 'AI, resize, finals', text: 'AI panel, board deck and summary, GHG completeness gate, frozen finals.' },
+        { id: 'DS-M5', name: 'Team', text: 'Mentions, tasks, approval, version history, share links. The full success test.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

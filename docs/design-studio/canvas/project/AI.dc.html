@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Editor: AI panel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Source+Serif+4:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:8px;border:0;background:transparent;color:#16202e;font:500 13px "IBM Plex Sans",sans-serif;cursor:pointer}
+.tb-o{border:1px solid #e1e8f0;background:#fff}
+.tb-p{background:#2572c0;color:#fff}
+.rail{display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:8px 0;border-radius:8px;border:0;background:transparent;color:#5f6b7c;font:500 11px "IBM Plex Sans",sans-serif;cursor:pointer}
+.rail-on{background:#f0edfb;color:#5b45b8}
+.sep{width:1px;height:20px;background:#e1e8f0}
+.qchip{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:99px;border:1px solid #dcd5f5;background:#f7f5fd;color:#4c3a9e;font:500 12px "IBM Plex Sans",sans-serif;cursor:pointer}
+.tok{background:#e3edfb;border-radius:3px;padding:0 3px;font-family:"IBM Plex Mono",monospace;font-size:9px;color:#16202e}
+</style>
+</helmet>
+<div style="width: 100%; height: 900px; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; overflow: hidden">
+  <header style="height: 48px; flex: none; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 6px; padding: 0 12px; flex-wrap: wrap">
+    <a href="Main.dc.html" class="tb" style="text-decoration: none">← Designs</a><span class="sep"></span>
+    <button class="tb">File ▾</button><a href="Resize.dc.html" class="tb" style="text-decoration: none">Resize</a><button class="tb" aria-label="Undo">↶</button><button class="tb" aria-label="Redo">↷</button><span class="sep"></span>
+    <span style="font-weight: 600; padding: 0 6px">GHG Inventory FY 2025–26</span><span style="color: #5f6b7c; font-size: 12px">Draft · Saved just now</span>
+    <div style="flex: 1"></div>
+    <a href="Share.dc.html" class="tb tb-o" style="text-decoration: none; color: #9a6300; border-color: #f3dcae; background: #fdf5e3">⚑ 3 checks</a>
+    <button class="tb tb-o">Comments 2</button><button class="tb tb-o">▶ Present</button><button class="tb tb-o">Share ▾</button><a href="Share.dc.html" class="tb tb-p" style="text-decoration: none">Download ▾</a>
+  </header>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <nav style="flex: none; width: 72px; background: #fff; border-right: 1px solid #e1e8f0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0" aria-label="Insert">
+      <a href="Templates.dc.html" class="rail" style="text-decoration: none">▦<span>Templates</span></a>
+      <button class="rail">◇<span>Elements</span></button>
+      <button class="rail">T<span>Text</span></button>
+      <a href="Brand.dc.html" class="rail" style="text-decoration: none">◐<span>Brand</span></a>
+      <button class="rail">⇪<span>Uploads</span></button>
+      <a href="Editor.dc.html" class="rail" style="text-decoration: none">≋<span>Data</span></a>
+      <button class="rail">▥<span>Charts</span></button>
+      <button class="rail rail-on" aria-current="true">✦<span>AI</span></button>
+      <a href="Grid.dc.html" class="rail" style="text-decoration: none">❐<span>Pages</span></a>
+    </nav>
+
+    <!-- AI drawer -->
+    <aside style="flex: none; width: 360px; background: #fff; border-right: 1px solid #e1e8f0; display: flex; flex-direction: column; min-height: 0" aria-label="AI">
+      <div style="padding: 14px 16px; border-bottom: 1px solid #e1e8f0; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; align-items: center; gap: 8px"><span style="color: #6e56cf">✦</span><span style="font-weight: 600; flex: 1">Ask AI</span><span class="num" style="font-size: 11px; color: #5f6b7c">$1.20 of $5 today</span></div>
+        <div style="font-size: 12px; color: #5f6b7c">About: <b style="color: #16202e">Summary text (page 3)</b> · Writing in your brand voice · <a href="Brand.dc.html">Edit</a></div>
+      </div>
+      <div style="flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="align-self: flex-end; max-width: 85%; background: #eef4fa; border-radius: 12px 12px 2px 12px; padding: 8px 12px; font-size: 13px">Write the executive summary. Keep it under 90 words and mention what drove the change.</div>
+        <div style="font-size: 13px; color: #3a4656">Here's a draft based on your approved FY 2025–26 data. Numbers are linked, so they'll update if the data changes.</div>
+        <!-- suggestion card -->
+        <div style="border: 1px solid #dcd5f5; border-radius: 12px; overflow: hidden">
+          <div style="background: #f7f5fd; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px"><span style="color: #6e56cf">✦</span><b style="flex: 1">Executive summary</b><span style="color: #5f6b7c">Suggested by AI</span></div>
+          <div style="padding: 10px 12px; font-size: 12.5px; line-height: 1.55; display: flex; flex-direction: column; gap: 8px">
+            <div><span style="text-decoration: line-through; color: #b4321f; background: #fbe5e1">Our emissions decreased this year.</span></div>
+            <div style="background: #e1f3ea; border-radius: 4px; padding: 4px 6px">Total emissions were <span class="tok">95,710 tCO₂e</span>, <span class="tok">12.0%</span> below our FY 2021–22 base year. Scope 2 fell <span class="tok">9.4%</span> as two plants moved to rooftop solar. Scope 3 is <span class="tok">67%</span> of the total, led by purchased steel and aluminium, so supplier data is our main lever for next year.</div>
+            <div style="font-size: 11px; color: #5f6b7c">Based on: Total FY26 · Base year FY22 · Scope 2 FY26/FY25 · Scope 3 share FY26</div>
+          </div>
+          <div style="display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid #efeaf9">
+            <button class="tb" style="background: #6e56cf; color: #fff">Accept</button><button class="tb tb-o">Try again</button><button class="tb">Discard</button>
+          </div>
+        </div>
+        <div style="font-size: 12px; color: #5f6b7c">Try asking</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <button class="qchip">Explain the change in Scope 2</button>
+          <button class="qchip">Draft exclusion reasons</button>
+          <button class="qchip">Suggest a layout for this page</button>
+          <button class="qchip">Check for missing disclosures</button>
+          <button class="qchip">Make it more concise</button>
+        </div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid #e1e8f0; display: flex; gap: 8px">
+        <label for="ask" style="position: absolute; left: -9999px">Ask about this report</label>
+        <input id="ask" type="text" placeholder="Ask about this report or describe a change" style="flex: 1; height: 36px; border: 1px solid #dcd5f5; border-radius: 8px; padding: 0 10px; font: 13px 'IBM Plex Sans', sans-serif">
+        <button class="tb" style="background: #6e56cf; color: #fff" aria-label="Send">↑</button>
+      </div>
+    </aside>
+
+    <section style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <div style="height: 44px; flex: none; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 4px; padding: 0 10px; flex-wrap: wrap" role="toolbar" aria-label="Text">
+        <button class="tb tb-o">Source Sans 3 ▾</button><button class="tb tb-o">10.5</button>
+        <span class="sep"></span><button class="tb" style="font-weight: 700">B</button><button class="tb" style="font-style: italic">I</button><button class="tb" style="text-decoration: underline">U</button>
+        <button class="tb"><span style="width: 14px; height: 14px; border-radius: 3px; background: #16202e"></span></button>
+        <button class="tb">≡</button><button class="tb">Spacing</button><button class="tb">Effects</button>
+        <span class="sep"></span><button class="tb">{ } Insert data value</button><button class="tb" style="color: #6e56cf">✦ Rewrite ▾</button>
+        <div style="flex: 1"></div><button class="tb">Position</button><button class="tb" aria-label="Lock">Lock</button><button class="tb" aria-label="More">⋯</button>
+      </div>
+      <div style="flex: 1; min-height: 0; background: #e9eef4; position: relative; overflow: hidden">
+        <div style="position: absolute; left: 50%; top: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 12px; color: #5f6b7c">Page 3 · Executive summary</div>
+          <div style="width: 504px; height: 713px; background: #fff; box-shadow: 0 2px 10px rgba(22,32,46,.12); position: relative">
+            <div style="position: absolute; left: 48px; top: 48px; right: 48px; display: flex; flex-direction: column; gap: 6px">
+              <div style="font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: #1d9f92; font-weight: 600">Executive summary</div>
+              <div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 24px; line-height: 1.12; color: #18497b">12% below our base year, with Scope 3 as the next lever</div>
+            </div>
+            <div style="position: absolute; left: 48px; right: 48px; top: 140px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+              <div style="background: #eef4fa; padding: 10px"><div class="num" style="font-size: 17px; font-weight: 500">95,710</div><div style="font-size: 8.5px; color: #5f6b7c">tCO₂e total</div></div>
+              <div style="background: #eef4fa; padding: 10px"><div class="num" style="font-size: 17px; font-weight: 500">12,480</div><div style="font-size: 8.5px; color: #5f6b7c">Scope 1</div></div>
+              <div style="background: #eef4fa; padding: 10px"><div class="num" style="font-size: 17px; font-weight: 500">18,920</div><div style="font-size: 8.5px; color: #5f6b7c">Scope 2 (location)</div></div>
+              <div style="background: #eef4fa; padding: 10px"><div class="num" style="font-size: 17px; font-weight: 500">64,310</div><div style="font-size: 8.5px; color: #5f6b7c">Scope 3</div></div>
+            </div>
+            <!-- ghost preview of the suggestion -->
+            <div style="position: absolute; left: 48px; right: 48px; top: 222px; outline: 2px dashed #8b78dc; outline-offset: 6px; background: rgba(110,86,207,.06); font-size: 10.5px; line-height: 1.6; color: #3a4656; padding: 2px">
+              Total emissions were <span class="tok">95,710 tCO₂e</span>, <span class="tok">12.0%</span> below our FY 2021–22 base year. Scope 2 fell <span class="tok">9.4%</span> as two plants moved to rooftop solar. Scope 3 is <span class="tok">67%</span> of the total, led by purchased steel and aluminium, so supplier data is our main lever for next year.
+              <div style="position: absolute; right: -6px; top: -26px; background: #6e56cf; color: #fff; font-size: 10px; font-weight: 600; border-radius: 4px; padding: 2px 6px">✦ Preview: not applied yet</div>
+            </div>
+            <div style="position: absolute; left: 48px; right: 48px; top: 330px; height: 26px; display: flex; gap: 2px"><div style="flex: 13; background: #18497b"></div><div style="flex: 20; background: #1d9f92"></div><div style="flex: 67; background: #c27b22"></div></div>
+            <div style="position: absolute; left: 48px; right: 48px; top: 362px; display: flex; gap: 14px; font-size: 9px; color: #5f6b7c"><span>■ Scope 1 13%</span><span>■ Scope 2 20%</span><span>■ Scope 3 67%</span></div>
+            <div style="position: absolute; left: 48px; right: 48px; top: 400px; display: flex; align-items: flex-end; gap: 18px; height: 200px; border-bottom: 1px solid #d5dde7; padding: 0 20px">
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end"><span class="num" style="font-size: 9px">108,760</span><div style="width: 100%; height: 170px; background: #b9d2eb"></div><span style="font-size: 8.5px; color: #5f6b7c">FY22 base</span></div>
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end"><span class="num" style="font-size: 9px">101,030</span><div style="width: 100%; height: 158px; background: #b9d2eb"></div><span style="font-size: 8.5px; color: #5f6b7c">FY25</span></div>
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end"><span class="num" style="font-size: 9px; font-weight: 600">95,710</span><div style="width: 100%; height: 150px; background: #18497b"></div><span style="font-size: 8.5px; color: #16202e; font-weight: 600">FY26</span></div>
+            </div>
+            <div style="position: absolute; left: 48px; right: 48px; bottom: 44px; display: flex; font-size: 8px; color: #8a96a8"><span style="flex: 1">Northwind Metals · GHG inventory FY 2025–26</span><span>3</span></div>
+          </div>
+        </div>
+      </div>
+      <footer style="height: 40px; flex: none; background: #fff; border-top: 1px solid #e1e8f0; display: flex; align-items: center; gap: 12px; padding: 0 12px; font-size: 12px; color: #5f6b7c">
+        <button class="tb">Notes</button><span>Page 3 of 22</span><div style="flex: 1"></div><span class="num">68%</span><a href="Grid.dc.html" class="tb" style="text-decoration: none">⊞ Grid</a>
+      </footer>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

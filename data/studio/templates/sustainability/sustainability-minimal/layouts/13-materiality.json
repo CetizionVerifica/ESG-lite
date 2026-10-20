@@ -1,0 +1,225 @@
+{
+  "role": "materiality",
+  "pageKind": "materiality",
+  "name": "Materiality",
+  "page": {
+    "id": "materiality",
+    "kind": "freeform",
+    "name": "Materiality",
+    "background": {},
+    "elements": [
+      {
+        "id": "materiality.toprule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 0.4,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "materiality.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 22,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Materiality"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "materiality.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 30,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "What matters most"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "materiality.matrix",
+        "type": "placeholder",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 83,
+          "h": 83,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "accepts": [
+            "chart",
+            "image"
+          ],
+          "hint": "The materiality matrix: impact and financial scores from KPI setup"
+        }
+      },
+      {
+        "id": "materiality.method",
+        "type": "text",
+        "frame": {
+          "x": 109,
+          "y": 46,
+          "w": 83,
+          "h": 84,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "How the material topics were chosen: who was asked, what was scored and how the threshold was set."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "materiality.list_heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 140,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Material topics"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "materiality.list",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 150,
+          "w": 174,
+          "h": 100,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "List the material topics, each with a sentence on why it matters and where it is covered in this report."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "materiality.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 90,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "center"
+        }
+      }
+    ]
+  },
+  "sort": 13
+}

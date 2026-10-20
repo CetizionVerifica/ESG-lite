@@ -1,0 +1,153 @@
+{
+  "family": "ghg-iso14064",
+  "version": 1,
+  "kind": "ghg",
+  "purpose": "report",
+  "format": "a4",
+  "name": "ISO 14064-1 inventory",
+  "description": "The Inventory plus ISO 14064-1 categories 1 to 6, uncertainty, conformance and verification pages.",
+  "tags": [
+    "iso 14064-1",
+    "inventory",
+    "uncertainty",
+    "verification",
+    "a4",
+    "report"
+  ],
+  "looks": [
+    "classic",
+    "light",
+    "night"
+  ],
+  "meta": {
+    "title": "{{company}} GHG inventory {{period}} (ISO 14064-1)",
+    "subtitle": "Emissions by ISO category and by scope",
+    "frameworks": [
+      "GHGP",
+      "ISO14064"
+    ]
+  },
+  "pages": [
+    {
+      "layout": "cover",
+      "text": {
+        "kicker": "GHG inventory · ISO 14064-1"
+      }
+    },
+    {
+      "layout": "conformance"
+    },
+    {
+      "flow": {
+        "name": "Contents",
+        "flowType": "toc",
+        "options": {}
+      }
+    },
+    {
+      "layout": "exec_summary"
+    },
+    {
+      "layout": "boundary"
+    },
+    {
+      "layout": "period"
+    },
+    {
+      "layout": "methodology"
+    },
+    {
+      "layout": "iso_categories"
+    },
+    {
+      "layout": "scope1"
+    },
+    {
+      "layout": "scope2"
+    },
+    {
+      "layout": "scope3"
+    },
+    {
+      "flow": {
+        "name": "Scope 3 categories",
+        "flowType": "scope3_categories",
+        "options": {
+          "columns": 1,
+          "categories": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "showDq": true,
+          "showMethod": true
+        }
+      }
+    },
+    {
+      "layout": "sites"
+    },
+    {
+      "layout": "biogenic"
+    },
+    {
+      "layout": "intensity"
+    },
+    {
+      "layout": "trend"
+    },
+    {
+      "layout": "uncertainty"
+    },
+    {
+      "layout": "data_quality"
+    },
+    {
+      "layout": "initiatives"
+    },
+    {
+      "layout": "verification"
+    },
+    {
+      "layout": "annex"
+    },
+    {
+      "flow": {
+        "name": "Emission factors",
+        "flowType": "ghg_factor_table",
+        "options": {
+          "columns": 1
+        }
+      }
+    },
+    {
+      "flow": {
+        "name": "ISO 14064-1 index",
+        "flowType": "iso_index",
+        "options": {}
+      }
+    },
+    {
+      "flow": {
+        "name": "Glossary",
+        "flowType": "glossary",
+        "options": {}
+      }
+    },
+    {
+      "layout": "back_cover"
+    }
+  ]
+}

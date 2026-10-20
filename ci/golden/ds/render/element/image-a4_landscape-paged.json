@@ -1,0 +1,26 @@
+{
+  "element": "image",
+  "elements": [
+    {
+      "bytes": 924,
+      "frame": "21.214,10.606,84.857,28.283,0",
+      "id": "p-el.img",
+      "sha256": "b9596b0e080c77d5b016c77631ffde82ba67d47680aa452d6ffdc4dbe1a6794d"
+    },
+    {
+      "bytes": 958,
+      "frame": "113.143,10.606,70.714,28.283,0",
+      "id": "p-el.img-crop",
+      "sha256": "7497e49c39acdd315c8e05e1ba5e5aba11e9de821c5586cfa1b9428f74a5b314"
+    },
+    {
+      "bytes": 344,
+      "frame": "190.929,10.606,84.857,28.283,0",
+      "id": "p-el.img-missing",
+      "sha256": "40642db73859744a79912be1dd606d7ad2e33de586bf62b090d9f21bded7b94c"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "paged",
+  "pages": 1
+}

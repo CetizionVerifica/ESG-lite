@@ -1,0 +1,49 @@
+{
+  "action": "rewrite_longer",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "metric": "scope1",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "format": "1dp",
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "compare": "prior",
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": [
+          2024,
+          2025
+        ]
+      },
+      "format": "pct1",
+      "measure": "change_pct"
+    }
+  ],
+  "group": "rewrites",
+  "output": "text",
+  "rendered": "Scope 1 emissions were ⟨scope1|current|value⟩ tCO₂e, from fuel burned on site.\nTotal emissions changed by ⟨total|current|change_pct⟩ versus 2024, driven mainly by Scope 3.",
+  "sources": [
+    {
+      "metric": "scope1",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "total",
+      "source": "ghg",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

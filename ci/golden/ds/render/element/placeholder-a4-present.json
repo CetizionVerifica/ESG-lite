@@ -1,0 +1,14 @@
+{
+  "element": "placeholder",
+  "elements": [
+    {
+      "bytes": 305,
+      "frame": "15,176,85,30,0",
+      "id": "p-el.placeholder",
+      "sha256": "023b2da3a2c930326cfe74e54852b355270c8d143d2a9f0a1f7a61854d73965b"
+    }
+  ],
+  "format": "a4",
+  "mode": "present",
+  "pages": 1
+}
