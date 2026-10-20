@@ -1,0 +1,14 @@
+{
+  "element": "divider",
+  "elements": [
+    {
+      "bytes": 279,
+      "frame": "21.214,120.202,254.571,1.414,0",
+      "id": "p-el.divider",
+      "sha256": "6b7cad0b41837fe4d79a87accf9406f6efd9d8684922538ffef655199c263998"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "paged",
+  "pages": 1
+}

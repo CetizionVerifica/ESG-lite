@@ -1,0 +1,14 @@
+{
+  "element": "placeholder",
+  "elements": [
+    {
+      "bytes": 339,
+      "frame": "24.193,112.889,137.093,19.242,0",
+      "id": "p-el.placeholder",
+      "sha256": "b0ac559e413632eb142306d4d943e20cc814a5fa8f59395a5656fdbba2e6cb61"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "present",
+  "pages": 1
+}

@@ -65,3 +65,27 @@ test("the offline DS goldens match (contracts group)", () => {
   assert.match(last, /^DS golden: (\d+) run, \1 matched, 0 failed, \d+ skipped/);
   assert.ok(Number(/(\d+) run/.exec(last)[1]) >= 3, last);
 });
+
+// DS-14F · the final pass: every golden the spec names runs, the render matrix covers every
+// element type × format × mode, and the seed fixture stays clear of the API fixture's ids.
+test("DS-14 final: no golden case waits on a module; the render matrix is every element × format × mode", () => {
+  const m = JSON.parse(fs.readFileSync(path.join(ROOT, "ci/golden/ds/cases.json"), "utf8"));
+  assert.deepEqual(m.cases.filter((k) => !k.run).map((k) => k.id), []);
+  const C = require(path.join(ROOT, "dist/studio/contracts/index.js"));
+  const files = fs.readdirSync(path.join(ROOT, "ci/golden/ds/render/element")).filter((f) => f.endsWith(".json"));
+  assert.equal(files.length, C.ELEMENT_TYPES.length * C.PAGE_FORMATS.length * 3);
+  for (const t of C.ELEMENT_TYPES) for (const f of C.PAGE_FORMATS) for (const mode of ["sheet", "paged", "present"]) assert.ok(files.includes(`${t}-${f}-${mode}.json`), `${t}-${f}-${mode}`);
+  for (const g of ["seed", "checks"]) for (const k of m.cases.filter((x) => x.group === g)) assert.ok(k.doc, `${k.id} names its seed doc`);
+  assert.equal(m.groups.pdf.chromium, true, "the PDF goldens skip, named, without Chromium");
+});
+
+test("DS-14 seed fixture: ids clear of the API fixture (companies 1-2, sites 1-3, users 1-7) and of its sequences", () => {
+  const sql = fs.readFileSync(path.join(ROOT, "ci/golden/ds/fixture/seed.sql"), "utf8");
+  const values = (table) => {
+    const m = new RegExp(`INSERT INTO "?${table}"? \\(([^)]*)\\) VALUES([\\s\\S]*?);`).exec(sql);
+    return [...m[2].matchAll(/^\s*\((\d+),/gm)].map((x) => Number(x[1]));
+  };
+  for (const [t, max] of [["company", 2], ["site", 3], ["user", 7], ["category", 5]]) assert.ok(values(t).every((id) => id > max && id < 100), `${t}: ${values(t)}`);
+  assert.ok(values("emission").every((id) => id > 9000), "emission rows far above the fixture's sequence");
+  assert.match(fs.readFileSync(path.join(ROOT, "ci/golden/ds/fixture/seed-kpi.sql"), "utf8"), /status = 'approved'|'pending'/);
+});

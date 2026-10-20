@@ -1,0 +1,14 @@
+{
+  "element": "grid",
+  "elements": [
+    {
+      "bytes": 3599,
+      "frame": "15.421,98.778,92.529,56.444,0",
+      "id": "p-el.grid",
+      "sha256": "bdbb62a0ff33131cb4dc1e3b009f9b6b49194c4f1e377ba374228422109ff2ad"
+    }
+  ],
+  "format": "letter",
+  "mode": "sheet",
+  "pages": 1
+}

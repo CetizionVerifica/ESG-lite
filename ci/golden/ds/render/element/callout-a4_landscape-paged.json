@@ -1,0 +1,14 @@
+{
+  "element": "callout",
+  "elements": [
+    {
+      "bytes": 709,
+      "frame": "190.929,76.364,84.857,28.283,0",
+      "id": "p-summary.callout",
+      "sha256": "cdf8607bc17d2416bdec8b76ad75dcb5bc46cbe072b881b796e866b079f525d9"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "paged",
+  "pages": 1
+}

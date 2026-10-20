@@ -1,0 +1,20 @@
+{
+  "element": "progress",
+  "elements": [
+    {
+      "bytes": 858,
+      "frame": "24.193,69.273,64.514,25.657,0",
+      "id": "p-summary.ring",
+      "sha256": "255995d26f56fc0c8e4a6d264e024d2f93390ca501ca09715b7dceb1d3b82aa2"
+    },
+    {
+      "bytes": 566,
+      "frame": "96.771,75.687,112.9,8.98,0",
+      "id": "p-summary.bar",
+      "sha256": "12475d6621c4f5ffd738e126b3068811f5c576dad173accbd5305ccc17e2b155"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "present",
+  "pages": 1
+}

@@ -134,9 +134,16 @@ const caller = (root, base, secret) => {
     const res = await fetch(`${base}${route}`, { method, headers, body: payload });
     const type = res.headers.get("content-type") || "";
     const json = type.includes("application/json") ? await res.json().catch(() => null) : null;
-    if (!json) await res.arrayBuffer().catch(() => null);
-    return { status: res.status, code: json?.code ?? null, json, headers: res.headers };
+    const buffer = json ? null : Buffer.from(await res.arrayBuffer().catch(() => new ArrayBuffer(0))); // DS-14F: files (PDFs) for the pdf goldens
+    return { status: res.status, code: json?.code ?? null, json, headers: res.headers, buffer };
   };
 };
 
 module.exports = { prepare, boot, migrate, dsMigrations, q, dbConfig, caller, USERS };
+
+// DS-14F · the Managers of the golden seed companies (ci/golden/ds/fixture/seed.sql).
+Object.assign(USERS, {
+  seedCement: { userId: 11, role: "Manager" },
+  seedTextiles: { userId: 12, role: "Manager" },
+  seedFoods: { userId: 13, role: "Manager" },
+});

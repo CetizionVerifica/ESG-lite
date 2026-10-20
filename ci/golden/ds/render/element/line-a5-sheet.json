@@ -1,0 +1,20 @@
+{
+  "element": "line",
+  "elements": [
+    {
+      "bytes": 697,
+      "frame": "14.095,176.768,84.571,2.828,0",
+      "id": "p-cover.line",
+      "sha256": "cec6029721a9fe0e8afee0290ae77c2ac7e287f33586ce5d31d14f213b483c29"
+    },
+    {
+      "bytes": 944,
+      "frame": "77.524,91.919,59.905,14.141,0",
+      "id": "p-el.dotted",
+      "sha256": "706da21e89a55a9370fd12461c9bc73fa7071a3f987692f53d74655497b2fa66"
+    }
+  ],
+  "format": "a5",
+  "mode": "sheet",
+  "pages": 1
+}

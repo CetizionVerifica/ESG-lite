@@ -3,11 +3,11 @@
   "groups": {
     "contracts": { "needs": "build", "module": "DS-0", "what": "ReportDoc v2 fixtures parse, their byte size, page and element outline, bindings and the check ids of their kind; an RS v1 doc upgraded" },
     "status": { "needs": "api", "module": "DS-0", "what": "GET /studio/status per role with the studio and KPI tracking on and off, and the guard's answer (DS_STUDIO_OFF, DS_ROLE)" },
-    "seed": { "needs": "api", "module": "DS-4, DS-5, DS-10", "what": "the seed docs built through POST /docs (and /resize): outline, bindings, resolved values, data hash" },
+    "seed": { "needs": "api", "module": "DS-4, DS-5, DS-10", "what": "the seed docs built through POST /docs (and /resize): outline, build steps, every binding and chip resolved" },
     "render": { "needs": "build", "module": "DS-1", "what": "renderer HTML per element type, per format, per mode" },
     "parity": { "needs": "api", "module": "DS-2", "what": "DS-2 GHG totals equal POST /user/ghg/tables (CY and FY); EDE intensity unchanged after the extraction" },
     "checks": { "needs": "api", "module": "DS-12", "what": "the checks list of each seed doc" },
-    "pdf": { "needs": "api", "module": "DS-11", "what": "proof vs final: page count, text per page, positions within 0.5 mm; the print bleed box" },
+    "pdf": { "needs": "api", "chromium": true, "module": "DS-11", "what": "proof vs final: page count, text per page, positions within 0.5 mm; the print bleed box" },
     "ai": { "needs": "build", "module": "DS-9", "what": "recorded provider responses per action validate (zod, token guard, binding check)" }
   },
   "cases": [
@@ -17,24 +17,24 @@
 
     { "id": "status/matrix", "group": "status", "run": true },
 
-    { "id": "seed/ghg-inventory-classic", "group": "seed", "run": false, "waits": "DS-4, DS-5", "note": "one per GHG seed company" },
-    { "id": "seed/ghg-board-brief", "group": "seed", "run": false, "waits": "DS-10", "note": "resized from the Inventory" },
-    { "id": "seed/ghg-one-page-summary", "group": "seed", "run": false, "waits": "DS-4, DS-5" },
-    { "id": "seed/sustainability-editorial", "group": "seed", "run": false, "waits": "DS-4, DS-5", "note": "the KPI seed company" },
+    { "id": "seed/ghg-inventory-classic", "group": "seed", "run": true, "doc": "ghg-inventory-classic", "note": "one per GHG seed company (lib/seed.cjs)" },
+    { "id": "seed/ghg-board-brief", "group": "seed", "run": true, "doc": "ghg-board-brief", "note": "resized from the Inventory" },
+    { "id": "seed/ghg-one-page-summary", "group": "seed", "run": true, "doc": "ghg-one-page-summary" },
+    { "id": "seed/sustainability-editorial", "group": "seed", "run": true, "doc": "sustainability-editorial", "note": "the KPI seed company" },
 
-    { "id": "render/element", "group": "render", "run": false, "waits": "DS-1", "matrix": { "element": "ELEMENT_TYPES", "format": "PAGE_FORMATS", "mode": ["sheet", "paged", "present"] } },
+    { "id": "render/element", "group": "render", "run": true, "matrix": { "element": "ELEMENT_TYPES", "format": "PAGE_FORMATS", "mode": ["sheet", "paged", "present"] } },
 
-    { "id": "parity/ghg-totals-cy", "group": "parity", "run": false, "waits": "DS-2" },
-    { "id": "parity/ghg-totals-fy", "group": "parity", "run": false, "waits": "DS-2" },
-    { "id": "parity/ede-intensity", "group": "parity", "run": false, "waits": "DS-2" },
+    { "id": "parity/ghg-totals-cy", "group": "parity", "run": true },
+    { "id": "parity/ghg-totals-fy", "group": "parity", "run": true },
+    { "id": "parity/ede-intensity", "group": "parity", "run": true },
 
-    { "id": "checks/ghg-inventory-classic", "group": "checks", "run": false, "waits": "DS-12" },
-    { "id": "checks/ghg-board-brief", "group": "checks", "run": false, "waits": "DS-12" },
-    { "id": "checks/ghg-one-page-summary", "group": "checks", "run": false, "waits": "DS-12" },
-    { "id": "checks/sustainability-editorial", "group": "checks", "run": false, "waits": "DS-12" },
+    { "id": "checks/ghg-inventory-classic", "group": "checks", "run": true, "doc": "ghg-inventory-classic" },
+    { "id": "checks/ghg-board-brief", "group": "checks", "run": true, "doc": "ghg-board-brief" },
+    { "id": "checks/ghg-one-page-summary", "group": "checks", "run": true, "doc": "ghg-one-page-summary" },
+    { "id": "checks/sustainability-editorial", "group": "checks", "run": true, "doc": "sustainability-editorial" },
 
-    { "id": "pdf/proof-vs-final", "group": "pdf", "run": false, "waits": "DS-11" },
-    { "id": "pdf/print-bleed-box", "group": "pdf", "run": false, "waits": "DS-11" },
+    { "id": "pdf/proof-vs-final", "group": "pdf", "run": true },
+    { "id": "pdf/print-bleed-box", "group": "pdf", "run": true },
 
     { "id": "ai/recorded", "group": "ai", "run": true, "matrix": { "action": "AI_ACTIONS" } }
   ]

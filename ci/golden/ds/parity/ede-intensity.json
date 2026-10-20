@@ -1,0 +1,219 @@
+{
+  "approvedProduction": 15285.5,
+  "ede": {
+    "bySite": [
+      {
+        "pctOfTotal": 66.37,
+        "scope1": 2808,
+        "scope2": 4780,
+        "scope3": 57,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "total": 7645
+      },
+      {
+        "pctOfTotal": 33.63,
+        "scope1": 1802,
+        "scope2": 2071,
+        "scope3": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "total": 3873
+      }
+    ],
+    "intensityMonthly": [
+      {
+        "emissions": 4330,
+        "intensity": 0,
+        "month": "2025-03",
+        "production": 0,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "unit"
+      },
+      {
+        "emissions": 2190,
+        "intensity": 0,
+        "month": "2025-03",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 330,
+        "intensity": 0.063462,
+        "month": "2025-04",
+        "production": 5200,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "tonne"
+      },
+      {
+        "emissions": 175,
+        "intensity": 0,
+        "month": "2025-04",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 338,
+        "intensity": 0.067865,
+        "month": "2025-05",
+        "production": 4980.5,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "tonne"
+      },
+      {
+        "emissions": 178,
+        "intensity": 0,
+        "month": "2025-05",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 362,
+        "intensity": 0.070911,
+        "month": "2025-06",
+        "production": 5105,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "tonne"
+      },
+      {
+        "emissions": 181,
+        "intensity": 0,
+        "month": "2025-06",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 354,
+        "intensity": 0,
+        "month": "2025-07",
+        "production": 0,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "unit"
+      },
+      {
+        "emissions": 184,
+        "intensity": 0,
+        "month": "2025-07",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 362,
+        "intensity": 0,
+        "month": "2025-08",
+        "production": 0,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "unit"
+      },
+      {
+        "emissions": 187,
+        "intensity": 0,
+        "month": "2025-08",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 389,
+        "intensity": 0,
+        "month": "2025-09",
+        "production": 0,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "unit"
+      },
+      {
+        "emissions": 190,
+        "intensity": 0,
+        "month": "2025-09",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 378,
+        "intensity": 0,
+        "month": "2025-10",
+        "production": 0,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "unit"
+      },
+      {
+        "emissions": 193,
+        "intensity": 0,
+        "month": "2025-10",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 386,
+        "intensity": 0,
+        "month": "2025-11",
+        "production": 0,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "unit"
+      },
+      {
+        "emissions": 196,
+        "intensity": 0,
+        "month": "2025-11",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      },
+      {
+        "emissions": 416,
+        "intensity": 0,
+        "month": "2025-12",
+        "production": 0,
+        "siteId": 11,
+        "siteName": "Cement Works North",
+        "unit": "unit"
+      },
+      {
+        "emissions": 199,
+        "intensity": 0,
+        "month": "2025-12",
+        "production": 0,
+        "siteId": 12,
+        "siteName": "Cement Works South",
+        "unit": "unit"
+      }
+    ],
+    "totals": {
+      "scope1": 4610,
+      "scope2": 6851,
+      "scope3": 57,
+      "total": 11518
+    }
+  },
+  "equal": true,
+  "studio": {
+    "display": "0.754",
+    "intensity_output": 0.75,
+    "unit": "tCO₂e per unit of output"
+  }
+}

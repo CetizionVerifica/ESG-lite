@@ -1,0 +1,50 @@
+{
+  "acknowledgedWarnings": [
+    "LOW_CONTRAST",
+    "VALUES_MISSING",
+    "BASE_YEAR_MISSING",
+    "SCOPE2_MARKET_MISSING"
+  ],
+  "doc": "cement GHG Inventory (Classic), FY 2026",
+  "final": {
+    "pages": 23,
+    "versionKind": "final"
+  },
+  "layoutChecks": "render",
+  "positionsWithinHalfMm": true,
+  "proof": {
+    "pages": 23
+  },
+  "removedPlaceholders": [
+    "p02-compliance.signature",
+    "p13-biogenic.offsets",
+    "p15-trend.targets",
+    "p18-assurance.statement"
+  ],
+  "sameText": true,
+  "textPerPage": [
+    "1: 14 runs | G R E E N H O U S E G A S I N V E N TO R Y DS Seed Cement Scope 1, 2 and 3 emissions · FY ",
+    "2: 27 runs | STAT E M E N T O F CO M P L I A N C E How this inventory was prepared This report presents",
+    "3: 11 runs | DS golden PDF Inventory 3 Contents Scope 3 categories 11 Emission factors 20 GHG Protocol ",
+    "4: 86 runs | E X E C U T I V E S U M M A R Y Our emissions at a glance 7,551 tCO ₂ e tCO ₂ e in total 2",
+    "5: 21 runs | B O U N D A R I E S What this inventory covers CONSOLIDATION APPROACH Operational control ",
+    "6: 32 runs | R E P O R T I N G P E R I O D Period and base year Financial year 2026 (1 April 2025 – 31 ",
+    "7: 42 runs | M E T H O D O LO G Y How we calculated our emissions Each emission is activity data multip",
+    "8: 44 runs | R E S U LTS · S CO P E 1 Direct emissions 2,730 tCO ₂ e tCO ₂ e Scope 1 Scope 1 covers fue",
+    "9: 49 runs | R E S U LTS · S CO P E 2 Purchased energy 4,056 tCO ₂ e tCO ₂ e Scope 2 (location-based) S",
+    "10: 97 runs | R E S U LTS · S CO P E 3 Value-chain emissions 765 tCO ₂ e tCO ₂ e Scope 3 Not reported Fr",
+    "11: 4 runs | DS golden PDF Inventory 11 Scope 3 categories Not reported",
+    "12: 21 runs | R E S U LTS · B Y S I T E Emissions by site Total emissions by site Total 7,551 tCO ₂ e 0 ",
+    "13: 22 runs | R E P O R T E D S E PA R AT E LY Biogenic CO ₂ and removals 1.25 t CO ₂ (biogenic) tCO ₂ e",
+    "14: 23 runs | I N T E N S I T Y Emissions intensity PER UNIT OF REVENUE Not reported PER UNIT OF OUTPUT ",
+    "15: 34 runs | T R E N D A N D TA R G E TS Trend and targets Change since the base year 0 2,000 4,000 6,0",
+    "16: 22 runs | D ATA Q U A L I T Y Quality and uncertainty Not reported Supplier-specific data DATA QUALI",
+    "17: 17 runs | R E D U C T I O N I N I T I AT I V E S How we reduce emissions Energy Describe the initiat",
+    "18: 7 runs | A S S U R A N C E Assurance statement VERIFICATION Not verified This page holds the verifi",
+    "19: 4 runs | A N N E X E S Factors, indexes and glossary The emission factors behind the figures, where",
+    "20: 4 runs | DS golden PDF Inventory 20 Emission factors Not reported",
+    "21: 4 runs | DS golden PDF Inventory 21 GHG Protocol index Not reported",
+    "22: 3 runs | DS golden PDF Inventory 22 Glossary",
+    "23: 3 runs | DS Seed Cement Greenhouse gas inventory · FY 2025–26 Prepared from approved emission entri"
+  ]
+}

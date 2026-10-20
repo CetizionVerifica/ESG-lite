@@ -1,0 +1,14 @@
+{
+  "element": "big_number",
+  "elements": [
+    {
+      "bytes": 546,
+      "frame": "28.286,152.02,127.286,22.626,0",
+      "id": "p-cover.total",
+      "sha256": "ee95f9f9eab34468a309fa9a8d77ce77f520664369a4d5429c088f391eee3a84"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "sheet",
+  "pages": 1
+}

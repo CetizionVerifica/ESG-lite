@@ -1,0 +1,20 @@
+{
+  "element": "line",
+  "elements": [
+    {
+      "bytes": 701,
+      "frame": "32.257,160.354,193.543,2.566,0",
+      "id": "p-cover.line",
+      "sha256": "7b3aa284bbb0dd65caf590688a8de17e1823419189f0f75fa5b5f48936b467ab"
+    },
+    {
+      "bytes": 950,
+      "frame": "177.414,83.384,137.093,12.828,0",
+      "id": "p-el.dotted",
+      "sha256": "06a5573a3289f7ebb8b5cc57d877ef36184a0d90a2e61d87415926273bcd1074"
+    }
+  ],
+  "format": "slide_16_9",
+  "mode": "present",
+  "pages": 1
+}

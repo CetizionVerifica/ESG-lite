@@ -1,0 +1,28 @@
+{
+  "allPagesSame": true,
+  "bleedMm": 3,
+  "boxesMm": {
+    "bleed": [
+      0,
+      0,
+      215.9,
+      303
+    ],
+    "media": [
+      0,
+      0,
+      215.9,
+      303
+    ],
+    "trim": [
+      3,
+      3,
+      209.9,
+      297
+    ]
+  },
+  "doc": "cement GHG Inventory (Classic), FY 2026, A4",
+  "pages": 23,
+  "sameAsProof": true,
+  "trimIsA4": true
+}

@@ -1,0 +1,47 @@
+{
+  "element": "text",
+  "elements": [
+    {
+      "bytes": 382,
+      "frame": "28.286,113.131,240.429,5.657,0",
+      "id": "p-cover.kicker",
+      "sha256": "1ee31329c272aba64c008f7fc956fed5a98f42a8d4e6938e87fbf8cd98f37483"
+    },
+    {
+      "bytes": 397,
+      "frame": "28.286,120.202,240.429,28.283,0",
+      "id": "p-cover.title",
+      "sha256": "9672eb020d35e3f00714cbd83b3abd41257230b3904328de1bb0e215f925606d"
+    },
+    {
+      "bytes": 377,
+      "frame": "21.214,10.606,254.571,9.899,0",
+      "id": "p-summary.heading",
+      "sha256": "d166fbd13167d4afeea57b473bf72ad42eb53ec8f9726cdcd65e34ed2773ddba"
+    },
+    {
+      "bytes": 904,
+      "frame": "21.214,22.626,254.571,24.04,0",
+      "id": "p-summary.body",
+      "sha256": "95dbf6073aaa2f86be260be81f23b05ada800abc11cda1225c3efa8636898517"
+    },
+    {
+      "bytes": 481,
+      "frame": "148.5,156.97,127.286,5.657,0",
+      "id": "p-el.overflow",
+      "sha256": "08ad82704e24fa99e3c17609bdfad4f0eb0cb2caa4e23b0727633b06cb4865c8"
+    },
+    {
+      "bytes": 372,
+      "frame": "56.571,185.253,84.857,4.242,0",
+      "id": "p-el.tiny",
+      "sha256": "4b23fed0ed4400160c975161af02d1d96c75b1b9ffe63586751c69d622dabad7"
+    }
+  ],
+  "format": "a4_landscape",
+  "hidden": [
+    "p-el.hidden"
+  ],
+  "mode": "present",
+  "pages": 1
+}

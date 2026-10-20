@@ -1,0 +1,20 @@
+{
+  "element": "line",
+  "elements": [
+    {
+      "bytes": 701,
+      "frame": "30.238,139.815,181.429,2.237,0",
+      "id": "p-cover.line",
+      "sha256": "dc551a612385648fb34660fc38b674bf8517441a08a4781612a5d830984bc4c1"
+    },
+    {
+      "bytes": 948,
+      "frame": "166.31,72.704,128.512,11.185,0",
+      "id": "p-el.dotted",
+      "sha256": "85343619f43d6ad8adb239cd43b2ee90c2dedfd3de8e6ef2ddf0094ce1203cb7"
+    }
+  ],
+  "format": "social_191",
+  "mode": "present",
+  "pages": 1
+}

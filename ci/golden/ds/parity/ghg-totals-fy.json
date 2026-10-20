@@ -1,0 +1,242 @@
+{
+  "cement FY 2025": {
+    "equal": true,
+    "report": {
+      "scope1": 2630,
+      "scope2": 3890,
+      "scope3": 0,
+      "total": 6520
+    },
+    "scope3Categories": [
+      "1 · Purchased goods and services=0",
+      "2 · Capital goods=0",
+      "3 · Fuel- and energy-related activities=0",
+      "4 · Upstream transportation and distribution=0",
+      "5 · Waste generated in operations=0",
+      "6 · Business travel=0",
+      "7 · Employee commuting=0",
+      "8 · Upstream leased assets=0",
+      "9 · Downstream transportation and distribution=0",
+      "10 · Processing of sold products=0",
+      "11 · Use of sold products=0",
+      "12 · End-of-life treatment of sold products=0",
+      "13 · Downstream leased assets=0",
+      "14 · Franchises=0",
+      "15 · Investments=0"
+    ],
+    "sites": [
+      11,
+      12
+    ],
+    "splits": {
+      "byScope": 6520,
+      "byScope3Category": 0
+    },
+    "studio": {
+      "scope1": 2630,
+      "scope2": 3890,
+      "scope3": 0,
+      "total": 6520
+    }
+  },
+  "cement FY 2026": {
+    "equal": true,
+    "report": {
+      "scope1": 2730,
+      "scope2": 4056,
+      "scope3": 764.75,
+      "total": 7550.75
+    },
+    "scope3Categories": [
+      "1 · Purchased goods and services=640.5",
+      "2 · Capital goods=0",
+      "3 · Fuel- and energy-related activities=0",
+      "4 · Upstream transportation and distribution=82",
+      "5 · Waste generated in operations=42.25",
+      "6 · Business travel=0",
+      "7 · Employee commuting=0",
+      "8 · Upstream leased assets=0",
+      "9 · Downstream transportation and distribution=0",
+      "10 · Processing of sold products=0",
+      "11 · Use of sold products=0",
+      "12 · End-of-life treatment of sold products=0",
+      "13 · Downstream leased assets=0",
+      "14 · Franchises=0",
+      "15 · Investments=0"
+    ],
+    "sites": [
+      11,
+      12
+    ],
+    "splits": {
+      "byScope": 7550.75,
+      "byScope3Category": 764.75
+    },
+    "studio": {
+      "scope1": 2730,
+      "scope2": 4056,
+      "scope3": 764.75,
+      "total": 7550.75
+    }
+  },
+  "steel FY 2025": {
+    "equal": true,
+    "report": {
+      "scope1": 50,
+      "scope2": 80,
+      "scope3": 11,
+      "total": 141
+    },
+    "scope3Categories": [
+      "1 · Purchased goods and services=0",
+      "2 · Capital goods=0",
+      "3 · Fuel- and energy-related activities=0",
+      "4 · Upstream transportation and distribution=0",
+      "5 · Waste generated in operations=0",
+      "6 · Business travel=0",
+      "7 · Employee commuting=0",
+      "8 · Upstream leased assets=0",
+      "9 · Downstream transportation and distribution=0",
+      "10 · Processing of sold products=0",
+      "11 · Use of sold products=0",
+      "12 · End-of-life treatment of sold products=0",
+      "13 · Downstream leased assets=0",
+      "14 · Franchises=0",
+      "15 · Investments=0",
+      "Unmapped=11"
+    ],
+    "sites": [
+      1,
+      2
+    ],
+    "splits": {
+      "byScope": 141,
+      "byScope3Category": 11
+    },
+    "studio": {
+      "scope1": 50,
+      "scope2": 80,
+      "scope3": 11,
+      "total": 141
+    }
+  },
+  "steel FY 2026": {
+    "equal": true,
+    "report": {
+      "scope1": 14.29,
+      "scope2": 120,
+      "scope3": 1,
+      "total": 135.29
+    },
+    "scope3Categories": [
+      "1 · Purchased goods and services=0",
+      "2 · Capital goods=0",
+      "3 · Fuel- and energy-related activities=0",
+      "4 · Upstream transportation and distribution=0",
+      "5 · Waste generated in operations=0",
+      "6 · Business travel=0",
+      "7 · Employee commuting=0",
+      "8 · Upstream leased assets=0",
+      "9 · Downstream transportation and distribution=0",
+      "10 · Processing of sold products=0",
+      "11 · Use of sold products=0",
+      "12 · End-of-life treatment of sold products=0",
+      "13 · Downstream leased assets=0",
+      "14 · Franchises=0",
+      "15 · Investments=0",
+      "Unmapped=1"
+    ],
+    "sites": [
+      1,
+      2
+    ],
+    "splits": {
+      "byScope": 135.29,
+      "byScope3Category": 1
+    },
+    "studio": {
+      "scope1": 14.29,
+      "scope2": 120,
+      "scope3": 1,
+      "total": 135.29
+    }
+  },
+  "textiles FY 2025": {
+    "equal": true,
+    "report": {
+      "scope1": 410,
+      "scope2": 1290,
+      "scope3": 2300,
+      "total": 4000
+    },
+    "scope3Categories": [
+      "1 · Purchased goods and services=2300",
+      "2 · Capital goods=0",
+      "3 · Fuel- and energy-related activities=0",
+      "4 · Upstream transportation and distribution=0",
+      "5 · Waste generated in operations=0",
+      "6 · Business travel=0",
+      "7 · Employee commuting=0",
+      "8 · Upstream leased assets=0",
+      "9 · Downstream transportation and distribution=0",
+      "10 · Processing of sold products=0",
+      "11 · Use of sold products=0",
+      "12 · End-of-life treatment of sold products=0",
+      "13 · Downstream leased assets=0",
+      "14 · Franchises=0",
+      "15 · Investments=0"
+    ],
+    "sites": [
+      13
+    ],
+    "splits": {
+      "byScope": 4000,
+      "byScope3Category": 2300
+    },
+    "studio": {
+      "scope1": 410,
+      "scope2": 1290,
+      "scope3": 2300,
+      "total": 4000
+    }
+  },
+  "textiles FY 2026": {
+    "equal": true,
+    "report": {
+      "scope1": 381.3,
+      "scope2": 1199.7,
+      "scope3": 2139,
+      "total": 3720
+    },
+    "scope3Categories": [
+      "1 · Purchased goods and services=2139",
+      "2 · Capital goods=0",
+      "3 · Fuel- and energy-related activities=0",
+      "4 · Upstream transportation and distribution=0",
+      "5 · Waste generated in operations=0",
+      "6 · Business travel=0",
+      "7 · Employee commuting=0",
+      "8 · Upstream leased assets=0",
+      "9 · Downstream transportation and distribution=0",
+      "10 · Processing of sold products=0",
+      "11 · Use of sold products=0",
+      "12 · End-of-life treatment of sold products=0",
+      "13 · Downstream leased assets=0",
+      "14 · Franchises=0",
+      "15 · Investments=0"
+    ],
+    "sites": [
+      13
+    ],
+    "splits": {
+      "byScope": 3720,
+      "byScope3Category": 2139
+    },
+    "studio": {
+      "scope1": 381.3,
+      "scope2": 1199.7,
+      "scope3": 2139,
+      "total": 3720
+    }
+  }
+}

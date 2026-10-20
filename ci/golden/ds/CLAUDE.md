@@ -95,3 +95,114 @@ waves switch cases from skip to run; DS-14 final fills the rest.
   P11 needs the DS-1 render call and the DS-3 brand voice written).
 - FE `e2e/ds-*.spec.ts` main path (Playwright): no FE part in this draft; DS-0's nav-item
   Playwright test is the only FE e2e so far.
+
+## As built (final, wave 5: 2026-10-20, branch `ds-14-verify-final` on `ds/local`, both repos, local only)
+
+DS-14F turns every golden from skip to run, writes the workflow steps DS-W2–W8 (W6 waits on
+DS-13), finishes the probes and adds the FE main-path Playwright run against the real backend.
+
+### Files
+**ESG-lite**
+- Seed set: `ci/golden/ds/fixture/seed.sql` (on top of the API fixture: companies 11 DS Seed
+  Cement, 12 DS Seed Textiles, 13 DS Seed Foods; their sites, Managers 11–13, brands, Scope 3
+  categories 4/1/5 with `ghg_category`, 64 approved emission rows with factor sources, per-gas kg
+  and one biogenic row, production for the EDE intensity) and `fixture/seed-kpi.sql` (company 13:
+  KPI tracking on, CY setup, default frameworks, every library KPI annual, approved 2024/2025
+  values of the Editorial template's KPIs at each definition's level, one pending value).
+- `ci/golden/ds/lib/seed.cjs`: `ensureSeed(ctx)` loads both, runs the KPI migrations, switches the
+  studio on and builds the seed docs through the API as each company's Manager:
+  GHG companies 1 (CI Steel, CY 2025, pending + rejected rows), 11 (FY 2026), 12 (CY 2025):
+  Inventory (`ghg-inventory-classic`), Board brief (`POST /docs/:id/resize` to 16:9 deck),
+  One-page summary (`ghg-one-page-classic`); company 13: `sustainability-editorial`.
+  `lib/stack.cjs`: three seed Managers in `USERS` and `buffer` on file answers (`// DS-14F`).
+- Groups: `groups/seed.cjs` (outline, build steps, every binding and chip resolved:
+  "label = display [reason] | series"), `groups/checks.cjs` (checks list per seed doc at its rev,
+  no render), `groups/parity.cjs` (resolve vs `POST /user/ghg/tables` per company, CY 2025/2024
+  and FY 2026/2025, scope and Scope 3 category splits; a gap over 0.01 t **throws**, so it can't be
+  snapshotted away; EDE yearly for the cement company and DS-2 `intensity_output` = total ÷ EDE's
+  approved production), `groups/render.cjs` (378 cases: each element type's elements of the DS-1
+  fixture on one page of the format, rendered in the mode; frame, bytes and sha256 of each
+  element's HTML; hidden elements must not render), `groups/pdf.cjs` (on a duplicate of the
+  cement Inventory with the report details given and the empty placeholders removed: proof and
+  final of one rev, same page count, same text per page, every text run within 0.5 mm, read with
+  pdfjs-dist; then a print PDF's Media/Trim/Bleed boxes with pdf-lib).
+- `cases.json`: every case `"run": true`; seed and checks cases name their `doc`; the `pdf` group
+  is `"chromium": true`. `run.cjs`: a chromium group is skipped, named, where Playwright's Chromium
+  can't start.
+- `audit/harness/ds-probes.cjs` (`// DS-14F`): DS-P10 makes its own design (DS-P04/P05 delete
+  design 1 on the way, which left P10 n/a); DS-P11 written: hostile `<script>`, `onerror` and
+  `javascript:` in text, titles, labels and alt text render escaped in sheet, paged, present and
+  print; a hostile brand voice round-trips as JSON text and can't close its `<untrusted>` fence.
+- `ci/workflow/workflow.test.cjs`: DS-W2–W5, W7, W8 written (block `DS-14F`), W9 also checks an
+  active view link answers 410 once the studio is off; `ci/workflow/README.md` row.
+- `ci/unit/ds-14-verification.test.cjs`: no case waits on a module; the render matrix is complete;
+  the seed fixture's ids stay clear of the API fixture and its sequences.
+- `ci/golden/ds/e2e-stack.cjs`: the real stack for the FE main path (throwaway DB, seed set, CORS
+  for the app origin, tokens and template ids written to a JSON file).
+- `package.json`: devDependency `pdfjs-dist` 4.10.38 (Apache-2.0), exact.
+
+**ESG-lite_FE**
+- `e2e/ds-14-main-path.spec.ts` + `playwright.ds-real.config.ts` (`npm run test:e2e:ds-real`, own
+  port 4317, `VITE_API_URL` from the stack file): the main path on the real backend and the
+  switch-off path. Skipped, named, without `DS_E2E_STACK`. `package.json`: the script and the
+  config in `lint:new`.
+
+Run it: `npm run build && DB_NAME=ci_x node ci/golden/ds/e2e-stack.cjs /tmp/ds-stack.json 3995
+http://localhost:4317` in ESG-lite, then `DS_E2E_STACK=/tmp/ds-stack.json npm run test:e2e:ds-real`
+in ESG-lite_FE.
+
+### Decisions
+1. **The 3 seed companies** are the API fixture's CI Steel (deliberately not final-ready: pending
+   and rejected rows) plus two new ones; the KPI seed company is a fourth. They live in
+   `ci/golden/ds/fixture/` and are loaded only by the DS goldens and the e2e stack (the API
+   suite's fixture is unchanged).
+2. **Goldens record no ids, dates or data hashes** (`approvedAt`, `dataHash` vary with
+   `updated_at`); the template id appears as the doc stores it.
+3. **Render goldens hash each element's HTML, not the CSS**: a theme or font change shows in
+   DS-1's own snapshots (`ci/golden/ds/render/snapshots.json`), an element change here.
+4. **Parity throws instead of recording `equal: false`.** Same for proof vs final (text or
+   > 0.5 mm).
+5. **Workflow W7 settles the period through Review** (the Manager approves the pending row and
+   deletes the rejected one) because a GHG final can't be made with them (D6). The W9 baseline
+   is retaken right after that; W7 first asserts the studio had moved nothing since W0.
+6. **The FE main path runs on the real backend** (every other ds-* spec mocks the API), so it
+   is a separate config and an opt-in run; it fills report details and removes empty
+   placeholders through the API while the report isn't open (an autosave would race it).
+
+### Deviations
+- The seed group runs with `ai: false` (no provider in CI); the AI drafting path is covered by
+  the `ai/recorded` goldens and DS-9's tests.
+- "Edit (move a chart, add a chip)" in the workflow is a PATCH of the doc as the editor would
+  send it; dragging on the canvas is DS-6's Playwright.
+- PDF goldens use the cement Inventory only (one A4 Classic doc), not every seed doc.
+
+### Findings for other modules (the checks working on the seed docs)
+- DS-12: `NUMBER_UNBOUND` (info) flags the "26" of "FY 2025–26" on every FY doc.
+- DS-12: the near-miss fix (`replace_with_token`) wasn't offered for a typed Scope 1 30 % high
+  on the workflow client (several candidate figures); the workflow uses the Scope 1 chip directly.
+- DS-1/DS-4: the Classic Inventory's cover and compliance kicker text is 3.0:1 on its
+  background (`LOW_CONTRAST` warning); flow tables (`scope3_categories`, `ghg_factor_table`) still
+  print "Not reported" in finals (known since DS-12).
+- DS-11 FE: after a final finishes, the Share dialog shows it only once the page's versions
+  query refetches (the e2e reloads); worth an invalidate on the final's job completion seen from
+  the checks panel.
+
+### Tests run
+- `test-lane.sh ds-14f-be`: build ok, unit ok, scope3-golden 32/32, calculation snapshot matches
+  (23 entries, 6 reports), workflow 61 pass / 0 fail / 3 skipped (+ categories 29 pass), DS
+  goldens `425 run, 425 matched` (inside DS-W11), probes 269+ pass / 0 fail / 7 n/a (DS-13
+  routes and the bundled font file). API: 761 pass / 1 fail in the lane run (a ds-12 test lost
+  its connection after 208 s, ECONNRESET, while the machine also ran Chromium and Vite); the
+  whole API suite again on a fresh ci_* DB: 762 pass / 0 fail. No API test or server code
+  changed in DS-14F.
+- `test-lane.sh ds-14f-fe`: typecheck ok, lint:new ok, vitest 1957 pass (208 files).
+- DS goldens alone on a fresh ci_* DB, twice (written, then compared): 425/425.
+- `ds-14-main-path` (real stack): 2/2 passed, three runs in a row.
+
+### Not done
+- **DS-W6 (approval)** stays "waits on DS-13" (`/docs/:id/approvals` isn't routed on ds/local);
+  DS-P03 for the DS-13 routes stays n/a for the same reason. When DS-13 lands: write W6 (request
+  approval, the reviewer approves the current rev, `DS_APPROVAL_PENDING` before that) and add
+  `report_comment`/`report_approval` SEED rows; nothing else here needs to change.
+- "Every golden is green on `production` after DS-13" can only be checked after that merge.
+- The FE main path doesn't run in FE CI (no backend there); it is the opt-in real-stack run.

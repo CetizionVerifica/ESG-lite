@@ -1,0 +1,23 @@
+{
+  "foods": {
+    "blocking": true,
+    "checks": [
+      "error YEAR_NOT_LOCKED [open_link]: 2025 isn't locked yet. Lock the year's KPI values before the final.",
+      "error LEADERSHIP_UNCONFIRMED @p03-leadership.message: The leadership message isn't confirmed by its signatory yet. Tick it as confirmed once they have approved it.",
+      "error EMPTY_PLACEHOLDER @p06-materiality.matrix: An empty placeholder is still on this page (\"The materiality matrix: impact and financial scores from KPI setup\"). Fill it or delete it.",
+      "warning VALUES_MISSING @p05-highlights.women [open_values]: \"Women in the workforce\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p13-people.women [open_values]: \"Women in the workforce\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p14-safety.ltifr [open_values]: \"Lost-time injury frequency rate\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p14-safety.fatalities [open_values]: \"Fatalities\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p14-safety.training [open_values]: \"Training hours per employee\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p17-governance.women_board [open_values]: \"Women on the board\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p17-governance.training [open_values]: \"Trained on anti-corruption\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p17-governance.corruption [open_values]: \"Confirmed corruption incidents\" shows \"Not reported\": there's no approved data for the period.",
+      "warning VALUES_MISSING @p17-governance.complaints [open_values]: \"Complaints received\" shows \"Not reported\": there's no approved data for the period."
+    ],
+    "layout": "none",
+    "warnings": [
+      "VALUES_MISSING"
+    ]
+  }
+}

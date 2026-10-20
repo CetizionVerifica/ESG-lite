@@ -1,0 +1,20 @@
+{
+  "element": "sdg",
+  "elements": [
+    {
+      "bytes": 401,
+      "frame": "198,107.475,35.357,17.677,0",
+      "id": "p-el.sdg13",
+      "sha256": "eb52e4ac37f97b37ff5e805715655103476fb4d75029901a39d88f89819109a2"
+    },
+    {
+      "bytes": 371,
+      "frame": "240.429,107.475,16.971,8.485,0",
+      "id": "p-el.sdg7",
+      "sha256": "2ec9bbb9546b5264c5eb90b8658a078dc5aa0dbbf592373b0e00ff51bd5b5407"
+    }
+  ],
+  "format": "a4_landscape",
+  "mode": "sheet",
+  "pages": 1
+}
