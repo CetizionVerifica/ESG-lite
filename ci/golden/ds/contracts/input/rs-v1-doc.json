@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "title": "Annual report 2025",
+    "year": 2025,
+    "yearType": "FY",
+    "sites": [
+      1,
+      2
+    ],
+    "frameworks": [
+      "GRI"
+    ],
+    "language": "en"
+  },
+  "design": {
+    "designId": "classic",
+    "designVersion": 3,
+    "theme": {
+      "look": "night"
+    }
+  },
+  "pages": [
+    {
+      "id": "p1",
+      "kind": "freeform",
+      "name": "Highlights",
+      "background": {},
+      "elements": [
+        {
+          "id": "p1.tile",
+          "type": "kpi_tile",
+          "frame": {
+            "x": 10,
+            "y": 10,
+            "w": 50,
+            "h": 30,
+            "rotation": 0
+          },
+          "z": 0,
+          "source": "layout",
+          "props": {
+            "binding": {
+              "kpis": [
+                "ENERGY_TOTAL"
+              ],
+              "years": {
+                "last": 2
+              },
+              "sites": "all",
+              "unit": "GJ"
+            },
+            "showDelta": true,
+            "showSparkline": false,
+            "variant": "card"
+          }
+        },
+        {
+          "id": "p1.text",
+          "type": "text",
+          "frame": {
+            "x": 10,
+            "y": 50,
+            "w": 190,
+            "h": 30,
+            "rotation": 0
+          },
+          "z": 1,
+          "source": "user",
+          "props": {
+            "style": "body",
+            "align": "left",
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Energy fell to "
+                    },
+                    {
+                      "type": "kpi",
+                      "attrs": {
+                        "kpi": "ENERGY_TOTAL",
+                        "year": "current",
+                        "measure": "value",
+                        "unit": "GJ",
+                        "format": "int"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "text": ", from "
+                    },
+                    {
+                      "type": "kpi",
+                      "attrs": {
+                        "kpi": "ENERGY_TOTAL",
+                        "year": 2024,
+                        "measure": "value",
+                        "sites": [
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "kind": "flow",
+      "name": "Notes",
+      "flowType": "narrative",
+      "options": {},
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "kpi",
+                "attrs": {
+                  "kpi": "WATER",
+                  "year": "prior",
+                  "measure": "change_pct"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "assets": []
+}

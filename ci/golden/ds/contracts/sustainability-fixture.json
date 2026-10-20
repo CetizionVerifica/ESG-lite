@@ -1,0 +1,109 @@
+{
+  "bindings": [
+    {
+      "compare": "prior",
+      "kpis": [
+        "ENERGY_TOTAL"
+      ],
+      "sites": "all",
+      "source": "kpi",
+      "unit": "GJ",
+      "years": {
+        "last": 3
+      }
+    },
+    {
+      "breakdown": "site",
+      "kpis": [
+        "WATER_WITHDRAWAL"
+      ],
+      "sites": [
+        1,
+        2
+      ],
+      "source": "kpi",
+      "years": [
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "kpis": [
+        "WOMEN_WORKFORCE_PCT"
+      ],
+      "sites": "all",
+      "source": "kpi",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "key": "verification",
+      "source": "input"
+    }
+  ],
+  "bytes": 4769,
+  "checks": [
+    "YEAR_NOT_LOCKED",
+    "VALUES_MISSING",
+    "NUMBER_MISMATCH",
+    "NUMBER_UNBOUND",
+    "TEXT_OVERFLOW",
+    "OUTSIDE_SAFE_AREA",
+    "OVERLAPS_LOCKED",
+    "FONT_TOO_SMALL",
+    "LOW_CONTRAST",
+    "EMPTY_PLACEHOLDER",
+    "MISSING_ALT",
+    "AI_UNREVIEWED",
+    "LEADERSHIP_UNCONFIRMED",
+    "DATA_CHANGED",
+    "UNLINKED_DATA"
+  ],
+  "format": "a4",
+  "kind": "sustainability",
+  "pages": [
+    {
+      "elements": [
+        "s-cover.bg:image",
+        "s-cover.band:shape",
+        "s-cover.title:text",
+        "s-cover.logo:image"
+      ],
+      "id": "s-cover",
+      "kind": "freeform",
+      "layoutId": "sus-cover"
+    },
+    {
+      "elements": [
+        "s-highlights.kicker:text",
+        "s-highlights.energy:kpi_tile",
+        "s-highlights.water:chart",
+        "s-highlights.text:text",
+        "s-highlights.table:table",
+        "s-highlights.icon:icon",
+        "s-highlights.sdg:sdg",
+        "s-highlights.divider:divider",
+        "s-highlights.slot:placeholder",
+        "s-highlights.input:kpi_tile"
+      ],
+      "id": "s-highlights",
+      "kind": "freeform",
+      "layoutId": "sus-highlights"
+    },
+    {
+      "flowType": "gri_index",
+      "id": "s-gri",
+      "kind": "flow"
+    },
+    {
+      "flowType": "methodology",
+      "id": "s-method",
+      "kind": "flow"
+    }
+  ],
+  "purpose": "report",
+  "underCap": true,
+  "valid": true
+}

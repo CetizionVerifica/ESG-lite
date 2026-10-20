@@ -1,0 +1,208 @@
+{
+  "bindings": [
+    {
+      "compare": "prior",
+      "metric": "total",
+      "sites": "all",
+      "source": "ghg",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "metric": "scope1",
+      "sites": "all",
+      "source": "ghg",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "compare": "prior",
+      "metric": "total",
+      "sites": "all",
+      "source": "ghg",
+      "years": [
+        2024,
+        2025
+      ]
+    },
+    {
+      "breakdown": "scope",
+      "metric": "total",
+      "sites": "all",
+      "source": "ghg",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "compare": "base",
+      "metric": "total",
+      "sites": "all",
+      "source": "ghg",
+      "years": {
+        "last": 2
+      }
+    },
+    {
+      "metric": "primary_data_pct",
+      "sites": "all",
+      "source": "ghg",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "metric": "scope2_market",
+      "sites": "all",
+      "source": "ghg",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "breakdown": "scope3_category",
+      "metric": "scope3",
+      "sites": "all",
+      "source": "ghg",
+      "top": 10,
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "metric": "scope3_category",
+      "scope3Category": 4,
+      "sites": [
+        1,
+        2
+      ],
+      "source": "ghg",
+      "years": {
+        "last": 1
+      }
+    },
+    {
+      "columns": [
+        "Year",
+        "Suppliers engaged"
+      ],
+      "rows": [
+        [
+          "2024",
+          12
+        ],
+        [
+          "2025",
+          30
+        ]
+      ],
+      "source": "custom"
+    },
+    {
+      "breakdown": "site",
+      "metric": "total",
+      "sites": "all",
+      "source": "ghg",
+      "years": {
+        "last": 1
+      }
+    }
+  ],
+  "bytes": 7038,
+  "checks": [
+    "VALUES_MISSING",
+    "NUMBER_MISMATCH",
+    "NUMBER_UNBOUND",
+    "TEXT_OVERFLOW",
+    "OUTSIDE_SAFE_AREA",
+    "OVERLAPS_LOCKED",
+    "FONT_TOO_SMALL",
+    "LOW_CONTRAST",
+    "EMPTY_PLACEHOLDER",
+    "MISSING_ALT",
+    "AI_UNREVIEWED",
+    "DATA_CHANGED",
+    "GHG_PENDING_ENTRIES",
+    "GHG_SITES_MISSING",
+    "GHG_MONTHS_MISSING",
+    "CONSOLIDATION_MISSING",
+    "PERIOD_MISSING",
+    "BASE_YEAR_MISSING",
+    "RECALC_POLICY_MISSING",
+    "SCOPE2_MARKET_MISSING",
+    "GAS_BREAKDOWN_MISSING",
+    "BIOGENIC_IN_SCOPE",
+    "BIOGENIC_NOT_SHOWN",
+    "SCOPE3_CATEGORY_UNADDRESSED",
+    "EXCLUSION_NO_REASON",
+    "SCOPE3_DQ_MISSING",
+    "EF_SOURCE_MISSING",
+    "GWP_MIXED",
+    "RESPONSIBLE_PERSON_MISSING",
+    "UNCERTAINTY_MISSING",
+    "VERIFICATION_STATEMENT_MISSING",
+    "INTENSITY_MISSING",
+    "TOTAL_MISMATCH",
+    "YOY_UNEXPLAINED",
+    "UNLINKED_DATA"
+  ],
+  "format": "a4",
+  "kind": "ghg",
+  "pages": [
+    {
+      "elements": [
+        "p-cover.bg:frame",
+        "p-cover.title:text",
+        "p-cover.total:big_number",
+        "p-cover.qr:qr"
+      ],
+      "id": "p-cover",
+      "kind": "freeform",
+      "layoutId": "ghg-cover"
+    },
+    {
+      "elements": [
+        "p-summary.heading:text",
+        "p-summary.body:text",
+        "p-summary.split:chart",
+        "p-summary.waterfall:chart",
+        "p-summary.s3:progress",
+        "p-summary.market:kpi_tile",
+        "p-summary.note:callout",
+        "p-summary.rule:line",
+        "p-summary.pn:page_number"
+      ],
+      "id": "p-summary",
+      "kind": "freeform",
+      "layoutId": "ghg-exec-summary"
+    },
+    {
+      "elements": [
+        "p-scope3.bars:chart",
+        "p-scope3.cat4:kpi_tile",
+        "p-scope3.consolidation:text",
+        "p-scope3.custom:chart",
+        "p-scope3.photos:grid",
+        "p-scope3.table:table"
+      ],
+      "id": "p-scope3",
+      "kind": "freeform",
+      "layoutId": null
+    },
+    {
+      "flowType": "scope3_categories",
+      "id": "p-categories",
+      "kind": "flow"
+    },
+    {
+      "flowType": "ghg_factor_table",
+      "id": "p-factors",
+      "kind": "flow"
+    }
+  ],
+  "purpose": "report",
+  "underCap": true,
+  "valid": true
+}

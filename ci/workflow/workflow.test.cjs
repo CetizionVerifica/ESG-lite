@@ -955,6 +955,109 @@ step("K10 the emissions golden snapshot is byte-identical with KPI tracking on",
   }
 });
 
+// ── Design Studio (DS-14: DS-W0–DS-W11) ── DS-14 ─────────────────────────────
+// The same client. DS-W1 and DS-W9 run now (DS-0); the steps between wait on the module that
+// routes them and are filled by DS-14 final (ci/golden/ds/CLAUDE.md). DS-W10 runs the DS
+// audit probes and DS-W11 the DS goldens, each in a scratch database of its own.
+const DS_ROOT = require("path").resolve(__dirname, "../..");
+const dsRoutes = require("../golden/ds/lib/routes.cjs");
+const dsBuilt = (method, p) => async () => dsRoutes.isBuilt(DS_ROOT, method, p);
+const dsLater = (module) => async (t) => t.skip(`${module} is routed; DS-14 final writes this step's checks`);
+const dsAudit = () => kq(`SELECT changed_fields FROM audit_log WHERE entity_type = 'design_studio' AND entity_id = $1 ORDER BY id`, [S.companyId]);
+/** A scratch ci_* database next to DB_NAME for `fn(name)`, dropped afterwards. */
+async function dsScratch(suffix, fn) {
+  const { Client } = require("pg");
+  const scratch = `${process.env.DB_NAME}_${suffix}`;
+  assert.match(scratch, /^ci_[a-z0-9_]+$/);
+  const admin = new Client({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USERNAME, password: process.env.DB_PASSWORD, database: "postgres" });
+  await admin.connect();
+  await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+  await admin.query(`CREATE DATABASE "${scratch}"`);
+  try {
+    return await fn(scratch);
+  } finally {
+    await admin.query(`DROP DATABASE IF EXISTS "${scratch}"`);
+    await admin.end();
+  }
+}
+
+step("DS-W0 before Design Studio: the emission reports this client has (to compare once the studio is on and off)", async () => {
+  S.dsEmissionsBefore = await emissionReports();
+});
+
+step("DS-W1 the Superadmin switches Design Studio on for this client; GHG only (KPI off); Users and the other client stay out", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { design_studio_enabled: true }));
+  assert.deepEqual((await dsAudit()).map((r) => r.changed_fields), [{ design_studio_enabled: { old: false, new: true } }]);
+  for (const who of [S.admin, S.people.manager, S.people.userMain]) assert.deepEqual((await call("GET", "/studio/status", who)).json, { enabled: true, kinds: { ghg: true, sustainability: false } });
+  const user = await call("GET", "/studio/docs", S.people.userMain);
+  assert.deepEqual([user.status, user.json.code], [403, "DS_ROLE"]);
+  const other = S.otherAdmin || (await login(SC.OTHER_CLIENT.email, SC.OTHER_CLIENT.password));
+  assert.deepEqual((await call("GET", "/studio/status", other)).json, { enabled: false, kinds: { ghg: false, sustainability: false } });
+  const off = await call("GET", "/studio/docs", other);
+  assert.deepEqual([off.status, off.json.code], [403, "DS_STUDIO_OFF"]);
+  const named = await call("GET", `/studio/status?company_id=${S.companyId}`, other);
+  assert.deepEqual([named.status, named.json.code], [404, "DS_DOC_NOT_FOUND"], "another client's id");
+});
+
+pendingStep("DS-W2 GHG report page → Design this report → the Manager builds a GHG Inventory", "DS-5", dsBuilt("POST", "/docs"), dsLater("DS-5"));
+pendingStep("DS-W3 the Manager edits: moves a chart, adds a data chip (PATCH with rev)", "DS-5, DS-6", dsBuilt("PATCH", "/docs/:id"), dsLater("DS-5"));
+pendingStep("DS-W4 resize to a Board brief deck (a linked copy, bound elements carried over)", "DS-10", dsBuilt("POST", "/docs/:id/resize"), dsLater("DS-10"));
+pendingStep("DS-W5 checks: the planted mismatch is found, fixed, and the doc passes", "DS-12", dsBuilt("POST", "/docs/:id/checks"), dsLater("DS-12"));
+pendingStep("DS-W6 request approval; the reviewer approves the current rev", "DS-13", dsBuilt("POST", "/docs/:id/approvals"), dsLater("DS-13"));
+pendingStep("DS-W7 the Manager generates the final; it is immutable and its SHA matches the download", "DS-11", dsBuilt("POST", "/docs/:id/jobs"), dsLater("DS-11"));
+pendingStep("DS-W8 a share link serves the stored final PDF; revoked, it answers 410", "DS-11", dsBuilt("POST", "/docs/:id/shares"), dsLater("DS-11"));
+
+step("DS-W9 switching off hides everything: /studio/* answers 403 DS_STUDIO_OFF; the emission figures are the same as before the studio", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { design_studio_enabled: false }));
+  assert.deepEqual((await dsAudit()).map((r) => r.changed_fields.design_studio_enabled), [{ old: false, new: true }, { old: true, new: false }]);
+  for (const who of [S.admin, S.people.manager, S.people.userMain]) assert.deepEqual((await call("GET", "/studio/status", who)).json, { enabled: false, kinds: { ghg: false, sustainability: false } }, "the FE hides the nav item and routes on this");
+  const wrong = [];
+  for (const r of dsRoutes.gatedRoutes(DS_ROOT)) {
+    for (const who of [S.admin, S.people.manager, S.people.userMain]) {
+      const res = await call(r.method, dsRoutes.concrete(r.path), who, r.method === "GET" || r.method === "DELETE" ? undefined : {});
+      if (!(res.status === 403 && res.json?.code === "DS_STUDIO_OFF")) wrong.push(`${who.user.role} ${r.method} ${r.path}: ${res.status} ${res.json?.code ?? ""}`);
+    }
+  }
+  assert.deepEqual(wrong, []);
+  assert.equal(await emissionReports(), S.dsEmissionsBefore, "byte-identical with the studio on and off");
+});
+
+step("DS-W10 the Design Studio audit probes report zero findings on this stack", async (t) => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const { spawnSync } = require("child_process");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ds-probes-"));
+  const out = path.join(dir, "ds-probes.json");
+  try {
+    await dsScratch("dsprobes", async (scratch) => {
+      const port = process.env.DS_PROBE_PORT || process.env.API_TEST_PORT || String(Number(process.env.WORKFLOW_PORT || 3997) + 4);
+      const run = spawnSync(process.execPath, [path.join(DS_ROOT, "audit/harness/ds-probes.cjs"), DS_ROOT, out], { env: { ...process.env, DB_NAME: scratch, DS_PROBE_PORT: port }, encoding: "utf8", timeout: 15 * 60 * 1000 });
+      assert.ok(fs.existsSync(out), `the harness wrote no result (exit ${run.status}): ${`${run.stdout}${run.stderr}`.slice(-2000)}`);
+      const { counts, results } = JSON.parse(fs.readFileSync(out, "utf8"));
+      t.diagnostic(String(run.stdout).trim().split("\n").pop());
+      assert.deepEqual(results.filter((r) => r.status === "fail" || r.status === "error").map((r) => `${r.ids.join(",")} ${r.title}: ${String(r.observed).slice(0, 300)}`), []);
+      assert.equal(run.status, 0, `harness exited ${run.status}`);
+      assert.ok(counts.pass > 0);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+step("DS-W11 the Design Studio goldens match (ci/golden/ds)", async (t) => {
+  const path = require("path");
+  const { spawnSync } = require("child_process");
+  await dsScratch("dsgold", async (scratch) => {
+    const port = process.env.DS_GOLDEN_PORT || process.env.GOLDEN_PORT || String(Number(process.env.WORKFLOW_PORT || 3997) + 5);
+    const run = spawnSync(process.execPath, [path.join(DS_ROOT, "ci/golden/ds/run.cjs")], { env: { ...process.env, DB_NAME: scratch, DS_GOLDEN_PORT: port, UPDATE_SNAPSHOT: "" }, encoding: "utf8", timeout: 10 * 60 * 1000 });
+    const last = String(run.stdout).trim().split("\n").pop();
+    t.diagnostic(last);
+    assert.equal(run.status, 0, `${run.stdout}${run.stderr}`.slice(-3000));
+    assert.match(last, /^DS golden: (\d+) run, \1 matched, 0 failed/);
+  });
+});
+
 // ── Go-live checks still to come ───────────────────────────────────────────
 
 pendingStep("27 the Scope 3 audit probes pass on this stack", "S3-16", async () => require("fs").existsSync("/mnt/project-files/audit/harness/scope3-probes.cjs"), async (t) => t.skip("run audit/harness/scope3-probes.cjs from the audit harness"));
