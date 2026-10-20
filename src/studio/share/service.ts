@@ -77,8 +77,8 @@ const requireM = (caller: StudioCaller) => {
 };
 
 export async function createShare(caller: StudioCaller, docId: number, rawBody: unknown, apiOrigin: string): Promise<ReportShare> {
-  const doc = await loadDocRow(caller, docId);
   requireM(caller);
+  const doc = await loadDocRow(caller, docId);
   const body = parse(CreateShareBodySchema, rawBody ?? {});
   let expires = new Date(Date.now() + body.expiresInDays * DAY_MS);
   if (body.versionId !== undefined) {
@@ -114,17 +114,17 @@ export async function createShare(caller: StudioCaller, docId: number, rawBody: 
 }
 
 export async function listShares(caller: StudioCaller, docId: number): Promise<ReportShare[]> {
-  const doc = await loadDocRow(caller, docId);
   requireM(caller);
+  const doc = await loadDocRow(caller, docId);
   const rows: Row[] = await AppDataSource.query(`SELECT ${SCOLS} FROM ${SFROM} WHERE s.doc_id = $1 AND s.company_id = $2 ORDER BY s.created_at DESC, s.id DESC LIMIT 200`, [doc.id, caller.companyId]);
   return rows.map(toShare);
 }
 
 export async function revokeShare(caller: StudioCaller, shareId: number): Promise<void> {
+  requireM(caller);
   const [s]: Row[] = await AppDataSource.query(`SELECT id, doc_id, revoked_at FROM report_share WHERE id = $1 AND company_id = $2`, [shareId, caller.companyId]);
   if (!s) throw new DsError("DS_DOC_NOT_FOUND");
   await loadDocRow(caller, Number(s.doc_id));
-  requireM(caller);
   if (s.revoked_at) return;
   await AppDataSource.query(`UPDATE report_share SET revoked_at = now(), revoked_by = $2, updated_at = now() WHERE id = $1`, [shareId, caller.userId || null]);
   await audit(shareId, "revoke", { revoked: { old: false, new: true } }, caller.userId || null);

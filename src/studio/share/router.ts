@@ -1,7 +1,7 @@
 /**
  * DS-11 view-link routes inside /studio (behind requireDesignStudio). Manager
- * or Superadmin only (01-contracts §4 "M"); an Admin gets DS_ROLE once the
- * doc is found, another company's ids answer 404.
+ * or Superadmin only (01-contracts §4 "M"): an Admin gets DS_ROLE before any
+ * lookup; another company's ids answer 404.
  *
  *   POST   /docs/:id/shares   {versionId | jobId, expiresInDays ≤ 90} → 201 ReportShare + url (shown once)
  *   GET    /docs/:id/shares   ReportShare[]

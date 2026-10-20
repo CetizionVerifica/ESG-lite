@@ -62,6 +62,8 @@ const STUDIO_CONTRACT_ROUTES = [
   ["GET", "/inputs/prefill?kind=ghg&year=2025"], ["GET", "/data"], ["GET", "/materiality"], ["PUT", "/materiality"],
   // DS-4 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
   ["PATCH", "/assets/1"], ["GET", "/assets/1/file"], ["POST", "/assets/generate"],
+  // DS-11 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["GET", "/docs/1/jobs"], ["GET", "/jobs/1/file"],
 ].map(([method, p]) => ({ method, path: p }));
 
 /** A concrete URL for a route pattern (":id" → 1). */

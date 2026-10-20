@@ -91,6 +91,19 @@ SEED.push(async ({ call }) => {
   await call("POST", "/studio/docs", "manager", { kind: "ghg", templateId: "blank", year: 2025, yearType: "CY", title: "DS probes design" });
 });
 
+// DS-11: a company-1 render job and view link on that design (rows only; rendering and links are tested in ds-11-outputs).
+SEED.push(async ({ q }) => {
+  if (!(await tableExists("report_job"))) return;
+  const [doc] = await q(`SELECT id, rev FROM report_doc WHERE company_id = 1 AND deleted_at IS NULL ORDER BY id LIMIT 1`);
+  if (!doc) return;
+  if (!(await q(`SELECT 1 FROM report_job WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO report_job (company_id, doc_id, kind, status, rev, options) VALUES (1, $1, 'proof', 'failed', $2, '{}')`, [doc.id, doc.rev]);
+  }
+  if (!(await q(`SELECT 1 FROM report_share WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO report_share (company_id, doc_id, token_hash, expires_at) VALUES (1, $1, repeat('1', 64), now() + interval '1 day')`, [doc.id]);
+  }
+});
+
 const ROLES = ["user", "manager", "admin", "superadmin"];
 
 const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = $1`, [t])).length > 0;
@@ -222,7 +235,7 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
     // DS-P09: share-token guessing (DS-11 mounts GET /s/:token outside /studio).
     await probe("DS-P09", "guessing share tokens at GET /s/:token is rate limited", "a 429 within 60 wrong tokens; never 200", async () => {
       const first = await call("GET", "/s/not-a-real-token-0", null);
-      if (first.status === 404 && !first.json) return na("waits on DS-11: GET /s/:token is not mounted");
+      if (first.status === 404 && !first.json && !first.headers.get("x-robots-tag")) return na("waits on DS-11: GET /s/:token is not mounted"); // DS-11: its 404 page is HTML with X-Robots-Tag
       for (let i = 1; i <= 60; i++) {
         const res = await call("GET", `/s/not-a-real-token-${i}`, null);
         if (res.status === 200) return `token ${i} answered 200`;

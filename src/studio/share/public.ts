@@ -9,7 +9,9 @@
  * Unknown token → 404; revoked, expired, deleted design or studio off → 410
  * DS_SHARE_EXPIRED (HTML on the page route, JSON on the others). Every
  * response is no-store and noindex. Rate-limited per client IP
- * (SHARE_RATE_LIMIT_MAX requests per minute, default 120). Viewers only ever
+ * (SHARE_RATE_LIMIT_MAX requests per minute, default 120), and token guessing
+ * much harder: SHARE_MISS_LIMIT unknown tokens a minute (default 20), then 429
+ * for the rest of the minute. Viewers only ever
  * get the stored PDF: nothing here resolves or renders data.
  */
 import { Router, type NextFunction, type Request, type Response } from "express";
@@ -27,7 +29,7 @@ const router = Router();
 // ---------------------------------------------------------------------------
 
 const WINDOW_MS = 60_000;
-const hits = new Map<string, { n: number; resetAt: number }>();
+const hits = new Map<string, { n: number; misses: number; resetAt: number }>();
 let sweeper: NodeJS.Timeout | null = null;
 
 export function shareRateLimit(req: Request, res: Response, next: NextFunction) {
@@ -43,11 +45,12 @@ export function shareRateLimit(req: Request, res: Response, next: NextFunction) 
   const key = String(req.ip ?? "unknown");
   let b = hits.get(key);
   if (!b || b.resetAt <= now) {
-    b = { n: 0, resetAt: now + WINDOW_MS };
+    b = { n: 0, misses: 0, resetAt: now + WINDOW_MS };
     hits.set(key, b);
   }
   b.n += 1;
-  if (b.n > max) {
+  const maxMisses = Number(process.env.SHARE_MISS_LIMIT) || 20;
+  if (b.n > max || b.misses >= maxMisses) {
     res.setHeader("Retry-After", String(Math.max(1, Math.ceil((b.resetAt - now) / 1000))));
     res.setHeader("Cache-Control", "no-store");
     if (req.path.endsWith("/meta") || req.path.endsWith("/file")) return res.status(429).json({ message: "Too many requests. Wait a minute, then try again." });
@@ -55,6 +58,12 @@ export function shareRateLimit(req: Request, res: Response, next: NextFunction) 
   }
   next();
 }
+/** Counts an unknown token against the caller's IP (guessing). */
+const miss = (req: Request) => {
+  const b = hits.get(String(req.ip ?? "unknown"));
+  if (b) b.misses += 1;
+};
+
 /** Clears the counters (tests). */
 export const resetShareRateLimit = () => hits.clear();
 
@@ -67,7 +76,8 @@ const common = (res: Response) => {
 
 const status = (err: unknown): 404 | 410 | 500 => (err instanceof DsError ? (err.code === "DS_SHARE_EXPIRED" ? 410 : 404) : 500);
 
-const jsonError = (res: Response, err: unknown) => {
+const jsonError = (req: Request, res: Response, err: unknown) => {
+  if (err instanceof DsError && status(err) === 404) miss(req);
   if (err instanceof DsError) return res.status(status(err)).json(err.code === "DS_SHARE_EXPIRED" ? err.toBody() : new DsError("DS_DOC_NOT_FOUND").toBody());
   console.error("[studio] share link failed:", (err as Error)?.message);
   return res.status(500).json({ message: "Internal server error" });
@@ -89,6 +99,7 @@ router.get("/:token", async (req, res) => {
     res.type("html").send(viewerHtml(share, logo, `${req.baseUrl}/${encodeURIComponent(String(req.params.token))}/file`));
   } catch (err) {
     const s = status(err);
+    if (s === 404) miss(req);
     if (s === 500) console.error("[studio] share page failed:", (err as Error)?.message);
     res.setHeader("Content-Security-Policy", VIEWER_CSP);
     res.status(s).type("html").send(messageHtml(s === 500 ? 404 : s));
@@ -111,7 +122,7 @@ router.get("/:token/meta", async (req, res) => {
     };
     res.json(body);
   } catch (err) {
-    jsonError(res, err);
+    jsonError(req, res, err);
   }
 });
 
@@ -129,7 +140,7 @@ router.get("/:token/file", async (req, res) => {
     res.setHeader("Content-Security-Policy", `frame-ancestors ${frameAncestors()}`);
     res.end(bytes);
   } catch (err) {
-    jsonError(res, err);
+    jsonError(req, res, err);
   }
 });
 
