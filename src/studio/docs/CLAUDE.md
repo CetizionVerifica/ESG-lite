@@ -95,3 +95,9 @@ A Manager goes from the GHG report page to a built, branded, data-filled design 
 - Live template thumbnails (`preview.html?mode=sheet`, DS-11) and cover image upload/generate in the Words step (DS-4 Uploads / DS-9).
 - The shell has no page operations (reorder, hide, duplicate, delete): DS-6's Pages drawer and page strip. Version history endpoints (DS-11/13). Presence is per process (no shared store).
 - A Playwright run against the real backend (the e2e mocks the API, as every FE spec does).
+
+### Wave 2 integration (DS-4 + DS-5 merged on ds/local)
+
+- `PLACEHOLDER_PATTERN` and `placeholderValue` also take the DS-4 seed short forms `{{company}}`, `{{title}}`, `{{year}}` and `{{period}}` (= `company.name`, `meta.title`, `meta.year`, `meta.periodShort`).
+- `ci/api/tests/ds-5-docs.test.cjs` uses DS-4's `report_template` (runs `migrateDs4Library`; inserts set `slug` and `family`) and builds every active DS-4 system template ("every DS-4 seed template builds…").
+- DS-4 seeds carry no `requires`/`keepEmpty`/`emptyText` hints, so the default rule applies to them: a page whose GHG/KPI figures all resolve empty is left out.
