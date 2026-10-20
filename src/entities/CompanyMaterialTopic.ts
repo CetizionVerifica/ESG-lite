@@ -29,4 +29,12 @@ export class CompanyMaterialTopic {
 
   @Column({ type: "timestamp", default: () => "now()" })
   decided_at!: Date;
+
+  // DS-2 (RS-2 R9): scores 0–10 for the report's materiality matrix; null = not scored.
+  // migrate:ds-2-materiality-scores adds them on existing databases.
+  @Column({ type: "numeric", precision: 3, scale: 1, nullable: true })
+  impact_score!: string | null;
+
+  @Column({ type: "numeric", precision: 3, scale: 1, nullable: true })
+  financial_score!: string | null;
 }

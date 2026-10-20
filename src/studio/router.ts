@@ -10,10 +10,12 @@
  */
 import { Router } from "express";
 import { requireDesignStudio, studioStatus } from "./guard";
+import sourcesRouter from "./sources/router"; // DS-2
 
 const router = Router();
 
 router.get("/status", studioStatus); // DS-0: {enabled, kinds: {ghg, sustainability}}, answers when off
 router.use(requireDesignStudio); // DS-0: 403 DS_STUDIO_OFF / DS_ROLE below this line
+router.use(sourcesRouter); // DS-2: /resolve, /docs/:id/inputs, /inputs/prefill, /data
 
 export default router;
