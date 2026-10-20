@@ -60,6 +60,21 @@ export class Brand {
   @Column({ name: "scope3_colour", type: "varchar", nullable: true })
   scope3Colour!: string | null;
 
+  // DS-3 · brand kit (docs/design-studio/modules/DS-3-brand-kit-and-styles):
+  // the heading and body fonts (FontId from the R12 OFL set; null = the
+  // template's default) and the brand voice used in AI writing prompts (D11,
+  // at most 3,000 characters; '' = "plain, factual, third person").
+  // Palettes live in `brand_palette`. migrate:ds-3-brand-kit adds these.
+  @Column({ name: "font_heading", type: "varchar", length: 40, nullable: true })
+  fontHeading!: string | null;
+
+  @Column({ name: "font_body", type: "varchar", length: 40, nullable: true })
+  fontBody!: string | null;
+
+  @Column({ name: "voice", type: "text", default: "" })
+  voice!: string;
+  // end DS-3
+
   @UpdateDateColumn({ name: "updated_at" })
   updatedAt!: Date;
 }
