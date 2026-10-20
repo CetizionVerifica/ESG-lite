@@ -63,6 +63,7 @@
     "migrate:kpi-template-plans": "ts-node src/scripts/migrateKpiTemplatePlans.ts",
     "migrate:ds-0-switch": "ts-node src/scripts/migrateDs0Switch.ts",
     "migrate:ds-2-materiality-scores": "ts-node src/scripts/migrateDs2MaterialityScores.ts",
+    "migrate:ds-3-brand-kit": "ts-node src/scripts/migrateDs3BrandKit.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
