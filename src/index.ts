@@ -17,6 +17,7 @@ import internalImportsRouter from "./routes/internalImports.routes";
 import scope3Router from "./scope3/router";
 import kpiRouter from "./kpi/router";
 import { kpiAuthenticate } from "./kpi/auth";
+import studioRouter from "./studio/router"; // DS-0
 import { fxRouter } from "./scope3/spend/router";
 import { periodsRouter } from "./scope3/review/router";
 import { startFxJob } from "./scope3/spend/fxJob";
@@ -101,6 +102,7 @@ app.use("/internal/imports", internalImportsRouter); // IM4, service key
 app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, no account
 app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
 app.use("/suppliers", authenticate, suppliersRouter); // S3-6 suppliers, their figures and coverage
+app.use("/studio", authenticate, studioRouter); // DS-0; each Design Studio module adds its routes in src/studio/router.ts
 
 let server: any;
 

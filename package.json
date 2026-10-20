@@ -61,9 +61,11 @@
     "migrate:kpi-targets": "ts-node src/scripts/migrateKpiTargets.ts",
     "migrate:kpi-topic-assignment": "ts-node src/scripts/migrateKpiTopicAssignment.ts",
     "migrate:kpi-template-plans": "ts-node src/scripts/migrateKpiTemplatePlans.ts",
+    "migrate:ds-0-switch": "ts-node src/scripts/migrateDs0Switch.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
+    "studio:contracts": "node scripts/studio-contracts-snapshot.cjs",
     "test:scope3-golden": "node ci/golden/scope3/run.cjs",
     "test:workflow": "node ci/workflow/run.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"

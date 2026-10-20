@@ -12,6 +12,7 @@ import { resolveUserCompanyId } from "../utils/companyScope";
 import { ENTRY_DETAILS, EntryDetailSchema } from "../scope3/contracts/schemas";
 import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currencies";
 import { auditKpiSwitch, currentKpiSwitch, notifyKpiEnabled } from "../kpi/switch";
+import { auditStudioSwitch, currentStudioSwitch } from "../studio/switch"; // DS-0
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -63,13 +64,21 @@ export const updateCompany = async (req: Request, res: Response) => {
   }
   const kpiSwitchBefore = "kpi_tracking_enabled" in body ? await currentKpiSwitch(Number(req.params.id)) : null;
   const kpiSwitchChanged = kpiSwitchBefore !== null && kpiSwitchBefore !== body.kpi_tracking_enabled;
-  if (kpiSwitchChanged) {
+  // DS-0: Design Studio (Superadmin only, like the KPI switch; audited in the same transaction).
+  if ("design_studio_enabled" in body && typeof body.design_studio_enabled !== "boolean") {
+    return res.status(400).json({ code: "FIELD_INVALID", field: "design_studio_enabled", message: "design_studio_enabled must be true or false" });
+  }
+  const studioSwitchBefore = "design_studio_enabled" in body ? await currentStudioSwitch(Number(req.params.id)) : null;
+  const studioSwitchChanged = studioSwitchBefore !== null && studioSwitchBefore !== body.design_studio_enabled;
+  if (kpiSwitchChanged || studioSwitchChanged) {
     // The switch and its audit row commit together; the Admins hear about it only afterwards.
+    const actorId = Number((req as AuthRequest).user?.userId) || null;
     await AppDataSource.transaction(async (m) => {
       await m.getRepository(Company).update(req.params.id, body);
-      await auditKpiSwitch(m, Number(req.params.id), kpiSwitchBefore, body.kpi_tracking_enabled, Number((req as AuthRequest).user?.userId) || null);
+      if (kpiSwitchChanged) await auditKpiSwitch(m, Number(req.params.id), kpiSwitchBefore, body.kpi_tracking_enabled, actorId);
+      if (studioSwitchChanged) await auditStudioSwitch(m, Number(req.params.id), studioSwitchBefore, body.design_studio_enabled, actorId); // DS-0
     });
-    if (body.kpi_tracking_enabled) await notifyKpiEnabled(Number(req.params.id));
+    if (kpiSwitchChanged && body.kpi_tracking_enabled) await notifyKpiEnabled(Number(req.params.id));
   } else {
     await repo.update(req.params.id, body);
   }
