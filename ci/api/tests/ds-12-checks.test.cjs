@@ -280,11 +280,17 @@ test("the final gate: errors first, then unacknowledged warnings; allowed after 
   const [job] = await q(`SELECT acknowledged_warnings FROM report_job WHERE id = $1`, [ok.json.id]);
   assert.deepEqual(job.acknowledged_warnings, ready.acknowledgedWarnings, "the acknowledgements are stored with the final");
   const made = await waitSettled(ok.json.id);
-  if (made.status !== "done") {
-    const why = await checks(doc.id, { rev: ready.rev });
-    assert.fail(`final ${made.status} (${made.errorReason}): ${JSON.stringify(why.json.checks.filter((c) => c.severity === "error"))}`);
+  if (chromiumOk) {
+    if (made.status !== "done") {
+      const why = await checks(doc.id, { rev: ready.rev });
+      assert.fail(`final ${made.status} (${made.errorReason}): ${JSON.stringify(why.json.checks.filter((c) => c.severity === "error"))}`);
+    }
+    assert.ok(made.versionN >= 2, "a final version");
+  } else {
+    // No browser (GitHub CI): the gate let the final through; only printing the PDF can't run.
+    assert.equal(made.status, "failed");
+    assert.match(String(made.errorReason ?? ""), /chromium/i, "without a browser only the render itself fails");
   }
-  assert.ok(made.versionN >= 2, "a final version");
 
   // CY 2025: the same details, yet pending entries still block.
   const d25 = await makeDoc(2025, "DS-12 Gate pending");
