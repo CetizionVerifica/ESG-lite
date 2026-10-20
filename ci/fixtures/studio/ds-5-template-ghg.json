@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 2,
+  "kind": "ghg",
+  "purpose": "report",
+  "format": "a4",
+  "meta": { "title": "Template", "subtitle": "Greenhouse gas inventory {{meta.periodShort}}", "year": 2025, "yearType": "CY", "sites": "all", "frameworks": ["GHGP"], "language": "en" },
+  "design": { "templateId": "fixture", "templateVersion": 1, "theme": { "look": "classic" } },
+  "assets": [],
+  "build": { "pages": { "p-cat9": { "keepEmpty": true, "emptyText": "Category 9 is not reported yet." } } },
+  "pages": [
+    {
+      "id": "p-cover", "kind": "freeform", "name": "Cover", "background": { "color": "#0F5132" },
+      "elements": [
+        { "id": "p-cover.title", "type": "text", "frame": { "x": 20, "y": 180, "w": 170, "h": 30, "rotation": 0 }, "z": 1, "source": "layout",
+          "props": { "style": "title", "align": "left", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "{{meta.title}}" }] }] } } },
+        { "id": "p-cover.company", "type": "text", "frame": { "x": 20, "y": 215, "w": 170, "h": 12, "rotation": 0 }, "z": 2, "source": "layout",
+          "props": { "style": "subheading", "align": "left", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "{{company.name}} · {{meta.periodShort}}" }] }] } } },
+        { "id": "p-cover.total", "type": "big_number", "frame": { "x": 20, "y": 235, "w": 80, "h": 30, "rotation": 0 }, "z": 3, "source": "layout",
+          "props": { "binding": { "source": "ghg", "metric": "total", "years": { "last": 1 }, "sites": "all" }, "measure": "value", "format": "auto", "label": "tCO₂e in {{meta.periodShort}}", "showDelta": false } }
+      ]
+    },
+    {
+      "id": "p-summary", "kind": "freeform", "name": "Executive summary", "background": {},
+      "elements": [
+        { "id": "p-summary.scope1", "type": "big_number", "frame": { "x": 20, "y": 20, "w": 80, "h": 30, "rotation": 0 }, "z": 0, "source": "layout",
+          "props": { "binding": { "source": "ghg", "metric": "scope1", "years": { "last": 1 }, "sites": "all" }, "label": "Scope 1", "showDelta": false } },
+        { "id": "p-summary.body", "type": "text", "frame": { "x": 20, "y": 60, "w": 170, "h": 40, "rotation": 0 }, "z": 1, "source": "layout",
+          "props": { "style": "body", "align": "left", "doc": { "type": "doc", "content": [
+            { "type": "paragraph", "content": [
+              { "type": "text", "text": "Scope 1 emissions were " },
+              { "type": "data", "attrs": { "binding": { "source": "ghg", "metric": "scope1", "years": { "last": 1 }, "sites": "all" }, "measure": "value", "format": "1dp" } },
+              { "type": "text", "text": " tCO₂e. Prepared by {{input:responsible_person}}." }
+            ] }
+          ] } } }
+      ]
+    },
+    {
+      "id": "p-market", "kind": "freeform", "name": "Scope 2 (market-based)", "background": {},
+      "elements": [
+        { "id": "p-market.value", "type": "big_number", "frame": { "x": 20, "y": 20, "w": 80, "h": 30, "rotation": 0 }, "z": 0, "source": "layout",
+          "props": { "binding": { "source": "ghg", "metric": "scope2_market", "years": { "last": 1 }, "sites": "all" }, "label": "Scope 2 (market-based)", "showDelta": false } }
+      ]
+    },
+    {
+      "id": "p-cat9", "kind": "freeform", "name": "Category 9", "background": {},
+      "elements": [
+        { "id": "p-cat9.tile", "type": "kpi_tile", "frame": { "x": 20, "y": 20, "w": 60, "h": 30, "rotation": 0 }, "z": 0, "source": "layout",
+          "props": { "binding": { "source": "ghg", "metric": "scope3_category", "scope3Category": 9, "years": { "last": 1 }, "sites": "all" }, "label": "Category 9: Downstream transportation and distribution", "showDelta": false, "showSparkline": false, "variant": "plain" } },
+        { "id": "p-cat9.empty", "type": "text", "frame": { "x": 20, "y": 60, "w": 170, "h": 20, "rotation": 0 }, "z": 1, "source": "layout",
+          "props": { "style": "body", "align": "left", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Downstream transport." }] }] } } }
+      ]
+    },
+    {
+      "id": "p-method", "kind": "flow", "name": "Methodology", "flowType": "methodology", "options": { "columns": 1 },
+      "content": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Consolidation approach: {{input:consolidation_approach}}." }] }] }
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import { requireDesignStudio, studioStatus } from "./guard";
 import studioFontsRouter from "../reporting/studio/fonts/route"; // DS-1
 import sourcesRouter from "./sources/router"; // DS-2
 import brandKitRouter from "./brandkit/router"; // DS-3
+import docsRouter from "./docs/router"; // DS-5
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use(requireDesignStudio); // DS-0: 403 DS_STUDIO_OFF / DS_ROLE below this
 router.use(studioFontsRouter); // DS-1: GET /studio/fonts/:file (bundled WOFF2)
 router.use(sourcesRouter); // DS-2: /resolve, /docs/:id/inputs, /inputs/prefill, /data
 router.use(brandKitRouter); // DS-3: /studio/brand-kit, /studio/styles
+router.use(docsRouter); // DS-5: /readiness, /docs, /docs/:id (+ rebuild, presence, duplicate)
 
 export default router;
