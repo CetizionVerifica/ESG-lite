@@ -65,6 +65,8 @@ import { StudioElement } from "../entities/StudioElement"; // DS-4
 import { StudioAsset } from "../entities/StudioAsset"; // DS-4
 import { StudioReportDoc } from "../entities/StudioReportDoc"; // DS-5
 import { StudioReportDocVersion } from "../entities/StudioReportDocVersion"; // DS-5
+import { StudioReportJob } from "../entities/StudioReportJob"; // DS-11
+import { StudioReportShare } from "../entities/StudioReportShare"; // DS-11
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -151,6 +153,7 @@ const entities = [
     StudioTemplate, StudioLayout, StudioElement, StudioAsset, // DS-4
     StudioReportDoc, // DS-5
     StudioReportDocVersion, // DS-5
+    StudioReportJob, StudioReportShare, // DS-11
 ];
 
 // Parse DATABASE_URL to extract connection parameters

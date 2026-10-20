@@ -18,6 +18,8 @@ import scope3Router from "./scope3/router";
 import kpiRouter from "./kpi/router";
 import { kpiAuthenticate } from "./kpi/auth";
 import studioRouter from "./studio/router"; // DS-0
+import shareViewer from "./studio/share/public"; // DS-11
+import { recoverStudioJobs, startStudioRenderConsumer } from "./queues/studioRenderConsumer"; // DS-11
 import { fxRouter } from "./scope3/spend/router";
 import { periodsRouter } from "./scope3/review/router";
 import { startFxJob } from "./scope3/spend/fxJob";
@@ -103,6 +105,7 @@ app.use("/public/supplier-requests", supplierPublicRoutes); // C06, token link, 
 app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
 app.use("/suppliers", authenticate, suppliersRouter); // S3-6 suppliers, their figures and coverage
 app.use("/studio", authenticate, studioRouter); // DS-0; each Design Studio module adds its routes in src/studio/router.ts
+app.use("/s", shareViewer); // DS-11: public read-only view links (no session; stored PDFs only)
 
 let server: any;
 
@@ -154,6 +157,7 @@ connectWithRetry()
         });
         startBaseYearScheduler(); // S3-14: nightly Scope 3 base-year check
         startKpiDueScheduler(); // KPI-8: daily kpi_due reminders (KPI_DUE_JOB=off turns it off)
+        setTimeout(() => void recoverStudioJobs().catch((err) => console.warn("⚠️ Studio render jobs not recovered:", err?.message || "")), 5000).unref(); // DS-11
 
         // Connect RabbitMQ in background (non-blocking)
         connectRabbitMQ()
@@ -161,6 +165,7 @@ connectWithRetry()
                 await startEmailConsumer();
                 await startDLQConsumer();
                 startDeadlineScheduler();
+                await startStudioRenderConsumer().catch((err) => console.warn("⚠️ Studio render worker not started:", err?.message || "")); // DS-11
             })
             .catch((err) => {
                 console.warn("⚠️ RabbitMQ not available — email notifications disabled.", err?.message || "");

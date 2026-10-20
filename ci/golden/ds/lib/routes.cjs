@@ -52,6 +52,8 @@ const CONTRACT_ROUTES = [
   ["GET", "/inputs/prefill", "DS-2"], ["GET", "/data", "DS-2"], ["GET", "/materiality", "DS-2"], ["PUT", "/materiality", "DS-2"],
   // DS-4 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
   ["PATCH", "/assets/:id", "DS-4"], ["GET", "/assets/:id/file", "DS-4"], ["POST", "/assets/generate", "DS-4"],
+  // DS-11 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up): recent jobs (the Share dialog picks a proof) and the stored file
+  ["GET", "/docs/:id/jobs", "DS-11"], ["GET", "/jobs/:id/file", "DS-11"],
 ].map(([method, p, module]) => ({ method, path: p, module }));
 
 // A query string a route needs to get past validation to the guard and the tenant check.
