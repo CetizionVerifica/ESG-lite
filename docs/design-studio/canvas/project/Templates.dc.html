@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New design: template</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;family=Source+Serif+4:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1e5d9d}a:hover{color:#18497b}
+.chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:4px;font-size:12px;font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;font:500 14px "IBM Plex Sans",sans-serif;border:1px solid #e1e8f0;background:#fff;color:#16202e;cursor:pointer}
+.btn-primary{background:#2572c0;border-color:#2572c0;color:#fff}
+.filter{display:flex;align-items:center;gap:8px;font-size:13px;color:#16202e}
+.card{background:#fff;border:1px solid #e1e8f0;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.pg{border-radius:2px;box-shadow:0 1px 4px rgba(22,32,46,.18);box-sizing:border-box}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 900px; background: #f7fafd; color: #16202e; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column">
+  <header style="height: 56px; background: #fff; border-bottom: 1px solid #e1e8f0; display: flex; align-items: center; gap: 16px; padding: 0 24px; flex-wrap: wrap">
+    <a href="Main.dc.html" style="text-decoration: none; color: #5f6b7c">← Design Studio</a>
+    <span style="font-weight: 600">New GHG report</span>
+    <div style="flex: 1"></div>
+    <ol style="display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 13px; flex-wrap: wrap" aria-label="Steps">
+      <li style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 99px; background: #2572c0; color: #fff; font-weight: 600"><span>1</span> Template</li>
+      <li style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 99px; background: #eef4fa; color: #5f6b7c"><span>2</span> Scope</li>
+      <li style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 99px; background: #eef4fa; color: #5f6b7c"><span>3</span> Report details</li>
+      <li style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 99px; background: #eef4fa; color: #5f6b7c"><span>4</span> Words</li>
+    </ol>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap">
+    <aside style="flex: 0 0 220px; padding: 24px; border-right: 1px solid #e1e8f0; background: #fff; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div><label for="tq" style="font-size: 12px; font-weight: 600; color: #5f6b7c">Search templates</label>
+      <input id="tq" type="text" value="inventory" style="margin-top: 6px; width: 100%; box-sizing: border-box; height: 36px; border: 1px solid #e1e8f0; border-radius: 8px; padding: 0 10px; font: 14px 'IBM Plex Sans', sans-serif"></div>
+      <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px"><legend style="font-size: 12px; font-weight: 600; color: #5f6b7c; margin-bottom: 8px">Report kind</legend>
+        <label class="filter"><input type="radio" name="kind" checked> GHG report</label>
+        <label class="filter"><input type="radio" name="kind"> Sustainability report</label>
+      </fieldset>
+      <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px"><legend style="font-size: 12px; font-weight: 600; color: #5f6b7c; margin-bottom: 8px">Format</legend>
+        <label class="filter"><input type="checkbox" checked> A4 report</label>
+        <label class="filter"><input type="checkbox" checked> 16:9 deck</label>
+        <label class="filter"><input type="checkbox" checked> One page</label>
+      </fieldset>
+      <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px"><legend style="font-size: 12px; font-weight: 600; color: #5f6b7c; margin-bottom: 8px">Look</legend>
+        <label class="filter"><input type="checkbox" checked> Classic</label>
+        <label class="filter"><input type="checkbox" checked> Light</label>
+        <label class="filter"><input type="checkbox" checked> Night</label>
+      </fieldset>
+      <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px"><legend style="font-size: 12px; font-weight: 600; color: #5f6b7c; margin-bottom: 8px">Conforms to</legend>
+        <label class="filter"><input type="checkbox" checked> GHG Protocol</label>
+        <label class="filter"><input type="checkbox"> ISO 14064-1</label>
+      </fieldset>
+    </aside>
+
+    <section style="flex: 999 1 560px; min-width: 0; padding: 24px; display: flex; flex-direction: column; gap: 16px" aria-labelledby="gal">
+      <div style="display: flex; align-items: baseline; gap: 12px"><h1 id="gal" style="margin: 0; font-size: 20px; font-family: 'Plus Jakarta Sans', sans-serif">Pick a template</h1><span style="color: #5f6b7c; font-size: 13px">Previews use your brand and your FY 2025–26 data.</span></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+        <div class="card" style="border: 2px solid #2572c0">
+          <div style="height: 170px; background: #eef4fa; display: flex; align-items: center; justify-content: center; gap: 8px">
+            <div class="pg" style="width: 90px; height: 127px; background: #18497b; padding: 10px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px"><div style="color: #fff; font-family: 'Source Serif 4', serif; font-size: 11px; font-weight: 700; line-height: 1.15">Greenhouse gas inventory FY 2025–26</div><div style="height: 3px; width: 50%; background: #8fd3cd"></div></div>
+            <div class="pg" style="width: 90px; height: 127px; background: #fff; padding: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start"><div style="grid-column: span 2; height: 4px; width: 70%; background: #16202e"></div><div style="height: 18px; background: #dce8f5"></div><div style="height: 18px; background: #dce8f5"></div><div style="height: 18px; background: #dce8f5"></div><div style="height: 18px; background: #dce8f5"></div><div style="grid-column: span 2; height: 26px; display: flex; gap: 2px"><div style="flex: 13; background: #18497b"></div><div style="flex: 20; background: #1d9f92"></div><div style="flex: 67; background: #c27b22"></div></div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 600; flex: 1">Inventory · Classic</span><span class="chip" style="background: #e3edfb; color: #1d5fb8">Selected</span></div><div style="color: #5f6b7c; font-size: 12px">A4 · 22 pages · GHG Protocol</div></div>
+        </div>
+        <div class="card">
+          <div style="height: 170px; background: #eef4fa; display: flex; align-items: center; justify-content: center; gap: 8px">
+            <div class="pg" style="width: 90px; height: 127px; background: #fff; padding: 10px; display: flex; flex-direction: column; gap: 6px"><div style="height: 46px; background: #dce8f5"></div><div style="font-family: 'Source Serif 4', serif; font-size: 10px; font-weight: 700; color: #18497b; line-height: 1.15">Greenhouse gas inventory</div></div>
+            <div class="pg" style="width: 90px; height: 127px; background: #fff; padding: 8px; display: flex; flex-direction: column; gap: 4px"><div style="height: 4px; width: 60%; background: #18497b"></div><div style="flex: 1; display: flex; flex-direction: column; gap: 3px"><div style="height: 8px; width: 90%; background: #c27b22"></div><div style="height: 8px; width: 60%; background: #c27b22"></div><div style="height: 8px; width: 42%; background: #c27b22"></div><div style="height: 8px; width: 30%; background: #c27b22"></div></div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Inventory · Light</span><div style="color: #5f6b7c; font-size: 12px">A4 · 22 pages · GHG Protocol</div></div>
+        </div>
+        <div class="card">
+          <div style="height: 170px; background: #eef4fa; display: flex; align-items: center; justify-content: center; gap: 8px">
+            <div class="pg" style="width: 90px; height: 127px; background: #0b223a; padding: 10px; display: flex; flex-direction: column; justify-content: space-between"><div style="height: 3px; width: 40%; background: #5dc0b6"></div><div style="color: #fff; font-family: 'Source Serif 4', serif; font-size: 11px; font-weight: 700; line-height: 1.15">95,710 tCO₂e</div></div>
+            <div class="pg" style="width: 90px; height: 127px; background: #0b223a; padding: 8px; display: flex; align-items: flex-end; gap: 3px"><div style="flex: 1; height: 30%; background: #6299d2"></div><div style="flex: 1; height: 45%; background: #5dc0b6"></div><div style="flex: 1; height: 90%; background: #e0a458"></div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Inventory · Night</span><div style="color: #5f6b7c; font-size: 12px">A4 · 22 pages · GHG Protocol</div></div>
+        </div>
+        <div class="card">
+          <div style="height: 170px; background: #eef4fa; display: flex; align-items: center; justify-content: center; gap: 8px">
+            <div class="pg" style="width: 90px; height: 127px; background: #fff; padding: 10px; display: flex; flex-direction: column; gap: 5px; border-top: 8px solid #18497b"><div style="font-size: 9px; color: #5f6b7c">ISO 14064-1:2018</div><div style="font-family: 'Source Serif 4', serif; font-size: 11px; font-weight: 700; line-height: 1.15">GHG report</div></div>
+            <div class="pg" style="width: 90px; height: 127px; background: #fff; padding: 8px; display: flex; flex-direction: column; gap: 3px"><div style="height: 6px; background: #dce8f5"></div><div style="height: 6px; background: #eef4fa"></div><div style="height: 6px; background: #dce8f5"></div><div style="height: 6px; background: #eef4fa"></div><div style="height: 6px; background: #dce8f5"></div><div style="height: 6px; background: #eef4fa"></div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">ISO 14064-1 report</span><div style="color: #5f6b7c; font-size: 12px">A4 · 26 pages · categories 1–6, uncertainty</div></div>
+        </div>
+        <div class="card">
+          <div style="height: 170px; background: #eef4fa; display: flex; align-items: center; justify-content: center">
+            <div class="pg" style="width: 200px; height: 112px; background: #123c6b; padding: 12px; color: #fff; display: flex; flex-direction: column; justify-content: space-between"><div style="font-size: 9px; color: #92b9e0">Board brief · FY26</div><div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 14px; line-height: 1.15">Emissions are 12% below our 2022 base year</div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">Board brief</span><div style="color: #5f6b7c; font-size: 12px">16:9 · 9 slides</div></div>
+        </div>
+        <div class="card">
+          <div style="height: 170px; background: #eef4fa; display: flex; align-items: center; justify-content: center">
+            <div class="pg" style="width: 90px; height: 127px; background: #fff; padding: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start"><div style="grid-column: span 2; height: 14px; background: #18497b"></div><div style="height: 16px; background: #dce8f5"></div><div style="height: 16px; background: #dce8f5"></div><div style="grid-column: span 2; height: 30px; background: #eef4fa"></div><div style="grid-column: span 2; height: 20px; background: #dce8f5"></div></div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px"><span style="font-weight: 600">One-page summary</span><div style="color: #5f6b7c; font-size: 12px">A4 · 1 page</div></div>
+        </div>
+      </div>
+    </section>
+
+    <aside style="flex: 1 1 340px; max-width: 380px; background: #fff; border-left: 1px solid #e1e8f0; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px" aria-label="Preview">
+      <div style="font-weight: 600">Inventory · Classic</div>
+      <div style="background: #eef4fa; border-radius: 8px; padding: 16px; display: flex; gap: 10px; justify-content: center">
+        <div class="pg" style="width: 120px; height: 170px; background: #18497b; padding: 12px; display: flex; flex-direction: column; justify-content: space-between">
+          <div style="display: flex; gap: 2px; flex-direction: column; width: 18px"><div style="height: 2px; background: #fff"></div><div style="height: 2px; background: #fff; width: 70%"></div><div style="height: 2px; background: #fff"></div></div>
+          <div><div style="color: #8fd3cd; font-size: 8px; letter-spacing: .08em; text-transform: uppercase">Northwind Metals</div><div style="color: #fff; font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 14px; line-height: 1.1">Greenhouse gas inventory FY 2025–26</div></div>
+        </div>
+        <div class="pg" style="width: 120px; height: 170px; background: #fff; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 10px">Executive summary</div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+            <div style="background: #eef4fa; padding: 4px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500">95,710</div><div style="font-size: 6px; color: #5f6b7c">tCO₂e total</div></div>
+            <div style="background: #eef4fa; padding: 4px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; color: #16794c">▼ 12%</div><div style="font-size: 6px; color: #5f6b7c">vs base year</div></div>
+          </div>
+          <div style="height: 14px; display: flex; gap: 1px"><div style="flex: 13; background: #18497b"></div><div style="flex: 20; background: #1d9f92"></div><div style="flex: 67; background: #c27b22"></div></div>
+          <div style="height: 3px; background: #e1e8f0"></div><div style="height: 3px; background: #e1e8f0; width: 80%"></div><div style="height: 3px; background: #e1e8f0; width: 90%"></div>
+        </div>
+      </div>
+      <dl style="margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; font-size: 13px">
+        <dt style="color: #5f6b7c">Chapters</dt><dd style="margin: 0">Summary, boundaries, methodology, Scope 1, 2, 3, sites, trend, data quality, assurance, annexes</dd>
+        <dt style="color: #5f6b7c">Data</dt><dd style="margin: 0">Approved emission entries, FY 2025–26 vs FY 2024–25</dd>
+        <dt style="color: #5f6b7c">Brand</dt><dd style="margin: 0">Northwind navy + teal · Source Serif 4 / IBM Plex Sans</dd>
+      </dl>
+      <div style="background: #fdf5e3; color: #9a6300; border-radius: 8px; padding: 10px 12px; font-size: 13px">Market-based Scope 2 isn't recorded in ESGLite yet. The report will say “Not reported” and flag it for review.</div>
+      <div style="flex: 1"></div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end"><a href="Main.dc.html" class="btn" style="text-decoration: none">Cancel</a><a href="Editor.dc.html" class="btn btn-primary" style="text-decoration: none">Next: scope →</a></div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
