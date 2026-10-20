@@ -1,0 +1,8061 @@
+[
+  {
+    "slug": "icon-leaf",
+    "group": "icons",
+    "name": "Leaf",
+    "tags": [
+      "icon",
+      "esgLite",
+      "nature",
+      "esg",
+      "environment"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "leaf"
+      }
+    }
+  },
+  {
+    "slug": "icon-bolt",
+    "group": "icons",
+    "name": "Bolt",
+    "tags": [
+      "icon",
+      "esgLite",
+      "energy",
+      "electricity"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "bolt"
+      }
+    }
+  },
+  {
+    "slug": "icon-factory",
+    "group": "icons",
+    "name": "Factory",
+    "tags": [
+      "icon",
+      "esgLite",
+      "industry",
+      "operations"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "factory"
+      }
+    }
+  },
+  {
+    "slug": "icon-truck",
+    "group": "icons",
+    "name": "Truck",
+    "tags": [
+      "icon",
+      "esgLite",
+      "transport",
+      "logistics"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "truck"
+      }
+    }
+  },
+  {
+    "slug": "icon-drop",
+    "group": "icons",
+    "name": "Drop",
+    "tags": [
+      "icon",
+      "esgLite",
+      "water"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "drop"
+      }
+    }
+  },
+  {
+    "slug": "icon-recycle",
+    "group": "icons",
+    "name": "Recycle",
+    "tags": [
+      "icon",
+      "esgLite",
+      "waste",
+      "circular"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "recycle"
+      }
+    }
+  },
+  {
+    "slug": "icon-users",
+    "group": "icons",
+    "name": "Users",
+    "tags": [
+      "icon",
+      "esgLite",
+      "people",
+      "social"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "users"
+      }
+    }
+  },
+  {
+    "slug": "icon-globe",
+    "group": "icons",
+    "name": "Globe",
+    "tags": [
+      "icon",
+      "esgLite",
+      "world",
+      "climate"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "globe"
+      }
+    }
+  },
+  {
+    "slug": "icon-check",
+    "group": "icons",
+    "name": "Check",
+    "tags": [
+      "icon",
+      "esgLite",
+      "done",
+      "general"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "check"
+      }
+    }
+  },
+  {
+    "slug": "icon-alert",
+    "group": "icons",
+    "name": "Alert",
+    "tags": [
+      "icon",
+      "esgLite",
+      "warning",
+      "risk"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "alert"
+      }
+    }
+  },
+  {
+    "slug": "icon-info",
+    "group": "icons",
+    "name": "Info",
+    "tags": [
+      "icon",
+      "esgLite",
+      "note",
+      "general"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "info"
+      }
+    }
+  },
+  {
+    "slug": "icon-flame",
+    "group": "icons",
+    "name": "Flame",
+    "tags": [
+      "icon",
+      "esgLite",
+      "fuel",
+      "energy",
+      "scope 1"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "flame"
+      }
+    }
+  },
+  {
+    "slug": "icon-building",
+    "group": "icons",
+    "name": "Building",
+    "tags": [
+      "icon",
+      "esgLite",
+      "office",
+      "industry"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "building"
+      }
+    }
+  },
+  {
+    "slug": "icon-chart",
+    "group": "icons",
+    "name": "Chart",
+    "tags": [
+      "icon",
+      "esgLite",
+      "data",
+      "chart"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "chart"
+      }
+    }
+  },
+  {
+    "slug": "icon-target",
+    "group": "icons",
+    "name": "Target",
+    "tags": [
+      "icon",
+      "esgLite",
+      "target",
+      "goal"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "target"
+      }
+    }
+  },
+  {
+    "slug": "icon-sun",
+    "group": "icons",
+    "name": "Sun",
+    "tags": [
+      "icon",
+      "esgLite",
+      "solar",
+      "energy",
+      "climate"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "sun"
+      }
+    }
+  },
+  {
+    "slug": "icon-wind",
+    "group": "icons",
+    "name": "Wind",
+    "tags": [
+      "icon",
+      "esgLite",
+      "wind",
+      "energy",
+      "climate"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "wind"
+      }
+    }
+  },
+  {
+    "slug": "icon-shield",
+    "group": "icons",
+    "name": "Shield",
+    "tags": [
+      "icon",
+      "esgLite",
+      "governance",
+      "safety"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "shield"
+      }
+    }
+  },
+  {
+    "slug": "icon-quote",
+    "group": "icons",
+    "name": "Quote",
+    "tags": [
+      "icon",
+      "esgLite",
+      "quote",
+      "text"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "quote"
+      }
+    }
+  },
+  {
+    "slug": "icon-arrow_right",
+    "group": "icons",
+    "name": "Arrow right",
+    "tags": [
+      "icon",
+      "esgLite",
+      "arrow",
+      "general"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "arrow_right"
+      }
+    }
+  },
+  {
+    "slug": "icon-dot",
+    "group": "icons",
+    "name": "Dot",
+    "tags": [
+      "icon",
+      "esgLite",
+      "dot",
+      "general"
+    ],
+    "license": "own",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "dot"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-leaf",
+    "group": "icons",
+    "name": "Leaf",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:leaf"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-leafy-green",
+    "group": "icons",
+    "name": "Leafy green",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:leafy-green"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sprout",
+    "group": "icons",
+    "name": "Sprout",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sprout"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tree-deciduous",
+    "group": "icons",
+    "name": "Tree deciduous",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tree-deciduous"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tree-pine",
+    "group": "icons",
+    "name": "Tree pine",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tree-pine"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-trees",
+    "group": "icons",
+    "name": "Trees",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:trees"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tree-palm",
+    "group": "icons",
+    "name": "Tree palm",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tree-palm"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-shrub",
+    "group": "icons",
+    "name": "Shrub",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:shrub"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-flower",
+    "group": "icons",
+    "name": "Flower",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:flower"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-flower-2",
+    "group": "icons",
+    "name": "Flower 2",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:flower-2"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-clover",
+    "group": "icons",
+    "name": "Clover",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:clover"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-wheat",
+    "group": "icons",
+    "name": "Wheat",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:wheat"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-vegan",
+    "group": "icons",
+    "name": "Vegan",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:vegan"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-droplet",
+    "group": "icons",
+    "name": "Droplet",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:droplet"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-droplets",
+    "group": "icons",
+    "name": "Droplets",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:droplets"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-droplet-off",
+    "group": "icons",
+    "name": "Droplet off",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:droplet-off"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-waves",
+    "group": "icons",
+    "name": "Waves",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:waves"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-mountain",
+    "group": "icons",
+    "name": "Mountain",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:mountain"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-mountain-snow",
+    "group": "icons",
+    "name": "Mountain snow",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:mountain-snow"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-earth",
+    "group": "icons",
+    "name": "Earth",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:earth"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-globe",
+    "group": "icons",
+    "name": "Globe",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:globe"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-earth-lock",
+    "group": "icons",
+    "name": "Earth lock",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:earth-lock"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-land-plot",
+    "group": "icons",
+    "name": "Land plot",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:land-plot"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-fence",
+    "group": "icons",
+    "name": "Fence",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:fence"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-fish",
+    "group": "icons",
+    "name": "Fish",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:fish"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bird",
+    "group": "icons",
+    "name": "Bird",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bird"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bug",
+    "group": "icons",
+    "name": "Bug",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bug"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-paw-print",
+    "group": "icons",
+    "name": "Paw print",
+    "tags": [
+      "icon",
+      "nature",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:paw-print"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloud",
+    "group": "icons",
+    "name": "Cloud",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloud"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloud-rain",
+    "group": "icons",
+    "name": "Cloud rain",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloud-rain"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloud-sun",
+    "group": "icons",
+    "name": "Cloud sun",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloud-sun"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloud-snow",
+    "group": "icons",
+    "name": "Cloud snow",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloud-snow"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloud-lightning",
+    "group": "icons",
+    "name": "Cloud lightning",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloud-lightning"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloud-off",
+    "group": "icons",
+    "name": "Cloud off",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloud-off"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloud-fog",
+    "group": "icons",
+    "name": "Cloud fog",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloud-fog"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cloudy",
+    "group": "icons",
+    "name": "Cloudy",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cloudy"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-haze",
+    "group": "icons",
+    "name": "Haze",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:haze"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tornado",
+    "group": "icons",
+    "name": "Tornado",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tornado"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-rainbow",
+    "group": "icons",
+    "name": "Rainbow",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:rainbow"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sun",
+    "group": "icons",
+    "name": "Sun",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sun"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sun-medium",
+    "group": "icons",
+    "name": "Sun medium",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sun-medium"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sunrise",
+    "group": "icons",
+    "name": "Sunrise",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sunrise"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sunset",
+    "group": "icons",
+    "name": "Sunset",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sunset"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-moon",
+    "group": "icons",
+    "name": "Moon",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:moon"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-wind",
+    "group": "icons",
+    "name": "Wind",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:wind"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-snowflake",
+    "group": "icons",
+    "name": "Snowflake",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:snowflake"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-thermometer",
+    "group": "icons",
+    "name": "Thermometer",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:thermometer"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-thermometer-sun",
+    "group": "icons",
+    "name": "Thermometer sun",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:thermometer-sun"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-thermometer-snowflake",
+    "group": "icons",
+    "name": "Thermometer snowflake",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:thermometer-snowflake"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-umbrella",
+    "group": "icons",
+    "name": "Umbrella",
+    "tags": [
+      "icon",
+      "climate",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:umbrella"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-zap",
+    "group": "icons",
+    "name": "Zap",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:zap"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-zap-off",
+    "group": "icons",
+    "name": "Zap off",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:zap-off"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-battery",
+    "group": "icons",
+    "name": "Battery",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:battery"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-battery-charging",
+    "group": "icons",
+    "name": "Battery charging",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:battery-charging"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-battery-full",
+    "group": "icons",
+    "name": "Battery full",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:battery-full"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-plug",
+    "group": "icons",
+    "name": "Plug",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:plug"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-plug-zap",
+    "group": "icons",
+    "name": "Plug zap",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:plug-zap"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-power",
+    "group": "icons",
+    "name": "Power",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:power"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-lightbulb",
+    "group": "icons",
+    "name": "Lightbulb",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:lightbulb"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-lamp",
+    "group": "icons",
+    "name": "Lamp",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:lamp"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-solar-panel",
+    "group": "icons",
+    "name": "Solar panel",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:solar-panel"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-atom",
+    "group": "icons",
+    "name": "Atom",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:atom"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-radiation",
+    "group": "icons",
+    "name": "Radiation",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:radiation"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-gauge",
+    "group": "icons",
+    "name": "Gauge",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:gauge"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-fuel",
+    "group": "icons",
+    "name": "Fuel",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:fuel"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-flame",
+    "group": "icons",
+    "name": "Flame",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:flame"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-heater",
+    "group": "icons",
+    "name": "Heater",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:heater"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-fan",
+    "group": "icons",
+    "name": "Fan",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:fan"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-air-vent",
+    "group": "icons",
+    "name": "Air vent",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:air-vent"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cable",
+    "group": "icons",
+    "name": "Cable",
+    "tags": [
+      "icon",
+      "energy",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cable"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-car",
+    "group": "icons",
+    "name": "Car",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:car"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-car-front",
+    "group": "icons",
+    "name": "Car front",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:car-front"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bus",
+    "group": "icons",
+    "name": "Bus",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bus"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bus-front",
+    "group": "icons",
+    "name": "Bus front",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bus-front"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-truck",
+    "group": "icons",
+    "name": "Truck",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:truck"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-train-front",
+    "group": "icons",
+    "name": "Train front",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:train-front"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tram-front",
+    "group": "icons",
+    "name": "Tram front",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tram-front"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-plane",
+    "group": "icons",
+    "name": "Plane",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:plane"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-plane-takeoff",
+    "group": "icons",
+    "name": "Plane takeoff",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:plane-takeoff"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-plane-landing",
+    "group": "icons",
+    "name": "Plane landing",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:plane-landing"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-ship",
+    "group": "icons",
+    "name": "Ship",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:ship"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sailboat",
+    "group": "icons",
+    "name": "Sailboat",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sailboat"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bike",
+    "group": "icons",
+    "name": "Bike",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bike"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-footprints",
+    "group": "icons",
+    "name": "Footprints",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:footprints"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-forklift",
+    "group": "icons",
+    "name": "Forklift",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:forklift"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tractor",
+    "group": "icons",
+    "name": "Tractor",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tractor"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-route",
+    "group": "icons",
+    "name": "Route",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:route"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-map",
+    "group": "icons",
+    "name": "Map",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:map"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-map-pin",
+    "group": "icons",
+    "name": "Map pin",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:map-pin"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-navigation",
+    "group": "icons",
+    "name": "Navigation",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:navigation"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-compass",
+    "group": "icons",
+    "name": "Compass",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:compass"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-anchor",
+    "group": "icons",
+    "name": "Anchor",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:anchor"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-container",
+    "group": "icons",
+    "name": "Container",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:container"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-baggage-claim",
+    "group": "icons",
+    "name": "Baggage claim",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:baggage-claim"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-ticket",
+    "group": "icons",
+    "name": "Ticket",
+    "tags": [
+      "icon",
+      "transport"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:ticket"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-factory",
+    "group": "icons",
+    "name": "Factory",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:factory"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-warehouse",
+    "group": "icons",
+    "name": "Warehouse",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:warehouse"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-building",
+    "group": "icons",
+    "name": "Building",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:building"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-building-2",
+    "group": "icons",
+    "name": "Building 2",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:building-2"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-store",
+    "group": "icons",
+    "name": "Store",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:store"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-landmark",
+    "group": "icons",
+    "name": "Landmark",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:landmark"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-hotel",
+    "group": "icons",
+    "name": "Hotel",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:hotel"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-house",
+    "group": "icons",
+    "name": "House",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:house"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-construction",
+    "group": "icons",
+    "name": "Construction",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:construction"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-hammer",
+    "group": "icons",
+    "name": "Hammer",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:hammer"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-wrench",
+    "group": "icons",
+    "name": "Wrench",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:wrench"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cog",
+    "group": "icons",
+    "name": "Cog",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cog"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-settings",
+    "group": "icons",
+    "name": "Settings",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:settings"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-drill",
+    "group": "icons",
+    "name": "Drill",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:drill"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-pickaxe",
+    "group": "icons",
+    "name": "Pickaxe",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:pickaxe"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-shovel",
+    "group": "icons",
+    "name": "Shovel",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:shovel"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-hard-hat",
+    "group": "icons",
+    "name": "Hard hat",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:hard-hat"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-package",
+    "group": "icons",
+    "name": "Package",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:package"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-package-open",
+    "group": "icons",
+    "name": "Package open",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:package-open"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-box",
+    "group": "icons",
+    "name": "Box",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:box"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-boxes",
+    "group": "icons",
+    "name": "Boxes",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:boxes"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-recycle",
+    "group": "icons",
+    "name": "Recycle",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:recycle"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-trash",
+    "group": "icons",
+    "name": "Trash",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:trash"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-trash-2",
+    "group": "icons",
+    "name": "Trash 2",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:trash-2"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-beaker",
+    "group": "icons",
+    "name": "Beaker",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:beaker"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-flask-conical",
+    "group": "icons",
+    "name": "Flask conical",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:flask-conical"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-test-tube",
+    "group": "icons",
+    "name": "Test tube",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:test-tube"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-microscope",
+    "group": "icons",
+    "name": "Microscope",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:microscope"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-dna",
+    "group": "icons",
+    "name": "Dna",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:dna"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-biohazard",
+    "group": "icons",
+    "name": "Biohazard",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:biohazard"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-fire-extinguisher",
+    "group": "icons",
+    "name": "Fire extinguisher",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:fire-extinguisher"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-siren",
+    "group": "icons",
+    "name": "Siren",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:siren"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-refrigerator",
+    "group": "icons",
+    "name": "Refrigerator",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:refrigerator"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-washing-machine",
+    "group": "icons",
+    "name": "Washing machine",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:washing-machine"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-shower-head",
+    "group": "icons",
+    "name": "Shower head",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:shower-head"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bath",
+    "group": "icons",
+    "name": "Bath",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bath"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-toilet",
+    "group": "icons",
+    "name": "Toilet",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:toilet"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-printer",
+    "group": "icons",
+    "name": "Printer",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:printer"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-server",
+    "group": "icons",
+    "name": "Server",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:server"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cpu",
+    "group": "icons",
+    "name": "Cpu",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cpu"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-database",
+    "group": "icons",
+    "name": "Database",
+    "tags": [
+      "icon",
+      "industry"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:database"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-users",
+    "group": "icons",
+    "name": "Users",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:users"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-user",
+    "group": "icons",
+    "name": "User",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:user"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-user-check",
+    "group": "icons",
+    "name": "User check",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:user-check"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-user-plus",
+    "group": "icons",
+    "name": "User plus",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:user-plus"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-users-round",
+    "group": "icons",
+    "name": "Users round",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:users-round"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-baby",
+    "group": "icons",
+    "name": "Baby",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:baby"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-graduation-cap",
+    "group": "icons",
+    "name": "Graduation cap",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:graduation-cap"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-school",
+    "group": "icons",
+    "name": "School",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:school"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-book",
+    "group": "icons",
+    "name": "Book",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:book"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-book-open",
+    "group": "icons",
+    "name": "Book open",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:book-open"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-heart",
+    "group": "icons",
+    "name": "Heart",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:heart"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-heart-handshake",
+    "group": "icons",
+    "name": "Heart handshake",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:heart-handshake"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-heart-pulse",
+    "group": "icons",
+    "name": "Heart pulse",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:heart-pulse"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-hand",
+    "group": "icons",
+    "name": "Hand",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:hand"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-hand-heart",
+    "group": "icons",
+    "name": "Hand heart",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:hand-heart"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-handshake",
+    "group": "icons",
+    "name": "Handshake",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:handshake"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-stethoscope",
+    "group": "icons",
+    "name": "Stethoscope",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:stethoscope"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-hospital",
+    "group": "icons",
+    "name": "Hospital",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:hospital"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-pill",
+    "group": "icons",
+    "name": "Pill",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:pill"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-syringe",
+    "group": "icons",
+    "name": "Syringe",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:syringe"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-accessibility",
+    "group": "icons",
+    "name": "Accessibility",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:accessibility"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-armchair",
+    "group": "icons",
+    "name": "Armchair",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:armchair"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-cigarette-off",
+    "group": "icons",
+    "name": "Cigarette off",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:cigarette-off"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-shirt",
+    "group": "icons",
+    "name": "Shirt",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:shirt"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-glasses",
+    "group": "icons",
+    "name": "Glasses",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:glasses"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-apple",
+    "group": "icons",
+    "name": "Apple",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:apple"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-carrot",
+    "group": "icons",
+    "name": "Carrot",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:carrot"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-salad",
+    "group": "icons",
+    "name": "Salad",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:salad"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-utensils",
+    "group": "icons",
+    "name": "Utensils",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:utensils"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-coffee",
+    "group": "icons",
+    "name": "Coffee",
+    "tags": [
+      "icon",
+      "people",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:coffee"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-shield",
+    "group": "icons",
+    "name": "Shield",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:shield"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-shield-check",
+    "group": "icons",
+    "name": "Shield check",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:shield-check"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-shield-alert",
+    "group": "icons",
+    "name": "Shield alert",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:shield-alert"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-scale",
+    "group": "icons",
+    "name": "Scale",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:scale"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-gavel",
+    "group": "icons",
+    "name": "Gavel",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:gavel"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-badge-check",
+    "group": "icons",
+    "name": "Badge check",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:badge-check"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-award",
+    "group": "icons",
+    "name": "Award",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:award"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-medal",
+    "group": "icons",
+    "name": "Medal",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:medal"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-trophy",
+    "group": "icons",
+    "name": "Trophy",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:trophy"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-star",
+    "group": "icons",
+    "name": "Star",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:star"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-flag",
+    "group": "icons",
+    "name": "Flag",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:flag"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-target",
+    "group": "icons",
+    "name": "Target",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:target"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-crosshair",
+    "group": "icons",
+    "name": "Crosshair",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:crosshair"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-briefcase",
+    "group": "icons",
+    "name": "Briefcase",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:briefcase"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-banknote",
+    "group": "icons",
+    "name": "Banknote",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:banknote"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-coins",
+    "group": "icons",
+    "name": "Coins",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:coins"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-piggy-bank",
+    "group": "icons",
+    "name": "Piggy bank",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:piggy-bank"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-wallet",
+    "group": "icons",
+    "name": "Wallet",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:wallet"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-receipt",
+    "group": "icons",
+    "name": "Receipt",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:receipt"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-credit-card",
+    "group": "icons",
+    "name": "Credit card",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:credit-card"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-dollar-sign",
+    "group": "icons",
+    "name": "Dollar sign",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:dollar-sign"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-euro",
+    "group": "icons",
+    "name": "Euro",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:euro"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-indian-rupee",
+    "group": "icons",
+    "name": "Indian rupee",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:indian-rupee"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-percent",
+    "group": "icons",
+    "name": "Percent",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:percent"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-badge-percent",
+    "group": "icons",
+    "name": "Badge percent",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:badge-percent"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-lock",
+    "group": "icons",
+    "name": "Lock",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:lock"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-lock-open",
+    "group": "icons",
+    "name": "Lock open",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:lock-open"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-key",
+    "group": "icons",
+    "name": "Key",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:key"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-eye",
+    "group": "icons",
+    "name": "Eye",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:eye"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-globe-lock",
+    "group": "icons",
+    "name": "Globe lock",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:globe-lock"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-scroll-text",
+    "group": "icons",
+    "name": "Scroll text",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:scroll-text"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-file-text",
+    "group": "icons",
+    "name": "File text",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:file-text"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-file-check",
+    "group": "icons",
+    "name": "File check",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:file-check"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-clipboard-check",
+    "group": "icons",
+    "name": "Clipboard check",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:clipboard-check"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-list-checks",
+    "group": "icons",
+    "name": "List checks",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:list-checks"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-megaphone",
+    "group": "icons",
+    "name": "Megaphone",
+    "tags": [
+      "icon",
+      "governance",
+      "esg"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:megaphone"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-chart-bar",
+    "group": "icons",
+    "name": "Chart bar",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:chart-bar"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-chart-line",
+    "group": "icons",
+    "name": "Chart line",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:chart-line"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-chart-pie",
+    "group": "icons",
+    "name": "Chart pie",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:chart-pie"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-chart-column",
+    "group": "icons",
+    "name": "Chart column",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:chart-column"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-chart-area",
+    "group": "icons",
+    "name": "Chart area",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:chart-area"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-trending-up",
+    "group": "icons",
+    "name": "Trending up",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:trending-up"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-trending-down",
+    "group": "icons",
+    "name": "Trending down",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:trending-down"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-activity",
+    "group": "icons",
+    "name": "Activity",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:activity"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-calculator",
+    "group": "icons",
+    "name": "Calculator",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:calculator"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sigma",
+    "group": "icons",
+    "name": "Sigma",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sigma"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-infinity",
+    "group": "icons",
+    "name": "Infinity",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:infinity"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-equal",
+    "group": "icons",
+    "name": "Equal",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:equal"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-plus",
+    "group": "icons",
+    "name": "Plus",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:plus"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-minus",
+    "group": "icons",
+    "name": "Minus",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:minus"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-layers",
+    "group": "icons",
+    "name": "Layers",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:layers"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-layout-grid",
+    "group": "icons",
+    "name": "Layout grid",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:layout-grid"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-network",
+    "group": "icons",
+    "name": "Network",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:network"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-share-2",
+    "group": "icons",
+    "name": "Share 2",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:share-2"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-git-branch",
+    "group": "icons",
+    "name": "Git branch",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:git-branch"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-workflow",
+    "group": "icons",
+    "name": "Workflow",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:workflow"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-presentation",
+    "group": "icons",
+    "name": "Presentation",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:presentation"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sheet",
+    "group": "icons",
+    "name": "Sheet",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sheet"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-table",
+    "group": "icons",
+    "name": "Table",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:table"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-list",
+    "group": "icons",
+    "name": "List",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:list"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-clipboard",
+    "group": "icons",
+    "name": "Clipboard",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:clipboard"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-clipboard-list",
+    "group": "icons",
+    "name": "Clipboard list",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:clipboard-list"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-file",
+    "group": "icons",
+    "name": "File",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:file"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-files",
+    "group": "icons",
+    "name": "Files",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:files"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-folder",
+    "group": "icons",
+    "name": "Folder",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:folder"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-calendar",
+    "group": "icons",
+    "name": "Calendar",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:calendar"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-clock",
+    "group": "icons",
+    "name": "Clock",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:clock"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-timer",
+    "group": "icons",
+    "name": "Timer",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:timer"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-hourglass",
+    "group": "icons",
+    "name": "Hourglass",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:hourglass"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-history",
+    "group": "icons",
+    "name": "History",
+    "tags": [
+      "icon",
+      "data"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:history"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-check",
+    "group": "icons",
+    "name": "Check",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:check"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-circle-check",
+    "group": "icons",
+    "name": "Circle check",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:circle-check"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-x",
+    "group": "icons",
+    "name": "X",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:x"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-circle-x",
+    "group": "icons",
+    "name": "Circle x",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:circle-x"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-triangle-alert",
+    "group": "icons",
+    "name": "Triangle alert",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:triangle-alert"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-circle-alert",
+    "group": "icons",
+    "name": "Circle alert",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:circle-alert"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-info",
+    "group": "icons",
+    "name": "Info",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:info"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-search",
+    "group": "icons",
+    "name": "Search",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:search"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-link",
+    "group": "icons",
+    "name": "Link",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:link"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-mail",
+    "group": "icons",
+    "name": "Mail",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:mail"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-phone",
+    "group": "icons",
+    "name": "Phone",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:phone"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-message-circle",
+    "group": "icons",
+    "name": "Message circle",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:message-circle"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bell",
+    "group": "icons",
+    "name": "Bell",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bell"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-wifi",
+    "group": "icons",
+    "name": "Wifi",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:wifi"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-smartphone",
+    "group": "icons",
+    "name": "Smartphone",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:smartphone"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-laptop",
+    "group": "icons",
+    "name": "Laptop",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:laptop"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-monitor",
+    "group": "icons",
+    "name": "Monitor",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:monitor"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-camera",
+    "group": "icons",
+    "name": "Camera",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:camera"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-image",
+    "group": "icons",
+    "name": "Image",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:image"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-video",
+    "group": "icons",
+    "name": "Video",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:video"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-mic",
+    "group": "icons",
+    "name": "Mic",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:mic"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-arrow-right",
+    "group": "icons",
+    "name": "Arrow right",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:arrow-right"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-arrow-left",
+    "group": "icons",
+    "name": "Arrow left",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:arrow-left"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-arrow-up",
+    "group": "icons",
+    "name": "Arrow up",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:arrow-up"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-arrow-down",
+    "group": "icons",
+    "name": "Arrow down",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:arrow-down"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-arrow-up-right",
+    "group": "icons",
+    "name": "Arrow up right",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:arrow-up-right"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-arrow-down-right",
+    "group": "icons",
+    "name": "Arrow down right",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:arrow-down-right"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-refresh-cw",
+    "group": "icons",
+    "name": "Refresh cw",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:refresh-cw"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-rotate-cw",
+    "group": "icons",
+    "name": "Rotate cw",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:rotate-cw"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-repeat",
+    "group": "icons",
+    "name": "Repeat",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:repeat"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-move",
+    "group": "icons",
+    "name": "Move",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:move"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-puzzle",
+    "group": "icons",
+    "name": "Puzzle",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:puzzle"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-rocket",
+    "group": "icons",
+    "name": "Rocket",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:rocket"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-sparkles",
+    "group": "icons",
+    "name": "Sparkles",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:sparkles"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-gem",
+    "group": "icons",
+    "name": "Gem",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:gem"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-crown",
+    "group": "icons",
+    "name": "Crown",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:crown"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-bookmark",
+    "group": "icons",
+    "name": "Bookmark",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:bookmark"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tag",
+    "group": "icons",
+    "name": "Tag",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tag"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-gift",
+    "group": "icons",
+    "name": "Gift",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:gift"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-newspaper",
+    "group": "icons",
+    "name": "Newspaper",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:newspaper"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-notebook",
+    "group": "icons",
+    "name": "Notebook",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:notebook"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-palette",
+    "group": "icons",
+    "name": "Palette",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:palette"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-pencil",
+    "group": "icons",
+    "name": "Pencil",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:pencil"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-ruler",
+    "group": "icons",
+    "name": "Ruler",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:ruler"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-scissors",
+    "group": "icons",
+    "name": "Scissors",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:scissors"
+      }
+    }
+  },
+  {
+    "slug": "icon-lucide-tent",
+    "group": "icons",
+    "name": "Tent",
+    "tags": [
+      "icon",
+      "general"
+    ],
+    "license": "lucide-isc",
+    "payload": {
+      "id": "el",
+      "type": "icon",
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14,
+        "rotation": 0
+      },
+      "z": 1,
+      "source": "user",
+      "props": {
+        "name": "lucide:tent"
+      }
+    }
+  }
+]

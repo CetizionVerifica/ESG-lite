@@ -1,0 +1,2011 @@
+[
+  {
+    "slug": "esg-scope-diagram",
+    "group": "esg",
+    "name": "Scope 1, 2 and 3 value chain",
+    "tags": [
+      "esg",
+      "graphic",
+      "diagram",
+      "scope",
+      "value chain",
+      "ghg"
+    ],
+    "license": "own",
+    "payload": {
+      "type": "group",
+      "w": 170,
+      "h": 70,
+      "elements": [
+        {
+          "id": "up_bg",
+          "type": "shape",
+          "frame": {
+            "x": 0,
+            "y": 10,
+            "w": 46,
+            "h": 50,
+            "rotation": 0
+          },
+          "z": 1,
+          "source": "user",
+          "props": {
+            "shape": "rect",
+            "radius": 3,
+            "opacity": 0.15
+          }
+        },
+        {
+          "id": "own_bg",
+          "type": "shape",
+          "frame": {
+            "x": 62,
+            "y": 0,
+            "w": 46,
+            "h": 70,
+            "rotation": 0
+          },
+          "z": 2,
+          "source": "user",
+          "props": {
+            "shape": "rect",
+            "radius": 3
+          }
+        },
+        {
+          "id": "down_bg",
+          "type": "shape",
+          "frame": {
+            "x": 124,
+            "y": 10,
+            "w": 46,
+            "h": 50,
+            "rotation": 0
+          },
+          "z": 3,
+          "source": "user",
+          "props": {
+            "shape": "rect",
+            "radius": 3,
+            "opacity": 0.15
+          }
+        },
+        {
+          "id": "up_kicker",
+          "type": "text",
+          "frame": {
+            "x": 2,
+            "y": 16,
+            "w": 42,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 4,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Upstream"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "kicker",
+            "align": "center"
+          }
+        },
+        {
+          "id": "up_text",
+          "type": "text",
+          "frame": {
+            "x": 2,
+            "y": 26,
+            "w": 42,
+            "h": 26,
+            "rotation": 0
+          },
+          "z": 5,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Scope 3: purchased goods, transport, travel, commuting"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "own_kicker",
+          "type": "text",
+          "frame": {
+            "x": 64,
+            "y": 10,
+            "w": 42,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 6,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Our operations"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "kicker",
+            "align": "center"
+          }
+        },
+        {
+          "id": "own_text",
+          "type": "text",
+          "frame": {
+            "x": 64,
+            "y": 22,
+            "w": 42,
+            "h": 40,
+            "rotation": 0
+          },
+          "z": 7,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Scope 1: fuel, processes, refrigerants. Scope 2: purchased energy"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "down_kicker",
+          "type": "text",
+          "frame": {
+            "x": 126,
+            "y": 16,
+            "w": 42,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 8,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Downstream"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "kicker",
+            "align": "center"
+          }
+        },
+        {
+          "id": "down_text",
+          "type": "text",
+          "frame": {
+            "x": 126,
+            "y": 26,
+            "w": 42,
+            "h": 26,
+            "rotation": 0
+          },
+          "z": 9,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Scope 3: transport, use and end of life of products"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "arrow1",
+          "type": "line",
+          "frame": {
+            "x": 47,
+            "y": 33,
+            "w": 14,
+            "h": 4,
+            "rotation": 0
+          },
+          "z": 10,
+          "source": "user",
+          "props": {
+            "x1": 0,
+            "y1": 2,
+            "x2": 14,
+            "y2": 2,
+            "strokeWidth": 0.8,
+            "dash": "solid",
+            "endArrow": true
+          }
+        },
+        {
+          "id": "arrow2",
+          "type": "line",
+          "frame": {
+            "x": 109,
+            "y": 33,
+            "w": 14,
+            "h": 4,
+            "rotation": 0
+          },
+          "z": 11,
+          "source": "user",
+          "props": {
+            "x1": 0,
+            "y1": 2,
+            "x2": 14,
+            "y2": 2,
+            "strokeWidth": 0.8,
+            "dash": "solid",
+            "endArrow": true
+          }
+        }
+      ]
+    }
+  },
+  {
+    "slug": "esg-scope-circles",
+    "group": "esg",
+    "name": "Scope circles",
+    "tags": [
+      "esg",
+      "graphic",
+      "diagram",
+      "scope",
+      "ghg"
+    ],
+    "license": "own",
+    "payload": {
+      "type": "group",
+      "w": 152,
+      "h": 56,
+      "elements": [
+        {
+          "id": "s1_circle",
+          "type": "shape",
+          "frame": {
+            "x": 6,
+            "y": 0,
+            "w": 36,
+            "h": 36,
+            "rotation": 0
+          },
+          "z": 1,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.2
+          }
+        },
+        {
+          "id": "s1_label",
+          "type": "text",
+          "frame": {
+            "x": 0,
+            "y": 13,
+            "w": 48,
+            "h": 8,
+            "rotation": 0
+          },
+          "z": 2,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Scope 1"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "subheading",
+            "align": "center"
+          }
+        },
+        {
+          "id": "s1_text",
+          "type": "text",
+          "frame": {
+            "x": 0,
+            "y": 40,
+            "w": 48,
+            "h": 8,
+            "rotation": 0
+          },
+          "z": 3,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Direct"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "s2_circle",
+          "type": "shape",
+          "frame": {
+            "x": 58,
+            "y": 0,
+            "w": 36,
+            "h": 36,
+            "rotation": 0
+          },
+          "z": 4,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.45
+          }
+        },
+        {
+          "id": "s2_label",
+          "type": "text",
+          "frame": {
+            "x": 52,
+            "y": 13,
+            "w": 48,
+            "h": 8,
+            "rotation": 0
+          },
+          "z": 5,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Scope 2"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "subheading",
+            "align": "center"
+          }
+        },
+        {
+          "id": "s2_text",
+          "type": "text",
+          "frame": {
+            "x": 52,
+            "y": 40,
+            "w": 48,
+            "h": 8,
+            "rotation": 0
+          },
+          "z": 6,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Purchased energy"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "s3_circle",
+          "type": "shape",
+          "frame": {
+            "x": 110,
+            "y": 0,
+            "w": 36,
+            "h": 36,
+            "rotation": 0
+          },
+          "z": 7,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "s3_label",
+          "type": "text",
+          "frame": {
+            "x": 104,
+            "y": 13,
+            "w": 48,
+            "h": 8,
+            "rotation": 0
+          },
+          "z": 8,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Scope 3"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "subheading",
+            "align": "center"
+          }
+        },
+        {
+          "id": "s3_text",
+          "type": "text",
+          "frame": {
+            "x": 104,
+            "y": 40,
+            "w": 48,
+            "h": 8,
+            "rotation": 0
+          },
+          "z": 9,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Value chain"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "slug": "esg-pillars",
+    "group": "esg",
+    "name": "Environment, social, governance",
+    "tags": [
+      "esg",
+      "graphic",
+      "diagram",
+      "pillars",
+      "e s g"
+    ],
+    "license": "own",
+    "payload": {
+      "type": "group",
+      "w": 150,
+      "h": 50,
+      "elements": [
+        {
+          "id": "e_bg",
+          "type": "shape",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 46,
+            "h": 50,
+            "rotation": 0
+          },
+          "z": 1,
+          "source": "user",
+          "props": {
+            "shape": "rect",
+            "radius": 3,
+            "opacity": 0.12
+          }
+        },
+        {
+          "id": "e_icon",
+          "type": "icon",
+          "frame": {
+            "x": 16,
+            "y": 8,
+            "w": 14,
+            "h": 14,
+            "rotation": 0
+          },
+          "z": 2,
+          "source": "user",
+          "props": {
+            "name": "leaf"
+          }
+        },
+        {
+          "id": "e_label",
+          "type": "text",
+          "frame": {
+            "x": 2,
+            "y": 28,
+            "w": 42,
+            "h": 10,
+            "rotation": 0
+          },
+          "z": 3,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Environment"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "subheading",
+            "align": "center"
+          }
+        },
+        {
+          "id": "s_bg",
+          "type": "shape",
+          "frame": {
+            "x": 52,
+            "y": 0,
+            "w": 46,
+            "h": 50,
+            "rotation": 0
+          },
+          "z": 4,
+          "source": "user",
+          "props": {
+            "shape": "rect",
+            "radius": 3,
+            "opacity": 0.12
+          }
+        },
+        {
+          "id": "s_icon",
+          "type": "icon",
+          "frame": {
+            "x": 68,
+            "y": 8,
+            "w": 14,
+            "h": 14,
+            "rotation": 0
+          },
+          "z": 5,
+          "source": "user",
+          "props": {
+            "name": "users"
+          }
+        },
+        {
+          "id": "s_label",
+          "type": "text",
+          "frame": {
+            "x": 54,
+            "y": 28,
+            "w": 42,
+            "h": 10,
+            "rotation": 0
+          },
+          "z": 6,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Social"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "subheading",
+            "align": "center"
+          }
+        },
+        {
+          "id": "g_bg",
+          "type": "shape",
+          "frame": {
+            "x": 104,
+            "y": 0,
+            "w": 46,
+            "h": 50,
+            "rotation": 0
+          },
+          "z": 7,
+          "source": "user",
+          "props": {
+            "shape": "rect",
+            "radius": 3,
+            "opacity": 0.12
+          }
+        },
+        {
+          "id": "g_icon",
+          "type": "icon",
+          "frame": {
+            "x": 120,
+            "y": 8,
+            "w": 14,
+            "h": 14,
+            "rotation": 0
+          },
+          "z": 8,
+          "source": "user",
+          "props": {
+            "name": "shield"
+          }
+        },
+        {
+          "id": "g_label",
+          "type": "text",
+          "frame": {
+            "x": 106,
+            "y": 28,
+            "w": 42,
+            "h": 10,
+            "rotation": 0
+          },
+          "z": 9,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Governance"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "subheading",
+            "align": "center"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "slug": "esg-value-chain-strip",
+    "group": "esg",
+    "name": "Upstream to downstream strip",
+    "tags": [
+      "esg",
+      "graphic",
+      "diagram",
+      "value chain",
+      "upstream",
+      "downstream"
+    ],
+    "license": "own",
+    "payload": {
+      "type": "group",
+      "w": 187,
+      "h": 44,
+      "elements": [
+        {
+          "id": "band",
+          "type": "shape",
+          "frame": {
+            "x": 0,
+            "y": 30,
+            "w": 187,
+            "h": 1.5,
+            "rotation": 0
+          },
+          "z": 1,
+          "source": "user",
+          "props": {
+            "shape": "rect"
+          }
+        },
+        {
+          "id": "supply_dot",
+          "type": "shape",
+          "frame": {
+            "x": 12,
+            "y": 25,
+            "w": 11,
+            "h": 11,
+            "rotation": 0
+          },
+          "z": 2,
+          "source": "user",
+          "props": {
+            "shape": "ellipse"
+          }
+        },
+        {
+          "id": "supply_icon",
+          "type": "icon",
+          "frame": {
+            "x": 11,
+            "y": 4,
+            "w": 13,
+            "h": 13,
+            "rotation": 0
+          },
+          "z": 3,
+          "source": "user",
+          "props": {
+            "name": "factory"
+          }
+        },
+        {
+          "id": "supply_label",
+          "type": "text",
+          "frame": {
+            "x": 0,
+            "y": 37,
+            "w": 35,
+            "h": 7,
+            "rotation": 0
+          },
+          "z": 4,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Suppliers"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "inbound_dot",
+          "type": "shape",
+          "frame": {
+            "x": 50,
+            "y": 25,
+            "w": 11,
+            "h": 11,
+            "rotation": 0
+          },
+          "z": 5,
+          "source": "user",
+          "props": {
+            "shape": "ellipse"
+          }
+        },
+        {
+          "id": "inbound_icon",
+          "type": "icon",
+          "frame": {
+            "x": 49,
+            "y": 4,
+            "w": 13,
+            "h": 13,
+            "rotation": 0
+          },
+          "z": 6,
+          "source": "user",
+          "props": {
+            "name": "truck"
+          }
+        },
+        {
+          "id": "inbound_label",
+          "type": "text",
+          "frame": {
+            "x": 38,
+            "y": 37,
+            "w": 35,
+            "h": 7,
+            "rotation": 0
+          },
+          "z": 7,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Inbound transport"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "ops_dot",
+          "type": "shape",
+          "frame": {
+            "x": 88,
+            "y": 25,
+            "w": 11,
+            "h": 11,
+            "rotation": 0
+          },
+          "z": 8,
+          "source": "user",
+          "props": {
+            "shape": "ellipse"
+          }
+        },
+        {
+          "id": "ops_icon",
+          "type": "icon",
+          "frame": {
+            "x": 87,
+            "y": 4,
+            "w": 13,
+            "h": 13,
+            "rotation": 0
+          },
+          "z": 9,
+          "source": "user",
+          "props": {
+            "name": "building"
+          }
+        },
+        {
+          "id": "ops_label",
+          "type": "text",
+          "frame": {
+            "x": 76,
+            "y": 37,
+            "w": 35,
+            "h": 7,
+            "rotation": 0
+          },
+          "z": 10,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Our sites"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "outbound_dot",
+          "type": "shape",
+          "frame": {
+            "x": 126,
+            "y": 25,
+            "w": 11,
+            "h": 11,
+            "rotation": 0
+          },
+          "z": 11,
+          "source": "user",
+          "props": {
+            "shape": "ellipse"
+          }
+        },
+        {
+          "id": "outbound_icon",
+          "type": "icon",
+          "frame": {
+            "x": 125,
+            "y": 4,
+            "w": 13,
+            "h": 13,
+            "rotation": 0
+          },
+          "z": 12,
+          "source": "user",
+          "props": {
+            "name": "truck"
+          }
+        },
+        {
+          "id": "outbound_label",
+          "type": "text",
+          "frame": {
+            "x": 114,
+            "y": 37,
+            "w": 35,
+            "h": 7,
+            "rotation": 0
+          },
+          "z": 13,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Distribution"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "use_dot",
+          "type": "shape",
+          "frame": {
+            "x": 164,
+            "y": 25,
+            "w": 11,
+            "h": 11,
+            "rotation": 0
+          },
+          "z": 14,
+          "source": "user",
+          "props": {
+            "shape": "ellipse"
+          }
+        },
+        {
+          "id": "use_icon",
+          "type": "icon",
+          "frame": {
+            "x": 163,
+            "y": 4,
+            "w": 13,
+            "h": 13,
+            "rotation": 0
+          },
+          "z": 15,
+          "source": "user",
+          "props": {
+            "name": "users"
+          }
+        },
+        {
+          "id": "use_label",
+          "type": "text",
+          "frame": {
+            "x": 152,
+            "y": 37,
+            "w": 35,
+            "h": 7,
+            "rotation": 0
+          },
+          "z": 16,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Use and end of life"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "up_tag",
+          "type": "text",
+          "frame": {
+            "x": 0,
+            "y": 18,
+            "w": 60,
+            "h": 5,
+            "rotation": 0
+          },
+          "z": 30,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Upstream"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "kicker",
+            "align": "left"
+          }
+        },
+        {
+          "id": "down_tag",
+          "type": "text",
+          "frame": {
+            "x": 127,
+            "y": 18,
+            "w": 60,
+            "h": 5,
+            "rotation": 0
+          },
+          "z": 31,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Downstream"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "kicker",
+            "align": "right"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "slug": "esg-scope3-wheel",
+    "group": "esg",
+    "name": "Scope 3 categories wheel",
+    "tags": [
+      "esg",
+      "graphic",
+      "diagram",
+      "scope 3",
+      "categories",
+      "15"
+    ],
+    "license": "own",
+    "payload": {
+      "type": "group",
+      "w": 120,
+      "h": 120,
+      "elements": [
+        {
+          "id": "centre",
+          "type": "shape",
+          "frame": {
+            "x": 40,
+            "y": 40,
+            "w": 40,
+            "h": 40,
+            "rotation": 0
+          },
+          "z": 1,
+          "source": "user",
+          "props": {
+            "shape": "ellipse"
+          }
+        },
+        {
+          "id": "centre_label",
+          "type": "text",
+          "frame": {
+            "x": 42,
+            "y": 55,
+            "w": 36,
+            "h": 10,
+            "rotation": 0
+          },
+          "z": 2,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Scope 3"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "subheading",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c1",
+          "type": "shape",
+          "frame": {
+            "x": 54,
+            "y": 6,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 3,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n1",
+          "type": "text",
+          "frame": {
+            "x": 54,
+            "y": 9,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 4,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "1"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c2",
+          "type": "shape",
+          "frame": {
+            "x": 73.52,
+            "y": 10.15,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 5,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n2",
+          "type": "text",
+          "frame": {
+            "x": 73.52,
+            "y": 13.15,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 6,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "2"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c3",
+          "type": "shape",
+          "frame": {
+            "x": 89.67,
+            "y": 21.88,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 7,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n3",
+          "type": "text",
+          "frame": {
+            "x": 89.67,
+            "y": 24.88,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 8,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "3"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c4",
+          "type": "shape",
+          "frame": {
+            "x": 99.65,
+            "y": 39.17,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 9,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n4",
+          "type": "text",
+          "frame": {
+            "x": 99.65,
+            "y": 42.17,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 10,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "4"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c5",
+          "type": "shape",
+          "frame": {
+            "x": 101.74,
+            "y": 59.02,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 11,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n5",
+          "type": "text",
+          "frame": {
+            "x": 101.74,
+            "y": 62.02,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 12,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "5"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c6",
+          "type": "shape",
+          "frame": {
+            "x": 95.57,
+            "y": 78,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 13,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n6",
+          "type": "text",
+          "frame": {
+            "x": 95.57,
+            "y": 81,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 14,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "6"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c7",
+          "type": "shape",
+          "frame": {
+            "x": 82.21,
+            "y": 92.83,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 15,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n7",
+          "type": "text",
+          "frame": {
+            "x": 82.21,
+            "y": 95.83,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 16,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "7"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c8",
+          "type": "shape",
+          "frame": {
+            "x": 63.98,
+            "y": 100.95,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 17,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.35
+          }
+        },
+        {
+          "id": "n8",
+          "type": "text",
+          "frame": {
+            "x": 63.98,
+            "y": 103.95,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 18,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "8"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c9",
+          "type": "shape",
+          "frame": {
+            "x": 44.02,
+            "y": 100.95,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 19,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "n9",
+          "type": "text",
+          "frame": {
+            "x": 44.02,
+            "y": 103.95,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 20,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "9"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c10",
+          "type": "shape",
+          "frame": {
+            "x": 25.79,
+            "y": 92.83,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 21,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "n10",
+          "type": "text",
+          "frame": {
+            "x": 25.79,
+            "y": 95.83,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 22,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "10"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c11",
+          "type": "shape",
+          "frame": {
+            "x": 12.43,
+            "y": 78,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 23,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "n11",
+          "type": "text",
+          "frame": {
+            "x": 12.43,
+            "y": 81,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 24,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "11"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c12",
+          "type": "shape",
+          "frame": {
+            "x": 6.26,
+            "y": 59.02,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 25,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "n12",
+          "type": "text",
+          "frame": {
+            "x": 6.26,
+            "y": 62.02,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 26,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "12"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c13",
+          "type": "shape",
+          "frame": {
+            "x": 8.35,
+            "y": 39.17,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 27,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "n13",
+          "type": "text",
+          "frame": {
+            "x": 8.35,
+            "y": 42.17,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 28,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "13"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c14",
+          "type": "shape",
+          "frame": {
+            "x": 18.33,
+            "y": 21.88,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 29,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "n14",
+          "type": "text",
+          "frame": {
+            "x": 18.33,
+            "y": 24.88,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 30,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "14"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "c15",
+          "type": "shape",
+          "frame": {
+            "x": 34.48,
+            "y": 10.15,
+            "w": 12,
+            "h": 12,
+            "rotation": 0
+          },
+          "z": 31,
+          "source": "user",
+          "props": {
+            "shape": "ellipse",
+            "opacity": 0.7
+          }
+        },
+        {
+          "id": "n15",
+          "type": "text",
+          "frame": {
+            "x": 34.48,
+            "y": 13.15,
+            "w": 12,
+            "h": 6,
+            "rotation": 0
+          },
+          "z": 32,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "15"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "caption",
+            "align": "center"
+          }
+        },
+        {
+          "id": "legend",
+          "type": "text",
+          "frame": {
+            "x": 0,
+            "y": 112,
+            "w": 120,
+            "h": 8,
+            "rotation": 0
+          },
+          "z": 40,
+          "source": "user",
+          "props": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Categories 1–8 upstream, 9–15 downstream"
+                    }
+                  ]
+                }
+              ]
+            },
+            "style": "footnote",
+            "align": "center"
+          }
+        }
+      ]
+    }
+  }
+]
