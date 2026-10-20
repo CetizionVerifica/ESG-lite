@@ -66,6 +66,8 @@
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "studio:contracts": "node scripts/studio-contracts-snapshot.cjs",
+    "sync:studio-render": "node scripts/sync-studio-render.mjs",
+    "check:studio-render": "node scripts/sync-studio-render.mjs check",
     "test:scope3-golden": "node ci/golden/scope3/run.cjs",
     "test:workflow": "node ci/workflow/run.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"
@@ -76,6 +78,12 @@
   "type": "commonjs",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",
+    "@fontsource/archivo": "5.3.0",
+    "@fontsource/dm-serif-display": "5.3.0",
+    "@fontsource/fraunces": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@fontsource/ibm-plex-serif": "5.3.0",
+    "@fontsource/noto-sans": "5.3.0",
     "@fontsource/source-sans-3": "5.3.0",
     "@fontsource/source-serif-4": "5.3.0",
     "@modelcontextprotocol/sdk": "1.32.1",
@@ -111,5 +119,8 @@
     "typescript": "^5.9.3",
     "xlsx": "^0.18.5",
     "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "jsqr": "1.4.0"
   }
 }
