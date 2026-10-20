@@ -162,6 +162,8 @@ test("insightsScope needs the guard; the role list is I1's", () => {
 });
 
 test("GET /insights/sites: the caller's sites of the company, by name; site scope for Managers", async () => {
+  // Company 1 is on here (switched on above); keep it that way for the switch-off test below.
+  const was1 = await insightsOn(1);
   await setInsights(1, true);
   await setInsights(2, true);
   try {
@@ -185,7 +187,7 @@ test("GET /insights/sites: the caller's sites of the company, by name; site scop
       await withDb((db) => db.query(`INSERT INTO user_sites (user_id, site_id) VALUES (2, 2) ON CONFLICT DO NOTHING`));
     }
   } finally {
-    await setInsights(1, false);
+    await setInsights(1, was1);
     await setInsights(2, false);
   }
 });
