@@ -56,6 +56,8 @@ const CONTRACT_ROUTES = [
   ["GET", "/docs/:id/jobs", "DS-11"], ["GET", "/jobs/:id/file", "DS-11"],
   // DS-9 addition outside 01-contracts §4 (awaiting a DS-0 contracts follow-up): design from a brief (no doc yet)
   ["POST", "/ai/brief", "DS-9"],
+  // DS-10 addition outside 01-contracts §4 (awaiting a DS-0 contracts follow-up): the linked-source chip
+  ["GET", "/docs/:id/source", "DS-10"],
 ].map(([method, p, module]) => ({ method, path: p, module }));
 
 // A query string a route needs to get past validation to the guard and the tenant check.

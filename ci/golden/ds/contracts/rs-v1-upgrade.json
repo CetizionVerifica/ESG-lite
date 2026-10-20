@@ -67,7 +67,8 @@
     "AI_UNREVIEWED",
     "LEADERSHIP_UNCONFIRMED",
     "DATA_CHANGED",
-    "UNLINKED_DATA"
+    "UNLINKED_DATA",
+    "TEXT_TRUNCATED"
   ],
   "format": "a4",
   "kind": "sustainability",

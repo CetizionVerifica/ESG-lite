@@ -371,7 +371,8 @@
       "INTENSITY_MISSING",
       "TOTAL_MISMATCH",
       "YOY_UNEXPLAINED",
-      "UNLINKED_DATA"
+      "UNLINKED_DATA",
+      "TEXT_TRUNCATED"
     ],
     "CHECK_FIXES": [
       "replace_with_token",
@@ -737,6 +738,13 @@
       ]
     },
     "UNLINKED_DATA": {
+      "severity": "info",
+      "kinds": [
+        "ghg",
+        "sustainability"
+      ]
+    },
+    "TEXT_TRUNCATED": {
       "severity": "info",
       "kinds": [
         "ghg",

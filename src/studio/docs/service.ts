@@ -78,8 +78,8 @@ const setStep = (p: BuildProgress, id: BuildStepId, state: BuildStep["state"], n
   }
 };
 
-/** Reads one GHG/KPI value per binding even when one page's binding is invalid for the company (that page then counts as empty). */
-async function resolveForBuild(caller: StudioCaller, doc: ReportDoc, docId: number | undefined): Promise<ResolveResponse> {
+/** Reads one GHG/KPI value per binding even when one page's binding is invalid for the company (that page then counts as empty). DS-10 resize uses it too. */
+export async function resolveForBuild(caller: StudioCaller, doc: ReportDoc, docId: number | undefined): Promise<ResolveResponse> {
   const L = loadersFor(caller.companyId, doc.meta.yearType);
   const { ctx } = await buildContext(caller, { kind: doc.kind, year: doc.meta.year, yearType: doc.meta.yearType, sites: doc.meta.sites, ...(docId ? { docId } : {}) }, L);
   try {
