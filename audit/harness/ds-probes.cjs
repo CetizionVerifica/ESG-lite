@@ -57,6 +57,7 @@ const na = (why) => ({ na: why });
 // Manager-only routes (01-contracts §4 "M"): an Admin gets DS_ROLE. POST /docs/:id/jobs is M
 // only for kind 'final' (body-dependent) and is probed by DS-11's own tests.
 const MANAGER_ONLY_ROUTES = ["PUT /brand-kit", "POST /docs/:id/shares", "GET /docs/:id/shares", "DELETE /shares/:id", "POST /approvals/:id/decide"];
+MANAGER_ONLY_ROUTES.push("POST /brand-kit/fonts", "DELETE /brand-kit/fonts/:id"); // PRO-0 (PE-2, E3)
 // Routes that take a kind (query or body): a sustainability request with KPI off → DS_KIND_OFF.
 const KIND_ROUTES = { "GET /readiness": "query", "GET /styles": "query", "GET /templates": "query", "GET /layouts": "query", "POST /docs": "body" };
 // Where a company-1 id for a route parameter comes from, by the first path segment. Each module
@@ -130,7 +131,11 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
     const call = caller(ESG_DIR, stack.base, SECRET);
     const built = builtRoutes(ESG_DIR);
     const builtKeys = new Set(built.map(shape));
-    const isBuilt = (k) => builtKeys.has(shape({ method: k.split(" ")[0], path: k.split(" ")[1] }));
+    // PRO-0: a route whose module hasn't landed answers 501 DS_NOT_BUILT past the guard (src/studio/notBuilt.ts);
+    // it counts as not built (filled once the switch is on, below).
+    const stubbed = new Set();
+    const isBuilt = (k) => builtKeys.has(shape({ method: k.split(" ")[0], path: k.split(" ")[1] })) && !stubbed.has(shape({ method: k.split(" ")[0], path: k.split(" ")[1] }));
+    const pastGuardBad = (res) => guardCodes.has(res.code) || (res.status >= 500 && res.code !== "DS_NOT_BUILT");
     const key = (r) => `${r.method} ${r.path}`;
     const managerOnly = new Set(MANAGER_ONLY_ROUTES.map((k) => shape({ method: k.split(" ")[0], path: k.split(" ")[1] })));
     const isManagerOnly = (r) => managerOnly.has(shape(r));
@@ -174,6 +179,7 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
     await setKpi(1, false);
     await setKpi(2, false);
     for (const step of SEED) await step({ call, q });
+    for (const r of gated) if ((await as(r, "manager")).code === "DS_NOT_BUILT") stubbed.add(shape(r)); // PRO-0
 
     for (const r of gated) {
       await probe("DS-P02", `${r.method} ${r.path}: company 2's people naming company 1`, "404 (never 200 or 403)", async () => {
@@ -214,11 +220,11 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
           if (!(res.status === 403 && res.code === "DS_ROLE")) wrong.push(`${who} ${res.status} ${res.code ?? ""}`);
         }
         const mgr = await as(r, "manager");
-        if (guardCodes.has(mgr.code) || mgr.status >= 500) wrong.push(`manager ${mgr.status} ${mgr.code ?? ""}`);
+        if (pastGuardBad(mgr)) wrong.push(`manager ${mgr.status} ${mgr.code ?? ""}`);
         const adm = await as(r, "admin");
-        if (isManagerOnly(r) && isBuilt(key(r))) {
+        if (isManagerOnly(r) && builtKeys.has(shape(r))) { // PRO-0: routed (stubs check the role too)
           if (!(adm.status === 403 && adm.code === "DS_ROLE")) wrong.push(`admin ${adm.status} ${adm.code ?? ""} (M route)`);
-        } else if (guardCodes.has(adm.code) || adm.status >= 500) wrong.push(`admin ${adm.status} ${adm.code ?? ""}`);
+        } else if (pastGuardBad(adm)) wrong.push(`admin ${adm.status} ${adm.code ?? ""}`);
         return wrong.length ? wrong.join("; ") : true;
       });
     }
@@ -229,7 +235,7 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
         const none = await call(r.method, concrete(r.path), "superadmin", bodyOf(r));
         if (!(none.status === 400 && none.code === "DS_COMPANY_REQUIRED")) return `without company_id: ${none.status} ${none.code}`;
         const sa = await as(r, "superadmin");
-        if (guardCodes.has(sa.code) || sa.status >= 500) return `with company_id: ${sa.status} ${sa.code}`;
+        if (pastGuardBad(sa)) return `with company_id: ${sa.status} ${sa.code}`;
         return true;
       });
     }

@@ -63,6 +63,11 @@ const CONTRACT_ROUTES = [
   ["PATCH", "/comments/:id", "DS-13"], ["DELETE", "/comments/:id", "DS-13"], ["GET", "/docs/:id/approvals", "DS-13"],
   ["GET", "/review-settings", "DS-13"], ["PUT", "/review-settings", "DS-13"], ["DELETE", "/templates/:id", "DS-13"],
   ["GET", "/docs/:id/versions/:n/preview.html", "DS-13"],
+  // PRO-0 · Pro editing and AI templates (docs/design-studio/pro/); 501 DS_NOT_BUILT until the module lands
+  ["POST", "/templates/suggest", "AT-1"],
+  ["POST", "/docs/:id/template-swap/preview", "AT-2"], ["POST", "/docs/:id/template-swap/apply", "AT-2"],
+  ["POST", "/assets/:id/remove-background", "PE-1"], ["GET", "/image-jobs/:id", "PE-1"],
+  ["GET", "/brand-kit/fonts", "PE-2"], ["POST", "/brand-kit/fonts", "PE-2"], ["DELETE", "/brand-kit/fonts/:id", "PE-2"], ["GET", "/brand-kit/fonts/:id/files/:fileId", "PE-2"],
 ].map(([method, p, module]) => ({ method, path: p, module }));
 
 // A query string a route needs to get past validation to the guard and the tenant check.
