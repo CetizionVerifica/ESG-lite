@@ -18,6 +18,7 @@ import scope3Router from "./scope3/router";
 import kpiRouter from "./kpi/router";
 import { kpiAuthenticate } from "./kpi/auth";
 import studioRouter from "./studio/router"; // DS-0
+import insightsRouter from "./insights/router"; // IN-0
 import shareViewer from "./studio/share/public"; // DS-11
 import { recoverStudioJobs, startStudioRenderConsumer } from "./queues/studioRenderConsumer"; // DS-11
 import { fxRouter } from "./scope3/spend/router";
@@ -107,6 +108,7 @@ app.use("/company", scope3CompanyRouter); // S3-1 consolidation approach
 app.use("/suppliers", authenticate, suppliersRouter); // S3-6 suppliers, their figures and coverage
 app.use("/studio", authenticate, studioRouter); // DS-0; each Design Studio module adds its routes in src/studio/router.ts
 app.use("/s", shareViewer); // DS-11: public read-only view links (no session; stored PDFs only)
+app.use("/insights", authenticate, insightsRouter); // IN-0; each Insights module adds its routes in src/insights/router.ts
 
 let server: any;
 
