@@ -1,0 +1,107 @@
+{
+  "cement": {
+    "blocking": true,
+    "checks": [
+      "error EF_SOURCE_MISSING [add_factor_table]: The methodology doesn't name the emission factor sources your data uses: CEA v20 (2025), DEFRA 2025 (2025), USEEIO v2.0 (2025). Add the emission factors section, or name them.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 2: Capital goods isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 3: Fuel- and energy-related activities isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 6: Business travel isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 7: Employee commuting isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 8: Upstream leased assets isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 9: Downstream transportation and distribution isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 10: Processing of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 11: Use of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 12: End-of-life treatment of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "warning GAS_BREAKDOWN_MISSING [add_gas_chart]: Emissions aren't shown by gas (CO₂, CH₄, N₂O). Add a per-gas chart, or say why it doesn't apply.",
+      "warning RESPONSIBLE_PERSON_MISSING [open_inputs]: No responsible person is named for this inventory.",
+      "warning VERIFICATION_STATEMENT_MISSING [open_inputs]: The verification status isn't stated. \"Not verified\" counts.",
+      "warning SCOPE3_DQ_MISSING @p01-summary [open_link]: Scope 3 is shown without its data quality or share of supplier-specific data. Add the data quality score or the primary-data share.",
+      "warning VALUES_MISSING @p01-summary.intensity [open_inputs]: \"Intensity per unit of revenue\" shows \"Not reported\": a report detail it needs is empty.",
+      "warning SCOPE2_MARKET_MISSING @p01-summary.market [open_inputs]: Market-based Scope 2 isn't recorded, so it shows as Not reported. Describe any contractual instruments in Report details.",
+      "info UNCERTAINTY_MISSING [open_inputs]: There is no uncertainty statement.",
+      "info NUMBER_UNBOUND @p01-summary.kicker: \"26\" isn't a figure from your approved data. Check it, or link it to data."
+    ],
+    "layout": "none",
+    "warnings": [
+      "GAS_BREAKDOWN_MISSING",
+      "RESPONSIBLE_PERSON_MISSING",
+      "VERIFICATION_STATEMENT_MISSING",
+      "SCOPE3_DQ_MISSING",
+      "VALUES_MISSING",
+      "SCOPE2_MARKET_MISSING"
+    ]
+  },
+  "steel": {
+    "blocking": true,
+    "checks": [
+      "error GHG_PENDING_ENTRIES [open_pending]: Pending or rejected entries: 3. Approve them in Review before the final.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 1: Purchased goods and services isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 2: Capital goods isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 3: Fuel- and energy-related activities isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 4: Upstream transportation and distribution isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 5: Waste generated in operations isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 6: Business travel isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 7: Employee commuting isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 8: Upstream leased assets isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 9: Downstream transportation and distribution isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 10: Processing of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 11: Use of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 12: End-of-life treatment of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "warning GHG_MONTHS_MISSING [open_link]: CI Plant A has no approved data for 10 months.",
+      "warning GHG_MONTHS_MISSING [open_link]: CI Plant B has no approved data for 11 months.",
+      "warning GAS_BREAKDOWN_MISSING [add_gas_chart]: Emissions aren't shown by gas (CO₂, CH₄, N₂O). Add a per-gas chart, or say why it doesn't apply.",
+      "warning RESPONSIBLE_PERSON_MISSING [open_inputs]: No responsible person is named for this inventory.",
+      "warning VERIFICATION_STATEMENT_MISSING [open_inputs]: The verification status isn't stated. \"Not verified\" counts.",
+      "warning SCOPE3_DQ_MISSING @p01-summary [open_link]: Scope 3 is shown without its data quality or share of supplier-specific data. Add the data quality score or the primary-data share.",
+      "warning VALUES_MISSING @p01-summary.intensity [open_inputs]: \"Intensity per unit of revenue\" shows \"Not reported\": a report detail it needs is empty.",
+      "warning SCOPE2_MARKET_MISSING @p01-summary.market [open_inputs]: Market-based Scope 2 isn't recorded, so it shows as Not reported. Describe any contractual instruments in Report details.",
+      "warning VALUES_MISSING @p01-summary.notes [open_inputs]: A value in this text shows \"Not reported\": no approved entry records it.",
+      "info UNCERTAINTY_MISSING [open_inputs]: There is no uncertainty statement.",
+      "info YOY_UNEXPLAINED @p01-summary.total: Total emissions changed by -79.8% on the year before, and nothing on this page explains it."
+    ],
+    "layout": "none",
+    "warnings": [
+      "GHG_MONTHS_MISSING",
+      "GAS_BREAKDOWN_MISSING",
+      "RESPONSIBLE_PERSON_MISSING",
+      "VERIFICATION_STATEMENT_MISSING",
+      "SCOPE3_DQ_MISSING",
+      "VALUES_MISSING",
+      "SCOPE2_MARKET_MISSING"
+    ]
+  },
+  "textiles": {
+    "blocking": true,
+    "checks": [
+      "error EF_SOURCE_MISSING [add_factor_table]: The methodology doesn't name the emission factor sources your data uses: CEA v20 (2025), IPCC 2006 (2025), USEEIO v2.0 (2025). Add the emission factors section, or name them.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 2: Capital goods isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 3: Fuel- and energy-related activities isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 4: Upstream transportation and distribution isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 5: Waste generated in operations isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 6: Business travel isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 7: Employee commuting isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 8: Upstream leased assets isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 9: Downstream transportation and distribution isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 10: Processing of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 11: Use of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "error SCOPE3_CATEGORY_UNADDRESSED @p01-summary [mark_excluded]: Scope 3 Category 12: End-of-life treatment of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
+      "warning GAS_BREAKDOWN_MISSING [add_gas_chart]: Emissions aren't shown by gas (CO₂, CH₄, N₂O). Add a per-gas chart, or say why it doesn't apply.",
+      "warning RESPONSIBLE_PERSON_MISSING [open_inputs]: No responsible person is named for this inventory.",
+      "warning VERIFICATION_STATEMENT_MISSING [open_inputs]: The verification status isn't stated. \"Not verified\" counts.",
+      "warning SCOPE3_DQ_MISSING @p01-summary [open_link]: Scope 3 is shown without its data quality or share of supplier-specific data. Add the data quality score or the primary-data share.",
+      "warning VALUES_MISSING @p01-summary.intensity [open_inputs]: \"Intensity per unit of revenue\" shows \"Not reported\": a report detail it needs is empty.",
+      "warning SCOPE2_MARKET_MISSING @p01-summary.market [open_inputs]: Market-based Scope 2 isn't recorded, so it shows as Not reported. Describe any contractual instruments in Report details.",
+      "warning VALUES_MISSING @p01-summary.notes [open_inputs]: A value in this text shows \"Not reported\": no approved entry records it.",
+      "info UNCERTAINTY_MISSING [open_inputs]: There is no uncertainty statement."
+    ],
+    "layout": "none",
+    "warnings": [
+      "GAS_BREAKDOWN_MISSING",
+      "RESPONSIBLE_PERSON_MISSING",
+      "VERIFICATION_STATEMENT_MISSING",
+      "SCOPE3_DQ_MISSING",
+      "VALUES_MISSING",
+      "SCOPE2_MARKET_MISSING"
+    ]
+  }
+}
