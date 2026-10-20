@@ -50,3 +50,50 @@ Every number on a page comes from approved data through one resolver, whichever 
 
 ## Done when
 Any GHG or KPI binding in `01-contracts` §2 resolves to approved values that match the existing GHG report screen, and report inputs are stored and prefilled.
+
+## As built (2026-10-20, branches `ds-2-sources` in ESG-lite and ESG-lite_FE, local only)
+
+### Files
+- **Backend `src/studio/sources/`:**
+  - `types.ts` ResolvedBinding / ResolveResponse / ResolveContext, `UNAVAILABLE_REASONS`;
+  - `resolve.ts` the dispatcher by `source`, token measures (`resolveToken`), site checks, the request schema, the 60 s cache;
+  - `ghg.ts` GhgMetric × GhgBreakdown on `computeGhgTables`, `computeScope3`, `computeGhgByFuelType`, `baseYearSummary` and `reporting/intensity.ts`, with a per-request `GhgLoader` memo; `ghg/rows.ts` months, gases, biogenic CO₂, coverage, GWP sets and newest approval from the same approved rows and filters;
+  - `kpi.ts` the RS-2 port (`figureDefs`, `loadValues`/`figureOf`, `HEADLINES`, `convert`, `progress`), `kpiYearValue` for prefill;
+  - `inputs.ts` prefill (§2.1), `effectiveInputs`, `applyInputPatch` (per-key zod), `inputDisplay`, `exclusionFor`, and the `report_doc.inputs` read/write;
+  - `derived.ts` (change, share, progress, intensity; null + reason), `format.ts` (the one rounding place), `hash.ts` (`dataHash`, `bindingsHash`, `elementHash`);
+  - `catalog.ts` the Data drawer list; `materiality.ts` scores + routes; `doc.ts` `collectTokens`, `docBindings`, `resolveDoc`; `router.ts`.
+- **Backend elsewhere:** `src/reporting/intensity.ts` (extracted EDE join; `emission.controller.ts` calls `loadIntensityMonthly`), `src/studio/router.ts` (one `router.use`, `// DS-2`), `src/entities/CompanyMaterialTopic.ts` (two columns, `// DS-2`), `src/scripts/migrateDs2MaterialityScores.ts` + `migrate:ds-2-materiality-scores`.
+- **Tests:** `ci/unit/ds-2-sources.test.cjs` (13), `ci/api/tests/ds-2-sources.test.cjs` (10), golden `ci/golden/cases.json` + `fixture.sql` + `snapshot.json` (two EDE reports and production rows, recorded before the extraction in commit 1/7; unchanged after 2/7).
+- **Frontend:** `src/lib/studio/contracts.ts` (ResolvedBinding/ResolveResponse confirmed; `InputPrefill`, `InputsPatch`, `InputsPrefillResponse`, `DataCatalogResponse`, `MaterialityResponse`), `src/services/studioService.ts` (DS-2 block), `src/test/msw/studio.ts` (+ tests), `src/features/studio/panels/{DataPanel,ReportDetailsForm}.tsx`, `panels/data/{api,logic}.ts` (+ tests), `src/features/kpi/setup/components/MaterialityScores.tsx` (+ test) and one line in `kpi/setup/Page.tsx` (`// DS-2`).
+
+### Endpoints (all behind `requireDesignStudio`, role R)
+| Route | Notes |
+|---|---|
+| `POST /studio/resolve` | `{kind, year, yearType, sites, bindings, tokens, docId?, inputs?}` → `{values, tokens, dataHash, unavailable[{bindingIdx, reason, token?}]}` |
+| `GET /studio/docs/:id/inputs` · `PATCH` | `{rev, inputs, prefill}`; PATCH `{rev, inputs: {key: {value, source?} | null}}`, bumps `report_doc.rev`, 409 `DS_VERSION_CONFLICT` |
+| `GET /studio/inputs/prefill?kind=&year=&yearType=&sites=` | **addition**: `{keys, prefill}` for the new-design flow before a doc exists |
+| `GET /studio/data?kind=&year=&yearType=&sites=&q=&topic=&framework=` | **addition**: the Data drawer list `{groups: [{id, label, items: [{id, label, binding, resolved}]}]}` |
+| `GET/PUT /studio/materiality` | **addition**: `{topics, points}`; sustainability kind (DS_KIND_OFF without KPI tracking) |
+
+### Decisions and deviations
+- **`report_doc` belongs to DS-5.** DS-2 reads/writes only `inputs` and `rev` with raw SQL (`id, company_id, kind, rev, year, year_type, draft, inputs, deleted_at, updated_by`, per RS §3 + DS §3). Until DS-5 ships the table, `/docs/:id/inputs` answers 404; the API test creates the table the §3 way (`CREATE TABLE IF NOT EXISTS`). DS-5's entity must keep those column names.
+- **Per-gas metrics are tonnes of each gas** (`gas_kg` stores kg of CO₂, CH₄, N₂O), not CO₂e. **`gas_other` resolves `NOT_RECORDED`**: "total − the three" needs each factor's GWP values, which aren't stored, so it can't be derived honestly. The `gas` breakdown is tonnes of each gas. Rows without `gas_kg` → `NOT_TRACKED`.
+- **Intensity numerator is total Scope 1+2+3** (as EDE). `intensity_output` uses the `output_units` input, else approved production of the doc's sites (the extracted EDE helper), with the production unit in the unit text.
+- **Semantic binding errors are request errors** (422 `DS_BINDING_INVALID` with `details {bindingIdx, reason}`: `BREAKDOWN_UNSUPPORTED`, `KPI_NOT_SELECTED`, `UNIT_INVALID`); data that isn't there is per binding (`unavailable {reason}`), never an error. A KPI binding while KPI tracking is off is `KPI_TRACKING_OFF` (unavailable), so a GHG doc still renders.
+- **Sites:** `'all'` = every company site and needs all-site access (`DS_SITES_SCOPE`); an id the caller can't read (another company's included) → 404. Binding sites are checked too.
+- **Cache key** adds a data stamp (approved emission count + newest `updated_at` in range, KPI values, boundary, base year), so approvals and reopens show at once inside the 60 s.
+- **Approval date** of GHG figures is `MAX(COALESCE(reviewed_at, updated_at))` (older approved rows have no `reviewed_at`).
+- **KPI years** use the company's KPI year type (`company_kpi_settings.year_type`), as KPI-11 reports do; `value` is the first KPI's figure; a headline code sums its selected parts.
+- **Exclusions** match a Scope 3 category by "Category n …" / "Cat. n" or its exact name; prefill writes `Category n · <name>` from `company_scope3_category` (excluded / not relevant).
+- **Parity golden** runs in the API suite on the API fixture (both companies; CY 2024/2025, FY 2025/2026; totals and every split vs `POST /user/ghg/tables`), not in `ci/golden/run.cjs` (the DS seed companies are DS-4/DS-14's).
+- The FE DataPanel inserts on click (`onInsert`); drag and drop onto the canvas is DS-6.
+
+### Tests run
+- `test-lane.sh ds-2-be`: build ok, unit ok, scope3-golden 32/32, calculation snapshot matches (23 entries, 6 reports), API 678 pass / 0 fail, workflow 50 + 29 pass, 0 fail.
+- `test-lane.sh ds-2-fe`: typecheck ok, lint:new ok, vitest ok.
+
+### Not done
+- `revenue_ppp_rate` is stored and validated but no PPP-adjusted intensity metric exists in the contract; nothing reads it yet.
+- Breakdowns for `scope3_category × site/month`, gases per site, and `dq_score`/`primary_data_pct` per category as series are not offered (BREAKDOWN_UNSUPPORTED).
+- No Playwright spec: the panels have no route until the editor shell (DS-5/DS-6); component tests with MSW cover them.
+- `elementHash` is provided for DS-13 drift but not wired anywhere yet.
