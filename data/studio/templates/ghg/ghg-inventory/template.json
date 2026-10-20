@@ -1,0 +1,144 @@
+{
+  "family": "ghg-inventory",
+  "version": 1,
+  "kind": "ghg",
+  "purpose": "report",
+  "format": "a4",
+  "name": "GHG Inventory",
+  "description": "A full GHG Protocol inventory: boundaries, methods, Scope 1, 2 and 3, sites, intensity, trend and annexes.",
+  "tags": [
+    "ghg protocol",
+    "inventory",
+    "scope 1",
+    "scope 2",
+    "scope 3",
+    "a4",
+    "report"
+  ],
+  "looks": [
+    "classic",
+    "light",
+    "night"
+  ],
+  "meta": {
+    "title": "{{company}} GHG inventory {{period}}",
+    "subtitle": "Scope 1, 2 and 3 emissions",
+    "frameworks": [
+      "GHGP"
+    ]
+  },
+  "pages": [
+    {
+      "layout": "cover"
+    },
+    {
+      "layout": "compliance"
+    },
+    {
+      "flow": {
+        "name": "Contents",
+        "flowType": "toc",
+        "options": {}
+      }
+    },
+    {
+      "layout": "exec_summary"
+    },
+    {
+      "layout": "boundary"
+    },
+    {
+      "layout": "period"
+    },
+    {
+      "layout": "methodology"
+    },
+    {
+      "layout": "scope1"
+    },
+    {
+      "layout": "scope2"
+    },
+    {
+      "layout": "scope3"
+    },
+    {
+      "flow": {
+        "name": "Scope 3 categories",
+        "flowType": "scope3_categories",
+        "options": {
+          "columns": 1,
+          "categories": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "showDq": true,
+          "showMethod": true
+        }
+      }
+    },
+    {
+      "layout": "sites"
+    },
+    {
+      "layout": "biogenic"
+    },
+    {
+      "layout": "intensity"
+    },
+    {
+      "layout": "trend"
+    },
+    {
+      "layout": "data_quality"
+    },
+    {
+      "layout": "initiatives"
+    },
+    {
+      "layout": "assurance"
+    },
+    {
+      "layout": "annex"
+    },
+    {
+      "flow": {
+        "name": "Emission factors",
+        "flowType": "ghg_factor_table",
+        "options": {
+          "columns": 1
+        }
+      }
+    },
+    {
+      "flow": {
+        "name": "GHG Protocol index",
+        "flowType": "ghgp_index",
+        "options": {}
+      }
+    },
+    {
+      "flow": {
+        "name": "Glossary",
+        "flowType": "glossary",
+        "options": {}
+      }
+    },
+    {
+      "layout": "back_cover"
+    }
+  ]
+}

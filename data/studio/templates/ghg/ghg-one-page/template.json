@@ -1,0 +1,31 @@
+{
+  "family": "ghg-one-page",
+  "version": 1,
+  "kind": "ghg",
+  "purpose": "summary",
+  "format": "a4",
+  "name": "One-page summary",
+  "description": "The year on one A4 page: four headline numbers, scopes, top Scope 3 categories, sites and intensity.",
+  "tags": [
+    "summary",
+    "one page",
+    "a4",
+    "factsheet"
+  ],
+  "looks": [
+    "classic",
+    "light",
+    "night"
+  ],
+  "meta": {
+    "title": "{{company}} GHG summary {{period}}",
+    "frameworks": [
+      "GHGP"
+    ]
+  },
+  "pages": [
+    {
+      "layout": "summary"
+    }
+  ]
+}

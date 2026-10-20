@@ -1,0 +1,222 @@
+{
+  "role": "cover",
+  "pageKind": "cover",
+  "name": "Cover",
+  "page": {
+    "id": "cover",
+    "kind": "freeform",
+    "name": "Cover",
+    "background": {},
+    "elements": [
+      {
+        "id": "cover.hero",
+        "type": "frame",
+        "frame": {
+          "x": -3,
+          "y": -3,
+          "w": 216,
+          "h": 150,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "mask": "rect",
+          "fit": "cover",
+          "alt": "Cover image: one of your sites or a landscape",
+          "bleed": true
+        }
+      },
+      {
+        "id": "cover.band",
+        "type": "shape",
+        "frame": {
+          "x": 18,
+          "y": 156,
+          "w": 40,
+          "h": 2.5,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "shape": "rect"
+        }
+      },
+      {
+        "id": "cover.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 166,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Greenhouse gas inventory"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.title",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 174,
+          "w": 174,
+          "h": 32,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "{{company}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "title",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.period",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 208,
+          "w": 174,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Scope 1, 2 and 3 emissions · {{period}}"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "cover.total",
+        "type": "big_number",
+        "frame": {
+          "x": 18,
+          "y": 228,
+          "w": 84,
+          "h": 30,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "ghg",
+            "metric": "total",
+            "years": {
+              "last": 1
+            },
+            "sites": "all",
+            "compare": "prior"
+          },
+          "label": "tCO₂e, Scope 1, 2 and 3",
+          "showDelta": true
+        }
+      },
+      {
+        "id": "cover.conformance",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 114,
+          "y": 228,
+          "w": 78,
+          "h": 22,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "conformance"
+          },
+          "label": "Prepared in line with",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "plain"
+        }
+      },
+      {
+        "id": "cover.source",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 266,
+          "w": 174,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "All figures come from approved emission entries."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 1
+}

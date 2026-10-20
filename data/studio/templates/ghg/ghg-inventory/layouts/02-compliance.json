@@ -1,0 +1,372 @@
+{
+  "role": "compliance",
+  "pageKind": "about",
+  "name": "Statement of compliance",
+  "page": {
+    "id": "compliance",
+    "kind": "freeform",
+    "name": "Statement of compliance",
+    "background": {},
+    "elements": [
+      {
+        "id": "compliance.kicker",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 18,
+          "w": 174,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Statement of compliance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "compliance.heading",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 26,
+          "w": 174,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "How this inventory was prepared"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "compliance.statement",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 46,
+          "w": 174,
+          "h": 40,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "This report presents the greenhouse gas inventory of {{company}} for {{period}}. It follows the GHG Protocol Corporate Standard: Scope 1 and Scope 2 are reported in full and Scope 3 by category."
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Scope 2 is reported location-based. Market-based figures are shown where contractual instruments are recorded."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "compliance.consolidation",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 92,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "consolidation_approach"
+          },
+          "label": "Consolidation approach",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "compliance.period_input",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 92,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "reporting_period"
+          },
+          "label": "Reporting period",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "compliance.conformance",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 124,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "conformance"
+          },
+          "label": "Standards",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "compliance.responsible",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 124,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "responsible_person"
+          },
+          "label": "Responsible person",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "compliance.gwp",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 18,
+          "y": 156,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "gwp_set"
+          },
+          "label": "Global warming potentials",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "compliance.verification",
+        "type": "kpi_tile",
+        "frame": {
+          "x": 108,
+          "y": 156,
+          "w": 84,
+          "h": 26,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "binding": {
+            "source": "input",
+            "key": "verification"
+          },
+          "label": "Verification",
+          "showDelta": false,
+          "showSparkline": false,
+          "variant": "card"
+        }
+      },
+      {
+        "id": "compliance.biogenic",
+        "type": "callout",
+        "frame": {
+          "x": 18,
+          "y": 192,
+          "w": 174,
+          "h": 22,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Biogenic CO₂ is reported separately from the scope totals."
+                  }
+                ]
+              }
+            ]
+          },
+          "icon": "info",
+          "tone": "accent"
+        }
+      },
+      {
+        "id": "compliance.signature",
+        "type": "placeholder",
+        "frame": {
+          "x": 18,
+          "y": 224,
+          "w": 84,
+          "h": 34,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "accepts": [
+            "image",
+            "text"
+          ],
+          "hint": "Signature or approval of the responsible person"
+        }
+      },
+      {
+        "id": "compliance.footrule",
+        "type": "divider",
+        "frame": {
+          "x": 18,
+          "y": 278,
+          "w": 174,
+          "h": 0.6,
+          "rotation": 0
+        },
+        "z": 12,
+        "source": "layout",
+        "props": {
+          "style": "solid"
+        }
+      },
+      {
+        "id": "compliance.footlabel",
+        "type": "text",
+        "frame": {
+          "x": 18,
+          "y": 280.5,
+          "w": 139,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 13,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Statement of compliance"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "caption",
+          "align": "left"
+        }
+      },
+      {
+        "id": "compliance.pn",
+        "type": "page_number",
+        "frame": {
+          "x": 162,
+          "y": 281,
+          "w": 30,
+          "h": 6,
+          "rotation": 0
+        },
+        "z": 14,
+        "source": "layout",
+        "props": {
+          "format": "n",
+          "align": "right"
+        }
+      }
+    ]
+  },
+  "sort": 2
+}

@@ -1,0 +1,313 @@
+{
+  "role": "next_steps",
+  "pageKind": "data_page",
+  "name": "Next steps",
+  "page": {
+    "id": "next_steps",
+    "kind": "freeform",
+    "name": "Next steps",
+    "background": {},
+    "elements": [
+      {
+        "id": "next_steps.kicker",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 298.7,
+          "h": 8,
+          "rotation": 0
+        },
+        "z": 1,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Decisions"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "kicker",
+          "align": "left"
+        }
+      },
+      {
+        "id": "next_steps.heading",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 30,
+          "w": 298.7,
+          "h": 18,
+          "rotation": 0
+        },
+        "z": 2,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "What we ask the board"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "heading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "next_steps.icon1",
+        "type": "icon",
+        "frame": {
+          "x": 20,
+          "y": 56,
+          "w": 14,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 3,
+        "source": "layout",
+        "props": {
+          "name": "check"
+        }
+      },
+      {
+        "id": "next_steps.title1",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 76,
+          "w": 92.9,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 4,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Approve"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "next_steps.text1",
+        "type": "text",
+        "frame": {
+          "x": 20,
+          "y": 90,
+          "w": 92.9,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 5,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "One decision or ask, in a sentence or two."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "next_steps.icon2",
+        "type": "icon",
+        "frame": {
+          "x": 122.9,
+          "y": 56,
+          "w": 14,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 6,
+        "source": "layout",
+        "props": {
+          "name": "bolt"
+        }
+      },
+      {
+        "id": "next_steps.title2",
+        "type": "text",
+        "frame": {
+          "x": 122.9,
+          "y": 76,
+          "w": 92.9,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 7,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Invest"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "next_steps.text2",
+        "type": "text",
+        "frame": {
+          "x": 122.9,
+          "y": 90,
+          "w": 92.9,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 8,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "One decision or ask, in a sentence or two."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      },
+      {
+        "id": "next_steps.icon3",
+        "type": "icon",
+        "frame": {
+          "x": 225.8,
+          "y": 56,
+          "w": 14,
+          "h": 14,
+          "rotation": 0
+        },
+        "z": 9,
+        "source": "layout",
+        "props": {
+          "name": "users"
+        }
+      },
+      {
+        "id": "next_steps.title3",
+        "type": "text",
+        "frame": {
+          "x": 225.8,
+          "y": 76,
+          "w": 92.9,
+          "h": 10,
+          "rotation": 0
+        },
+        "z": 10,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Engage"
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "subheading",
+          "align": "left"
+        }
+      },
+      {
+        "id": "next_steps.text3",
+        "type": "text",
+        "frame": {
+          "x": 225.8,
+          "y": 90,
+          "w": 92.9,
+          "h": 70,
+          "rotation": 0
+        },
+        "z": 11,
+        "source": "layout",
+        "props": {
+          "doc": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "One decision or ask, in a sentence or two."
+                  }
+                ]
+              }
+            ]
+          },
+          "style": "body",
+          "align": "left"
+        }
+      }
+    ]
+  },
+  "sort": 9
+}

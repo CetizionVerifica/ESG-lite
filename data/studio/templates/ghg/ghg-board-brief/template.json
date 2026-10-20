@@ -1,0 +1,59 @@
+{
+  "family": "ghg-board-brief",
+  "version": 1,
+  "kind": "ghg",
+  "purpose": "deck",
+  "format": "slide_16_9",
+  "name": "Board brief",
+  "description": "Ten 16:9 slides for the board: headline numbers, scopes, Scope 3, sites, trend, intensity, data quality and asks.",
+  "tags": [
+    "deck",
+    "board",
+    "slides",
+    "16:9",
+    "summary"
+  ],
+  "looks": [
+    "classic",
+    "light",
+    "night"
+  ],
+  "meta": {
+    "title": "{{company}} GHG board brief {{period}}",
+    "frameworks": [
+      "GHGP"
+    ]
+  },
+  "pages": [
+    {
+      "layout": "cover"
+    },
+    {
+      "layout": "headline"
+    },
+    {
+      "layout": "scopes"
+    },
+    {
+      "layout": "scope3"
+    },
+    {
+      "layout": "sites"
+    },
+    {
+      "layout": "trend"
+    },
+    {
+      "layout": "intensity"
+    },
+    {
+      "layout": "data_quality"
+    },
+    {
+      "layout": "next_steps"
+    },
+    {
+      "layout": "close"
+    }
+  ]
+}
