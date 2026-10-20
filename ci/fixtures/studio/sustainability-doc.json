@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "kind": "sustainability",
+  "purpose": "report",
+  "format": "a4",
+  "meta": { "title": "ACME Sustainability report 2025", "year": 2025, "yearType": "FY", "sites": "all", "frameworks": ["GRI", "BRSR"], "language": "en" },
+  "design": { "templateId": "sus-annual", "templateVersion": 2, "theme": { "look": "light" } },
+  "pages": [
+    {
+      "id": "s-cover",
+      "kind": "freeform",
+      "name": "Cover",
+      "layoutId": "sus-cover",
+      "lockedByTemplate": true,
+      "background": { "assetId": "a-forest", "fit": "cover" },
+      "elements": [
+        { "id": "s-cover.bg", "type": "image", "frame": { "x": -3, "y": -3, "w": 216, "h": 303, "rotation": 0 }, "z": 0, "source": "layout", "templateLocked": true, "props": { "assetId": "a-forest", "fit": "cover", "alt": "Mangroves near the plant", "bleed": true } },
+        { "id": "s-cover.band", "type": "shape", "frame": { "x": 0, "y": 200, "w": 210, "h": 97, "rotation": 0 }, "z": 1, "source": "layout", "props": { "shape": "rect", "fill": "#0B3D2E", "opacity": 0.85 } },
+        { "id": "s-cover.title", "type": "text", "frame": { "x": 20, "y": 215, "w": 170, "h": 30, "rotation": 0 }, "z": 2, "source": "layout", "props": { "style": "title", "align": "left", "color": "#FFFFFF", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Sustainability report 2025" }] }] } } },
+        { "id": "s-cover.logo", "type": "image", "frame": { "x": 160, "y": 270, "w": 30, "h": 15, "rotation": 0 }, "z": 3, "source": "layout", "props": { "assetId": "a-logo", "fit": "contain", "alt": "ACME logo" } }
+      ]
+    },
+    {
+      "id": "s-highlights",
+      "kind": "freeform",
+      "name": "Highlights",
+      "layoutId": "sus-highlights",
+      "background": {},
+      "elements": [
+        { "id": "s-highlights.kicker", "type": "text", "frame": { "x": 20, "y": 20, "w": 170, "h": 8, "rotation": 0 }, "z": 0, "source": "layout", "props": { "style": "kicker", "align": "left", "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "2025 at a glance" }] }] } } },
+        { "id": "s-highlights.energy", "type": "kpi_tile", "frame": { "x": 20, "y": 35, "w": 50, "h": 35, "rotation": 0 }, "z": 1, "source": "auto", "props": { "binding": { "source": "kpi", "kpis": ["ENERGY_TOTAL"], "years": { "last": 3 }, "sites": "all", "unit": "GJ", "compare": "prior" }, "label": "Energy used", "showDelta": true, "showSparkline": true, "variant": "card" } },
+        { "id": "s-highlights.water", "type": "chart", "frame": { "x": 80, "y": 35, "w": 110, "h": 70, "rotation": 0 }, "z": 2, "source": "auto", "props": { "kind": "stacked_bar", "title": "Water withdrawal", "binding": { "source": "kpi", "kpis": ["WATER_WITHDRAWAL"], "years": [2023, 2024, 2025], "sites": [1, 2], "breakdown": "site" }, "options": { "greyPrior": true, "stacked": true } } },
+        { "id": "s-highlights.text", "type": "text", "frame": { "x": 20, "y": 115, "w": 170, "h": 40, "rotation": 0 }, "z": 3, "source": "user", "props": { "style": "body", "align": "left", "doc": { "type": "doc", "content": [{ "type": "bulletList", "content": [{ "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Women in the workforce: " }, { "type": "data", "attrs": { "binding": { "source": "kpi", "kpis": ["WOMEN_WORKFORCE_PCT"], "years": { "last": 1 }, "sites": "all" }, "measure": "value", "format": "pct0", "year": "current" } }] }] }, { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "See our site", "marks": [{ "type": "link", "attrs": { "href": "https://acme.example" } }] }, { "type": "hardBreak" }, { "type": "text", "text": "for more." }] }] }] }] } } },
+        { "id": "s-highlights.table", "type": "table", "frame": { "x": 20, "y": 165, "w": 170, "h": 40, "rotation": 0 }, "z": 4, "source": "user", "props": { "columns": ["Topic", "Status"], "rows": [["Water", "On track"], ["Waste", null]], "style": "lined" } },
+        { "id": "s-highlights.icon", "type": "icon", "frame": { "x": 20, "y": 215, "w": 12, "h": 12, "rotation": 0 }, "z": 5, "source": "user", "props": { "name": "leaf", "color": "#16A34A" } },
+        { "id": "s-highlights.sdg", "type": "sdg", "frame": { "x": 40, "y": 215, "w": 20, "h": 20, "rotation": 15 }, "z": 6, "source": "user", "groupId": "g-sdg", "props": { "goal": 6, "variant": "compact" } },
+        { "id": "s-highlights.divider", "type": "divider", "frame": { "x": 20, "y": 245, "w": 170, "h": 1, "rotation": 0 }, "z": 7, "source": "layout", "props": { "style": "solid" } },
+        { "id": "s-highlights.slot", "type": "placeholder", "frame": { "x": 20, "y": 250, "w": 80, "h": 30, "rotation": 0 }, "z": 8, "source": "layout", "props": { "accepts": ["image", "chart"], "hint": "Add a photo or chart" } },
+        { "id": "s-highlights.input", "type": "kpi_tile", "frame": { "x": 110, "y": 250, "w": 80, "h": 30, "rotation": 0 }, "z": 9, "source": "user", "locked": true, "props": { "binding": { "source": "input", "key": "verification" }, "label": "Assurance", "showDelta": false, "showSparkline": false, "variant": "band" } }
+      ]
+    },
+    { "id": "s-gri", "kind": "flow", "name": "GRI content index", "flowType": "gri_index", "options": { "columns": 1, "groupBy": "pillar", "showEvidence": false, "startOnRight": true } },
+    { "id": "s-method", "kind": "flow", "name": "Methodology", "flowType": "methodology", "hidden": true, "bookmark": "Methodology", "options": { "years": { "last": 3 }, "kpis": ["ENERGY_TOTAL", "WATER_WITHDRAWAL"] } }
+  ],
+  "assets": [
+    { "id": "a-forest", "kind": "image", "w": 3000, "h": 4200, "alt": "Mangroves near the plant" },
+    { "id": "a-logo", "kind": "logo", "w": 600, "h": 300, "alt": "ACME logo" }
+  ]
+}
