@@ -95,3 +95,17 @@ A team can review, assign and approve a report inside the studio, and roll back 
 - **"Ask AI to update" with the old text as input** (RS-10 §5): opens the AI drawer on the selected text only.
 - **Version preview "as it was"**: figures resolve to today's data; no per-version data snapshot except finals.
 - **Real-backend Playwright**: the e2e mocks the API, as every FE spec does.
+
+### Wave 5 integrate (ds/local, 2026-10-20)
+- With DS-14F's seed docs, a freshly built design listed DATA_CHANGED on every text about data: the
+  build stamps the template's data hash (`resolveForBuild` over the template, before empty pages are
+  left out), which never equals the built design's own hash, and no figures were recorded under it.
+  Fix: `docs/service.ts` `registerBuiltHook`/`afterBuilt` (called after build, rebuild, duplicate and
+  DS-10 resize); `drift.ts` `recordBuiltBaseline` stores the built design's figures under the build
+  hash and its own hash, after copying the source design's baselines for a copy. Covered by the DS
+  `checks` golden (seed docs as built: no DATA_CHANGED).
+- `pdf/proof-vs-final` golden: DATA_CHANGED is now among the acknowledged warnings (report details
+  are filled after the build, so texts on pages showing them are flagged, as RS-10 intends).
+- Workflow DS-W6 written (require review on, gate reasons `none`/`requested`, Admin cannot approve,
+  the Manager approves the current rev). DS-W9's switch audit reads only `design_studio_enabled` rows.
+- ds-probes SEED: company-1 `report_comment` and `report_approval` rows, so DS-P03 probes them.
