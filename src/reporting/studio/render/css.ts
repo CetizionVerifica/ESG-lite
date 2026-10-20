@@ -35,6 +35,7 @@ const BASE = `
 .ds-tile--card{background:var(--surface);border:0.3mm solid var(--border);border-radius:2mm;}
 .ds-tile--band{background:var(--primary);color:var(--onPrimary);}
 .ds-tile--band .ds-unit,.ds-tile--band .ds-tile-label,.ds-tile--band .ds-nr{color:inherit;opacity:0.85;}
+.ds-tile--band .ds-delta{color:inherit;}
 .ds-tile-label{font-size:8pt;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;}
 .ds-tile-value{font-family:var(--font-heading);font-weight:600;font-size:22pt;line-height:1.05;font-variant-numeric:tabular-nums;}
 .ds-tile-spark{height:22%;min-height:4mm;}

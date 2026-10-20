@@ -21,7 +21,8 @@
         "z": 1,
         "source": "layout",
         "props": {
-          "shape": "rect"
+          "shape": "rect",
+          "bleed": true
         }
       },
       {

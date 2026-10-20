@@ -166,10 +166,10 @@
         "id": "cover.conformance",
         "type": "kpi_tile",
         "frame": {
-          "x": 114,
-          "y": 228,
-          "w": 78,
-          "h": 22,
+          "x": 110,
+          "y": 226,
+          "w": 82,
+          "h": 46,
           "rotation": 0
         },
         "z": 7,
@@ -190,7 +190,7 @@
         "type": "text",
         "frame": {
           "x": 18,
-          "y": 266,
+          "y": 276,
           "w": 174,
           "h": 8,
           "rotation": 0

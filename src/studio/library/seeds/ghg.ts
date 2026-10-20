@@ -28,8 +28,9 @@ function cover(): LayoutSeed {
     .title("title", [p.M, 174, p.CW, 32], "{{company}}")
     .sub("period", [p.M, 208, p.CW, 10], "Scope 1, 2 and 3 emissions · {{period}}")
     .bigNumber("total", [p.M, 228, 84, 30], ghg("total", { compare: "prior" }), "tCO₂e, Scope 1, 2 and 3", { showDelta: true })
-    .tile("conformance", [114, 228, 78, 22], input("conformance"), "Prepared in line with", "plain")
-    .caption("source", [p.M, 266, p.CW, 8], "All figures come from approved emission entries.")
+    // DS fix: tall enough for both standards ("GHG Protocol Corporate Standard and ISO 14064-1") at the tile's 22 pt.
+    .tile("conformance", [110, 226, 82, 46], input("conformance"), "Prepared in line with", "plain")
+    .caption("source", [p.M, 276, p.CW, 8], "All figures come from approved emission entries.")
     .build();
 }
 
@@ -439,12 +440,13 @@ export function ghgIso(): FamilySeed {
 // ---------------------------------------------------------------------------
 
 const S = "slide_16_9" as const;
-const slideTop = (p: PageBuilder, kicker: string, heading: string) => p.kicker("kicker", [p.M, p.M, p.CW, 8], kicker).heading("heading", [p.M, p.M + 10, p.CW, 18], heading);
+// DS fix: the heading box is 21 mm (was 18): a slide heading's h2 is 1.5em of the 30 pt heading style, so 18 mm overflowed.
+const slideTop = (p: PageBuilder, kicker: string, heading: string) => p.kicker("kicker", [p.M, p.M, p.CW, 8], kicker).heading("heading", [p.M, p.M + 10, p.CW, 21], heading);
 
 function boardBrief(): LayoutSeed[] {
   const cover = page("cover", "cover", "Title slide", S);
   cover
-    .photo("hero", [190, 0, 148.7, 190.5], "Cover image", "rect")
+    .photo("hero", [190, 0, 148.7, 190.5], "Cover image", "rect", true) // DS fix: full-bleed, so outside the safe margin by design
     .block("band", [cover.M, 60, 40, 3])
     .kicker("kicker", [cover.M, 70, 160, 8], "GHG emissions · board brief")
     .title("title", [cover.M, 80, 160, 44], "{{company}}")
@@ -525,7 +527,7 @@ function boardBrief(): LayoutSeed[] {
 
   const close = page("close", "back_cover", "Closing slide", S);
   close
-    .block("band", [0, 0, 338.7, 6])
+    .block("band", [0, 0, 338.7, 6], { bleed: true }) // DS fix: edge to edge, like the hero
     .title("title", [close.M, 70, close.CW, 30], "Questions and discussion", "center")
     .caption("source", [close.M, 108, close.CW, 8], "{{company}} · GHG emissions {{period}}", "center");
 
@@ -576,7 +578,8 @@ function summaryPage(): LayoutSeed {
     .chart("sites", [x1, 178, w, 64], "site_bars", ghg("total", { breakdown: "site", top: 6 }), "By site", { showValues: true })
     .tile("intensity", [x2, 178, w, 28], ghg("intensity_revenue"), "Intensity per unit of revenue", "card", { showDelta: true })
     .tile("market", [x2, 210, w, 32], ghg("scope2_market"), "Scope 2 (market-based)")
-    .text("notes", [p.M, 250, p.CW, 24], "footnote", doc(h(4, "Basis"), para("Consolidation and methods: see the full inventory. Biogenic CO₂ (", chip(ghg("biogenic_co2")), " tCO₂e) is reported separately.")))
+    // DS fix: caption (8 pt), not footnote (7 pt): a "Not reported" chip prints at 0.92em, 6.4 pt in a footnote (FONT_TOO_SMALL).
+    .text("notes", [p.M, 250, p.CW, 24], "caption", doc(h(4, "Basis"), para("Consolidation and methods: see the full inventory. Biogenic CO₂ (", chip(ghg("biogenic_co2")), " tCO₂e) is reported separately.")))
     .caption("source", [p.M, 276, p.CW, 6], "From approved emission entries in ESGLite.");
   return p.build();
 }
