@@ -26,6 +26,9 @@ const SERVICE_KEY = "ci-only-service-key"; // IM4 internal hook
 // starts its stub there (KPI-12: ci/api/tests/kpi-12-ai.test.cjs): never a
 // developer's real python service on :8000.
 const AI_STUB_PORT = Number(process.env.AI_STUB_PORT || PORT + 1200);
+// DS-9: the studio AI assistant calls a recorded OpenRouter stub that ci/api/tests/ds-9-ai.test.cjs
+// starts on this port; never a real model (no key reaches the server but this one).
+const STUDIO_AI_STUB_PORT = Number(process.env.STUDIO_AI_STUB_PORT || PORT + 1300);
 
 async function waitForServer(server, logs) {
   for (let i = 0; i < 120; i++) {
@@ -60,7 +63,7 @@ async function waitForServer(server, logs) {
   const logs = [];
   const server = spawn(process.execPath, [path.join(ROOT, "dist/index.js")], {
     cwd: ROOT,
-    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY, OCR_SERVICE_URL: `http://127.0.0.1:${AI_STUB_PORT}`, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true", MCP_TEST_TOKENS: "true", FX_JOB_DISABLED: "true" },
+    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY, OCR_SERVICE_URL: `http://127.0.0.1:${AI_STUB_PORT}`, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true", MCP_TEST_TOKENS: "true", FX_JOB_DISABLED: "true", STUDIO_AI_BASE_URL: `http://127.0.0.1:${STUDIO_AI_STUB_PORT}`, STUDIO_AI_API_KEY: "ci-only-studio-ai", STUDIO_AI_TIMEOUT_MS: "5000" /* DS-9 */ },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (d) => logs.push(d.toString()));
@@ -76,7 +79,7 @@ async function waitForServer(server, logs) {
       .flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith(".test.cjs")).sort().map((f) => path.join(dir, f)));
     const result = spawnSync(process.execPath, ["--test", "--test-concurrency=1", ...files], {
       stdio: "inherit",
-      env: { ...process.env, API_BASE: BASE, JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY, AI_STUB_PORT: String(AI_STUB_PORT) },
+      env: { ...process.env, API_BASE: BASE, JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY, AI_STUB_PORT: String(AI_STUB_PORT), STUDIO_AI_STUB_PORT: String(STUDIO_AI_STUB_PORT) /* DS-9 */ },
     });
     exitCode = result.status ?? 1;
     if (exitCode !== 0) console.error("--- server log (tail) ---\n" + logs.join("").slice(-8000));

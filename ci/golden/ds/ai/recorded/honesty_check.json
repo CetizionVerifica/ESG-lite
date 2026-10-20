@@ -1,0 +1,14 @@
+{
+  "action": "honesty_check",
+  "built": true,
+  "findings": [
+    {
+      "message": "The summary says emissions fell, but Scope 3 grew against the prior year.",
+      "pageId": "p-summary",
+      "severity": "warning"
+    }
+  ],
+  "group": "drafting",
+  "output": "findings",
+  "valid": true
+}

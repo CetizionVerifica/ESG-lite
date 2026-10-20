@@ -1,0 +1,165 @@
+{
+ "ghg_exec_summary": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"Total emissions were {{data:total|current|value}} tCO₂e in 2025, a change of {{data:total|current|change_pct}} against 2024. Scope 1 accounted for {{data:scope1|current|value}} tCO₂e, Scope 2 (location-based) for {{data:scope2_location|current|value}} tCO₂e and Scope 3 for {{data:scope3|current|value}} tCO₂e.\", \"Market-based Scope 2 is not reported this year. Biogenic CO₂ of {{data:biogenic_co2|current|value}} tCO₂e is reported separately, outside the scopes.\"]}"
+ },
+ "ghg_methodology_text": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-scope3",
+   "elementId": "p-scope3.consolidation"
+  },
+  "answer": "{\"paragraphs\": [\"This inventory follows the GHG Protocol Corporate Standard and uses the {{input:consolidation_approach}} approach for the period {{input:reporting_period}}.\", \"Emissions are calculated from approved activity data multiplied by published emission factors, using AR6 global warming potentials. Scope 3 categories were screened for relevance; excluded categories are listed with their reasons.\"]}"
+ },
+ "scope3_category_text": {
+  "doc": "ghg",
+  "params": {
+   "category": 4
+  },
+  "target": {
+   "pageId": "p-scope3"
+  },
+  "answer": "{\"paragraphs\": [\"Scope 3 Category 4: Upstream transportation and distribution covers inbound freight paid for by the company. It was {{data:scope3_category.4|current|value}} tCO₂e in 2025, a change of {{data:scope3_category.4|current|change_pct}} on the prior year.\"]}"
+ },
+ "exclusion_reason_draft": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-scope3"
+  },
+  "answer": "{\"paragraphs\": [\"- Category 8: Upstream leased assets — the company leases no assets.\\n- Category 14: Franchises — the company has no franchises.\\n- Category 15: Investments — Reason to be confirmed.\"]}"
+ },
+ "missing_disclosures": {
+  "doc": "ghg",
+  "answer": "{\"findings\": [{\"message\": \"The report doesn't name a base year or a recalculation policy.\", \"severity\": \"warning\"}, {\"message\": \"Market-based Scope 2 isn't reported; say why and describe any instruments.\", \"pageId\": \"p-summary\", \"severity\": \"warning\"}, {\"message\": \"No verification status is stated.\", \"severity\": \"info\"}]}"
+ },
+ "honesty_check": {
+  "doc": "ghg",
+  "answer": "{\"findings\": [{\"message\": \"The summary says emissions fell, but Scope 3 grew against the prior year.\", \"pageId\": \"p-summary\", \"severity\": \"warning\"}]}"
+ },
+ "jargon_check": {
+  "doc": "ghg",
+  "answer": "{\"findings\": [{\"message\": \"Explain 'location-based' the first time it appears.\", \"pageId\": \"p-summary\", \"severity\": \"info\"}]}"
+ },
+ "rewrite_shorter": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"Scope 1 was {{data:scope1|current|value}} tCO₂e; the total changed {{data:total|current|change_pct}} versus 2024.\"]}"
+ },
+ "rewrite_longer": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"Scope 1 emissions were {{data:scope1|current|value}} tCO₂e, from fuel burned on site.\", \"Total emissions changed by {{data:total|current|change_pct}} versus 2024, driven mainly by Scope 3.\"]}"
+ },
+ "rewrite_formal": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"Scope 1 emissions amounted to {{data:scope1|current|value}} tCO₂e, while total emissions changed by {{data:total|current|change_pct}} relative to 2024.\"]}"
+ },
+ "rewrite_plain": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"We emitted {{data:scope1|current|value}} tCO₂e from our own fuel use. In total, emissions changed by {{data:total|current|change_pct}} since 2024.\"]}"
+ },
+ "apply_brand_voice": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"Our own operations emitted {{data:scope1|current|value}} tCO₂e. Overall, our footprint moved {{data:total|current|change_pct}} on 2024.\"]}"
+ },
+ "summarise_for_deck": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"- Scope 1: {{data:scope1|current|value}} tCO₂e\\n- Total change: {{data:total|current|change_pct}} vs 2024\"]}"
+ },
+ "summarise_for_social": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.body"
+  },
+  "answer": "{\"paragraphs\": [\"Our total emissions changed {{data:total|current|change_pct}} in 2025. Read our GHG inventory.\"]}"
+ },
+ "headline": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.heading"
+  },
+  "answer": "{\"paragraphs\": [\"Scope 3 now drives most of our footprint\"]}"
+ },
+ "body": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary"
+  },
+  "answer": "{\"paragraphs\": [\"Scope 3 was {{data:scope3|current|value}} tCO₂e, the largest part of the total of {{data:total|current|value}} tCO₂e.\"]}"
+ },
+ "explain_change": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary"
+  },
+  "answer": "{\"paragraphs\": [\"Total emissions changed by {{data:total|current|change_pct}} against 2024, from {{data:total|prior|value}} to {{data:total|current|value}} tCO₂e. The company should confirm the main causes before publishing.\"]}"
+ },
+ "chart_title": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary",
+   "elementId": "p-summary.split"
+  },
+  "answer": "{\"title\": \"Scope 3 is the largest share of emissions\", \"subtitle\": \"tCO₂e, calendar year 2025\"}"
+ },
+ "alt_text": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-cover",
+   "elementId": "p-cover.bg"
+  },
+  "answer": "{\"alt\": \"Wind turbines on a green hillside at sunrise\"}"
+ },
+ "leadership_draft": {
+  "doc": "sustainability",
+  "target": {
+   "pageId": "s-highlights",
+   "elementId": "s-highlights.text"
+  },
+  "answer": "{\"paragraphs\": [\"This year we used {{kpi:ENERGY_TOTAL|current|value}} GJ of energy, a change of {{kpi:ENERGY_TOTAL|current|change_pct}} on last year. We are proud of the progress and clear about the work ahead.\", \"[Name, title — to be confirmed]\"]}"
+ },
+ "about_report": {
+  "doc": "sustainability",
+  "target": {
+   "pageId": "s-highlights",
+   "elementId": "s-highlights.text"
+  },
+  "answer": "{\"paragraphs\": [\"This report covers {{input:reporting_period}} and is prepared with reference to GRI. Figures come from approved KPI values.\"]}"
+ },
+ "add_target_context": {
+  "doc": "sustainability",
+  "target": {
+   "pageId": "s-highlights",
+   "elementId": "s-highlights.text"
+  },
+  "answer": "{\"paragraphs\": [\"Energy use was {{kpi:ENERGY_TOTAL|current|value}} GJ.\"]}"
+ }
+}

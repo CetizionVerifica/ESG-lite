@@ -1,0 +1,44 @@
+{
+  "action": "leadership_draft",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "kpis": [
+          "ENERGY_TOTAL"
+        ],
+        "sites": "all",
+        "source": "kpi",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "kpis": [
+          "ENERGY_TOTAL"
+        ],
+        "sites": "all",
+        "source": "kpi",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "change_pct"
+    }
+  ],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "This year we used ⟨kpi:ENERGY_TOTAL|current|value⟩ GJ of energy, a change of ⟨kpi:ENERGY_TOTAL|current|change_pct⟩ on last year. We are proud of the progress and clear about the work ahead.\n[Name, title — to be confirmed]",
+  "sources": [
+    {
+      "kpi": "ENERGY_TOTAL",
+      "source": "kpi",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

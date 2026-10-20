@@ -1,0 +1,31 @@
+{
+  "action": "add_target_context",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "kpis": [
+          "ENERGY_TOTAL"
+        ],
+        "sites": "all",
+        "source": "kpi",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    }
+  ],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "Energy use was ⟨kpi:ENERGY_TOTAL|current|value⟩ GJ.",
+  "sources": [
+    {
+      "kpi": "ENERGY_TOTAL",
+      "source": "kpi",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}
