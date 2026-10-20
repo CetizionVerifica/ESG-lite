@@ -17,6 +17,7 @@ import libraryRouter from "./library/router"; // DS-4
 import docsRouter from "./docs/router"; // DS-5
 import jobsRouter from "./jobs/router"; // DS-11
 import shareRouter from "./share/router"; // DS-11
+import aiRouter from "./ai/router"; // DS-9
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use(libraryRouter); // DS-4: /studio/templates, /layouts, /elements, /ass
 router.use(docsRouter); // DS-5: /readiness, /docs, /docs/:id (+ rebuild, presence, duplicate)
 router.use(jobsRouter); // DS-11: /docs/:id/preview.html, /docs/:id/jobs, /jobs/:id(/file), /docs/:id/versions
 router.use(shareRouter); // DS-11: /docs/:id/shares, /shares/:id (the public /s/:token is mounted in src/index.ts)
+router.use(aiRouter); // DS-9: /docs/:id/ai, /docs/:id/ai/chat, /docs/:id/ai/usage, /ai/brief
 
 export default router;

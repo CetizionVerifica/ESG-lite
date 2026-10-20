@@ -64,6 +64,8 @@ const STUDIO_CONTRACT_ROUTES = [
   ["PATCH", "/assets/1"], ["GET", "/assets/1/file"], ["POST", "/assets/generate"],
   // DS-11 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
   ["GET", "/docs/1/jobs"], ["GET", "/jobs/1/file"],
+  // DS-9 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["POST", "/ai/brief"],
 ].map(([method, p]) => ({ method, path: p }));
 
 /** A concrete URL for a route pattern (":id" → 1). */

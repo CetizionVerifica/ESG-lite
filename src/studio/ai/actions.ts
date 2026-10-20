@@ -88,4 +88,7 @@ export const ACTIONS: Partial<Record<AiAction, ActionSpec>> = {
   },
 };
 
+/** A layout element id names its slot as `<page>.<slot>` (templates: `p04-exec_summary.summary`). */
+export const matchesSlot = (id: string, slot: string): boolean => id === slot || id.endsWith(`.${slot}`) || id.endsWith(`-${slot}`);
+
 export const builtActions = (): AiAction[] => Object.keys(ACTIONS) as AiAction[];

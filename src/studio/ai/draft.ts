@@ -15,7 +15,7 @@
  */
 import { DsError, type AiAction, type Element, type FreeformPage, type ReportDoc } from "../contracts";
 import type { AiDraftHook } from "../docs/aiHook";
-import { ACTIONS } from "./actions";
+import { ACTIONS, matchesSlot } from "./actions";
 import { buildAiContext } from "./context";
 import { runAction } from "./runner";
 
@@ -30,7 +30,7 @@ export function draftTarget(doc: ReportDoc, action: AiAction): { page: FreeformP
   for (const slot of slots) {
     for (const page of doc.pages) {
       if (page.kind !== "freeform") continue;
-      const element = page.elements.find((e) => (e.type === "text" || e.type === "callout") && (e.id === slot || e.id.endsWith(`.${slot}`)));
+      const element = page.elements.find((e) => (e.type === "text" || e.type === "callout") && matchesSlot(e.id, slot));
       if (element) return { page, element };
     }
   }

@@ -30,7 +30,7 @@ import {
   type TextDoc,
 } from "../contracts";
 import type { StudioCaller } from "../guard";
-import { ACTIONS, type ActionSpec } from "./actions";
+import { ACTIONS, matchesSlot, type ActionSpec } from "./actions";
 import { assertBudget, logCall } from "./budget";
 import { AiCallError, complete, parseJsonObject, type Completion } from "./client";
 import { buildAiContext, charBudget, newTextFrame, type AiContext } from "./context";
@@ -50,7 +50,7 @@ function slotElement(doc: ReportDoc, slots: readonly string[] | undefined): { pa
   if (!slots?.length) return null;
   for (const slot of slots) {
     for (const page of freeform(doc)) {
-      const el = page.elements.find((e) => (e.id === slot || e.id.endsWith(`.${slot}`) || e.id.endsWith(slot)) && isText(e));
+      const el = page.elements.find((e) => matchesSlot(e.id, slot) && isText(e));
       if (el && !page.hidden) return { page, element: el as TextLike };
     }
   }
