@@ -68,6 +68,7 @@
     "studio:contracts": "node scripts/studio-contracts-snapshot.cjs",
     "test:scope3-golden": "node ci/golden/scope3/run.cjs",
     "test:workflow": "node ci/workflow/run.cjs",
+    "test:ds-golden": "node ci/golden/ds/run.cjs",
     "evals:mcp": "node ci/mcp-evals/make-workbooks.cjs && node ci/mcp-evals/runner.cjs"
   },
   "keywords": [],

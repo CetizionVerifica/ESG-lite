@@ -20,3 +20,6 @@ golden-actual.json
 
 # Playwright/node test runner output
 test-results/
+
+# DS-14: mismatching Design Studio goldens (ci/golden/ds/run.cjs)
+.golden-actual/
