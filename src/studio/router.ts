@@ -20,6 +20,7 @@ import shareRouter from "./share/router"; // DS-11
 import aiRouter from "./ai/router"; // DS-9
 import resizeRouter from "./resize/router"; // DS-10
 import checksRouter from "./checks/router"; // DS-12
+import collabRouter from "./collab/router"; // DS-13
 
 const router = Router();
 
@@ -35,5 +36,6 @@ router.use(shareRouter); // DS-11: /docs/:id/shares, /shares/:id (the public /s/
 router.use(aiRouter); // DS-9: /docs/:id/ai, /docs/:id/ai/chat, /docs/:id/ai/usage, /ai/brief
 router.use(resizeRouter); // DS-10: /docs/:id/resize, /docs/:id/source
 router.use(checksRouter); // DS-12: POST /docs/:id/checks; registers the checks gate for finals
+router.use(collabRouter); // DS-13: comments, tasks, approvals, drift, review settings, templates from a doc; wraps the final gate
 
 export default router;
