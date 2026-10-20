@@ -1,11 +1,12 @@
 /**
  * DS-1 §6 · chart kind → renderer. The RS kinds are registered here; the GHG
  * kinds (scope_split, category_bars, gas_split, site_bars, monthly_stack,
- * base_year_waterfall, intensity_line, treemap) arrive in DS-8, which adds one
- * `registerChart` line per kind in charts/ghg/index.ts. An unregistered kind
+ * base_year_waterfall, intensity_line, treemap) come from charts/ghg (DS-8,
+ * `GHG_CHARTS`). An unregistered kind
  * renders a muted "Chart not available" box with data-reason, never a crash.
  */
 import { barChart, stackedBarChart } from "./bars";
+import { GHG_CHARTS } from "./ghg";
 import { donutChart, dotGridChart, shareBarChart } from "./donut";
 import { lineChart, sparkline } from "./line";
 import { materialityMatrix } from "./matrix";
@@ -26,6 +27,8 @@ const REGISTRY: Record<string, ChartRenderer> = {
   dot_grid: dotGridChart,
   materiality_matrix: materialityMatrix,
   sparkline,
+  // DS-8: the GHG kinds.
+  ...GHG_CHARTS,
 };
 
 export const registerChart = (kind: string, fn: ChartRenderer): void => {

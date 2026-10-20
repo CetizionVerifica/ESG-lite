@@ -76,9 +76,29 @@ export interface ElementPropsByType {
     title?: string;
     subtitle?: string;
     caption?: string;
-    options: { greyPrior?: boolean; showValues?: boolean; horizontal?: boolean; stacked?: boolean; showTarget?: boolean };
+    options: {
+      greyPrior?: boolean;
+      showValues?: boolean;
+      horizontal?: boolean;
+      stacked?: boolean;
+      showTarget?: boolean;
+      colors?: "scope" | "brand";
+      showLegend?: boolean;
+      variant?: "bar" | "donut";
+      basisNote?: boolean;
+    };
   };
-  table: { binding?: RenderBinding; columns?: string[]; rows?: (string | number | null)[][]; style: "lined" | "zebra" | "minimal"; totalRow?: boolean };
+  table: {
+    binding?: RenderBinding;
+    columns?: string[];
+    rows?: (string | number | null)[][];
+    style: "lined" | "zebra" | "minimal";
+    totalRow?: boolean;
+    /** DS-8: column widths in % of the frame (static and bound tables). */
+    colWidths?: number[];
+    /** DS-8: merged cells of a static table (row, column, row span, column span; body rows from 0). */
+    merges?: { r: number; c: number; rs: number; cs: number }[];
+  };
   image: { assetId: string; fit: "cover" | "contain"; alt: string; crop?: Crop; radius?: number; bleed?: boolean };
   shape: { shape: "rect" | "ellipse" | "line"; fill?: string; stroke?: string; strokeWidth?: number; radius?: number; opacity?: number; bleed?: boolean };
   icon: { name: string; color?: string };
@@ -171,6 +191,10 @@ export interface RenderValue {
   points?: { label: string; x: number; y: number }[];
   /** sankey links. */
   links?: { from: string; to: string; value: number }[];
+  /** DS-8: the comparison /resolve returns with `compare` (base_year_waterfall reads the base year's figure). */
+  compare?: { against: string; year: number | null; value: number | null } | null;
+  /** DS-8: months or quarters stacked by scope (monthly_stack), current year. */
+  stacks?: RenderSeries[];
   /** A table already formatted by the source (preferred over `series` for table elements). */
   table?: { columns: string[]; rows: (string | number | null)[][] } | null;
 }
