@@ -37,6 +37,7 @@ import { startDLQConsumer } from "./config/dlqConsumer";
 import { startDeadlineScheduler } from "./workers/deadlineScheduler";
 import { startBaseYearScheduler } from "./scope3/baseYear/job"; // S3-14
 import { startKpiDueScheduler } from "./kpi/review/reminders"; // KPI-8
+import { startStudioHistoryScheduler } from "./studio/collab/history"; // DS-13
 import { logMailStatus } from "./config/mailer";
 import { requestLogger } from "./middlewares/requestLogger";
 import { startHeartbeat } from "./services/sseManager";
@@ -157,6 +158,7 @@ connectWithRetry()
         });
         startBaseYearScheduler(); // S3-14: nightly Scope 3 base-year check
         startKpiDueScheduler(); // KPI-8: daily kpi_due reminders (KPI_DUE_JOB=off turns it off)
+        startStudioHistoryScheduler(); // DS-13: nightly version-history pruning (STUDIO_HISTORY_JOB=off turns it off)
         setTimeout(() => void recoverStudioJobs().catch((err) => console.warn("⚠️ Studio render jobs not recovered:", err?.message || "")), 5000).unref(); // DS-11
 
         // Connect RabbitMQ in background (non-blocking)

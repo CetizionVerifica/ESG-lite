@@ -68,6 +68,10 @@ const STUDIO_CONTRACT_ROUTES = [
   ["POST", "/ai/brief"],
   // DS-10 addition outside 01-contracts §4 (awaiting a DS-0 contracts follow-up): the linked-source chip
   ["GET", "/docs/1/source"],
+  // DS-13 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up)
+  ["GET", "/docs/1/people"], ["GET", "/docs/1/comments"], ["POST", "/docs/1/comments"], ["PATCH", "/comments/1"], ["DELETE", "/comments/1"],
+  ["GET", "/docs/1/approvals"], ["GET", "/review-settings"], ["PUT", "/review-settings"], ["DELETE", "/templates/1"],
+  ["GET", "/docs/1/versions/1/preview.html?mode=paged"],
 ].map(([method, p]) => ({ method, path: p }));
 
 /** A concrete URL for a route pattern (":id" → 1). */

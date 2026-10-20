@@ -13,6 +13,7 @@ export * from "./library"; // DS-4
 export * from "./docs"; // DS-5
 export * from "./jobs"; // DS-11
 export * from "./resize"; // DS-10
+export * from "./collab"; // DS-13
 
 import type { ReportKind } from "./enums";
 

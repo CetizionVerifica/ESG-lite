@@ -43,6 +43,13 @@ export function runCheckFamilies(input: CheckInput): Check[] {
   return sortChecks(input.doc, [...contentChecks(input), ...numberChecks(input), ...layoutChecks(input.doc, input.measurements), ...ghgChecks(input)], input.ix);
 }
 
+// DS-13: check families that live elsewhere and need the database (collab: DATA_CHANGED drift, OPEN_TASK).
+export type CheckProvider = (caller: StudioCaller, docId: number, doc: ReportDoc) => Promise<Check[]>;
+const providers: CheckProvider[] = [];
+export function registerCheckProvider(fn: CheckProvider): void {
+  if (!providers.includes(fn)) providers.push(fn);
+}
+
 /** Loads what the checks need for `doc` (as the caller, in the doc's scope) and runs them. */
 export async function evaluate(caller: StudioCaller, docId: number | null, doc: ReportDoc, measurements: Measurement[] | null): Promise<Check[]> {
   const L = loadersFor(caller.companyId, doc.meta.yearType);
@@ -51,7 +58,8 @@ export async function evaluate(caller: StudioCaller, docId: number | null, doc: 
   const input: CheckInput = { doc, ix: docIndex(doc), resolved, inputs: ctx.inputs, measurements };
   if (doc.kind === "ghg") input.ghg = await loadGhgFacts(caller, doc, ctx.siteIds, L.ghg);
   else input.sustainability = await loadSustainabilityFacts(caller, doc);
-  return runCheckFamilies(input);
+  const extra = docId ? (await Promise.all(providers.map((p) => p(caller, docId, doc)))).flat() : []; // DS-13
+  return extra.length ? sortChecks(doc, [...runCheckFamilies(input), ...extra], input.ix) : runCheckFamilies(input);
 }
 
 /** The newest worker measurements of a render of this rev (proofs, prints and finals measure; PNGs don't). */

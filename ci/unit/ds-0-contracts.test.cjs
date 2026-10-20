@@ -60,7 +60,7 @@ test("§5 error codes: DS codes with their statuses, RS codes renamed", () => {
 });
 
 test("§6 checks: RS ids kept, GHG ids added, kinds and default severities", () => {
-  assert.equal(c.CHECK_IDS.length, 14 + 23 + 1); // DS-10: + TEXT_TRUNCATED
+  assert.equal(c.CHECK_IDS.length, 14 + 23 + 1 + 1); // DS-10: + TEXT_TRUNCATED; DS-13: + OPEN_TASK
   assert.deepEqual(c.CHECK_RULES.YEAR_NOT_LOCKED.kinds, ["sustainability"]);
   assert.deepEqual(c.CHECK_RULES.GHG_PENDING_ENTRIES, { severity: "error", kinds: ["ghg"], finalOnly: true });
   assert.equal(c.CHECK_RULES.SCOPE2_MARKET_MISSING.severity, "warning");

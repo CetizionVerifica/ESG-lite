@@ -58,6 +58,11 @@ const CONTRACT_ROUTES = [
   ["POST", "/ai/brief", "DS-9"],
   // DS-10 addition outside 01-contracts §4 (awaiting a DS-0 contracts follow-up): the linked-source chip
   ["GET", "/docs/:id/source", "DS-10"],
+  // DS-13 additions outside 01-contracts §4 (awaiting a DS-0 contracts follow-up): pickers, the RS comment routes, approvals list, review settings, archive
+  ["GET", "/docs/:id/people", "DS-13"], ["GET", "/docs/:id/comments", "DS-13"], ["POST", "/docs/:id/comments", "DS-13"],
+  ["PATCH", "/comments/:id", "DS-13"], ["DELETE", "/comments/:id", "DS-13"], ["GET", "/docs/:id/approvals", "DS-13"],
+  ["GET", "/review-settings", "DS-13"], ["PUT", "/review-settings", "DS-13"], ["DELETE", "/templates/:id", "DS-13"],
+  ["GET", "/docs/:id/versions/:n/preview.html", "DS-13"],
 ].map(([method, p, module]) => ({ method, path: p, module }));
 
 // A query string a route needs to get past validation to the guard and the tenant check.

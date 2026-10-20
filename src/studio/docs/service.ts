@@ -306,6 +306,13 @@ export async function getDoc(caller: StudioCaller, id: number, buildOnly: boolea
 }
 
 /** PATCH /docs/:id: autosave (`doc`) and/or rename (`title`), optimistic on `rev`. */
+// DS-13: rules a PATCH must pass before it's saved (collab/locks.ts: template-locked elements under brand controls).
+export type PatchGuard = (caller: StudioCaller, before: Json, after: Json) => Promise<void>;
+const patchGuards: PatchGuard[] = [];
+export function registerPatchGuard(fn: PatchGuard): void {
+  if (!patchGuards.includes(fn)) patchGuards.push(fn);
+}
+
 export async function patchDoc(caller: StudioCaller, id: number, rawBody: unknown) {
   // The doc first: another company's id answers 404 whatever the body (layer rule 1).
   const row = await loadDocRow(caller, id);
@@ -320,6 +327,7 @@ export async function patchDoc(caller: StudioCaller, id: number, rawBody: unknow
   if (doc.format !== (row.draft.format ?? doc.format)) throw new DsError("DS_FORMAT_INVALID", { format: doc.format, message: "Resize makes a new design in another format" });
   const { readable, all } = await readableSites(caller);
   checkSites(doc.meta.sites, readable, all);
+  for (const guard of patchGuards) await guard(caller, row.draft, doc as unknown as Json); // DS-13 (template locks)
   const rev = await updateDraft(caller, id, body.rev, doc as unknown as Json, { title: doc.meta.title });
   // Version history (D16): an autosave every 10 minutes of editing, with the data hash.
   await autosaveIfDue(id, { doc: doc as unknown as Json, rev, dataHash: row.dataHash, designVersion: doc.design.templateVersion, userId: caller.userId });

@@ -68,7 +68,8 @@
     "LEADERSHIP_UNCONFIRMED",
     "DATA_CHANGED",
     "UNLINKED_DATA",
-    "TEXT_TRUNCATED"
+    "TEXT_TRUNCATED",
+    "OPEN_TASK"
   ],
   "format": "a4",
   "kind": "sustainability",
