@@ -8,7 +8,8 @@
     "parity": { "needs": "api", "module": "DS-2", "what": "DS-2 GHG totals equal POST /user/ghg/tables (CY and FY); EDE intensity unchanged after the extraction" },
     "checks": { "needs": "api", "module": "DS-12", "what": "the checks list of each seed doc" },
     "pdf": { "needs": "api", "chromium": true, "module": "DS-11", "what": "proof vs final: page count, text per page, positions within 0.5 mm; the print bleed box" },
-    "ai": { "needs": "build", "module": "DS-9", "what": "recorded provider responses per action validate (zod, token guard, binding check)" }
+    "ai": { "needs": "build", "module": "DS-9", "what": "recorded provider responses per action validate (zod, token guard, binding check)" },
+    "photo": { "needs": "build", "module": "PE-1", "what": "PE-1 photo edits (adjustments, presets, duotone, transparency) on image and frame: CSS + SVG filter and element HTML, identical in sheet, paged, present and print" }
   },
   "cases": [
     { "id": "contracts/ghg-fixture", "group": "contracts", "run": true, "input": "ci/fixtures/studio/ghg-doc.json" },
@@ -36,6 +37,8 @@
     { "id": "pdf/proof-vs-final", "group": "pdf", "run": true },
     { "id": "pdf/print-bleed-box", "group": "pdf", "run": true },
 
-    { "id": "ai/recorded", "group": "ai", "run": true, "matrix": { "action": "AI_ACTIONS" } }
+    { "id": "ai/recorded", "group": "ai", "run": true, "matrix": { "action": "AI_ACTIONS" } },
+
+    { "id": "photo/effect", "group": "photo", "run": true, "matrix": { "effect": ["none", "brightness", "brightness-min", "contrast", "saturation", "warmth", "warmth-max", "blur", "filter-vivid", "filter-mono", "filter-warm", "filter-cool", "filter-fade", "filter-none", "duotone", "duotone-off", "opacity", "combined", "frame-duotone", "crop-warmth", "background-removed"] } }
   ]
 }

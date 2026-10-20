@@ -4,7 +4,8 @@
  * inside the frame. Without a crop the image fills by `fit`.
  */
 import { assetUrl, type RenderContext } from "../context";
-import type { Crop, FrameMask } from "../types";
+import { withImageFx } from "../imageFx"; // PE-1
+import type { Crop, FrameMask, ImageEditProps } from "../types";
 import { esc, mm, n3 } from "../util";
 import type { ElementRenderer } from "./types";
 
@@ -34,22 +35,24 @@ export const maskStyle = (mask: FrameMask | undefined, wMm: number): string => {
   }
 };
 
-export function picture(ctx: RenderContext, assetId: string | undefined, alt: string, fit: "cover" | "contain", crop?: Crop): string {
+/** `fx` (PE-1): the element's photo edits (imageFx.ts); image and frame only, grid cells have none. */
+export function picture(ctx: RenderContext, assetId: string | undefined, alt: string, fit: "cover" | "contain", crop?: Crop, fx?: { id: string; props: ImageEditProps }): string {
   const url = assetUrl(ctx, assetId);
   if (!url) return `<div class="ds-img-missing" role="img" aria-label="${esc(alt)}" data-asset-id="${esc(assetId ?? "")}"></div>`;
   const style = crop ? `position:absolute;left:${mm(crop.x)};top:${mm(crop.y)};width:${mm(crop.w)};height:${mm(crop.h)};object-fit:fill;` : `width:100%;height:100%;object-fit:${fit === "contain" ? "contain" : "cover"};`;
-  return `<img src="${esc(url)}" alt="${esc(alt)}" style="${style}" data-asset-id="${esc(assetId ?? "")}">`;
+  const img = { before: `<img src="${esc(url)}" alt="${esc(alt)}" style="`, style, after: `" data-asset-id="${esc(assetId ?? "")}">` };
+  return fx ? withImageFx(img, fx.id, fx.props) : `${img.before}${img.style}${img.after}`;
 }
 
 export const imageElement: ElementRenderer<"image"> = (el, ctx) => {
   const p = el.props;
   const radius = p.radius ? `border-radius:${mm(p.radius)};` : "";
-  return { html: `<div class="ds-media" style="${radius}">${picture(ctx, p.assetId, p.alt, p.fit, p.crop)}</div>`, attrs: p.bleed ? ' data-bleed="true"' : "" };
+  return { html: `<div class="ds-media" style="${radius}">${picture(ctx, p.assetId, p.alt, p.fit, p.crop, { id: el.id, props: p })}</div>`, attrs: p.bleed ? ' data-bleed="true"' : "" };
 };
 
 export const frameElement: ElementRenderer<"frame"> = (el, ctx) => {
   const p = el.props;
-  return { html: `<div class="ds-media ds-frame" style="${maskStyle(p.mask, el.frame.w)}">${picture(ctx, p.assetId, p.alt, p.fit, p.crop)}</div>`, attrs: ` data-mask="${esc(p.mask)}"${p.bleed ? ' data-bleed="true"' : ""}` };
+  return { html: `<div class="ds-media ds-frame" style="${maskStyle(p.mask, el.frame.w)}">${picture(ctx, p.assetId, p.alt, p.fit, p.crop, { id: el.id, props: p })}</div>`, attrs: ` data-mask="${esc(p.mask)}"${p.bleed ? ' data-bleed="true"' : ""}` };
 };
 
 export const gridElement: ElementRenderer<"grid"> = (el, ctx) => {

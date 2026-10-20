@@ -107,6 +107,7 @@ export { pickColumns } from "./elements/table";
 export { linearScale } from "./charts/scale";
 export { sankeyLayout } from "./charts/sankey";
 export { ICON_NAMES, SDG } from "./icons";
+export { IMAGE_FILTER_CSS, adjustValues, imageFilterCss, imageFilterId, imageSvgFilter, needsSvgFilter } from "./imageFx"; // PE-1
 export { RENDER_HASH } from "./hash";
 export { endsFootnoteRun, footnoteNotes, footnoteOf, pageFootnotes, readingOrder, sectionFootnotes, type PageFootnotes } from "./footnotes"; // DS-7
 export type * from "./types";

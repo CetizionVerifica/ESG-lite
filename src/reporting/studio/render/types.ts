@@ -38,6 +38,23 @@ export interface Crop {
   h: number;
 }
 
+/** PE-1 · photo edits on image and frame (contracts/proProps.ts; slider units, mapped in imageFx.ts). */
+export type ImageFilter = "none" | "vivid" | "mono" | "warm" | "cool" | "fade";
+export interface ImageAdjust {
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  warmth?: number;
+  blur?: number;
+}
+export interface ImageEditProps {
+  adjust?: ImageAdjust;
+  filter?: ImageFilter;
+  duotone?: { dark: string; light: string } | null;
+  /** The source asset while `assetId` is a background-removed copy (the renderer ignores it). */
+  originalAssetId?: string;
+}
+
 /** Any binding; the renderer reads only `source` and, for custom data, the table. */
 export interface RenderBinding {
   source: DataSource;
@@ -99,14 +116,14 @@ export interface ElementPropsByType {
     /** DS-8: merged cells of a static table (row, column, row span, column span; body rows from 0). */
     merges?: { r: number; c: number; rs: number; cs: number }[];
   };
-  image: { assetId: string; fit: "cover" | "contain"; alt: string; crop?: Crop; radius?: number; bleed?: boolean };
+  image: { assetId: string; fit: "cover" | "contain"; alt: string; crop?: Crop; radius?: number; bleed?: boolean } & ImageEditProps; // PE-1
   shape: { shape: "rect" | "ellipse" | "line"; fill?: string; stroke?: string; strokeWidth?: number; radius?: number; opacity?: number; bleed?: boolean };
   icon: { name: string; color?: string };
   sdg: { goal: number; variant: "full" | "compact" };
   divider: { color?: string; strokeWidth?: number; style?: "solid" | "dashed" | "dotted" };
   page_number: { format?: "n" | "n_of_m"; align?: "left" | "center" | "right"; color?: string };
   placeholder: { accepts: string[]; hint?: string };
-  frame: { mask: FrameMask; assetId?: string; fit: "cover" | "contain"; alt: string; crop?: Crop; bleed?: boolean };
+  frame: { mask: FrameMask; assetId?: string; fit: "cover" | "contain"; alt: string; crop?: Crop; bleed?: boolean } & ImageEditProps; // PE-1
   grid: { columns: number; gap: number; mask?: FrameMask; cells: { assetId?: string; alt: string; crop?: Crop }[] };
   line: { x1: number; y1: number; x2: number; y2: number; stroke?: string; strokeWidth: number; dash: "solid" | "dashed" | "dotted"; startArrow?: boolean; endArrow?: boolean };
   big_number: { binding: RenderBinding; measure?: Measure; format?: NumberFormat; label?: string; showDelta: boolean };
