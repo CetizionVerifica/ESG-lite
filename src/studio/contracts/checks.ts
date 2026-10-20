@@ -56,7 +56,10 @@ export const GHG_CHECK_IDS = [
 /** DS-10: text Resize cut to fit a slot (info; the copy's build.resize.truncated lists them). */
 export const RESIZE_CHECK_IDS = ["TEXT_TRUNCATED"] as const; // DS-10
 
-export const CHECK_IDS = [...RS_CHECK_IDS, ...GHG_CHECK_IDS, ...RESIZE_CHECK_IDS] as const;
+/** DS-13: an open task on a comment (info; DS-13 spec "open tasks show as an info check"). */
+export const COLLAB_CHECK_IDS = ["OPEN_TASK"] as const; // DS-13
+
+export const CHECK_IDS = [...RS_CHECK_IDS, ...GHG_CHECK_IDS, ...RESIZE_CHECK_IDS, ...COLLAB_CHECK_IDS] as const;
 export const CheckIdSchema = z.enum(CHECK_IDS);
 export type CheckId = z.infer<typeof CheckIdSchema>;
 
@@ -111,6 +114,7 @@ export const CHECK_RULES: Record<CheckId, CheckRule> = {
   YOY_UNEXPLAINED: { severity: "info", kinds: GHG },
   UNLINKED_DATA: { severity: "info", kinds: BOTH },
   TEXT_TRUNCATED: { severity: "info", kinds: BOTH }, // DS-10
+  OPEN_TASK: { severity: "info", kinds: BOTH }, // DS-13
 };
 
 /** D8: with ISO 14064-1 conformance selected these move up one step. */

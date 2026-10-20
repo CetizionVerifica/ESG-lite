@@ -105,6 +105,16 @@ export class Company {
   @Column({ default: false })
   design_studio_enabled!: boolean;
 
+  // DS-13: review settings for Design Studio (migrate:ds-13-collab). With
+  // report_require_review on, a final needs an approval for the current rev
+  // (Managers set it); brand_controls limits colours and fonts to the brand
+  // kit and keeps template-locked elements locked for Admins (Superadmin sets it).
+  @Column({ default: false })
+  report_require_review!: boolean;
+
+  @Column({ default: false })
+  brand_controls!: boolean;
+
   @OneToMany(() => Site, site => site.company)
   sites!: Site[];
 }

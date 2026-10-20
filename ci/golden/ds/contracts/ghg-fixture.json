@@ -147,7 +147,8 @@
     "TOTAL_MISMATCH",
     "YOY_UNEXPLAINED",
     "UNLINKED_DATA",
-    "TEXT_TRUNCATED"
+    "TEXT_TRUNCATED",
+    "OPEN_TASK"
   ],
   "format": "a4",
   "kind": "ghg",
