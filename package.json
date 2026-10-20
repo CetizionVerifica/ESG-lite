@@ -68,6 +68,7 @@
     "seeds:ds-4": "ts-node src/scripts/buildStudioSeeds.ts",
     "migrate:ds-5-docs": "ts-node src/scripts/migrateDs5Docs.ts",
     "migrate:ds-11-outputs": "ts-node src/scripts/migrateDs11Outputs.ts",
+    "migrate:ds-9-ai": "ts-node src/scripts/migrateDs9Ai.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",

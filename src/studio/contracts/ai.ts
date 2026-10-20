@@ -99,3 +99,77 @@ export const AI_BUDGET = { perDocPerDayUsd: 5, perDocPerDayCalls: 200, perCompan
 /** D11: an empty brand voice uses this. */
 export const DEFAULT_BRAND_VOICE = "plain, factual, third person";
 export const MAX_BRAND_VOICE_CHARS = 3000;
+
+// ---------------------------------------------------------------------------
+// DS-9: request and response shapes of the AI endpoints (01-contracts §4).
+// ---------------------------------------------------------------------------
+
+/** What an action is about: a page, or one element on it. */
+export const AiTargetSchema = z.object({ pageId: z.string().min(1).max(120), elementId: z.string().min(1).max(120).optional() }).strict();
+export type AiTarget = z.infer<typeof AiTargetSchema>;
+
+export const AiParamsSchema = z
+  .object({
+    /** scope3_category_text: the category (1–15). */
+    category: z.number().int().min(1).max(15).optional(),
+    /** Try again: the earlier suggestion's text, so the next one differs. */
+    differentFrom: z.string().max(8000).optional(),
+    /** A short instruction typed in the chat ("mention the new boiler"). Untrusted. */
+    note: z.string().max(1000).optional(),
+  })
+  .strict();
+export type AiParams = z.infer<typeof AiParamsSchema>;
+
+/** POST /docs/:id/ai */
+export const AiRequestSchema = z.object({ action: AiActionSchema, target: AiTargetSchema.optional(), params: AiParamsSchema.optional() }).strict();
+export type AiRequest = z.infer<typeof AiRequestSchema>;
+
+/** The chat sends at most this many turns; the router reads the last 12. */
+export const CHAT_MAX_TURNS = 40;
+export const CHAT_ROUTER_TURNS = 12;
+export const CHAT_MAX_ACTIONS = 3;
+
+/** POST /docs/:id/ai/chat */
+export const ChatRequestSchema = z
+  .object({
+    messages: z.array(ChatTurnSchema).min(1).max(CHAT_MAX_TURNS),
+    selection: z.object({ pageId: z.string().min(1).max(120), elementIds: z.array(z.string().min(1).max(120)).max(50) }).strict().optional(),
+  })
+  .strict();
+export type ChatRequest = z.infer<typeof ChatRequestSchema>;
+
+export interface ChatReply {
+  reply: string;
+  suggestions: Suggestion[];
+}
+
+/** GET /docs/:id/ai/usage: the budget meter (D10). */
+export interface AiUsage {
+  todayUsd: number;
+  budgetUsd: number;
+  calls: number;
+  callBudget: number;
+  monthUsd: number;
+  monthBudgetUsd: number;
+}
+
+/** POST /ai/brief (design from a brief, from the studio home or the AI panel). */
+export const BriefRequestSchema = z.object({ kind: z.enum(["ghg", "sustainability"]), brief: z.string().trim().min(3).max(1000) }).strict();
+export type BriefRequest = z.infer<typeof BriefRequestSchema>;
+
+export interface BriefProposal {
+  templateId: number;
+  /** The template's look (Classic, Light, Night) or null for a company template. */
+  look: string | null;
+  templateName: string;
+  format: string;
+  purpose: string;
+  chapters: string[];
+  styleId: string | null;
+  title: string;
+  reason: string;
+}
+export interface BriefReply {
+  proposals: BriefProposal[];
+  model: string;
+}
