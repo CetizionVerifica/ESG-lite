@@ -1,0 +1,22 @@
+{
+  "action": "missing_disclosures",
+  "built": true,
+  "findings": [
+    {
+      "message": "The report doesn't name a base year or a recalculation policy.",
+      "severity": "warning"
+    },
+    {
+      "message": "Market-based Scope 2 isn't reported; say why and describe any instruments.",
+      "pageId": "p-summary",
+      "severity": "warning"
+    },
+    {
+      "message": "No verification status is stated.",
+      "severity": "info"
+    }
+  ],
+  "group": "drafting",
+  "output": "findings",
+  "valid": true
+}

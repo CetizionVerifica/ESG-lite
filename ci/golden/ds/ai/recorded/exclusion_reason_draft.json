@@ -1,0 +1,11 @@
+{
+  "action": "exclusion_reason_draft",
+  "built": true,
+  "chips": [],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "Category 8: Upstream leased assets — the company leases no assets.\nCategory 14: Franchises — the company has no franchises.\nCategory 15: Investments — Reason to be confirmed.",
+  "sources": [],
+  "textDocValid": true,
+  "valid": true
+}

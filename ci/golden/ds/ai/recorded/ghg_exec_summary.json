@@ -1,0 +1,108 @@
+{
+  "action": "ghg_exec_summary",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "compare": "prior",
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": [
+          2024,
+          2025
+        ]
+      },
+      "format": "pct1",
+      "measure": "change_pct"
+    },
+    {
+      "binding": {
+        "metric": "scope1",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "format": "1dp",
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "metric": "scope2_location",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "metric": "scope3",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "metric": "biogenic_co2",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    }
+  ],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "Total emissions were ⟨total|current|value⟩ tCO₂e in 2025, a change of ⟨total|current|change_pct⟩ against 2024. Scope 1 accounted for ⟨scope1|current|value⟩ tCO₂e, Scope 2 (location-based) for ⟨scope2_location|current|value⟩ tCO₂e and Scope 3 for ⟨scope3|current|value⟩ tCO₂e.\nMarket-based Scope 2 is not reported this year. Biogenic CO₂ of ⟨biogenic_co2|current|value⟩ tCO₂e is reported separately, outside the scopes.",
+  "sources": [
+    {
+      "metric": "total",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "scope1",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "scope2_location",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "scope3",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "biogenic_co2",
+      "source": "ghg",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

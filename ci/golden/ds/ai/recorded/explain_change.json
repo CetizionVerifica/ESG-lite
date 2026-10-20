@@ -1,0 +1,57 @@
+{
+  "action": "explain_change",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "change_pct"
+    },
+    {
+      "binding": {
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 2
+        }
+      },
+      "measure": "value",
+      "year": "prior"
+    },
+    {
+      "binding": {
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "measure": "value"
+    }
+  ],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "Total emissions changed by ⟨total|current|change_pct⟩ against 2024, from ⟨total|prior|value⟩ to ⟨total|current|value⟩ tCO₂e. The company should confirm the main causes before publishing.",
+  "sources": [
+    {
+      "metric": "total",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "total",
+      "source": "ghg",
+      "year": 2024
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

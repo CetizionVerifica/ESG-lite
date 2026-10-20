@@ -36,6 +36,6 @@
     { "id": "pdf/proof-vs-final", "group": "pdf", "run": false, "waits": "DS-11" },
     { "id": "pdf/print-bleed-box", "group": "pdf", "run": false, "waits": "DS-11" },
 
-    { "id": "ai/recorded", "group": "ai", "run": false, "waits": "DS-9", "matrix": { "action": "AI_ACTIONS" } }
+    { "id": "ai/recorded", "group": "ai", "run": true, "matrix": { "action": "AI_ACTIONS" } }
   ]
 }

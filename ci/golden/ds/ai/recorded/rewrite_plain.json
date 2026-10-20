@@ -1,0 +1,49 @@
+{
+  "action": "rewrite_plain",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "metric": "scope1",
+        "sites": "all",
+        "source": "ghg",
+        "years": {
+          "last": 1
+        }
+      },
+      "format": "1dp",
+      "measure": "value"
+    },
+    {
+      "binding": {
+        "compare": "prior",
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": [
+          2024,
+          2025
+        ]
+      },
+      "format": "pct1",
+      "measure": "change_pct"
+    }
+  ],
+  "group": "rewrites",
+  "output": "text",
+  "rendered": "We emitted ⟨scope1|current|value⟩ tCO₂e from our own fuel use. In total, emissions changed by ⟨total|current|change_pct⟩ since 2024.",
+  "sources": [
+    {
+      "metric": "scope1",
+      "source": "ghg",
+      "year": 2025
+    },
+    {
+      "metric": "total",
+      "source": "ghg",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

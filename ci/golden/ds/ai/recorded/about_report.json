@@ -1,0 +1,16 @@
+{
+  "action": "about_report",
+  "built": true,
+  "chips": [],
+  "group": "drafting",
+  "output": "text",
+  "rendered": "This report covers Calendar year 2025 (1 January – 31 December 2025) and is prepared with reference to GRI. Figures come from approved KPI values.",
+  "sources": [
+    {
+      "key": "reporting_period",
+      "source": "input"
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}

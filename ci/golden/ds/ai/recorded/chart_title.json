@@ -1,0 +1,9 @@
+{
+  "action": "chart_title",
+  "built": true,
+  "group": "rewrites",
+  "output": "chart_title",
+  "subtitle": "tCO₂e, calendar year 2025",
+  "title": "Scope 3 is the largest share of emissions",
+  "valid": true
+}

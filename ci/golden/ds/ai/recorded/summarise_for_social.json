@@ -1,0 +1,32 @@
+{
+  "action": "summarise_for_social",
+  "built": true,
+  "chips": [
+    {
+      "binding": {
+        "compare": "prior",
+        "metric": "total",
+        "sites": "all",
+        "source": "ghg",
+        "years": [
+          2024,
+          2025
+        ]
+      },
+      "format": "pct1",
+      "measure": "change_pct"
+    }
+  ],
+  "group": "rewrites",
+  "output": "text",
+  "rendered": "Our total emissions changed ⟨total|current|change_pct⟩ in 2025. Read our GHG inventory.",
+  "sources": [
+    {
+      "metric": "total",
+      "source": "ghg",
+      "year": 2025
+    }
+  ],
+  "textDocValid": true,
+  "valid": true
+}
