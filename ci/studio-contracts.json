@@ -331,7 +331,8 @@
       "bold",
       "italic",
       "link",
-      "highlight"
+      "highlight",
+      "footnote"
     ],
     "CHECK_IDS": [
       "YEAR_NOT_LOCKED",

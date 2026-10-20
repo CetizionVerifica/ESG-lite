@@ -10,6 +10,7 @@
  */
 import type { RenderContext } from "../context";
 import { notReported } from "../data";
+import { sectionFootnotes } from "../footnotes";
 import { formatNumber } from "../format";
 import { renderTextDoc } from "../text";
 import type { FlowRow, FlowTable, RenderFlowSection, RenderOptions, Scope3CategoryRow } from "../types";
@@ -103,6 +104,14 @@ function body(section: RenderFlowSection, ctx: RenderContext): string {
   }
 }
 
+/** DS-7: a section's footnotes, numbered per section, after its content. Styled inline. */
+function sectionNotes(section: RenderFlowSection): string {
+  const notes = sectionFootnotes(section);
+  if (!notes.length) return "";
+  const items = notes.map((n, i) => `<p class="ds-fn" style="margin:0;"><sup>${i + 1}</sup> ${esc(n)}</p>`).join("");
+  return `<aside class="ds-footnotes ts-footnote" role="note" aria-label="Footnotes" style="margin-top:4mm;border-top:0.2mm solid var(--border);padding-top:1mm;break-inside:avoid;">${items}</aside>`;
+}
+
 /** One flow section as a `<section class="ds-flow">` (paginated by Paged.js in paged and print modes). */
 export function renderFlowHtml(section: RenderFlowSection, ctx: RenderContext, opts: Pick<RenderOptions, "watermark">): string {
   const title = section.name || INDEX_TITLES[section.flowType] || "";
@@ -111,6 +120,7 @@ export function renderFlowHtml(section: RenderFlowSection, ctx: RenderContext, o
     `<section class="ds-flow ds-flow--${esc(section.flowType)}${startRight}" id="page-${esc(section.id)}" data-page-id="${esc(section.id)}" data-flow-type="${esc(section.flowType)}"${opts.watermark ? ` data-watermark="${esc(opts.watermark)}"` : ""}>` +
     (title ? `<h1 class="ds-flow-title ts-heading">${esc(section.bookmark ?? title)}</h1>` : "") +
     body(section, ctx) +
+    sectionNotes(section) +
     `</section>`
   );
 }
