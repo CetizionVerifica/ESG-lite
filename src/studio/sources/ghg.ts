@@ -378,6 +378,7 @@ export async function resolveGhg(L: GhgLoader, ctx: ResolveContext, b: GhgBindin
     value: main.value,
     unit: main.unit ?? unit,
     approvedAt: cov.approved_at,
+    approvedEntries: cov.rows, // DS-7
     ...(main.unavailable ? { unavailable: main.unavailable } : {}),
   };
   if (main.unavailable) return out;

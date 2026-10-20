@@ -51,6 +51,8 @@ export interface ResolvedBinding {
   /** The newest approval behind the figure (ISO), when the source records one. */
   approvedAt?: string | null;
   evidenceCount?: number;
+  /** DS-7 (GHG): approved emission entries behind the figure's period and sites (the chip hover card). */
+  approvedEntries?: number;
   /** Missing periods or sites (KPI values never count missing as 0). */
   complete?: boolean;
   compare?: Comparison;
