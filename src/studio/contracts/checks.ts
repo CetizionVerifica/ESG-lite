@@ -121,7 +121,21 @@ export const ISO_ESCALATION: Partial<Record<CheckId, CheckSeverity>> = {
 
 export const checksFor = (kind: ReportKind): CheckId[] => CHECK_IDS.filter((id) => CHECK_RULES[id].kinds.includes(kind));
 
-export const CHECK_FIXES = ["replace_with_token", "shrink_text", "move_inside", "open_values", "open_inputs"] as const;
+export const CHECK_FIXES = [
+  "replace_with_token",
+  "shrink_text",
+  "move_inside",
+  "open_values",
+  "open_inputs",
+  // DS-12: GHG fixes (DS-12 spec "Fix actions") and links.
+  "mark_excluded", // opens the exclusion input for a Scope 3 category (details.category), with an AI draft when DS-9 is on
+  "open_pending", // Review, filtered to the period (details.link)
+  "add_market_note", // inserts the market-based Scope 2 "Not reported" row
+  "add_gas_chart", // inserts a gas_split chart
+  "add_biogenic", // inserts a biogenic CO₂ figure, reported separately
+  "add_factor_table", // inserts the emission factors section
+  "open_link", // any other app page that fixes it (details.link: sites, months, Scope 3 screening, KPI review)
+] as const;
 export const CheckFixSchema = z.enum(CHECK_FIXES);
 
 /** `Check { id, severity, pageId?, elementId?, message, details?, fix? }` (RS §6). */
@@ -137,3 +151,48 @@ export const CheckSchema = z
   })
   .strict();
 export type Check = z.infer<typeof CheckSchema>;
+
+// ---------------------------------------------------------------------------
+// DS-12 · POST /docs/:id/checks and the final gate
+// ---------------------------------------------------------------------------
+
+/** One element's browser measurement (render/measure.ts `Measurement`), as the editor sends it. */
+export const MeasurementSchema = z
+  .object({
+    pageId: z.string().max(120),
+    elementId: z.string().max(120),
+    type: z.string().max(40),
+    rectMm: z.object({ x: z.number().finite(), y: z.number().finite(), w: z.number().finite(), h: z.number().finite() }).strict(),
+    overflowMm: z.number().finite().min(0),
+    outsideSafe: z.boolean(),
+    outsidePage: z.boolean(),
+    minFontPt: z.number().finite().nullable(),
+    contrast: z.number().finite().nullable(),
+    onImage: z.boolean(),
+    bleed: z.boolean(),
+  })
+  .strict();
+export type MeasurementInput = z.infer<typeof MeasurementSchema>;
+
+/** `{rev, measurements?}`: measurements (the editor's live ones) are used for the live view only. */
+export const ChecksBodySchema = z
+  .object({
+    rev: z.number().int().min(0),
+    measurements: z.array(MeasurementSchema).max(10000).optional(),
+    company_id: z.union([z.number(), z.string()]).optional(),
+  })
+  .strict();
+
+export interface ChecksResponse {
+  checks: Check[];
+  /** True while an error check is open: a final is refused (warnings only need acknowledging). */
+  blocking: boolean;
+  /** The check ids a final needs in `acknowledgedWarnings`. */
+  warnings: CheckId[];
+  /** Where the layout checks came from: the editor's live measuring, the last render at this rev, or none yet. */
+  layout: "live" | "render" | "none";
+  rev: number;
+}
+
+/** The rank the panel and the gate sort by: errors, warnings, info; GHG_PENDING_ENTRIES first. */
+export const SEVERITY_RANK: Record<CheckSeverity, number> = { error: 0, warning: 1, info: 2 };

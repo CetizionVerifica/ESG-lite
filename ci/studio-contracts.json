@@ -379,7 +379,14 @@
       "shrink_text",
       "move_inside",
       "open_values",
-      "open_inputs"
+      "open_inputs",
+      "mark_excluded",
+      "open_pending",
+      "add_market_note",
+      "add_gas_chart",
+      "add_biogenic",
+      "add_factor_table",
+      "open_link"
     ],
     "AI_ACTIONS": [
       "draft_report",

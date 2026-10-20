@@ -32,7 +32,7 @@ const crypto = require("crypto");
 const path = require("path");
 const zlib = require("zlib");
 const { call, withDb } = require("../helpers.cjs");
-const { setStudio, setKpi, runScript } = require("./ds-lib.cjs");
+const { setStudio, setKpi, runScript, readyForFinal } = require("./ds-lib.cjs");
 
 const FIXTURE = require(path.resolve(__dirname, "../../fixtures/studio/ghg-doc.json"));
 const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
@@ -84,6 +84,8 @@ const fixtureDoc = (year, title) => {
   d.meta = { ...d.meta, year, title, compareYear: year - 1 };
   d.assets = [];
   for (const p of d.pages) if (p.elements) p.elements = p.elements.filter((e) => !(e.props && e.props.assetId));
+  // DS-12: the fixture's page number sits 4 mm into the 10 mm print margin (OUTSIDE_SAFE_AREA blocks a final).
+  for (const p of d.pages) for (const e of p.elements ?? []) if (e.id === "p-summary.pn") e.frame.y = 281;
   return d;
 };
 
@@ -350,10 +352,12 @@ rtest("finals: Manager only, the GHG gate, a version with the doc, data snapshot
   assert.equal(g.status, 409);
   assert.equal(g.json.code, "DS_CHECKS_BLOCKING");
   assert.equal(g.json.details.checks[0].id, "GHG_PENDING_ENTRIES");
-  assert.equal(g.json.details.checks[0].count, 2);
-  // CY 2023: nothing pending.
+  assert.equal(g.json.details.checks[0].details.pending, 2); // DS-12: the checks gate (count = pending + rejected)
+  // CY 2023: nothing pending; DS-12: the report details answer the GHG checks and the warnings are acknowledged.
   const doc = await makeDoc(2023, "DS-11 Final");
-  const r = await job(doc.id, { kind: "final", rev: doc.rev });
+  const ready = await readyForFinal(doc.id);
+  doc.rev = ready.rev;
+  const r = await job(doc.id, { kind: "final", rev: doc.rev, acknowledgedWarnings: ready.acknowledgedWarnings });
   assert.equal(r.status, 202, JSON.stringify(r.json));
   const done = await waitJob(r.json.id);
   assert.equal(done.status, "done", JSON.stringify(done));
@@ -382,7 +386,9 @@ rtest("finals: Manager only, the GHG gate, a version with the doc, data snapshot
   const noNote = await job(doc.id, { kind: "final", rev: cur.rev });
   assert.equal(noNote.json.code, "DS_VALIDATION");
   assert.equal(noNote.json.details.issues[0].path, "note");
-  const second = await job(doc.id, { kind: "final", rev: cur.rev, note: "Corrected the title" });
+  // DS-12: the first final's measurements now count too (e.g. a LOW_CONTRAST warning), so ask the checks again.
+  const again = (await call("POST", `/studio/docs/${doc.id}/checks`, "manager", { rev: cur.rev })).json;
+  const second = await job(doc.id, { kind: "final", rev: cur.rev, note: "Corrected the title", acknowledgedWarnings: again.warnings });
   assert.equal(second.status, 202);
   const d2 = await waitJob(second.json.id);
   assert.ok(d2.versionN > n1);
@@ -436,7 +442,8 @@ rtest("view links: Manager only; token once and hashed; views; stored PDF only; 
   await setStudio(1, true);
   await setStudio(2, true);
   const doc = await makeDoc(2023, "DS-11 Share");
-  const fin = await waitJob((await job(doc.id, { kind: "final", rev: doc.rev })).json.id);
+  const ready = await readyForFinal(doc.id); // DS-12: the checks gate
+  const fin = await waitJob((await job(doc.id, { kind: "final", rev: ready.rev, acknowledgedWarnings: ready.acknowledgedWarnings })).json.id);
   assert.equal(fin.status, "done", JSON.stringify(fin));
   const admin = await call("POST", `/studio/docs/${doc.id}/shares`, "admin", { versionId: fin.versionId });
   assert.equal(admin.status, 403, "an Admin can't create a link");

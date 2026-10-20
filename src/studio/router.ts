@@ -19,6 +19,7 @@ import jobsRouter from "./jobs/router"; // DS-11
 import shareRouter from "./share/router"; // DS-11
 import aiRouter from "./ai/router"; // DS-9
 import resizeRouter from "./resize/router"; // DS-10
+import checksRouter from "./checks/router"; // DS-12
 
 const router = Router();
 
@@ -33,5 +34,6 @@ router.use(jobsRouter); // DS-11: /docs/:id/preview.html, /docs/:id/jobs, /jobs/
 router.use(shareRouter); // DS-11: /docs/:id/shares, /shares/:id (the public /s/:token is mounted in src/index.ts)
 router.use(aiRouter); // DS-9: /docs/:id/ai, /docs/:id/ai/chat, /docs/:id/ai/usage, /ai/brief
 router.use(resizeRouter); // DS-10: /docs/:id/resize, /docs/:id/source
+router.use(checksRouter); // DS-12: POST /docs/:id/checks; registers the checks gate for finals
 
 export default router;
