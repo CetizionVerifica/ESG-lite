@@ -146,7 +146,8 @@
     "INTENSITY_MISSING",
     "TOTAL_MISMATCH",
     "YOY_UNEXPLAINED",
-    "UNLINKED_DATA"
+    "UNLINKED_DATA",
+    "TEXT_TRUNCATED"
   ],
   "format": "a4",
   "kind": "ghg",
