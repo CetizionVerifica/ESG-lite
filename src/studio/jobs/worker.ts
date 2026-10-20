@@ -146,7 +146,7 @@ interface Output {
 /** Renders a job's output with the shared browser (pure apart from Chromium). */
 export async function renderOutput(job: Pick<JobRow, "kind" | "options">, doc: ReportDoc, inputs: Awaited<ReturnType<typeof renderInputs>>, b: Browser): Promise<Output> {
   const rdoc = doc as unknown as RenderDoc;
-  const common = { browser: b, brand: inputs.brand, assets: inputs.assets, timeoutMs: JOB_TIMEOUT_MS() };
+  const common = { browser: b, brand: inputs.brand, assets: inputs.assets, customFonts: inputs.customFonts /* PE-2 */, timeoutMs: JOB_TIMEOUT_MS() };
   switch (job.kind) {
     case "proof":
     case "final": {

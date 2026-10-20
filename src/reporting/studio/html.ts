@@ -10,6 +10,7 @@ import { fontBase64 } from "./fonts/files";
 import { renderDocument, type RenderResult } from "./render";
 import { FONTS, fontFile } from "./render/fonts";
 import { MEASURE_JS } from "./render/measure";
+import { customFontFaceCss } from "./render/textEffects"; // PE-2
 import { buildTheme } from "./render/theme";
 import type { FontId, RenderBrand, RenderData, RenderDoc, RenderOptions, RenderStyle } from "./render/types";
 import { esc } from "./render/util";
@@ -60,6 +61,13 @@ function fontFaces(ids: FontId[], opts: HtmlOptions): string {
     }
   }
   return out.join("\n");
+}
+
+/** PE-2: bundled faces picked per text box (`font`), so Page view and the PDFs load them too. */
+function bundledBoxFonts(doc: RenderDoc): FontId[] {
+  const out = new Set<FontId>();
+  for (const p of doc.pages) if (p.kind === "freeform") for (const e of p.elements) if (e.type === "text" && e.props.font && e.props.font in FONTS) out.add(e.props.font as FontId);
+  return [...out];
 }
 
 /**
@@ -132,7 +140,7 @@ export function documentHtml(doc: RenderDoc, data: RenderData | null | undefined
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(doc.meta?.title ?? "Report")}</title>
-<style>${fontFaces([theme.fonts.heading, theme.fonts.body], opts)}</style>
+<style>${fontFaces([theme.fonts.heading, theme.fonts.body, ...bundledBoxFonts(doc)], opts)}${opts.customFonts?.length ? `\n${customFontFaceCss(opts.customFonts)}` : ""}</style>
 <style>html,body{${present ? "" : body}}${r.css}</style>
 </head>
 <body>

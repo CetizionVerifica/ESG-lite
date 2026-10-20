@@ -25,6 +25,6 @@ export async function versionPreviewHtml(caller: StudioCaller, docId: number, n:
   if (!parsed.success) throw dsDocInvalid(parsed.error.issues);
   const doc = parsed.data;
   const inputs = await renderInputs(caller, doc, { docId: row.id });
-  const { document } = documentHtml(doc as unknown as RenderDoc, inputs.data, { mode: q.mode, brand: inputs.brand, assets: inputs.assets, inlineFonts: true, cropMarks: false });
+  const { document } = documentHtml(doc as unknown as RenderDoc, inputs.data, { mode: q.mode, brand: inputs.brand, assets: inputs.assets, customFonts: inputs.customFonts /* PE-2 */, inlineFonts: true, cropMarks: false });
   return { html: withBridge(document), n: Number(version.n) };
 }
