@@ -29,14 +29,14 @@
 import { Router } from "express";
 import { finalGate, registerFinalGate } from "../jobs/gate";
 import { registerCheckProvider } from "../checks/service";
-import { registerPatchGuard } from "../docs/service";
+import { registerBuiltHook, registerPatchGuard } from "../docs/service";
 import { requireManager, studioCaller, type StudioCaller, type StudioRequest } from "../guard";
 import { handle, routeId } from "../http";
 import type { ReportDoc } from "../contracts";
 import { AppDataSource } from "../../config/data-source";
 import { approvalFinalGate, decideApproval, listApprovals, requestApproval, withdrawApproval } from "./approvals";
 import { assignTask, createComment, deleteComment, listComments, openTasks, patchComment, people, setTaskDone } from "./comments";
-import { collabChecks, computeDrift, getDrift } from "./drift";
+import { collabChecks, computeDrift, getDrift, recordBuiltBaseline } from "./drift";
 import { assertTemplateLocks } from "./locks";
 import { getReviewSettings, putReviewSettings } from "./settings";
 import { archiveTemplate, layoutFromPage, templateFromDoc } from "./templates";
@@ -45,6 +45,7 @@ import { PREVIEW_CSP } from "../jobs/preview";
 
 registerFinalGate(approvalFinalGate(finalGate()));
 registerPatchGuard(assertTemplateLocks);
+registerBuiltHook(recordBuiltBaseline); // [Wave 5 integrate]
 registerCheckProvider(async (caller: StudioCaller, docId: number, doc: ReportDoc) => {
   const [r]: Array<{ data_hash: string | null }> = await AppDataSource.query(`SELECT data_hash FROM report_doc WHERE id = $1`, [docId]);
   const drift = await computeDrift(caller, docId, doc, r?.data_hash ?? null);

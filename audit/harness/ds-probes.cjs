@@ -104,6 +104,20 @@ SEED.push(async ({ q }) => {
   }
 });
 
+// DS-13: a company-1 comment and approval on that design (rows only; the flows are tested in ds-13-collab). [Wave 5 integrate]
+// Users 2 and 3 are the API fixture's company-1 Manager and Admin.
+SEED.push(async ({ q }) => {
+  if (!(await tableExists("report_comment"))) return;
+  const [doc] = await q(`SELECT id, rev FROM report_doc WHERE company_id = 1 AND deleted_at IS NULL ORDER BY id LIMIT 1`);
+  if (!doc) return;
+  if (!(await q(`SELECT 1 FROM report_comment WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO report_comment (company_id, doc_id, page_id, body, author_id) VALUES (1, $1, 'p1', 'DS probes comment', 2)`, [doc.id]);
+  }
+  if (!(await q(`SELECT 1 FROM report_approval WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO report_approval (company_id, doc_id, rev, requested_by, reviewer_id) VALUES (1, $1, $2, 3, 2)`, [doc.id, doc.rev]);
+  }
+});
+
 const ROLES = ["user", "manager", "admin", "superadmin"];
 
 const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = $1`, [t])).length > 0;

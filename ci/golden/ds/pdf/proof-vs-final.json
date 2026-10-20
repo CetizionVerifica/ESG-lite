@@ -1,6 +1,7 @@
 {
   "acknowledgedWarnings": [
     "LOW_CONTRAST",
+    "DATA_CHANGED",
     "VALUES_MISSING",
     "BASE_YEAR_MISSING",
     "SCOPE2_MARKET_MISSING"

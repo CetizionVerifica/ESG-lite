@@ -28,7 +28,7 @@ import {
 import type { StudioCaller } from "../guard";
 import { parse } from "../http";
 import { stampElements } from "../docs/build";
-import { resolveForBuild } from "../docs/service";
+import { afterBuilt, resolveForBuild } from "../docs/service";
 import { addVersion, insertDoc, loadDocRow, saveBuild } from "../docs/store";
 import { checkSites, readableSites } from "../sources/resolve";
 import { resizeSummaryHook, type ResizeSummaryItem } from "./aiHook";
@@ -193,6 +193,7 @@ export async function resizeDesign(caller: StudioCaller, id: number, rawBody: un
     userId: caller.userId,
   });
   await saveBuild(newId, build);
+  await afterBuilt(caller, newId, id); // DS-13 drift baselines [Wave 5 integrate]
   return {
     status: 201,
     body: { id: newId, title: stamped.meta.title, pageCount: stamped.pages.length, dropped: report.dropped.length, truncated: stored.truncated.length, summarised: summarised.length },

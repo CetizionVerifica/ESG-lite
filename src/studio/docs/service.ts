@@ -210,6 +210,20 @@ async function templateFor(caller: StudioCaller, body: Pick<CreateDocBody, "temp
 
 const errorBody = (err: unknown) => (err instanceof DsError ? { code: err.code, message: err.message } : { code: "DS_JOB_FAILED", message: "The design couldn't be built." });
 
+// DS-13: work to do once a design's figures are stored (collab/drift.ts records the figures the design
+// was built against, so DATA_CHANGED compares like with like). `fromDocId` names the design it was copied
+// from (duplicate, resize). A failing hook is logged and never fails the build. [Wave 5 integrate]
+export type BuiltHook = (caller: StudioCaller, docId: number, fromDocId?: number) => Promise<void>;
+const builtHooks: BuiltHook[] = [];
+export function registerBuiltHook(fn: BuiltHook): void {
+  if (!builtHooks.includes(fn)) builtHooks.push(fn);
+}
+export async function afterBuilt(caller: StudioCaller, docId: number, fromDocId?: number): Promise<void> {
+  for (const hook of builtHooks) {
+    await hook(caller, docId, fromDocId).catch((err) => console.error(`[studio] after-build hook failed (doc ${docId}):`, (err as Error)?.message));
+  }
+}
+
 async function runBuild(caller: StudioCaller, id: number, template: TemplateRow, choices: BuildChoices, ai: boolean, progress: BuildProgress): Promise<DocRow> {
   const composed = await composeDoc(caller, template, choices, { docId: id, ai, progress, onStep: () => saveBuild(id, progress) });
   setStep(progress, "save", "running");
@@ -224,6 +238,7 @@ async function runBuild(caller: StudioCaller, id: number, template: TemplateRow,
     id,
   ]);
   await addVersion(id, "autosave", { doc: composed.doc as unknown as Json, rev: 1, dataHash: composed.dataHash, designVersion: template.version, note: "Built from the template", userId: caller.userId });
+  await afterBuilt(caller, id);
   setStep(progress, "save", "done");
   progress.state = "done";
   progress.finishedAt = new Date().toISOString();
@@ -362,6 +377,7 @@ export async function rebuildDoc(caller: StudioCaller, id: number, rawBody: unkn
   const doc = validated(merged);
   const rev = await updateDraft(caller, id, row.rev, doc as unknown as Json, { title: doc.meta.title, dataHash: fresh.dataHash });
   await autosaveIfDue(id, { doc: doc as unknown as Json, rev, dataHash: fresh.dataHash, designVersion: template.version, userId: caller.userId });
+  await afterBuilt(caller, id);
   return { ...docResponse(await loadDocRow(caller, id)), rebuilt };
 }
 
@@ -390,5 +406,6 @@ export async function duplicateDoc(caller: StudioCaller, id: number, rawBody: un
     userId: caller.userId,
   });
   await addVersion(newId, "autosave", { doc: doc as unknown as Json, rev: 1, dataHash: row.dataHash, designVersion: doc.design.templateVersion, note: `Copy of design ${row.id}`, userId: caller.userId });
+  await afterBuilt(caller, newId, row.id);
   return { id: newId };
 }

@@ -107,6 +107,32 @@ async function loadBaselines(docId: number, hashes: string[]): Promise<Map<strin
   return new Map(rows.map((r) => [String(r.data_hash), (r.values ?? {}) as Record<string, string>]));
 }
 
+/**
+ * The figures a design was built against (the after-build hook, DS-5 build/rebuild, duplicate and DS-10
+ * resize). The build stamps `report_doc.data_hash` and texts' `basedOnHash` with the hash of the
+ * template's bindings, which differs from the built design's own hash (pages without data are left
+ * out), so without this baseline every text "about data" on a fresh design showed as DATA_CHANGED.
+ * A copy first takes over its source's baselines, so drift since the source was written still shows.
+ * [Wave 5 integrate]
+ */
+export async function recordBuiltBaseline(caller: StudioCaller, docId: number, fromDocId?: number): Promise<void> {
+  const row = await loadDocRow(caller, docId);
+  if (fromDocId) {
+    await AppDataSource.query(
+      `INSERT INTO report_data_baseline (doc_id, data_hash, values) SELECT $1, b.data_hash, b.values FROM report_data_baseline b JOIN report_doc d ON d.id = b.doc_id WHERE b.doc_id = $2 AND d.company_id = $3 ON CONFLICT (doc_id, data_hash) DO NOTHING`,
+      [docId, fromDocId, caller.companyId],
+    );
+  }
+  const parsed = ReportDocSchema.safeParse(row.draft);
+  if (!parsed.success) return;
+  const doc = parsed.data;
+  const res = await resolveDoc(caller, doc, { docId });
+  const figures = docFigures(doc, res);
+  const hashes = new Set<string>([res.dataHash]);
+  if (row.dataHash) hashes.add(row.dataHash);
+  for (const h of hashes) await saveBaseline(docId, h, figures);
+}
+
 /** Drift of a doc already loaded and validated (the endpoint and the checks provider). */
 export async function computeDrift(caller: StudioCaller, docId: number, doc: ReportDoc, buildHash: string | null): Promise<DriftResponse> {
   const res = await resolveDoc(caller, doc, { docId });

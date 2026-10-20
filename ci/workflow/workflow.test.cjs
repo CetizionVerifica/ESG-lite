@@ -963,7 +963,8 @@ const DS_ROOT = require("path").resolve(__dirname, "../..");
 const dsRoutes = require("../golden/ds/lib/routes.cjs");
 const dsBuilt = (method, p) => async () => dsRoutes.isBuilt(DS_ROOT, method, p);
 const dsLater = (module) => async (t) => t.skip(`${module} is routed; DS-14 final writes this step's checks`);
-const dsAudit = () => kq(`SELECT changed_fields FROM audit_log WHERE entity_type = 'design_studio' AND entity_id = $1 ORDER BY id`, [S.companyId]);
+// The switch's own audit rows (DS-13's review_settings rows share the entity; DS-W6 checks those). [Wave 5 integrate]
+const dsAudit = () => kq(`SELECT changed_fields FROM audit_log WHERE entity_type = 'design_studio' AND entity_id = $1 AND changed_fields ? 'design_studio_enabled' ORDER BY id`, [S.companyId]);
 /** A scratch ci_* database next to DB_NAME for `fn(name)`, dropped afterwards. */
 async function dsScratch(suffix, fn) {
   const { Client } = require("pg");
@@ -1182,7 +1183,29 @@ pendingStep("DS-W5 checks: the planted mismatch is found, fixed, and the doc pas
   assert.deepEqual(last.checks.filter((c) => c.severity === "error").map((c) => c.id), ["GHG_PENDING_ENTRIES"]);
 });
 
-pendingStep("DS-W6 request approval; the reviewer approves the current rev", "DS-13", dsBuilt("POST", "/docs/:id/approvals"), dsLater("DS-13"));
+pendingStep("DS-W6 request approval; the reviewer approves the current rev", "DS-13", dsBuilt("POST", "/docs/:id/approvals"), async () => {
+  // [Wave 5 integrate] The Manager requires an approval before finals (audited); the Admin asks the Manager.
+  assert.equal((await call("PUT", "/studio/review-settings", S.admin, { requireReview: true })).json.code, "DS_ROLE", "Admins don't set require-review");
+  const set = await call("PUT", "/studio/review-settings", S.people.manager, { requireReview: true });
+  ok(set);
+  assert.equal(set.json.requireReview, true);
+  const [audit] = await kq(`SELECT changed_fields FROM audit_log WHERE entity_type = 'design_studio' AND entity_id = $1 AND action = 'review_settings' ORDER BY id`, [S.companyId]);
+  assert.deepEqual(audit.changed_fields, { report_require_review: { old: false, new: true } });
+  const final = () => call("POST", `/studio/docs/${S.ds.id}/jobs`, S.people.manager, { kind: "final", rev: S.ds.rev });
+  let gate = await final();
+  assert.deepEqual([gate.status, gate.json.code, gate.json.details?.reason], [409, "DS_APPROVAL_PENDING", "none"], JSON.stringify(gate.json));
+  const managerId = S.people.manager.user.user_id;
+  const asked = await call("POST", `/studio/docs/${S.ds.id}/approvals`, S.admin, { reviewerId: managerId, rev: S.ds.rev, note: "Ready for the board pack" });
+  assert.equal(asked.status, 201, JSON.stringify(asked.json));
+  gate = await final();
+  assert.deepEqual([gate.status, gate.json.code, gate.json.details?.reason], [409, "DS_APPROVAL_PENDING", "requested"], JSON.stringify(gate.json));
+  assert.equal((await call("POST", `/studio/approvals/${asked.json.id}/decide`, S.admin, { decision: "approve" })).json.code, "DS_ROLE", "an Admin can't approve");
+  ok(await call("POST", `/studio/approvals/${asked.json.id}/decide`, S.people.manager, { decision: "approve" }));
+  const list = await call("GET", `/studio/docs/${S.ds.id}/approvals`, S.admin);
+  ok(list);
+  assert.deepEqual([list.json.current.id, list.json.current.state, list.json.current.rev, list.json.stale, list.json.requireReview], [asked.json.id, "approved", S.ds.rev, false, true]);
+  // The approval lets the final through to DS-12's checks gate: DS-W7 still finds the period unsettled.
+});
 
 pendingStep("DS-W7 the Manager generates the final; it is immutable and its SHA matches the download", "DS-11", dsBuilt("POST", "/docs/:id/jobs"), async (t) => {
   if (!(await dsHasChromium())) return t.skip("Chromium is not installed (npx playwright install chromium)");
