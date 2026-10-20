@@ -10,10 +10,12 @@
  */
 import { Router } from "express";
 import { requireDesignStudio, studioStatus } from "./guard";
+import brandKitRouter from "./brandkit/router"; // DS-3
 
 const router = Router();
 
 router.get("/status", studioStatus); // DS-0: {enabled, kinds: {ghg, sustainability}}, answers when off
 router.use(requireDesignStudio); // DS-0: 403 DS_STUDIO_OFF / DS_ROLE below this line
+router.use(brandKitRouter); // DS-3: /studio/brand-kit, /studio/styles
 
 export default router;
