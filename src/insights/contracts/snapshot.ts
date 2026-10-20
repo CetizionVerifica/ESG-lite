@@ -31,6 +31,8 @@ export const contractsSnapshot = () => ({
   },
   limits: { DECOUPLING_YEARS_DEFAULT, DECOUPLING_YEARS_MAX, STRIPES_MONTHS_MAX, EVENT_LABEL_MAX, MAX_CARDS, AI_TEXT_MAX },
   panelPaths: { ...PANEL_PATHS },
+  /** Non-panel endpoints under /insights (01-contracts §4). */
+  otherPaths: ["/status", "/sites", "/events", "/events/:id", "/snapshot.pdf"],
   rules: Object.fromEntries(RULE_IDS.map((id) => [id, { severities: [...RULES[id].severities], params: [...RULES[id].params] }])),
   errors: Object.fromEntries(Object.entries(IN_ERRORS).map(([code, e]) => [code, e.status])),
 });

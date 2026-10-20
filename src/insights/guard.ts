@@ -17,6 +17,8 @@
  *                            read (a Manager's own; every site for an Admin or
  *                            Superadmin), sorted. IN-1's scope.ts narrows them
  *                            with the `sites` query (404 IN_SITE_NOT_FOUND).
+ *   insightsSites            GET /insights/sites → {sites:[{site_id, name}]}, the
+ *                            caller's sites (behind the guard), for the header chips.
  *   insightsStatus           GET /insights/status → {enabled, kpi_tracking};
  *                            any role of the company, answers while off (nav).
  */
@@ -27,7 +29,7 @@ import { callerSites, kpiCompanyFor, kpiTrackingEnabled } from "../kpi/guard";
 import { KpiError } from "../kpi/contracts/errors";
 import { INSIGHTS_ROLES } from "./contracts/enums";
 import { InError } from "./contracts/errors";
-import type { InsightsStatus } from "./contracts/panels";
+import type { InsightsSites, InsightsStatus } from "./contracts/panels";
 import { handle } from "./http";
 
 export interface InsightsCaller {
@@ -100,5 +102,15 @@ export const insightsStatus = handle("status", async (req, res) => {
   const companyId = await insightsCompanyFor(req);
   const enabled = await insightsEnabled(companyId);
   const body: InsightsStatus = { enabled, kpi_tracking: await kpiTrackingEnabled(companyId) };
+  res.json(body);
+});
+
+/** GET /insights/sites (behind requireInsights): the caller's sites, by name. */
+export const insightsSites = handle("sites", async (req, res) => {
+  const scope = insightsScope(req as InsightsRequest);
+  const rows: Array<{ site_id: number; name: string }> = scope.siteIds.length
+    ? await AppDataSource.query(`SELECT site_id, name FROM site WHERE company_id = $1 AND site_id = ANY($2::int[]) ORDER BY name, site_id`, [scope.companyId, scope.siteIds])
+    : [];
+  const body: InsightsSites = { sites: rows.map((r) => ({ site_id: Number(r.site_id), name: String(r.name) })) };
   res.json(body);
 });

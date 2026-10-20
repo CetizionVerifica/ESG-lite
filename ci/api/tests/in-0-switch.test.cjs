@@ -150,32 +150,43 @@ test("role matrix with the switch on: Users get IN_FORBIDDEN, Managers, Admins a
   assert.equal(r.json.code, "IN_COMPANY_REQUIRED");
 });
 
-test("the guard's caller context: sites in the company, allSites, kpiOn (dist/insights/guard.js)", async () => {
+test("insightsScope needs the guard; the role list is I1's", () => {
+  // The caller context itself (siteIds per role) is read back through GET /insights/sites below:
+  // the guard needs the server's database connection, so it is exercised over HTTP.
   const guard = require(path.resolve(__dirname, "../../../dist/insights/guard.js"));
-  const run = (req) =>
-    new Promise((resolve) => {
-      const res = { status(s) { this.s = s; return this; }, json(b) { resolve({ status: this.s, body: b, req }); return this; } };
-      guard.requireInsights(req, res, () => resolve({ passed: true, req }));
-    });
-  const as = (userId, role, query = {}) => ({ user: { userId, role }, query, body: {} });
-  // Off: IN_OFF for everyone.
-  assert.equal((await run(as(3, "Admin"))).body.code, "IN_OFF");
+  assert.throws(() => guard.insightsScope({}), /requireInsights did not run/);
+  const scope = { companyId: 1, userId: 2, role: "Manager", siteIds: [1, 2], allSites: true, kpiOn: false };
+  assert.equal(guard.insightsScope({ insights: scope }), scope);
+  for (const role of ["Manager", "Admin", "Superadmin"]) assert.equal(guard.isInsightsRole(role), true, role);
+  for (const role of ["User", "", "manager"]) assert.equal(guard.isInsightsRole(role), false, role);
+});
+
+test("GET /insights/sites: the caller's sites of the company, by name; site scope for Managers", async () => {
   await setInsights(1, true);
-  await setKpi(1, true);
+  await setInsights(2, true);
   try {
-    const admin = await run(as(3, "Admin"));
-    assert.ok(admin.passed);
-    assert.deepEqual(guard.insightsScope(admin.req), { companyId: 1, userId: 3, role: "Admin", siteIds: [1, 2], allSites: true, kpiOn: true });
-    const manager = await run(as(2, "Manager"));
-    assert.deepEqual(guard.insightsScope(manager.req).siteIds, [1, 2]);
-    const sa = await run(as(5, "Superadmin", { company_id: "1" }));
-    assert.deepEqual(guard.insightsScope(sa.req), { companyId: 1, userId: 5, role: "Superadmin", siteIds: [1, 2], allSites: true, kpiOn: true });
-    const user = await run(as(1, "User"));
-    assert.deepEqual([user.status, user.body.code], [403, "IN_FORBIDDEN"]);
-    assert.throws(() => guard.insightsScope({}), /requireInsights did not run/);
+    const names = await withDb(async (db) => (await db.query(`SELECT site_id, name FROM site ORDER BY name, site_id`)).rows);
+    const of = (ids) => names.filter((r) => ids.includes(r.site_id)).map((r) => ({ site_id: r.site_id, name: r.name }));
+    for (const who of ["admin", "manager"]) {
+      const r = await call("GET", "/insights/sites", who);
+      assert.equal(r.status, 200, `${who}: ${JSON.stringify(r.json)}`);
+      assert.deepEqual(r.json, { sites: of([1, 2]) }, who);
+    }
+    assert.deepEqual((await call("GET", "/insights/sites?company_id=1", "superadmin")).json, { sites: of([1, 2]) });
+    assert.deepEqual((await call("GET", "/insights/sites", "otherManager")).json, { sites: of([3]) }, "company 2 sees only its own");
+    assert.equal((await call("GET", "/insights/sites", "user")).json.code, "IN_FORBIDDEN");
+    assert.equal((await call("GET", "/insights/sites?company_id=2", "manager")).json.code, "IN_SITE_NOT_FOUND");
+    // Site scope: a Manager of site 1 only sees site 1 (accessibleSiteIds), an Admin still sees both.
+    await withDb((db) => db.query(`DELETE FROM user_sites WHERE user_id = 2 AND site_id = 2`));
+    try {
+      assert.deepEqual((await call("GET", "/insights/sites", "manager")).json, { sites: of([1]) });
+      assert.deepEqual((await call("GET", "/insights/sites", "admin")).json, { sites: of([1, 2]) });
+    } finally {
+      await withDb((db) => db.query(`INSERT INTO user_sites (user_id, site_id) VALUES (2, 2) ON CONFLICT DO NOTHING`));
+    }
   } finally {
     await setInsights(1, false);
-    await setKpi(1, false);
+    await setInsights(2, false);
   }
 });
 

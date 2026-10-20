@@ -120,6 +120,13 @@
     "materiality": "/materiality",
     "stripes": "/stripes"
   },
+  "otherPaths": [
+    "/status",
+    "/sites",
+    "/events",
+    "/events/:id",
+    "/snapshot.pdf"
+  ],
   "rules": {
     "decoupling": {
       "severities": [

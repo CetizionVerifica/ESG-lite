@@ -124,6 +124,7 @@ All under `/insights`, behind `authenticate` → `requireInsights`. Roles: M = M
 | Method | Path | Roles | Module | Notes |
 |---|---|---|---|---|
 | GET | `/insights/status` | M A S U | IN-0 | `{enabled, kpi_tracking}`; no switch check (for the nav) |
+| GET | `/insights/sites` | M A S | IN-0 | `{sites:[{site_id, name}]}`, the caller's sites for the header chips (IN-0 addition, works without KPI tracking) |
 | GET | `/insights/summary` | M A S | IN-1 | |
 | GET | `/insights/esg-ring` | M A S | IN-2 | KPI |
 | GET | `/insights/decoupling` | M A S | IN-2 | `?years=5` (default 5, max 10) |

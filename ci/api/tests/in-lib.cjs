@@ -44,7 +44,7 @@ const insightsRoutes = () => {
  * for built ones. A module that adds a route outside §4 appends it here.
  */
 const INSIGHTS_CONTRACT_ROUTES = [
-  ["GET", "/summary?year=2025"], ["GET", "/esg-ring"], ["GET", "/decoupling?years=5"], ["GET", "/target-wall"],
+  ["GET", "/sites"], ["GET", "/summary?year=2025"], ["GET", "/esg-ring"], ["GET", "/decoupling?years=5"], ["GET", "/target-wall"],
   ["GET", "/cards"], ["GET", "/cards?ai=1"], ["GET", "/pathway"], ["GET", "/completeness"],
   ["GET", "/events?from=2025-01-01&to=2025-12-31"], ["POST", "/events"], ["PATCH", "/events/1"], ["DELETE", "/events/1"],
   ["GET", "/bridge?compare=base"], ["GET", "/flow"], ["GET", "/materiality"], ["GET", "/stripes"], ["GET", "/snapshot.pdf"],

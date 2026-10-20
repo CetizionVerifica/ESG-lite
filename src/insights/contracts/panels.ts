@@ -40,6 +40,11 @@ export interface InsightsStatus {
   kpi_tracking: boolean;
 }
 
+/** GET /insights/sites (IN-0 addition): the caller's sites in the company, for the header's site chips. */
+export interface InsightsSites {
+  sites: Array<{ site_id: number; name: string }>;
+}
+
 // IN-1 · GET /insights/summary
 export interface Summary {
   net: { value: number; unit: "tCO2e"; prior: number | null; change_pct: number | null; good: boolean | null };

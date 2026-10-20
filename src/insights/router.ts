@@ -9,11 +9,12 @@
  * KPI panels answer `availability: 'kpi_off'` themselves (insightsScope().kpiOn).
  */
 import { Router } from "express";
-import { insightsStatus, requireInsights } from "./guard";
+import { insightsSites, insightsStatus, requireInsights } from "./guard";
 
 const router = Router();
 
 router.get("/status", insightsStatus); // IN-0: {enabled, kpi_tracking}, answers when off
 router.use(requireInsights); // IN-0: 403 IN_OFF / IN_FORBIDDEN below this line
+router.get("/sites", insightsSites); // IN-0: the caller's sites for the header chips
 
 export default router;
