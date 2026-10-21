@@ -13,8 +13,14 @@ const { withDb } = require("../helpers.cjs");
 
 const ROOT = path.resolve(__dirname, "../../..");
 const CASES = require(path.join(ROOT, "ci/golden/in/cases.json"));
-const SEED = fs.readFileSync(path.join(ROOT, "ci/fixtures/in-company/seed.sql"), "utf8");
-const CLEANUP = fs.readFileSync(path.join(ROOT, "ci/fixtures/in-company/cleanup.sql"), "utf8");
+// seed.sql, then each module's own seed-<module>.sql (IN-2, IN-4, …) in name order; cleanup the
+// same way, modules first. Each module keeps its fixture rows in its own file so parallel lanes
+// never edit the same SQL.
+const FIXTURE_DIR = path.join(ROOT, "ci/fixtures/in-company");
+const sqlFiles = (prefix) => fs.readdirSync(FIXTURE_DIR).filter((f) => f.startsWith(`${prefix}-`) && f.endsWith(".sql")).sort();
+const read = (f) => fs.readFileSync(path.join(FIXTURE_DIR, f), "utf8");
+const SEED = [read("seed.sql"), ...sqlFiles("seed").map(read)].join("\n");
+const CLEANUP = [...sqlFiles("cleanup").map(read), read("cleanup.sql")].join("\n");
 
 /** Fixture people (ci/fixtures/in-company/seed.sql). */
 const PEOPLE = {

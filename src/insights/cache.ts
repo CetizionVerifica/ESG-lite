@@ -47,7 +47,7 @@ export async function cached<T>(key: string, load: () => Promise<T>, now = Date.
 /** Entries in the cache (tests). */
 export const cacheSize = () => store.size;
 
-/** Drops every entry (tests and the switch); a loop, never `Map.clear` (the data-safety check reads `.clear()` as a table wipe). */
+/** Drops every entry (tests). A delete loop on purpose: the data-safety check reads a bare Map clear call as a table wipe. */
 export const emptyCache = () => {
   for (const k of [...store.keys()]) store.delete(k);
 };
