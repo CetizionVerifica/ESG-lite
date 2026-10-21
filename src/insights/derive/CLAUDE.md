@@ -35,3 +35,16 @@ Answer the board's question "why did emissions change?" with drivers that add up
 
 ## Done when
 Drivers always sum to the change, the fixture matches by hand, and the drawer explains every bar.
+
+## IN-5 as built (backend)
+- **`derive/lmdi.ts`** (pure): `logMean(a, b)` (L(a,a) = a), `lmdiAdditive(components)` (components = products of named factors; effects summed by factor name across components; zero/negative values → `SMALL` 1e-9, listed in `substituted`), `bridgeSteps(from, to, {unit, outputIndex})`, `stepLabel`, `NO_PRODUCTION_NOTE`, `RESIDUE_MAX`.
+  - Scope 1 = Q × I₁, Scope 2 = Q × kWh/Q × tCO₂e/kWh (the activity effect is the sum over both); Scope 3 = its change; Other = −Δ saved (no-scope rows, net = gross − saved) plus the whole change of a scope without inputs.
+  - Steps in contract order; `energy_intensity_s2` / `grid_and_renewables_s2` only when both years have kWh and Scope 2 exists; `other` only when ≠ 0; production missing → `scope3` + `other` only, note "Add production data to split by driver."
+  - The waterfall closes exactly: the leftover (float residue of the logs, and Overview's 3-decimal rounding of each figure, ≤ `RESIDUE_MAX` 0.005 t) is added to the largest step; anything larger throws.
+  - Labels by sign: "More/Less output", "Better/Worse process efficiency", "Less/More electricity per <unit>", "Cleaner electricity" / "More carbon-intensive electricity", "Supply chain (Scope 3)", "Other".
+  - `inputs` per step: activity {q_from, q_to, ln_ratio, l_scope1, l_scope2}; intensity_s1 {i_from, i_to, l, ln_ratio, scope1_from, scope1_to}; energy_intensity_s2 {kwh_per_q_from/to, kwh_from/to, l, ln_ratio}; grid {tco2e_per_kwh_from/to, scope2_from/to, l, ln_ratio, renewable_pct_from/to}; scope3 {scope3_from/to}; other {saved_from/to, scope1_change?, scope2_change?}.
+- **`GET /insights/bridge?compare=prior|base`** (`panels/bridge.ts`, `buildBridge`; one router line `// IN-5`): from/to = Overview's approved net (sources/emissions). `compare=base` = the SBTi base year (`sbtiSetup`) when earlier than the period year, else the first reporting year with an approved row on the scope's sites (`sources/bridge.ts firstApprovedYear`, new); nothing earlier → `no_data`. Either year without an approved entry → `no_data`.
+  - Q: Σ approved production when every site uses one unit; when units differ, a combined output index (from = 100; each site indexed in its own unit, weighted by its from-year emissions — derive `combinedOutputIndex`, I7) and a note.
+  - kWh: sources/energy (Scope 2 + renewable electricity rows); a year whose rows can't be read as energy (e.g. 0 kWh) has none → Scope 2 folded into Other with a note naming the year.
+  - Notes also list up to 3 events (IN-4 `eventsInRange`) between the two years.
+- **Tests:** `ci/unit/in-5-lmdi.test.cjs` (L, 500-case identity property test, small values, the 52,100 → 49,700 example, folding, rounding residue, labels); `ci/api/tests/in-5-bridge.test.cjs` (production missing, LMDI by hand with a 0 kWh year, compare=base with and without a base year, no_data, roles, site scope, tenant, switch-off); golden suite `bridge` runs (`ci/golden/in/bridge/fixture.json`: 2024 → 2025 all sites as an output index, the Manager's one-unit sites, base 2021 → 2025 on site 902, no_data, events in notes).

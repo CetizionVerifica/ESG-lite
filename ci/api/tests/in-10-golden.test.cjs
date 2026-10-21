@@ -173,6 +173,31 @@ const GROUPS = {
       await withDb((db) => db.query(`UPDATE company SET kpi_tracking_enabled = false WHERE company_id = 901`));
     }
   },
+  // IN-5 · bridge: hand-worked LMDI steps on the fixture; Σ steps = to − from exactly; no_data.
+  async bridge(suite) {
+    const g = load(suite.file);
+    for (const c of g.cases) {
+      const r = await get(c.who, `/insights/bridge?${c.query}`);
+      assert.equal(r.status, 200, `${c.name}: ${JSON.stringify(r.json)}`);
+      assert.equal(r.json.availability, "ok", c.name);
+      const d = r.json.data;
+      matches(d.from, c.expected.from, `${c.name} from`);
+      matches(d.to, c.expected.to, `${c.name} to`);
+      assert.deepEqual(d.steps.map((s) => s.driver), c.expected.steps.map((s) => s.driver), `${c.name} drivers`);
+      c.expected.steps.forEach((e, i) => assert.ok(Math.abs(d.steps[i].value - e.value) <= 1e-6, `${c.name} ${e.driver}: ${d.steps[i].value} vs ${e.value}`));
+      const sum = d.steps.reduce((a, s) => a + s.value, 0);
+      assert.ok(Math.abs(sum - (d.to.value - d.from.value)) <= 1e-9, `${c.name}: Σ steps ${sum}`);
+      assert.ok(Math.abs(sum - c.sum) <= 1e-9, `${c.name}: Σ by hand`);
+      for (const n of c.notes_include ?? []) assert.ok(d.notes.some((x) => x.includes(n)), `${c.name}: a note mentions ${n}: ${JSON.stringify(d.notes)}`);
+      for (const n of c.notes_exclude ?? []) assert.ok(!d.notes.some((x) => x.includes(n)), `${c.name}: no note mentions ${n}`);
+      for (const [driver, label] of Object.entries(c.labels ?? {})) assert.equal(d.steps.find((s) => s.driver === driver).label, label, `${c.name} ${driver} label`);
+    }
+    for (const c of g.no_data) {
+      const r = await get(c.who, `/insights/bridge?${c.query}`);
+      assert.equal(r.json.availability, "no_data", c.name);
+      assert.equal(r.json.data, null);
+    }
+  },
   // IN-6 · flow: tonnes conserved 0→1 and 1→2, disclosure counts = mapped rows of the enabled frameworks.
   async flow(suite) {
     const g = load(suite.file);
