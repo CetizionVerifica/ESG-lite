@@ -103,6 +103,8 @@ export interface StudioAsset {
   /** DS-4 */
   sha256: string;
   createdAt: string;
+  /** PRO-0 (PE-1): set on a derived asset (background removed); the source asset is kept. */
+  derivedFrom?: { assetId: string; op: "remove_background" } | null;
 }
 
 const csv = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);

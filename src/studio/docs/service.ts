@@ -328,7 +328,8 @@ export function registerPatchGuard(fn: PatchGuard): void {
   if (!patchGuards.includes(fn)) patchGuards.push(fn);
 }
 
-export async function patchDoc(caller: StudioCaller, id: number, rawBody: unknown) {
+/** `opts.templateId` (AT-2 template swap, server only): the doc's new template, saved with the draft. */
+export async function patchDoc(caller: StudioCaller, id: number, rawBody: unknown, opts: { templateId?: number } = {}) {
   // The doc first: another company's id answers 404 whatever the body (layer rule 1).
   const row = await loadDocRow(caller, id);
   const body = parse(PatchDocBodySchema, rawBody ?? {});
@@ -343,7 +344,7 @@ export async function patchDoc(caller: StudioCaller, id: number, rawBody: unknow
   const { readable, all } = await readableSites(caller);
   checkSites(doc.meta.sites, readable, all);
   for (const guard of patchGuards) await guard(caller, row.draft, doc as unknown as Json); // DS-13 (template locks)
-  const rev = await updateDraft(caller, id, body.rev, doc as unknown as Json, { title: doc.meta.title });
+  const rev = await updateDraft(caller, id, body.rev, doc as unknown as Json, { title: doc.meta.title, ...(opts.templateId !== undefined ? { templateId: opts.templateId } : {}) });
   // Version history (D16): an autosave every 10 minutes of editing, with the data hash.
   await autosaveIfDue(id, { doc: doc as unknown as Json, rev, dataHash: row.dataHash, designVersion: doc.design.templateVersion, userId: caller.userId });
   return docResponse(await loadDocRow(caller, id));

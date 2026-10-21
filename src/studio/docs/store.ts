@@ -187,7 +187,7 @@ export const saveBuild = (id: number, build: BuildProgress) => AppDataSource.que
  * Writes a new draft when `rev` is current: rev + 1, title and the doc-level
  * columns from the draft. DS_VERSION_CONFLICT `{rev}` otherwise.
  */
-export async function updateDraft(caller: StudioCaller, id: number, rev: number, draft: Row, extra: { title: string; dataHash?: string | null; build?: BuildProgress | null }): Promise<number> {
+export async function updateDraft(caller: StudioCaller, id: number, rev: number, draft: Row, extra: { title: string; dataHash?: string | null; build?: BuildProgress | null; templateId?: number }): Promise<number> {
   const params: unknown[] = [JSON.stringify(draft), extra.title, draft.meta?.year, draft.meta?.yearType, draft.purpose, draft.format, caller.userId || null, id, caller.companyId, rev];
   let set = `draft = $1::jsonb, title = $2, year = $3, year_type = $4, purpose = $5, format = $6, updated_by = $7, rev = rev + 1, updated_at = now()`;
   if (extra.dataHash !== undefined) {
@@ -197,6 +197,11 @@ export async function updateDraft(caller: StudioCaller, id: number, rev: number,
   if (extra.build !== undefined) {
     params.push(extra.build ? JSON.stringify(extra.build) : null);
     set += `, build = $${params.length}::jsonb`;
+  }
+  if (extra.templateId !== undefined) {
+    // AT-2: a template swap moves the doc to its new template in the same statement as the new rev.
+    params.push(extra.templateId);
+    set += `, template_id = $${params.length}`;
   }
   const res = await AppDataSource.query(`UPDATE report_doc SET ${set} WHERE id = $8 AND company_id = $9 AND rev = $10 AND deleted_at IS NULL RETURNING rev`, params);
   const rows: Row[] = Array.isArray(res[0]) ? res[0] : res;

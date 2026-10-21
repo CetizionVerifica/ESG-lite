@@ -9,6 +9,7 @@ module.exports = async function ai(ctx, kase) {
   const { TextDocSchema } = require(path.join(ctx.root, "dist/studio/contracts/index.js"));
   const { replay, renderText, tokensOf } = require("../lib/ai.cjs");
   const action = kase.params.action;
+  if (action === "suggest_layouts") return require("../lib/layouts.cjs").layoutsGolden(); // AT-2: built in swap/layouts.ts
   if (!ACTIONS[action]) return { action, built: false };
   const r = replay(action);
   if (!r) return { action, built: true, recorded: false };

@@ -85,6 +85,7 @@ export async function previewHtml(caller: StudioCaller, docId: number, query: un
     brand: inputs.brand,
     assets: inputs.assets,
     inlineFonts: true,
+    customFonts: inputs.customFonts, // PE-2
     cropMarks: q.mode === "print" && q.cropMarks === "1",
   });
   return { html: withBridge(document), rev: row.rev };

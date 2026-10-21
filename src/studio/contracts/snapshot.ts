@@ -11,6 +11,8 @@ import { ASSET_KINDS, FRAME_MASKS, TEXT_MARK_TYPES, TEXT_NODE_TYPES } from "./sc
 import { DS_ERRORS } from "./errors";
 import { CHECK_FIXES, CHECK_IDS, CHECK_RULES } from "./checks";
 import { AI_ACTIONS, SUGGESTION_KINDS } from "./ai";
+import { IMAGE_ADJUST_KEYS, IMAGE_FILTERS, TEXT_EFFECTS } from "./proProps"; // PRO-0
+import { BRIEF_AUDIENCES, BRIEF_LENGTHS, BRIEF_PURPOSES, BRIEF_TONES, FONT_FILE_FORMATS, FONT_STYLES, FONT_WEIGHTS, IMAGE_JOB_KINDS, LAYOUT_OPTION_IDS, READINESS_BADGE_KEYS, READINESS_LEVELS, SWAP_PAGE_STATUSES } from "./pro"; // PRO-0
 
 export function contractsSnapshot() {
   return {
@@ -32,6 +34,22 @@ export function contractsSnapshot() {
       CHECK_FIXES,
       AI_ACTIONS,
       SUGGESTION_KINDS,
+      // PRO-0
+      IMAGE_FILTERS,
+      IMAGE_ADJUST_KEYS,
+      TEXT_EFFECTS,
+      BRIEF_PURPOSES,
+      BRIEF_AUDIENCES,
+      BRIEF_LENGTHS,
+      BRIEF_TONES,
+      READINESS_BADGE_KEYS,
+      READINESS_LEVELS,
+      LAYOUT_OPTION_IDS,
+      SWAP_PAGE_STATUSES,
+      IMAGE_JOB_KINDS,
+      FONT_FILE_FORMATS,
+      FONT_WEIGHTS,
+      FONT_STYLES,
     },
     reportInputKinds: REPORT_INPUT_KINDS,
     errors: Object.fromEntries(Object.entries(DS_ERRORS).map(([code, e]) => [code, e.status])),

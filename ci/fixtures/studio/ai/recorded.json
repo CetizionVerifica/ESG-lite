@@ -161,5 +161,12 @@
    "elementId": "s-highlights.text"
   },
   "answer": "{\"paragraphs\": [\"Energy use was {{kpi:ENERGY_TOTAL|current|value}} GJ.\"]}"
+ },
+ "suggest_layouts": {
+  "doc": "ghg",
+  "target": {
+   "pageId": "p-summary"
+  },
+  "answer": "{\"options\": [{\"layoutSlug\": \"ghg-one-page/summary\", \"name\": \"Chart + story\", \"reason\": \"The split chart answers where emissions come from first; the story sits beside it.\", \"slots\": [{\"slot\": \"split\", \"elementId\": \"p-summary.split\"}, {\"slot\": \"notes\", \"elementId\": \"p-summary.body\"}]}, {\"layoutSlug\": \"ghg-inventory/exec_summary\", \"name\": \"Big numbers first\", \"reason\": \"Leads with the headline figures, then the two charts and the summary text.\", \"slots\": [{\"slot\": \"summary\", \"elementId\": \"p-summary.body\"}, {\"slot\": \"waterfall\", \"elementId\": \"p-summary.waterfall\"}]}, {\"layoutSlug\": \"ghg-inventory/scope2\", \"name\": \"Two charts side by side\", \"reason\": \"Puts both charts at the same size so readers compare them directly.\", \"slots\": []}]}"
  }
 }

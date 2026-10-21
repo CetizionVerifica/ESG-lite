@@ -42,6 +42,13 @@ export const DS_ERRORS = {
   // Plumbing (not in 01-contracts; added by DS-0 for every route, as KPI-0 did)
   DS_VALIDATION: { status: 400, message: "The request isn't valid." },
   DS_COMPANY_REQUIRED: { status: 400, message: "Choose a client (company_id)." },
+  // PRO-0: Pro editing and AI templates (docs/design-studio/pro/)
+  DS_NOT_BUILT: { status: 501, message: "This isn't available yet." },
+  DS_BG_UNAVAILABLE: { status: 503, message: "Background remover isn't set up on this server yet." },
+  DS_FONT_TYPE: { status: 415, message: "Upload a WOFF2, TTF or OTF font." },
+  DS_FONT_TOO_LARGE: { status: 413, message: "Fonts can be up to 5 MB." },
+  DS_FONT_LICENCE: { status: 422, message: "Confirm that your company holds a licence to embed this font in PDFs." },
+  DS_FONT_EXISTS: { status: 409, message: "This font family already has that weight and style." },
 } as const;
 
 export type DsErrorCode = keyof typeof DS_ERRORS;

@@ -3,7 +3,7 @@
  */
 import type { FormatSpec } from "./formats";
 import type { Theme } from "./theme";
-import type { RenderAssets, RenderData, RenderDoc, RenderMode } from "./types";
+import type { RenderAssets, RenderCustomFont, RenderData, RenderDoc, RenderMode } from "./types";
 
 export interface RenderContext {
   doc: Pick<RenderDoc, "kind" | "format" | "meta" | "assets">;
@@ -19,6 +19,8 @@ export interface RenderContext {
   pages: { id: string; name: string; bookmark?: string; kind: "freeform" | "flow" }[];
   /** DS-7: the number of the first footnote in the text being rendered (footnotes.ts). */
   footnoteBase?: number;
+  /** PE-2: uploaded brand fonts by ref (`custom:<id>`). */
+  customFonts?: Record<string, RenderCustomFont>;
 }
 
 export const assetUrl = (ctx: RenderContext, id: string | undefined): string | null => (id ? (ctx.assets.urls[id] ?? null) : null);

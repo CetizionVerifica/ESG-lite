@@ -308,7 +308,7 @@ test("validation: unbuilt actions, wrong targets and unknown pages answer DS_VAL
   await setStudio(1, true);
   const doc = await makeDoc("DS-9 Validation");
   const cases = [
-    { action: "suggest_layouts", target: { pageId: "p-summary" } },
+    { action: "chart_kind", target: { pageId: "p-summary" } }, // AT-2 built suggest_layouts
     { action: "rewrite_shorter" },
     { action: "rewrite_shorter", target: { pageId: "p-summary", elementId: "p-summary.split" } },
     { action: "chart_title", target: BODY_TARGET },

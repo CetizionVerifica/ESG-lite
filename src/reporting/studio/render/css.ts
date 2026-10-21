@@ -103,6 +103,10 @@ const BASE = `
 .ds-toc a{display:flex;gap:2mm;color:var(--ink);text-decoration:none;}
 .ds-toc-dots{flex:1;border-bottom:0.3mm dotted var(--muted);margin-bottom:1.2mm;}
 .ds-toc-page{font-variant-numeric:tabular-nums;}
+.ds-hl{padding:0.04em 0.22em;box-decoration-break:clone;-webkit-box-decoration-break:clone;}
+.ds-text--curve,.ds-curve{overflow:visible;}
+.ds-curve{display:block;}
+@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}
 `;
 
 const PAGED = (f: FormatSpec, mode: RenderMode, cropMarks: boolean, title: string): string => {

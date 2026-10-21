@@ -1,0 +1,19 @@
+{
+  "effect": "shadow",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.shadow\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"shadow\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;text-shadow:0.6mm 1.2mm 1.2mm rgba(15,23,42,0.35);\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></p></div></div></div>",
+  "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
+  "props": {
+    "align": "left",
+    "effects": {
+      "shadow": {
+        "blur": 30,
+        "colour": "#0F172A",
+        "offsetX": 20,
+        "offsetY": 40,
+        "opacity": 35
+      }
+    },
+    "font": null
+  },
+  "sha256": "9925245af69f41a37970ed7c14aad6d208c1cad4facd65d97b481e4e91d3fb3c"
+}
