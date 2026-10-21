@@ -17,6 +17,7 @@ import { kpiCaller, type KpiRequest } from "../guard";
 import { handle, routeId } from "../http";
 import { getPeopleTopics, putPeopleTopics } from "./topics";
 import { createCustomKpi, getSetup, inviteTeam, putSetup } from "./service";
+import { materialityScoresRoute } from "../../insights/scores"; // IN-7
 
 const router = Router();
 const caller = (req: unknown) => kpiCaller(req as KpiRequest);
@@ -24,6 +25,7 @@ const caller = (req: unknown) => kpiCaller(req as KpiRequest);
 router.get("/setup", handle("get setup", async (req, res) => res.json(await getSetup(caller(req)))));
 router.put("/setup", handle("save setup", async (req, res) => res.json(await putSetup(caller(req), req.body))));
 router.post("/setup/invite", handle("invite team", async (req, res) => res.json(await inviteTeam(caller(req)))));
+router.put("/setup/materiality-scores", materialityScoresRoute); // IN-7: Admin, Superadmin; scores for the Insights matrix (and RS-2 / DS-2)
 router.post("/setup/custom-kpis", handle("custom KPI", async (req, res) => res.status(201).json({ definition: await createCustomKpi(caller(req), req.body) })));
 
 router.get("/people/:user_id/topics", handle("people topics", async (req, res) => res.json(await getPeopleTopics(caller(req), routeId(req.params.user_id)))));

@@ -1,0 +1,42 @@
+{
+  "about": "IN-9 · recorded model answers for card wording, replayed by ci/unit/in-9-ai.test.cjs (guard decisions) and by the stub in ci/api/tests/in-9-ai.test.cjs. No live model call in CI. `expected` is the guard's verdict for each card: null = accepted, else the reason the rule text is kept.",
+  "cards": [
+    { "id": "largest_source", "rule": "largest_source", "params": { "category": "Stationary Combustion", "share_pct": 54 } },
+    { "id": "pathway_gap", "rule": "pathway_gap", "params": { "gap_pct": 8.2, "target_year": 2030 } },
+    { "id": "site_concentration", "rule": "site_concentration", "params": { "site": "Plant North", "scope": 1, "share_pct": 61 } },
+    { "id": "pending_large", "rule": "pending_large", "params": { "count": 3, "link": "/data/approvals" } },
+    { "id": "decoupling", "rule": "decoupling", "params": { "output_pct": 20, "emissions_pct": 14, "base_year": 2021 } },
+    { "id": "intensity_change", "rule": "intensity_change", "params": { "change_pct": 7.3, "unit": "t" } }
+  ],
+  "answers": [
+    {
+      "name": "a good answer: every card worded within the rules",
+      "content": { "cards": [
+        { "id": "largest_source", "text": "{{v:category}} makes up {{v:share_pct}}% of your footprint, more than any other source." },
+        { "id": "pathway_gap", "text": "This year's emissions sit {{v:gap_pct}}% above the pathway to {{v:target_year}}." },
+        { "id": "site_concentration", "text": "{{v:site}} produces {{v:share_pct}}% of Scope {{v:scope}} emissions." },
+        { "id": "pending_large", "text": "{{v:count}} entries still waiting for approval could change these figures." },
+        { "id": "decoupling", "text": "Since {{v:base_year}}, output is up {{v:output_pct}}% while emissions are down {{v:emissions_pct}}%." },
+        { "id": "intensity_change", "text": "Emissions per {{v:unit}} of output moved {{v:change_pct}}% on last year." }
+      ] },
+      "expected": { "largest_source": null, "pathway_gap": null, "site_concentration": null, "pending_large": null, "decoupling": null, "intensity_change": null }
+    },
+    {
+      "name": "a bad answer: numbers written out, a token dropped, a URL, a claim, too long",
+      "content": { "cards": [
+        { "id": "largest_source", "text": "{{v:category}} is {{v:share_pct}}% of your 2025 footprint." },
+        { "id": "pathway_gap", "text": "Emissions are {{v:gap_pct}}% above the pathway." },
+        { "id": "site_concentration", "text": "See https://example.invalid: {{v:site}} is {{v:share_pct}}% of Scope {{v:scope}}." },
+        { "id": "pending_large", "text": "We guarantee {{v:count}} entries waiting will change these figures." },
+        { "id": "decoupling", "text": "Since {{v:base_year}}, output is up {{v:output_pct}}% while emissions are down {{v:emissions_pct}}%, which is a remarkable achievement that shows how the whole company has worked together across every plant and every team to cut carbon." },
+        { "id": "intensity_change", "text": "Emissions per {{v:unit}} moved {{v:change_pct}}% and {{v:extra}} on last year." }
+      ] },
+      "expected": { "largest_source": "digit_outside_token", "pathway_gap": "missing_token:target_year", "site_concentration": "url", "pending_large": "blocked_word:guarantee", "decoupling": "too_long", "intensity_change": "unknown_token:extra" }
+    },
+    {
+      "name": "not JSON at all",
+      "content": "Here are your sentences: great job!",
+      "expected": "unparsable"
+    }
+  ]
+}

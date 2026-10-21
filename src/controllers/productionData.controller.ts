@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
+import { emissionIntensityComparison } from "../services/emissionIntensity.service"; // IN-1
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { Product } from "../entities/Product";
 import { Emission, EmissionStatus } from "../entities/Emission";
@@ -501,39 +502,7 @@ export const getEmissionIntensityComparison = async (req: Request, res: Response
       };
     }
 
-    const results = await Promise.all(
-      siteIdArray.map(async (siteId) => {
-        // Get emissions (excluding null-scope categories like Renewable Electricity)
-        const emissionsResult = await emissionRepo
-          .createQueryBuilder("e")
-          .leftJoin("e.category", "category")
-          .select("SUM(e.total_emission)", "totalEmissions")
-          .where("e.site_id = :siteId", { siteId })
-          .andWhere("e.status = :status", { status: EmissionStatus.APPROVED })
-          .andWhere("e.date_of_reporting BETWEEN :startDate AND :endDate", dateFilter)
-          .andWhere("category.scope IS NOT NULL") // Exclude null-scope categories
-          .getRawOne();
-
-        // Get production (approved only)
-        const productionResult = await repo
-          .createQueryBuilder("pd")
-          .select("SUM(pd.quantity)", "totalProduction")
-          .where("pd.site_id = :siteId", { siteId })
-          .andWhere("pd.status = :prodStatus", { prodStatus: ProductionDataStatus.APPROVED })
-          .andWhere("pd.start_date <= :endDate AND pd.end_date >= :startDate", dateFilter)
-          .getRawOne();
-
-        const emissions = parseFloat(emissionsResult?.totalEmissions || 0);
-        const production = parseFloat(productionResult?.totalProduction || 0);
-
-        return {
-          siteId,
-          totalEmissions: emissions,
-          totalProduction: production,
-          emissionIntensity: production > 0 ? emissions / production : 0,
-        };
-      })
-    );
+    const results = await emissionIntensityComparison(siteIdArray, dateFilter); // IN-1 (moved, unchanged)
 
     return res.status(200).json({
       comparison: results,

@@ -1,0 +1,247 @@
+{
+  "enums": {
+    "PANEL_IDS": [
+      "summary",
+      "esg_ring",
+      "decoupling",
+      "target_wall",
+      "cards",
+      "pathway",
+      "completeness",
+      "bridge",
+      "flow",
+      "materiality",
+      "stripes"
+    ],
+    "KPI_PANELS": [
+      "esg_ring",
+      "materiality"
+    ],
+    "AVAILABILITIES": [
+      "ok",
+      "kpi_off",
+      "no_data",
+      "setup_incomplete"
+    ],
+    "TARGET_STATUSES": [
+      "on_track",
+      "at_risk",
+      "off_track",
+      "reached",
+      "no_data"
+    ],
+    "TARGET_STATUS_ORDER": [
+      "off_track",
+      "at_risk",
+      "on_track",
+      "reached",
+      "no_data"
+    ],
+    "TARGET_SOURCES": [
+      "sbti",
+      "kpi"
+    ],
+    "PILLARS": [
+      "environment",
+      "social",
+      "governance"
+    ],
+    "DRIVERS": [
+      "activity",
+      "intensity_s1",
+      "energy_intensity_s2",
+      "grid_and_renewables_s2",
+      "scope3",
+      "other"
+    ],
+    "EVENT_KINDS": [
+      "initiative",
+      "acquisition",
+      "divestment",
+      "method_change",
+      "disruption",
+      "other"
+    ],
+    "CARD_SEVERITIES": [
+      "good",
+      "info",
+      "attention",
+      "critical"
+    ],
+    "CARD_SEVERITY_RANK": [
+      "critical",
+      "attention",
+      "good",
+      "info"
+    ],
+    "CARD_SOURCES": [
+      "rule",
+      "ai"
+    ],
+    "YEAR_TYPES": [
+      "CY",
+      "FY"
+    ],
+    "COMPARES": [
+      "prior",
+      "base"
+    ],
+    "ATTENTION_KINDS": [
+      "approvals",
+      "kpi_gaps",
+      "off_track",
+      "missing_submitters",
+      "threshold"
+    ],
+    "INSIGHTS_ROLES": [
+      "Manager",
+      "Admin",
+      "Superadmin"
+    ]
+  },
+  "limits": {
+    "DECOUPLING_YEARS_DEFAULT": 5,
+    "DECOUPLING_YEARS_MAX": 10,
+    "STRIPES_MONTHS_MAX": 72,
+    "EVENT_LABEL_MAX": 60,
+    "MAX_CARDS": 6,
+    "AI_TEXT_MAX": 180
+  },
+  "panelPaths": {
+    "summary": "/summary",
+    "esg_ring": "/esg-ring",
+    "decoupling": "/decoupling",
+    "target_wall": "/target-wall",
+    "cards": "/cards",
+    "pathway": "/pathway",
+    "completeness": "/completeness",
+    "bridge": "/bridge",
+    "flow": "/flow",
+    "materiality": "/materiality",
+    "stripes": "/stripes"
+  },
+  "otherPaths": [
+    "/status",
+    "/sites",
+    "/events",
+    "/events/:id",
+    "/snapshot.pdf"
+  ],
+  "rules": {
+    "decoupling": {
+      "severities": [
+        "good"
+      ],
+      "params": [
+        "output_pct",
+        "emissions_pct",
+        "base_year"
+      ]
+    },
+    "largest_source": {
+      "severities": [
+        "info"
+      ],
+      "params": [
+        "category",
+        "share_pct"
+      ]
+    },
+    "site_concentration": {
+      "severities": [
+        "info"
+      ],
+      "params": [
+        "site",
+        "scope",
+        "share_pct"
+      ]
+    },
+    "pathway_gap": {
+      "severities": [
+        "critical"
+      ],
+      "params": [
+        "gap_pct",
+        "target_year"
+      ]
+    },
+    "pathway_on_track": {
+      "severities": [
+        "good"
+      ],
+      "params": [
+        "margin_pct"
+      ]
+    },
+    "target_off_track": {
+      "severities": [
+        "attention"
+      ],
+      "params": [
+        "count",
+        "first_name"
+      ]
+    },
+    "renewables_jump": {
+      "severities": [
+        "good"
+      ],
+      "params": [
+        "from_pct",
+        "to_pct"
+      ]
+    },
+    "intensity_change": {
+      "severities": [
+        "good",
+        "attention"
+      ],
+      "params": [
+        "change_pct",
+        "unit"
+      ]
+    },
+    "biggest_mover": {
+      "severities": [
+        "good",
+        "attention"
+      ],
+      "params": [
+        "name",
+        "change_pct"
+      ]
+    },
+    "coverage_gap": {
+      "severities": [
+        "attention"
+      ],
+      "params": [
+        "pillar",
+        "pct",
+        "missing"
+      ]
+    },
+    "pending_large": {
+      "severities": [
+        "attention"
+      ],
+      "params": [
+        "count",
+        "link"
+      ]
+    }
+  },
+  "errors": {
+    "IN_OFF": 403,
+    "IN_FORBIDDEN": 403,
+    "IN_SITE_NOT_FOUND": 404,
+    "IN_EVENT_NOT_FOUND": 404,
+    "IN_EVENT_INVALID": 400,
+    "IN_SCORES_INVALID": 400,
+    "IN_AI_BUDGET": 429,
+    "IN_SNAPSHOT_TIMEOUT": 504,
+    "IN_VALIDATION": 400,
+    "IN_COMPANY_REQUIRED": 400
+  }
+}

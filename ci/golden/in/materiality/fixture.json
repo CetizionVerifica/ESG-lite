@@ -1,0 +1,28 @@
+{
+  "about": "IN-7 materiality goldens on ci/fixtures/in-company (company 901, CY 2025, KPI tracking on for the case only). Worked by hand. Topic of a KPI = the esrs_topic of the ESRS disclosures it maps to (data/kpi/mappings.json): GHG_SCOPE1, GHG_SCOPE2_LB → E1; WATER_WITHDRAWAL → E3; EMPLOYEES_TOTAL, LTIFR, FATALITIES → S1.",
+  "kpis": ["GHG_SCOPE1", "GHG_SCOPE2_LB", "WATER_WITHDRAWAL", "EMPLOYEES_TOTAL", "LTIFR", "FATALITIES"],
+  "topics": [["E1", 6, 8], ["E3", 3, 2], ["S1", 7.5, null], ["E5", null, null, false]],
+  "values": [["GHG_SCOPE1", 901, 900, "auto"], ["GHG_SCOPE1", 902, 460, "auto"], ["GHG_SCOPE1", 903, 230, "auto"], ["GHG_SCOPE2_LB", 901, 780, "auto"], ["WATER_WITHDRAWAL", 901, 85, "manual"]],
+  "targets": [["GHG_SCOPE1", 2023, 2500, 2030, 1000, "reduce"], ["GHG_SCOPE2_LB", 2023, 800, 2026, 400, "reduce"], ["WATER_WITHDRAWAL", 2023, 100, 2025, 90, "reduce"]],
+  "cases": [
+    {
+      "name": "worst-status roll-up, weights, scored false (S1 has no financial score)",
+      "query": "year=2025",
+      "working": "E1: Scope 1 company figure 900+460+230 = 1,590 → (2,500−1,590)/1,500 = 60.7 % of the way vs ~40 % expected (end 2023 → end 2030 at today) → on_track; Scope 2 780 vs 800 → 400 is 5 % vs ~94 % expected → off_track; worst = off_track, on 1, off 1. E3: 2025 85 ≤ the 2025 target 90 → reached (on 1; KPI-9 reads figures from the baseline year to the target year only). S1: no targets → no_data. Weights: the period has approved tCO₂e → E1 = 10; E3 1 of 6 KPIs → 1 + 9 × 16.67 % = 2.5; S1 3 of 6 → 5.5. E5 isn't material: no point.",
+      "expected": {
+        "scored": false,
+        "points": [
+          { "esrs_topic": "E1", "label": "Climate change", "impact": 6, "financial": 8, "weight": 10, "status": "off_track", "kpis": 2, "on_track": 1, "off_track": 1, "link": "/kpi/esg?topic=E1" },
+          { "esrs_topic": "E3", "label": "Water and marine resources", "impact": 3, "financial": 2, "weight": 2.5, "status": "reached", "kpis": 1, "on_track": 1, "off_track": 0, "link": "/kpi/esg?topic=E3" },
+          { "esrs_topic": "S1", "label": "Own workforce", "impact": 7.5, "financial": null, "weight": 5.5, "status": "no_data", "kpis": 3, "on_track": 0, "off_track": 0, "link": "/kpi/esg?topic=S1" }
+        ]
+      }
+    },
+    {
+      "name": "a year without approved tCO₂e: E1 weighs by its KPI share (2 of 6 → 4)",
+      "query": "year=2019",
+      "expected": { "points": [{ "esrs_topic": "E1", "weight": 4 }, { "esrs_topic": "E3", "weight": 2.5 }, { "esrs_topic": "S1", "weight": 5.5 }] }
+    }
+  ],
+  "scored_after": { "put": [{ "esrs_topic": "S1", "impact_score": 7.5, "financial_score": 5 }], "expected": { "scored": true } }
+}

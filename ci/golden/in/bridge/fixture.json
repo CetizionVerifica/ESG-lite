@@ -1,0 +1,187 @@
+{
+  "about": "IN-5 bridge goldens on ci/fixtures/in-company, worked by hand (independent arithmetic, not the engine): additive LMDI, L(a,b) = (a\u2212b)/(ln a \u2212 ln b). Values within 1e-6 t; steps must sum to to \u2212 from exactly (1e-9).",
+  "cases": [
+    {
+      "name": "2024 \u2192 2025, all sites: sites use t and MWh, so output is a combined index",
+      "who": "admin",
+      "query": "year=2025&compare=prior",
+      "working": "S1 1,620 \u2192 1,590; S2 760 \u2192 680; S3 410 \u2192 400; net 2,790 \u2192 2,670. Q index 100 \u2192 (1,760 \u00d7 12,000/11,500 + 710 \u00d7 1 + 320 \u00d7 2,400/2,300) \u00f7 2,790 \u00d7 100 (weights = 2024 site emissions). kWh = S2 \u00d7 1,250 + renewable: 1,350,000 \u2192 1,450,000. Effects = L(E\u1d40,E\u2070) \u00d7 ln(ratio) per factor.",
+      "expected": {
+        "from": {
+          "year": 2024,
+          "value": 2790
+        },
+        "to": {
+          "year": 2025,
+          "value": 2670
+        },
+        "method": "lmdi_additive",
+        "steps": [
+          {
+            "driver": "activity",
+            "value": 74.14155394165246
+          },
+          {
+            "driver": "intensity_s1",
+            "value": -81.19745255905727
+          },
+          {
+            "driver": "energy_intensity_s2",
+            "value": 28.453376482163453
+          },
+          {
+            "driver": "grid_and_renewables_s2",
+            "value": -131.39747786475897
+          },
+          {
+            "driver": "scope3",
+            "value": -10
+          }
+        ]
+      },
+      "notes_include": [
+        "combined index",
+        "South line 2 bought (2024-07-01)"
+      ],
+      "sum": -120,
+      "notes_exclude": [
+        "Solar PPA signed"
+      ]
+    },
+    {
+      "name": "2024 \u2192 2025, the Manager's sites 901 + 902: one unit (t)",
+      "who": "manager",
+      "query": "year=2025",
+      "working": "Q 16,500 \u2192 17,000 t; S1 1,400 \u2192 1,360; S2 660 \u2192 580; kWh 660\u00d71,250+400,000 = 1,225,000 \u2192 580\u00d71,250+600,000 = 1,325,000; S3 410 \u2192 400; net 2,470 \u2192 2,340.",
+      "expected": {
+        "from": {
+          "year": 2024,
+          "value": 2470
+        },
+        "to": {
+          "year": 2025,
+          "value": 2340
+        },
+        "steps": [
+          {
+            "driver": "activity",
+            "value": 59.67733325930328
+          },
+          {
+            "driver": "intensity_s1",
+            "value": -81.1942046407223
+          },
+          {
+            "driver": "energy_intensity_s2",
+            "value": 30.101695401759788
+          },
+          {
+            "driver": "grid_and_renewables_s2",
+            "value": -128.5848240203408
+          },
+          {
+            "driver": "scope3",
+            "value": -10
+          }
+        ]
+      },
+      "labels": {
+        "activity": "More output",
+        "intensity_s1": "Better process efficiency",
+        "grid_and_renewables_s2": "Cleaner electricity",
+        "scope3": "Supply chain (Scope 3)"
+      },
+      "sum": -130
+    },
+    {
+      "name": "compare=base: 2021 (SBTi base year) \u2192 2025, site 902",
+      "who": "admin",
+      "query": "year=2025&compare=base&sites=902",
+      "working": "Q 5,000 \u2192 5,000 t (no activity effect); S1 500 \u2192 460; S2 300 \u2192 220 over 375,000 \u2192 275,000 kWh (same 0.8 kg/kWh: the grid step is 0); S3 0; net 800 \u2192 680.",
+      "expected": {
+        "from": {
+          "year": 2021,
+          "value": 800
+        },
+        "to": {
+          "year": 2025,
+          "value": 680
+        },
+        "steps": [
+          {
+            "driver": "activity",
+            "value": 0.0
+          },
+          {
+            "driver": "intensity_s1",
+            "value": -40.000000000000334
+          },
+          {
+            "driver": "energy_intensity_s2",
+            "value": -80.00000000000017
+          },
+          {
+            "driver": "grid_and_renewables_s2",
+            "value": 0.0
+          },
+          {
+            "driver": "scope3",
+            "value": 0
+          }
+        ]
+      },
+      "sum": -120,
+      "notes_include": [
+        "Solar PPA signed (2023-03-15)",
+        "South line 2 bought (2024-07-01)"
+      ]
+    }
+  ],
+  "no_data": [
+    {
+      "name": "2021 has no earlier year",
+      "who": "admin",
+      "query": "year=2021&compare=prior"
+    }
+  ],
+  "unit_example": {
+    "name": "The artifact's example 52,100 \u2192 49,700",
+    "from": {
+      "q": 100000,
+      "s1": 30000,
+      "s2": 18000,
+      "kwh": 36000000,
+      "s3": 4100
+    },
+    "to": {
+      "q": 106000,
+      "s1": 29000,
+      "s2": 16200,
+      "kwh": 36500000,
+      "s3": 4500
+    },
+    "working": "S1 30,000 \u2192 29,000, S2 18,000 \u2192 16,200, S3 4,100 \u2192 4,500 (52,100 \u2192 49,700).",
+    "expected": [
+      {
+        "driver": "activity",
+        "value": 2714.2457885312847
+      },
+      {
+        "driver": "intensity_s1",
+        "value": -2718.7681756104976
+      },
+      {
+        "driver": "energy_intensity_s2",
+        "value": -759.8297548670447
+      },
+      {
+        "driver": "grid_and_renewables_s2",
+        "value": -2035.6478580537344
+      },
+      {
+        "driver": "scope3",
+        "value": 400
+      }
+    ]
+  }
+}

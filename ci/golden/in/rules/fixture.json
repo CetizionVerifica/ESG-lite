@@ -1,0 +1,1060 @@
+{
+  "about": "IN-3 rule goldens: a quiet facts object on which no rule fires, and per rule a patch at its firing edge and one just below (ci/unit/in-3-rules.test.cjs merges each patch, runs the rule, compares; numbers are display-rounded params). Thresholds: rules/thresholds.ts (01-contracts \u00a76).",
+  "quiet": {
+    "year": 2025,
+    "period": {
+      "start": "2025-01-01",
+      "end": "2025-12-31"
+    },
+    "today": "2026-10-21",
+    "summary": {
+      "net": {
+        "value": 1000,
+        "unit": "tCO2e",
+        "prior": 1000,
+        "change_pct": 0,
+        "good": null
+      },
+      "pathway": null,
+      "intensity": {
+        "value": 1,
+        "unit": "t",
+        "combined": false,
+        "change_pct": 0,
+        "good": null
+      },
+      "readiness": null,
+      "attention": {
+        "total": 0,
+        "items": []
+      },
+      "renewable_share_pct": null
+    },
+    "decoupling": null,
+    "targetWall": {
+      "items": []
+    },
+    "gross": 1000,
+    "categories": [
+      {
+        "category_id": 1,
+        "category_name": "Stationary Combustion",
+        "scope": "Scope 1",
+        "total": 399
+      },
+      {
+        "category_id": 2,
+        "category_name": "Purchased Electricity",
+        "scope": "Scope 2",
+        "total": 300
+      }
+    ],
+    "siteScopes": [
+      {
+        "site_id": 1,
+        "name": "Plant A",
+        "scope_1": 40,
+        "scope_2": 40,
+        "scope_3": 0
+      },
+      {
+        "site_id": 2,
+        "name": "Plant B",
+        "scope_1": 30,
+        "scope_2": 30,
+        "scope_3": 0
+      },
+      {
+        "site_id": 3,
+        "name": "Plant C",
+        "scope_1": 30,
+        "scope_2": 30,
+        "scope_3": 0
+      }
+    ],
+    "renewables": {
+      "from_pct": 20,
+      "to_pct": 29.9
+    },
+    "pending": {
+      "count": 2,
+      "tco2e": 49.9,
+      "net": 1000
+    },
+    "esg": null
+  },
+  "cases": [
+    {
+      "name": "decoupling fires: output +0.1 %, emissions \u22120.1 %",
+      "rule": "decoupling",
+      "patch": {
+        "decoupling": {
+          "base_year": 2021,
+          "years": [
+            2021,
+            2025
+          ],
+          "series": [],
+          "combined_output": false,
+          "decoupled": true,
+          "headline": {
+            "output_change_pct": 0.1,
+            "emissions_change_pct": -0.1,
+            "intensity_change_pct": -0.2
+          }
+        }
+      },
+      "expected": {
+        "severity": "good",
+        "params": {
+          "output_pct": 0.1,
+          "emissions_pct": 0.1,
+          "base_year": 2021
+        },
+        "panel": "decoupling"
+      }
+    },
+    {
+      "name": "decoupling: output flat (index 100) does not fire",
+      "rule": "decoupling",
+      "patch": {
+        "decoupling": {
+          "base_year": 2021,
+          "years": [
+            2021,
+            2025
+          ],
+          "series": [],
+          "combined_output": false,
+          "decoupled": false,
+          "headline": {
+            "output_change_pct": 0,
+            "emissions_change_pct": -5,
+            "intensity_change_pct": -5
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "largest_source fires at exactly 40 %",
+      "rule": "largest_source",
+      "patch": {
+        "categories": [
+          {
+            "category_id": 1,
+            "category_name": "Stationary Combustion",
+            "scope": "Scope 1",
+            "total": 400
+          }
+        ]
+      },
+      "expected": {
+        "severity": "info",
+        "params": {
+          "category": "Stationary Combustion",
+          "share_pct": 40
+        },
+        "panel": "flow"
+      }
+    },
+    {
+      "name": "largest_source: 39.9 % does not fire",
+      "rule": "largest_source",
+      "patch": {},
+      "expected": null
+    },
+    {
+      "name": "site_concentration fires at exactly 50 % of Scope 2 (the largest share wins: Plant B 51 % of Scope 1)",
+      "rule": "site_concentration",
+      "patch": {
+        "siteScopes": [
+          {
+            "site_id": 1,
+            "name": "Plant A",
+            "scope_1": 49,
+            "scope_2": 50,
+            "scope_3": 0
+          },
+          {
+            "site_id": 2,
+            "name": "Plant B",
+            "scope_1": 51,
+            "scope_2": 50,
+            "scope_3": 0
+          }
+        ]
+      },
+      "expected": {
+        "severity": "info",
+        "params": {
+          "site": "Plant B",
+          "scope": 1,
+          "share_pct": 51
+        }
+      }
+    },
+    {
+      "name": "site_concentration: 49.95 % at most does not fire",
+      "rule": "site_concentration",
+      "patch": {
+        "siteScopes": [
+          {
+            "site_id": 1,
+            "name": "A",
+            "scope_1": 499,
+            "scope_2": 0,
+            "scope_3": 0
+          },
+          {
+            "site_id": 2,
+            "name": "B",
+            "scope_1": 500,
+            "scope_2": 0,
+            "scope_3": 0
+          },
+          {
+            "site_id": 3,
+            "name": "C",
+            "scope_1": 2,
+            "scope_2": 0,
+            "scope_3": 0
+          }
+        ]
+      },
+      "expected": null
+    },
+    {
+      "name": "site_concentration: one site only never fires",
+      "rule": "site_concentration",
+      "patch": {
+        "siteScopes": [
+          {
+            "site_id": 1,
+            "name": "A",
+            "scope_1": 10,
+            "scope_2": 0,
+            "scope_3": 0
+          }
+        ]
+      },
+      "expected": null
+    },
+    {
+      "name": "pathway_gap fires when off_track (+5.01 %)",
+      "rule": "pathway_gap",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": {
+            "status": "off_track",
+            "gap_pct": 5.01,
+            "target_year": 2030
+          },
+          "intensity": {
+            "value": 1,
+            "unit": "t",
+            "combined": false,
+            "change_pct": 0,
+            "good": null
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": {
+        "severity": "critical",
+        "params": {
+          "gap_pct": 5,
+          "target_year": 2030
+        },
+        "panel": "pathway",
+        "link": "/targets"
+      }
+    },
+    {
+      "name": "pathway_gap: at_risk (+5 %) does not fire",
+      "rule": "pathway_gap",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": {
+            "status": "at_risk",
+            "gap_pct": 5,
+            "target_year": 2030
+          },
+          "intensity": {
+            "value": 1,
+            "unit": "t",
+            "combined": false,
+            "change_pct": 0,
+            "good": null
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "pathway_on_track fires on the pathway (margin 0)",
+      "rule": "pathway_on_track",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": {
+            "status": "on_track",
+            "gap_pct": 0,
+            "target_year": 2030
+          },
+          "intensity": {
+            "value": 1,
+            "unit": "t",
+            "combined": false,
+            "change_pct": 0,
+            "good": null
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": {
+        "severity": "good",
+        "params": {
+          "margin_pct": 0
+        }
+      }
+    },
+    {
+      "name": "pathway_on_track: 12.34 % below \u2192 12",
+      "rule": "pathway_on_track",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": {
+            "status": "on_track",
+            "gap_pct": -12.34,
+            "target_year": 2030
+          },
+          "intensity": {
+            "value": 1,
+            "unit": "t",
+            "combined": false,
+            "change_pct": 0,
+            "good": null
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": {
+        "severity": "good",
+        "params": {
+          "margin_pct": 12
+        }
+      }
+    },
+    {
+      "name": "pathway_on_track: at_risk does not fire",
+      "rule": "pathway_on_track",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": {
+            "status": "at_risk",
+            "gap_pct": 0.5,
+            "target_year": 2030
+          },
+          "intensity": {
+            "value": 1,
+            "unit": "t",
+            "combined": false,
+            "change_pct": 0,
+            "good": null
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "target_off_track fires with one KPI target off track",
+      "rule": "target_off_track",
+      "patch": {
+        "targetWall": {
+          "items": [
+            {
+              "id": "kpi:1",
+              "source": "kpi",
+              "pillar": "environment",
+              "name": "Target 1",
+              "unit": "",
+              "progress_pct": 10,
+              "expected_pct": 50,
+              "status": "off_track",
+              "baseline": {
+                "year": 2020,
+                "value": 1
+              },
+              "target": {
+                "year": 2030,
+                "value": 2
+              },
+              "latest": null,
+              "direction_good": "down",
+              "link": "/kpi/targets?kpi=1"
+            },
+            {
+              "id": "kpi:2",
+              "source": "kpi",
+              "pillar": "environment",
+              "name": "Target 2",
+              "unit": "",
+              "progress_pct": 10,
+              "expected_pct": 50,
+              "status": "at_risk",
+              "baseline": {
+                "year": 2020,
+                "value": 1
+              },
+              "target": {
+                "year": 2030,
+                "value": 2
+              },
+              "latest": null,
+              "direction_good": "down",
+              "link": "/kpi/targets?kpi=2"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "severity": "attention",
+        "params": {
+          "count": 1,
+          "first_name": "Target 1"
+        },
+        "link": "/kpi/targets?kpi=1"
+      }
+    },
+    {
+      "name": "target_off_track: two off track, the first named, link to the list",
+      "rule": "target_off_track",
+      "patch": {
+        "targetWall": {
+          "items": [
+            {
+              "id": "kpi:1",
+              "source": "kpi",
+              "pillar": "environment",
+              "name": "Target 1",
+              "unit": "",
+              "progress_pct": 10,
+              "expected_pct": 50,
+              "status": "off_track",
+              "baseline": {
+                "year": 2020,
+                "value": 1
+              },
+              "target": {
+                "year": 2030,
+                "value": 2
+              },
+              "latest": null,
+              "direction_good": "down",
+              "link": "/kpi/targets?kpi=1"
+            },
+            {
+              "id": "kpi:2",
+              "source": "kpi",
+              "pillar": "environment",
+              "name": "Target 2",
+              "unit": "",
+              "progress_pct": 10,
+              "expected_pct": 50,
+              "status": "off_track",
+              "baseline": {
+                "year": 2020,
+                "value": 1
+              },
+              "target": {
+                "year": 2030,
+                "value": 2
+              },
+              "latest": null,
+              "direction_good": "down",
+              "link": "/kpi/targets?kpi=2"
+            },
+            {
+              "id": "kpi:3",
+              "source": "kpi",
+              "pillar": "environment",
+              "name": "Target 3",
+              "unit": "",
+              "progress_pct": 10,
+              "expected_pct": 50,
+              "status": "on_track",
+              "baseline": {
+                "year": 2020,
+                "value": 1
+              },
+              "target": {
+                "year": 2030,
+                "value": 2
+              },
+              "latest": null,
+              "direction_good": "down",
+              "link": "/kpi/targets?kpi=3"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "severity": "attention",
+        "params": {
+          "count": 2,
+          "first_name": "Target 1"
+        },
+        "link": "/kpi/targets"
+      }
+    },
+    {
+      "name": "target_off_track: at_risk only does not fire",
+      "rule": "target_off_track",
+      "patch": {
+        "targetWall": {
+          "items": [
+            {
+              "id": "kpi:1",
+              "source": "kpi",
+              "pillar": "environment",
+              "name": "Target 1",
+              "unit": "",
+              "progress_pct": 10,
+              "expected_pct": 50,
+              "status": "at_risk",
+              "baseline": {
+                "year": 2020,
+                "value": 1
+              },
+              "target": {
+                "year": 2030,
+                "value": 2
+              },
+              "latest": null,
+              "direction_good": "down",
+              "link": "/kpi/targets?kpi=1"
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "renewables_jump fires at +10 pp",
+      "rule": "renewables_jump",
+      "patch": {
+        "renewables": {
+          "from_pct": 20,
+          "to_pct": 30
+        }
+      },
+      "expected": {
+        "severity": "good",
+        "params": {
+          "from_pct": 20,
+          "to_pct": 30
+        }
+      }
+    },
+    {
+      "name": "renewables_jump: +9.9 pp does not fire",
+      "rule": "renewables_jump",
+      "patch": {},
+      "expected": null
+    },
+    {
+      "name": "intensity_change: fell 5 % \u2192 good",
+      "rule": "intensity_change",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": null,
+          "intensity": {
+            "value": 1,
+            "unit": "t",
+            "combined": false,
+            "change_pct": -5,
+            "good": true
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": {
+        "severity": "good",
+        "params": {
+          "change_pct": 5,
+          "unit": "t"
+        }
+      }
+    },
+    {
+      "name": "intensity_change: rose 12.6 % \u2192 attention, 13",
+      "rule": "intensity_change",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": null,
+          "intensity": {
+            "value": 1,
+            "unit": "MWh",
+            "combined": false,
+            "change_pct": 12.6,
+            "good": false
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": {
+        "severity": "attention",
+        "params": {
+          "change_pct": 13,
+          "unit": "MWh"
+        }
+      }
+    },
+    {
+      "name": "intensity_change: \u22124.99 % does not fire",
+      "rule": "intensity_change",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": null,
+          "intensity": {
+            "value": 1,
+            "unit": "t",
+            "combined": false,
+            "change_pct": -4.99,
+            "good": true
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "intensity_change: a combined index over mixed units does not fire",
+      "rule": "intensity_change",
+      "patch": {
+        "summary": {
+          "net": {
+            "value": 1000,
+            "unit": "tCO2e",
+            "prior": 1000,
+            "change_pct": 0,
+            "good": null
+          },
+          "pathway": null,
+          "intensity": {
+            "value": 1,
+            "unit": "mixed units",
+            "combined": true,
+            "change_pct": -20,
+            "good": true
+          },
+          "readiness": null,
+          "attention": {
+            "total": 0,
+            "items": []
+          },
+          "renewable_share_pct": null
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "biggest_mover fires on /kpi/esg's top mover (good)",
+      "rule": "biggest_mover",
+      "patch": {
+        "esg": {
+          "pillars": [],
+          "movers": [
+            {
+              "kpi_definition_id": 7,
+              "name": "Water withdrawn",
+              "change_pct": -23.45,
+              "good": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "severity": "good",
+        "params": {
+          "name": "Water withdrawn",
+          "change_pct": -23
+        }
+      }
+    },
+    {
+      "name": "biggest_mover: a bad change is attention, 1 dp under 10",
+      "rule": "biggest_mover",
+      "patch": {
+        "esg": {
+          "pillars": [],
+          "movers": [
+            {
+              "kpi_definition_id": 7,
+              "name": "LTIFR",
+              "change_pct": 8.26,
+              "good": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "severity": "attention",
+        "params": {
+          "name": "LTIFR",
+          "change_pct": 8.3
+        }
+      }
+    },
+    {
+      "name": "biggest_mover: KPI tracking off (no esg) does not fire",
+      "rule": "biggest_mover",
+      "patch": {},
+      "expected": null
+    },
+    {
+      "name": "coverage_gap fires below 60 % after month 9 (the lowest pillar)",
+      "rule": "coverage_gap",
+      "patch": {
+        "esg": {
+          "pillars": [
+            {
+              "pillar": "environment",
+              "label": "Environment",
+              "approved": 59,
+              "pending": 0,
+              "missing": 41
+            },
+            {
+              "pillar": "social",
+              "label": "Social",
+              "approved": 1,
+              "pending": 0,
+              "missing": 9
+            }
+          ],
+          "movers": []
+        }
+      },
+      "expected": {
+        "severity": "attention",
+        "params": {
+          "pillar": "Social",
+          "pct": 10,
+          "missing": 9
+        }
+      }
+    },
+    {
+      "name": "coverage_gap: 60 % does not fire",
+      "rule": "coverage_gap",
+      "patch": {
+        "esg": {
+          "pillars": [
+            {
+              "pillar": "environment",
+              "label": "Environment",
+              "approved": 6,
+              "pending": 0,
+              "missing": 4
+            }
+          ],
+          "movers": []
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "coverage_gap: month 8 of a running period does not fire",
+      "rule": "coverage_gap",
+      "patch": {
+        "period": {
+          "start": "2026-01-01",
+          "end": "2026-12-31"
+        },
+        "today": "2026-09-15",
+        "esg": {
+          "pillars": [
+            {
+              "pillar": "environment",
+              "label": "Environment",
+              "approved": 1,
+              "pending": 0,
+              "missing": 9
+            }
+          ],
+          "movers": []
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "coverage_gap: month 9 of a running period fires",
+      "rule": "coverage_gap",
+      "patch": {
+        "period": {
+          "start": "2026-01-01",
+          "end": "2026-12-31"
+        },
+        "today": "2026-10-01",
+        "esg": {
+          "pillars": [
+            {
+              "pillar": "environment",
+              "label": "Environment",
+              "approved": 1,
+              "pending": 0,
+              "missing": 9
+            }
+          ],
+          "movers": []
+        }
+      },
+      "expected": {
+        "severity": "attention",
+        "params": {
+          "pillar": "Environment",
+          "pct": 10,
+          "missing": 9
+        }
+      }
+    },
+    {
+      "name": "pending_large fires at 5 % of net",
+      "rule": "pending_large",
+      "patch": {
+        "pending": {
+          "count": 3,
+          "tco2e": 50,
+          "net": 1000
+        }
+      },
+      "expected": {
+        "severity": "attention",
+        "params": {
+          "count": 3,
+          "link": "/data/approvals"
+        },
+        "link": "/data/approvals"
+      }
+    },
+    {
+      "name": "pending_large: 4.99 % does not fire",
+      "rule": "pending_large",
+      "patch": {},
+      "expected": null
+    }
+  ],
+  "ranking": {
+    "name": "Eight rules fire; the six kept are critical, then attention by weight, then good by weight (largest_source and site_concentration drop)",
+    "patch": {
+      "summary": {
+        "net": {
+          "value": 1000,
+          "unit": "tCO2e",
+          "prior": 1000,
+          "change_pct": 0,
+          "good": null
+        },
+        "pathway": {
+          "status": "off_track",
+          "gap_pct": 12,
+          "target_year": 2030
+        },
+        "intensity": {
+          "value": 1,
+          "unit": "t",
+          "combined": false,
+          "change_pct": 8,
+          "good": false
+        },
+        "readiness": null,
+        "attention": {
+          "total": 0,
+          "items": []
+        },
+        "renewable_share_pct": null
+      },
+      "targetWall": {
+        "items": [
+          {
+            "id": "kpi:1",
+            "source": "kpi",
+            "pillar": "environment",
+            "name": "Target 1",
+            "unit": "",
+            "progress_pct": 10,
+            "expected_pct": 50,
+            "status": "off_track",
+            "baseline": {
+              "year": 2020,
+              "value": 1
+            },
+            "target": {
+              "year": 2030,
+              "value": 2
+            },
+            "latest": null,
+            "direction_good": "down",
+            "link": "/kpi/targets?kpi=1"
+          }
+        ]
+      },
+      "pending": {
+        "count": 3,
+        "tco2e": 80,
+        "net": 1000
+      },
+      "renewables": {
+        "from_pct": 10,
+        "to_pct": 40
+      },
+      "decoupling": {
+        "base_year": 2021,
+        "years": [
+          2021,
+          2025
+        ],
+        "series": [],
+        "combined_output": false,
+        "decoupled": true,
+        "headline": {
+          "output_change_pct": 20,
+          "emissions_change_pct": -10,
+          "intensity_change_pct": -30
+        }
+      },
+      "categories": [
+        {
+          "category_id": 1,
+          "category_name": "Stationary Combustion",
+          "scope": "Scope 1",
+          "total": 500
+        }
+      ],
+      "siteScopes": [
+        {
+          "site_id": 1,
+          "name": "A",
+          "scope_1": 90,
+          "scope_2": 0,
+          "scope_3": 0
+        },
+        {
+          "site_id": 2,
+          "name": "B",
+          "scope_1": 10,
+          "scope_2": 0,
+          "scope_3": 0
+        }
+      ]
+    },
+    "fired": 8,
+    "expected_rules": [
+      "pathway_gap",
+      "pending_large",
+      "target_off_track",
+      "intensity_change",
+      "decoupling",
+      "renewables_jump"
+    ]
+  }
+}

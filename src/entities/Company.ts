@@ -105,6 +105,12 @@ export class Company {
   @Column({ default: false })
   design_studio_enabled!: boolean;
 
+  // IN-0: Insights (docs/insights/). Off by default: with it off every
+  // /insights route except /insights/status answers IN_OFF. Superadmin
+  // toggles it through PUT /admin/companies/:id (migrate:in-switch).
+  @Column({ default: false })
+  insights_enabled!: boolean;
+
   // DS-13: review settings for Design Studio (migrate:ds-13-collab). With
   // report_require_review on, a final needs an approval for the current rev
   // (Managers set it); brand_controls limits colours and fonts to the brand

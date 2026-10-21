@@ -1,0 +1,214 @@
+{
+  "about": "IN-4 pathway goldens on ci/fixtures/in-company (+ seed-in4.sql), worked by hand from the fixture table.",
+  "cases": [
+    {
+      "name": "All sites (Admin): base 2021, 2030, 4.2 %; units mixed so only the renewable lever",
+      "who": "admin",
+      "query": "year=2025",
+      "working": "pathway = 2,700 \u00d7 0.958^n (3 dp, Targets table1); actual S1 1,700\u20261,590, S2 1,000\u2026680 (S3 out of the boundary: 400/3,100 < 40 %); gap = max(0, actual \u2212 pathway): 2022 2,590 \u2212 2,586.6 = 3.4; 2023 2,480 \u2212 2,477.963; 2024 2,380 \u2212 2,373.888; 2025 0. Renewable share = renewable kWh \u00f7 (Scope 2 kWh + renewable kWh): 2024 400,000 \u00f7 1,350,000 = 29.63 %, 2025 600,000 \u00f7 1,450,000 = 41.38 %. Events: both fixture events.",
+      "expected": {
+        "base_year": 2021,
+        "target_year": 2030,
+        "annual_rate_pct": 4.2,
+        "years": [
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026,
+          2027,
+          2028,
+          2029,
+          2030
+        ],
+        "pathway": [
+          2700.0,
+          2586.6,
+          2477.963,
+          2373.888,
+          2274.185,
+          2178.669,
+          2087.165,
+          1999.504,
+          1915.525,
+          1835.073
+        ],
+        "actual": {
+          "s1": [
+            1700,
+            1670,
+            1640,
+            1620,
+            1590,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "s2": [
+            1000,
+            920,
+            840,
+            760,
+            680,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "s3": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "levers": [
+          {
+            "key": "renewable_share",
+            "unit": "%",
+            "values": [
+              0.0,
+              8.0,
+              16.0,
+              29.629629629629626,
+              41.37931034482759,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          }
+        ],
+        "gap_band": [
+          {
+            "year": 2021,
+            "gap": 0
+          },
+          {
+            "year": 2022,
+            "gap": 3.400000000000091
+          },
+          {
+            "year": 2023,
+            "gap": 2.036999999999807
+          },
+          {
+            "year": 2024,
+            "gap": 6.11200000000008
+          },
+          {
+            "year": 2025,
+            "gap": 0
+          }
+        ],
+        "events": [
+          {
+            "id": 94001,
+            "date": "2023-03-15",
+            "label": "Solar PPA signed",
+            "kind": "initiative",
+            "site_id": null
+          },
+          {
+            "id": 94002,
+            "date": "2024-07-01",
+            "label": "South line 2 bought",
+            "kind": "acquisition",
+            "site_id": 902
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sites 901 + 902 (Manager): one unit (t), so energy intensity too",
+      "who": "manager",
+      "query": "year=2025",
+      "working": "pathway 2,400 \u00d7 0.958^n; energy intensity = (Scope 2 kWh + renewable kWh) \u00f7 t: 2021 1,125,000 \u00f7 15,000 = 75; 2025 (725,000 + 600,000) \u00f7 17,000 = 77.94.",
+      "expected": {
+        "pathway": [
+          2400.0,
+          2299.2,
+          2202.634,
+          2110.123,
+          2021.498,
+          1936.595,
+          1855.258,
+          1777.337,
+          1702.689,
+          1631.176
+        ],
+        "actual": {
+          "s1": [
+            1500,
+            1470,
+            1430,
+            1400,
+            1360,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "s2": [
+            900,
+            820,
+            740,
+            660,
+            580,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "levers": [
+          {
+            "key": "renewable_share",
+            "unit": "%",
+            "values": [
+              0.0,
+              8.88888888888889,
+              17.77777777777778,
+              32.6530612244898,
+              45.28301886792453,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          {
+            "key": "energy_intensity",
+            "unit": "kWh per t",
+            "values": [
+              75.0,
+              72.58064516129032,
+              70.3125,
+              74.24242424242425,
+              77.94117647058823,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+# IN-10 · Golden cases, workflow test, probes
+
+> **Module spec**, lane L2 (draft) then L3 (final). Copy to `ESG-lite/ci/golden/in/CLAUDE.md`.
+> **PR titles:** `[IN-10 k/m]`: 1. draft fixture + skipped goldens (wave 1); 2…n. switch goldens to run as modules merge; final: workflow, probes, e2e main path.
+>
+> **Depends on:** IN-0 (draft), all (final) · **Owns:** `ci/golden/in/*`, `ci/fixtures/in-*`, `ci/workflow` IN steps, `audit/harness/in-probes.cjs`, `e2e/insights-main.spec.ts`
+> **Touches:** —
+
+## Job to be done
+Prove the §1 success test: Insights shows the same numbers as the source pages, drivers add up, rules fire at their edges, access is right, and the page is fast.
+
+## Build
+1. **Fixture `ci/fixtures/in-company`:** 3 sites (one with a different production unit), 2021–2026 approved emissions by scope and category, some pending; production per site; Scope 2 kWh with a renewable share rising; SBTi base year 2021; 40 KPIs (auto, formula, manual) with targets in all statuses; ESRS materiality with scores for all but one topic; two events. A second company for tenant isolation; a KPI-off company.
+2. **Goldens** (each module's list), all `skip` in the draft and switched to `run` by the module's PR. Plus the **cross-page parity golden**: `/insights/summary` net/intensity = `/manager/overview`; `/insights/pathway` = `/user/targets/tables`; `/insights/esg-ring` coverage = `/kpi/esg`.
+3. **Workflow test** (`ci/workflow`): Superadmin turns Insights on → Manager opens every panel → adds an event → approves a pending entry → summary changes and cache busts → Superadmin turns it off → `IN_OFF`.
+4. **Probes** (`audit/harness/in-probes.cjs`): every endpoint × roles × another company's ids × a site outside scope; p95 timings on the fixture against layer rule 8.
+5. **E2E main path:** open Insights, hero → ring filter → bridge toggle → card Show → present mode → PDF, at 1280 and 390, in one light and one dark pack.
+
+## Done when
+All goldens run green, the parity golden holds, probes find no leaks, timings meet the budget, and the workflow and e2e pass. The final PR body states the §1 checklist with evidence for each item.
+
+## IN-10 as built (draft, wave 1)
+- **Fixture `ci/fixtures/in-company/seed.sql`** (+ `cleanup.sql`, every statement by id): company 901 "IN Fixture Co" (Insights on, KPI off) with sites 901 Plant North (t), 902 Plant South (t), 903 Plant East (MWh — the other production unit); company 902 with site 904 for tenant isolation; users 901 Admin, 902 Manager (901 + 902), 903 User, 904 other Manager. Approved Scope 1/2/3 2021–2025 (one June row per scope), Scope 2 kWh = t × 1,250, renewable electricity rising on site 901, one pending row, production per site and year, base year 2021. The table of figures is the header of the SQL file.
+  Deviation from the spec: no KPIs, materiality or events yet — each module that needs them (IN-2, IN-3, IN-4, IN-6, IN-7) appends its rows to the fixture with its golden.
+- **Index `ci/golden/in/cases.json`:** one suite per module golden list plus `parity`; `skip` + `waits_on` until the module switches it to `run`.
+- **Runner `ci/api/tests/in-10-golden.test.cjs`:** loads the fixture on the API test database, runs a group per `run` suite (fails when a running suite has no group), reports skipped suites with their module. Runs now: `summary` (IN-1: five hand-worked cases — CY all sites, the Manager's two sites, at_risk site 902, off_track site 903 in MWh, FY 2026) and `parity` (summary = `/manager/overview`, the pathway gap = `/user/targets/tables`).
+- Not yet: workflow steps, probes, e2e main path (IN-10 final).
+
+## IN-10 as built (final)
+- **Golden index:** every suite in `ci/golden/in/cases.json` runs (summary, parity, story, pathway, completeness, flow, rules, bridge, materiality, ai); the index test in `ci/api/tests/in-10-golden.test.cjs` now fails on any `skip`. `rules` (IN-3) and `ai` (IN-9) run in their own unit runners (`ci/unit/in-3-rules.test.cjs`, `ci/unit/in-9-ai.test.cjs`); the rest are groups of the API golden runner on `ci/fixtures/in-company`.
+- **Parity:** `parity` checks `/insights/summary` net, change and pending = `/manager/overview` (CY, FY, all sites, one site) and the summary pathway gap = `/user/targets/tables`; the `/insights/pathway` years, pathway and actuals = `/user/targets/tables` (IN-4 part). The ESG ring's per-topic coverage = `/kpi/esg` runs inside `story` (IN-2), which turns KPI on for its case only; it isn't repeated.
+- **Workflow (`ci/workflow/workflow.test.cjs`, IN-W0–IN-W7, hand figures in `scenario.cjs` `INSIGHTS`):** W0 emission reports before; W1 the Superadmin switches Insights on for this client only (audit row; Users `IN_FORBIDDEN`; the other client stays off, `IN_OFF`, and naming this client is 404); W2 the Manager opens every §4 panel — envelope on each, `esg_ring` and `materiality` `kpi_off` because K8 left KPI tracking off; W3 summary net/change/pending = `/manager/overview` for FY REPORT_YEAR, all sites and one, and reading Insights moves no emission figure; W4 the Manager adds an event, it is listed and on the pathway when the pathway covers its year; a User can't add one; W5 a User submits 100 L of diesel (review workflow v2 is on, so it is a Draft first), pending is counted and not in net, the Manager approves it: the stamp moves and net moves by exactly tonnes(266.155 kg) + tonnes(62.409 kg) = 0.33 t; W6 off: every gated route (compiled router + 01-contracts §4) answers `IN_OFF` for every role, the events are kept, the emission reports are byte-identical to before the switch (taken again after W5's approval); W7 runs `audit/harness/in-probes.cjs` in a scratch `<DB_NAME>_inprobes` (port `IN_PROBE_PORT`, else workflow port + 6), zero findings.
+- **Probes (`audit/harness/in-probes.cjs`):** IN-P01 switch-off, P02 tenant isolation (routes and company 1's event), P03 roles incl. the Superadmin's `IN_COMPANY_REQUIRED`, P04 site scope, P05 `PUT /kpi/setup/materiality-scores` (roles, tenant, `KPI_TRACKING_OFF`) and `kpi_off` panels, P06 `migrate:in-*` twice, P07 every compiled route probed, P08 p95 timings per panel on the fixture with the cache missed before every call (the stamp is moved each time). A timing over layer rule 8 is `warn`, not `fail`: the harness runs on shared machines whose speed it doesn't control; every p95 is in the JSON (`timings_p95_ms`). The snapshot PDF's 500 without Chromium isn't read as a refusal (only 403/404 are).
+- **Defect found and fixed here:** IN-7 added `PUT /kpi/setup/materiality-scores` but not to `audit/harness/kpi-probes.cjs`'s matrix, so KPI-P07 (and workflow step K9) failed; the route is now in the matrix as Admin + Superadmin.
+- **Not in this repo:** the e2e main path (`e2e/insights-main.spec.ts`: hero → ring filter → bridge toggle → card Show → present mode → PDF at 1280 and 390, light and dark) is ESG-lite_FE work.
+- Runs on this machine (2026-10-21): probes 85 pass / 0 fail / 0 warn, p95 ms summary 53, esg_ring 19 (kpi_off on the fixture), decoupling 55, target_wall 44, pathway 63, completeness 37, flow 37, cards 94, bridge 32, materiality 17 (kpi_off), stripes 46; workflow 97 passed, 4 skipped (18 waits on SE-4, 27 on S3-16, DS-W7/W8 need Chromium).
+
+## IN-10 final: §1 checklist (docs/insights/00-plan.md §1)
+| # | Success test | Evidence |
+|---|---|---|
+| 1 | Switch off by default; nothing reachable, `IN_OFF` everywhere; other pages unchanged | `in-0-switch`: "the column defaults to off for every company", "switching off: … every gated route answers IN_OFF for every role"; probes IN-P01; workflow IN-W6 (reports byte-identical). Nav and route hiding: FE repo. |
+| 2 | Works with or without KPI tracking | `in-1-summary` "KPI tracking off: readiness null (still 200) …"; `in-2-story` "ESG ring: kpi_off …"; `in-7-materiality` "kpi_off while KPI tracking is off …"; `in-6-flow` "KPI off: sites → scopes … top categories"; `in-3-cards` "KPI tracking off drops the KPI rules only"; workflow IN-W2. Hiding the holes: FE repo. |
+| 3 | First paint under 2 s on 3 sites × 5 years | Backend part: probes IN-P08 p95 summary 53 ms, decoupling 55 ms on the 3-site × 5-year fixture (cache missed). The fixture has no 40 KPIs (KPI panels kpi_off there; KPI-on timings not measured). Paint time: FE repo. |
+| 4 | Server numbers win; approved only; pending banner count | Every panel through `panel.ts` (envelope with `pending_not_in`); `in-1-summary` "pending rows are left out of net and counted …"; workflow IN-W5 (pending not in net, counted; net moves by the approved row exactly). FE arithmetic: FE repo. |
+| 5 | Same figures as the source pages | golden `parity` (summary = `/manager/overview`, pathway = `/user/targets/tables`), `story` (ring = `/kpi/esg`); `in-1-summary` "net, change and pending equal GET /manager/overview …", "intensity equals the emission-intensity comparison …"; `in-4-pathway-completeness` "pathway: the pathway and actuals equal POST /user/targets/tables …"; workflow IN-W3. |
+| 6 | Every number drills down | Backend sends `links` on every envelope and `link` on wall items, cards, completeness cells, materiality points (contract shapes; `in-2-story`, `in-3-cards`, `in-6-flow`). Clicking: FE repo. |
+| 7 | Insight cards are true; AI only rewords | golden `rules` (each rule at its edge and below, ranking 6 of 8); `in-9-ai` "?ai=1: accepted wording → source 'ai', tokens only; params, links and order unchanged …", "a rejected answer keeps the rule text …"; golden `ai` (recorded responses replayed through the guard). |
+| 8 | Premium feel, accessible | FE repo / not verifiable here. |
+| 9 | Export: PNG per chart, one-page PDF | `in-8-stripes-snapshot` "snapshot: one A4 landscape page from approved data" — skipped here (Playwright's Chromium not installed); the timeout path (504 `IN_SNAPSHOT_TIMEOUT`) and roles run. PNG: FE repo. |
+| 10 | Release discipline | Tenant, role, site-scope and switch-off tests per module (`in-*` API tests, probes IN-P01–P04); migrations `migrate:in-switch`, `migrate:in-events`, `migrate:in-ai-calls` run twice (probes IN-P06, `in-4-events`, `in-9-ai`, CI's migrate-twice step) with a clean schema diff. |
