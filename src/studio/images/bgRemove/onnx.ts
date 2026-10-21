@@ -42,6 +42,7 @@ export function setOrtModuleForTest(name: string | null): void {
   ORT_MODULE = name ?? "onnxruntime-node";
   ort = null;
   ortMissing = false;
+  // data-loss-reviewed: in-memory Map of ONNX sessions (test hook), not an ORM repository; no rows touched.
   sessions.clear();
 }
 
