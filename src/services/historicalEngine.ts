@@ -12,6 +12,7 @@ import { CheckCache, ContextCache, insertEntry, prepareEntry, type AuditInfo, ty
 import { activityDataFor, rowPeriod, type EngineResult, type HistoricalPlan, type HistoricalRow } from "./historicalImport";
 import { refreshChecksSafely } from "../scope3/review/service";
 import { lockedSiteMonths, siteMonthOf } from "../scope3/review/periodLock";
+import { futurePeriodError } from "./reportingPeriod";
 
 /** Stored as `extra_data.import.channel` on every row these paths write. */
 export const HISTORICAL_CHANNEL = "historical";
@@ -38,6 +39,12 @@ export const engineResults = async (
     if (!period) continue;
     if (closed.has(period)) {
       results.set(row, { ok: false, reason: "This month is closed (PERIOD_LOCKED). Reopen it with a reason before importing into it." });
+      continue;
+    }
+    // A month that hasn't started is skipped, as a typed entry is refused (F-10).
+    const notStarted = futurePeriodError("monthly", null, new Date(`${period}-15`));
+    if (notStarted) {
+      results.set(row, { ok: false, reason: notStarted });
       continue;
     }
     // The quantity is the sheet's activity column, nothing else: a blank, 0 or

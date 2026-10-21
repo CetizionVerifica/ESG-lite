@@ -485,6 +485,11 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: periodError });
     }
     const effectivePeriod: "monthly" | "yearly" = reporting_period === "yearly" ? "yearly" : "monthly";
+    // A month or CY/FY year that hasn't started can't be filed, as on edit and import (F-10, 22 Oct 2026).
+    const notStarted = futurePeriodError(effectivePeriod, effectivePeriod === "yearly" ? year_type : null, new Date(date_of_reporting));
+    if (notStarted) {
+      return res.status(400).json({ message: notStarted });
+    }
     const modeConflict = await findModeLockConflict(repo, {
       site_id,
       category_id,
@@ -493,18 +498,9 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       date_of_reporting: new Date(date_of_reporting),
     });
     if (modeConflict) {
-      let conflictMessage: string;
-      if (effectivePeriod === "yearly" && modeConflict.conflicting_period === "monthly") {
-        conflictMessage = `This category already has ${modeConflict.conflicting_rows} monthly entr${modeConflict.conflicting_rows === 1 ? "y" : "ies"} in ${modeConflict.window.start} – ${modeConflict.window.end}. Delete them first, or continue entering monthly.`;
-      } else if (effectivePeriod === "yearly") {
-        // Overlapping yearly batch of the other calendar (CY vs FY): their
-        // windows share up to nine months, so both existing double counts.
-        conflictMessage = `This year overlaps an existing ${modeConflict.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${modeConflict.conflicting_year_type} batch first, or file this data under ${modeConflict.conflicting_year_type} too.`;
-      } else {
-        conflictMessage = `This category already has a yearly batch covering ${modeConflict.window.start} – ${modeConflict.window.end}. Delete the yearly data first, or file this entry under a different period.`;
-      }
+      // Same wording as manager edits and imports (CY vs FY overlaps: their windows share up to nine months).
       return res.status(409).json({
-        message: conflictMessage,
+        message: modeLockMessage(modeConflict, effectivePeriod),
         mode_lock: true,
         conflict: modeConflict,
       });

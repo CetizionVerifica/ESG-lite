@@ -2,7 +2,7 @@ import { Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
 import { AuthRequest } from "./auth.middleware";
 import { UserRole } from "../types/type";
-import { accessibleSiteIds, resolveUserCompanyId, SITE_ACCESS_DENIED } from "../utils/companyScope";
+import { accessibleSiteIds, SITE_ACCESS_DENIED, userInCompany } from "../utils/companyScope";
 
 /**
  * Route guards that keep every /user/* request inside the caller's own
@@ -112,8 +112,8 @@ export const guardQuerySites = (fillAs?: "siteIds" | "siteId"): Guard =>
 export const guardCompanyParam = (param: string): Guard =>
   wrap(async (req, res, next) => {
     if (req.user?.role === UserRole.SUPERADMIN) return next();
-    const own = await resolveUserCompanyId(req.user?.userId);
-    if (!own || own !== Number(req.params[param])) return forbidden(res);
+    // Any company the caller has a site in, not only their first site's (F-22, 22 Oct 2026).
+    if (!(await userInCompany(req.user?.userId, Number(req.params[param])))) return forbidden(res);
     next();
   });
 

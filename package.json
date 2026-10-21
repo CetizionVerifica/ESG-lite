@@ -76,6 +76,7 @@
     "migrate:ds-pro-pe-1-photo": "ts-node src/scripts/migrateDsProPe1Photo.ts",
     "migrate:ds-pro-pe-2-fonts": "ts-node src/scripts/migrateDsProPe2Fonts.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
+    "migrate:scope3-review-factor-checks": "ts-node src/scripts/migrateScope3ReviewFactorChecks.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",
     "studio:contracts": "node scripts/studio-contracts-snapshot.cjs",

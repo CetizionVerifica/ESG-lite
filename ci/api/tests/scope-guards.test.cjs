@@ -146,3 +146,20 @@ test("a malformed entry id is a 400, not a server error", async () => {
     assert.equal((await call("PUT", `/user/production-data/${id}/approve`, "manager", {})).status, 400, `production ${id}`);
   }
 });
+
+test("someone with sites in two companies reads both companies' mappings and thresholds, no third", async () => {
+  // multiSiteUser has sites 1 + 2 (company 1); site 3 makes them work for company 2 as well (F-22).
+  await withDb((db) => db.query("INSERT INTO user_sites (user_id, site_id) VALUES (7, 3)"));
+  try {
+    for (const company of [1, 2]) {
+      assert.equal((await call("GET", `/user/thresholds/company/${company}`, "multiSiteUser")).status !== 403, true, `thresholds ${company}`);
+      assert.equal((await call("GET", `/user/category-mappings/company/${company}`, "multiSiteUser")).status !== 403, true, `mappings ${company}`);
+    }
+    assert.equal((await call("GET", "/user/thresholds/company/99", "multiSiteUser")).status, 403);
+    assert.equal((await call("GET", "/user/category-mappings/company/abc", "multiSiteUser")).status, 403);
+  } finally {
+    await withDb((db) => db.query("DELETE FROM user_sites WHERE user_id = 7 AND site_id = 3"));
+  }
+  // Without the site, company 2 is refused again.
+  assert.equal((await call("GET", "/user/thresholds/company/2", "multiSiteUser")).status, 403);
+});

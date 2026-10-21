@@ -121,9 +121,19 @@ export const planModeConflicts = (rows: Array<{ site_id: number; category_id: nu
   return out;
 };
 
+/** "CY 2025" or "FY 2025-26" for a calendar or financial year window, else "start – end". */
+export const yearWindowLabel = (w: { start: string; end: string }): string => {
+  const startYear = Number(w.start.slice(0, 4));
+  const endYear = Number(w.end.slice(0, 4));
+  if (w.start.endsWith("-01-01") && w.end.endsWith("-12-31") && startYear === endYear) return `CY ${endYear}`;
+  if (w.start.endsWith("-04-01") && w.end.endsWith("-03-31") && endYear === startYear + 1) return `FY ${startYear}-${String(endYear).slice(2)}`;
+  return `${w.start} – ${w.end}`;
+};
+
 export const modeLockMessage = (c: ModeLockConflict, period: "monthly" | "yearly"): string => {
   if (period === "yearly" && c.conflicting_period === "monthly") {
-    return `This category already has ${c.conflicting_rows} monthly entr${c.conflicting_rows === 1 ? "y" : "ies"} in ${c.window.start} – ${c.window.end}. Delete them first, or continue entering monthly.`;
+    const n = c.conflicting_rows;
+    return `This category is already filed monthly for ${yearWindowLabel(c.window)} (${n} monthly entr${n === 1 ? "y" : "ies"}). Keep entering it monthly, or delete those entries first to file the year as one entry.`;
   }
   if (period === "yearly") {
     return `This year overlaps an existing ${c.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${c.conflicting_year_type} batch first, or file this data under ${c.conflicting_year_type} too.`;

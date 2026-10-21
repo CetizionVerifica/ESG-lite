@@ -67,6 +67,18 @@ export const userBelongsToCompany = (
   return (user.sites || []).some((site) => companySiteIds.has(site.site_id));
 };
 
+/**
+ * Whether a user belongs to a company: an Admin's own company, or any company
+ * they have a site in. A contributor or manager can work across several
+ * clients (internal accounts), so their first site's company is not the only one.
+ */
+export const userInCompany = async (userId: number | undefined, companyId: number): Promise<boolean> => {
+  if (!userId || !Number.isInteger(companyId) || companyId <= 0) return false;
+  const user = await userRepo.findOne({ where: { user_id: userId }, relations: ["site", "sites"] });
+  if (!user) return false;
+  return userBelongsToCompany(user, await getCompanySiteIds(companyId), companyId);
+};
+
 /** Whether every requested site ID belongs to the company. */
 export const sitesWithinCompany = (
   requestedSiteIds: number[],

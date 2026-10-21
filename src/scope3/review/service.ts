@@ -18,6 +18,7 @@ import { getCalculationSpec } from "../../services/calculationSpec";
 import { attentionSql, ATTENTION_BELOW } from "../../utils/importAttention";
 import { log } from "../../utils/logger";
 import { computeChecks, DEFAULT_THRESHOLD_PCT, type CheckRow } from "./checks";
+import { targetYearFor } from "../../services/emissionWrite/resolve";
 import { CHECK_IDS, type RowChecks } from "../contracts/checks";
 
 /** Statuses that count towards a month's total for WITHIN_THRESHOLD (drafts and rejected rows don't). */
@@ -217,6 +218,46 @@ const pendingPartners = async (manager: EntityManager, rowIds: number[], statuse
   return out;
 };
 
+type LibraryRow = Pick<LoadedRow, "pk_id" | "site_id" | "category_id" | "date_of_reporting" | "emission_factor_snapshot"> & {
+  activity_data: any;
+  total_emission: unknown;
+};
+
+/**
+ * The rows saved before factor snapshots existed (a total above 0 but no
+ * snapshot) whose site has a factor for their target year (reporting year − 1)
+ * and activity: the emission_category by factor name or global name, trimmed
+ * and case-blind; a row without one needs any factor of its site × category
+ * for the year (F-15). A row with no snapshot and no total had no factor
+ * applied (no unit, say) and is never in the set.
+ */
+export const factorsInLibrary = async (manager: EntityManager, rows: LibraryRow[]): Promise<Set<number>> => {
+  const out = new Set<number>();
+  const list = rows.filter((r) => !r.emission_factor_snapshot && Number(r.total_emission) > 0);
+  if (!list.length) return out;
+  // The factors of the rows' site × category × year are narrowed first: matching the trimmed,
+  // lower-cased names row by row against the whole table is ~12× slower on a large import.
+  const found: Array<{ pk_id: number }> = await manager.query(
+    `WITH k AS (SELECT pk_id, site_id, category_id, yr, lower(btrim(NULLIF(btrim(ec), ''))) AS ec
+                  FROM unnest($1::int[], $2::int[], $3::int[], $4::int[], $5::text[]) AS k(pk_id, site_id, category_id, yr, ec)),
+          f AS (SELECT DISTINCT site_id, category_id, year, lower(btrim(emission_category_name)) AS n, lower(btrim(global_category_name)) AS g
+                  FROM emission_factors
+                 WHERE (site_id, category_id, year) IN (SELECT DISTINCT site_id, category_id, yr FROM k))
+     SELECT k.pk_id FROM k
+      WHERE EXISTS (SELECT 1 FROM f WHERE f.site_id = k.site_id AND f.category_id = k.category_id AND f.year = k.yr
+                                       AND (k.ec IS NULL OR f.n = k.ec OR f.g = k.ec))`,
+    [
+      list.map((r) => r.pk_id),
+      list.map((r) => r.site_id),
+      list.map((r) => r.category_id),
+      list.map((r) => targetYearFor(r.date_of_reporting)),
+      list.map((r) => (typeof r.activity_data?.emission_category === "string" ? r.activity_data.emission_category : null)),
+    ],
+  );
+  for (const r of found) out.add(Number(r.pk_id));
+  return out;
+};
+
 /**
  * Computes the checks of the pending rows among `rowIds` without storing
  * them. Their pending FERA partners are computed too, and each row of a
@@ -254,7 +295,12 @@ const computeOwnChecks = async (manager: EntityManager, rowIds: number[], status
     keys.push({ site_id: r.site_id, category_id: r.category_id, emission_category: ec, month: previousMonth(month) });
   }
   const companyIds = ids(rows.map((r) => r.company_id));
-  const [totals, limits, dups] = await Promise.all([monthTotals(manager, keys), thresholds(manager, companyIds), duplicates(manager, rows)]);
+  const [totals, limits, dups, inLibrary] = await Promise.all([
+    monthTotals(manager, keys),
+    thresholds(manager, companyIds),
+    duplicates(manager, rows),
+    factorsInLibrary(manager, rows),
+  ]);
 
   for (const r of rows) {
     const ec = r.activity_data?.emission_category;
@@ -272,6 +318,7 @@ const computeOwnChecks = async (manager: EntityManager, rowIds: number[], status
         monthTotal: key ? (counted === null && !notCounted ? null : (counted ?? 0) + notCounted) : null,
         previousMonthTotal: key ? totals.get(keyString({ ...key, month: previousMonth(month) })) ?? null : null,
         importNeedsAttention: Boolean(r.needs_attention),
+        factorInLibrary: inLibrary.has(r.pk_id),
       }),
     );
   }
@@ -319,6 +366,55 @@ export const refreshChecksSafely = async (manager: EntityManager, rowIds: number
     if (inTx) await manager.query("ROLLBACK TO SAVEPOINT s3_review_checks").catch(() => undefined);
     log.error("Scope3Review", "Check refresh failed", { ids: ids(rowIds).slice(0, 50), error: (error as Error).message });
   }
+};
+
+/**
+ * Re-checks, 1,000 at a time, the pending rows of one site × category that
+ * have no factor snapshot (rows saved before snapshots existed: FACTOR_FOUND
+ * reads the factor library for them), after a factor of that site × category
+ * and year changes, so a factor added later clears "No factor for <year>"
+ * (F-15). Rows with a snapshot keep the factor they were calculated with and
+ * don't move. Never throws; the factor write has already happened.
+ */
+export const refreshFactorChecksSafely = async (manager: EntityManager, siteId: number, categoryId: number, factorYear: number): Promise<void> => {
+  if (![siteId, categoryId, factorYear].every(Number.isInteger)) return;
+  let after = 0;
+  try {
+    for (;;) {
+      const rows: Array<{ pk_id: number }> = await manager.query(
+        `SELECT e.pk_id FROM emission e
+          WHERE e.site_id = $1 AND e.category_id = $2 AND e.status = 'pending' AND e.emission_factor_snapshot IS NULL
+            AND extract(year FROM e.date_of_reporting)::int - 1 = $3 AND e.pk_id > $4
+          ORDER BY e.pk_id LIMIT 1000`,
+        [siteId, categoryId, factorYear, after],
+      );
+      if (!rows.length) return;
+      const batch = rows.map((r) => Number(r.pk_id));
+      after = batch[batch.length - 1];
+      await refreshChecksSafely(manager, batch);
+    }
+  } catch (error) {
+    log.error("Scope3Review", "Factor check refresh failed", { siteId, categoryId, factorYear, after, error: (error as Error).message });
+  }
+};
+
+/**
+ * refreshFactorChecksSafely for each changed (site, category, year) after a factor write,
+ * in the background: a site with a large import (hundreds of thousands of old rows) must
+ * not hold the factor request open. Ids and counts only are logged.
+ */
+export const refreshFactorChecksLater = (manager: EntityManager, changed: Array<{ siteId: number; categoryId: number; year: number }>): void => {
+  const seen = new Set<string>();
+  const list = changed.filter((c) => {
+    const key = `${c.siteId}:${c.categoryId}:${c.year}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return [c.siteId, c.categoryId, c.year].every(Number.isInteger);
+  });
+  if (!list.length) return;
+  void (async () => {
+    for (const c of list) await refreshFactorChecksSafely(manager, c.siteId, c.categoryId, c.year);
+  })();
 };
 
 /**

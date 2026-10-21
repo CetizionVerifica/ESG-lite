@@ -470,3 +470,21 @@ test("a contributor's update with an empty, zero or negative amount is refused a
     await clearAudit("emission", [990]);
   }
 });
+
+test("a new entry for a month or year that hasn't started is refused and nothing is saved (F-10)", async () => {
+  const now = new Date();
+  const nextMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0)).toISOString().slice(0, 10);
+  const before = Number((await q("SELECT count(*)::int AS n FROM emission"))[0].n);
+  const month = await call("POST", "/user/emissions", "user", {
+    site_id: 1, category_id: 1, activity_data: { activity_value: 10, emission_category: "Diesel" }, activity_data_unit: "litre", date_of_reporting: nextMonthEnd,
+  });
+  assert.equal(month.status, 400, JSON.stringify(month.json));
+  assert.match(month.json.message, /is in the future/);
+  const year = await call("POST", "/user/emissions", "user", {
+    site_id: 1, category_id: 1, activity_data: { activity_value: 10, emission_category: "Diesel" }, activity_data_unit: "litre",
+    date_of_reporting: `${now.getUTCFullYear() + 1}-12-31`, reporting_period: "yearly", year_type: "CY",
+  });
+  assert.equal(year.status, 400, JSON.stringify(year.json));
+  assert.match(year.json.message, /has not started yet/);
+  assert.equal(Number((await q("SELECT count(*)::int AS n FROM emission"))[0].n), before);
+});
