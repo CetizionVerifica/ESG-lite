@@ -1,0 +1,335 @@
+{
+  "about": "IN-4 completeness goldens on ci/fixtures/in-company (+ seed-in4.sql), worked by hand.",
+  "cases": [
+    {
+      "name": "CY 2025, all sites, KPI off: emissions only; the yearly batch covers every month on site 902",
+      "who": "admin",
+      "query": "year=2025",
+      "working": "site 901 files categories 1\u20134 (4 expected), all four in June (the renewable row counts as filed), the July pending row doesn't count \u2192 June 100 %, other months 0 %. Site 902 files 1, 2 and 3 (3 expected): June 1+2+3 = 100 %, every other month only the yearly Business Travel batch = 1/3. Site 903 files 1 and 2: June 100 %, others 0 %.",
+      "expected": {
+        "months": [
+          "2025-01",
+          "2025-02",
+          "2025-03",
+          "2025-04",
+          "2025-05",
+          "2025-06",
+          "2025-07",
+          "2025-08",
+          "2025-09",
+          "2025-10",
+          "2025-11",
+          "2025-12"
+        ],
+        "rows": [
+          {
+            "site_id": 901,
+            "site": "Plant North",
+            "cells": [
+              {
+                "month": "2025-01",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-02",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-03",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-04",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-05",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-06",
+                "pct": 100.0,
+                "emissions_expected": 4,
+                "emissions_approved": 4,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-07",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-08",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-09",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-10",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-11",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-12",
+                "pct": 0.0,
+                "emissions_expected": 4,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              }
+            ]
+          },
+          {
+            "site_id": 902,
+            "site": "Plant South",
+            "cells": [
+              {
+                "month": "2025-01",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-02",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-03",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-04",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-05",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-06",
+                "pct": 100.0,
+                "emissions_expected": 3,
+                "emissions_approved": 3,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-07",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-08",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-09",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-10",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-11",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-12",
+                "pct": 33.33333333333333,
+                "emissions_expected": 3,
+                "emissions_approved": 1,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              }
+            ]
+          },
+          {
+            "site_id": 903,
+            "site": "Plant East",
+            "cells": [
+              {
+                "month": "2025-01",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-02",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-03",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-04",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-05",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-06",
+                "pct": 100.0,
+                "emissions_expected": 2,
+                "emissions_approved": 2,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-07",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-08",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-09",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-10",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-11",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              },
+              {
+                "month": "2025-12",
+                "pct": 0.0,
+                "emissions_expected": 2,
+                "emissions_approved": 0,
+                "kpi_expected": 0,
+                "kpi_approved": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
