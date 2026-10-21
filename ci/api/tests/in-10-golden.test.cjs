@@ -11,7 +11,7 @@ const path = require("path");
 const jwt = require("jsonwebtoken");
 const { withDb } = require("../helpers.cjs");
 const { ensureKpiLibrary, kpiIds, kpiValue } = require("./in-lib.cjs"); // IN-2, IN-6
-const { setupCompany } = require("./kpi-lib.cjs"); // IN-2
+const { setupCompany } = require("./kpi-lib.cjs"); // IN-2, IN-7
 
 const ROOT = path.resolve(__dirname, "../../..");
 const CASES = require(path.join(ROOT, "ci/golden/in/cases.json"));
@@ -170,6 +170,41 @@ const GROUPS = {
       }
     } finally {
       await withDb((db) => db.query(read("cleanup-in2.sql")));
+      await withDb((db) => db.query(`UPDATE company SET kpi_tracking_enabled = false WHERE company_id = 901`));
+    }
+  },
+  // IN-7 · materiality: worst-status roll-up, weight normalisation, scored false with one missing score
+  // (company 901 with KPI tracking on for the case only), then the PUT turns scored true.
+  async materiality(suite) {
+    const g = load(suite.file);
+    ensureKpiLibrary();
+    await withDb((db) => db.query(`UPDATE company SET kpi_tracking_enabled = true WHERE company_id = 901`));
+    try {
+      await setupCompany(901, { frameworks: ["ESRS"], kpis: g.kpis, frequencies: Object.fromEntries(g.kpis.map((k) => [k, "annual"])), topicOwners: false });
+      const ids = await kpiIds(g.kpis);
+      for (const [topic, impact, financial, material = true] of g.topics) {
+        await withDb((db) => db.query(`INSERT INTO company_material_topic (company_id, esrs_topic, material, reason, impact_score, financial_score) VALUES (901, $1, $2, $3, $4, $5)`, [topic, material, material ? null : "Not relevant", impact, financial]));
+      }
+      for (const [code, site, v, source] of g.values) await kpiValue(901, ids[code], site, 2025, v, "approved", source);
+      for (const [code, by, bv, ty, tv, dir] of g.targets) {
+        await withDb((db) => db.query(`INSERT INTO kpi_target (company_id, kpi_definition_id, site_id, baseline_year, baseline_value, target_year, target_value, direction) VALUES (901, $1, NULL, $2, $3, $4, $5, $6)`, [ids[code], by, bv, ty, tv, dir]));
+      }
+      for (const c of g.cases) {
+        const r = await get("admin", `/insights/materiality?${c.query}`);
+        assert.equal(r.status, 200, JSON.stringify(r.json));
+        assert.equal(r.json.availability, "ok", JSON.stringify(r.json));
+        matches(r.json.data, c.expected, c.name);
+      }
+      const res = await fetch(`${process.env.API_BASE}/kpi/setup/materiality-scores`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${jwt.sign(PEOPLE.admin, process.env.JWT_SECRET)}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ topics: g.scored_after.put }),
+      });
+      assert.equal(res.status, 200, await res.text());
+      matches((await get("admin", "/insights/materiality?year=2025")).json.data, g.scored_after.expected, "scored after PUT");
+    } finally {
+      await withDb((db) => db.query(read("cleanup-in7.sql")));
+      await withDb((db) => db.query(`DELETE FROM audit_log WHERE entity_type = 'kpi_setup' AND entity_id = 901`));
       await withDb((db) => db.query(`UPDATE company SET kpi_tracking_enabled = false WHERE company_id = 901`));
     }
   },
