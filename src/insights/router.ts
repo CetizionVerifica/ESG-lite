@@ -15,6 +15,7 @@ import in2Routes from "./panels/in2";
 import in4Routes from "./panels/in4";
 import flowRoutes from "./panels/flow";
 import cardsRoutes from "./panels/cards";
+import bridgeRoutes from "./panels/bridge";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use(in2Routes); // IN-2: GET /esg-ring, /decoupling, /target-wall
 router.use(in4Routes); // IN-4: /pathway, /completeness, /events
 router.use(flowRoutes); // IN-6: GET /flow
 router.use(cardsRoutes); // IN-3: GET /cards
+router.use(bridgeRoutes); // IN-5: GET /bridge?compare=prior|base
 
 export default router;
