@@ -51,9 +51,11 @@ export interface Summary {
   /** null: no SBTi setup */
   pathway: { status: TargetStatus; gap_pct: number | null; target_year: number | null } | null;
   intensity: { value: number | null; unit: string; combined: boolean; change_pct: number | null; good: boolean | null };
-  /** null when KPI tracking is off */
-  readiness: { pct: number; by_pillar: Record<Pillar, number> } | null;
+  /** null when KPI tracking is off (or nothing is counted yet). by_pillar: null for a pillar with nothing counted (IN-0 follow-up, IN-1). */
+  readiness: { pct: number; by_pillar: Record<Pillar, number | null> } | null;
   attention: { total: number; items: Array<{ kind: AttentionKind; count: number; link: string }> };
+  /** Renewable share of electricity in the period, % (hero cell 3 when KPI tracking is off); null without electricity data. IN-0 follow-up, IN-1. */
+  renewable_share_pct: number | null;
 }
 
 // IN-2 · GET /insights/esg-ring (kpi_off when KPI tracking is off)

@@ -69,4 +69,56 @@ const callAs = (route, who, companyId) => {
   return call(route.method, `${route.path}${sep}company_id=${companyId}`, who, hasBody ? { company_id: companyId } : undefined);
 };
 
-module.exports = { setInsights, setKpi, runScript, insightsRoutes, INSIGHTS_CONTRACT_ROUTES, gatedInsightsRoutes, concrete, callAs };
+
+// ── IN-1: shared fixture helpers for panel tests ─────────────────────────────
+
+const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
+
+/** The KPI library (migrations + seed) the KPI-backed panels read; idempotent. */
+const ensureKpiLibrary = () => {
+  for (const name of ["migrateKpiLibrary", "migrateKpiPillars", "seedKpiLibrary", "migrateKpiValues", "migrateKpiSetup", "migrateKpiTopicAssignment", "migrateKpiTargets"]) {
+    const r = runScript(name);
+    if (r.status !== 0) throw new Error(`${name}: ${r.stderr}${r.stdout}`);
+  }
+};
+
+/** Library KPI ids by code. */
+const kpiIds = async (codes) => Object.fromEntries((await q(`SELECT code, id FROM kpi_definition WHERE company_id IS NULL AND code = ANY($1::text[])`, [codes])).map((r) => [r.code, r.id]));
+
+/** An annual CY KPI value for company `company` (site null = company level). */
+const kpiValue = (company, kpiId, site, year, v, status = "approved", source = "manual") =>
+  q(
+    `INSERT INTO kpi_value (company_id, site_id, kpi_definition_id, period_start, period_end, frequency, year_type, value_numeric, unit, value_canonical, source, status)
+     VALUES ($1, $2, $3, $4, $5, 'annual', 'CY', $6, NULL, $6, $7, $8) RETURNING id`,
+    [company, site, kpiId, `${year}-01-01`, `${year}-12-31`, v, source, status],
+  );
+
+/** Removes the KPI rows the Insights tests write for companies 1 and 2 (values, targets, setup). */
+const wipeKpi = async () => {
+  await q(`DELETE FROM kpi_target WHERE company_id IN (1, 2)`);
+  await q(`DELETE FROM kpi_value WHERE company_id IN (1, 2)`);
+  for (const t of ["kpi_topic_assignment", "kpi_assignment", "company_kpi", "company_material_topic", "company_framework", "company_kpi_settings"]) {
+    await q(`DELETE FROM ${t} WHERE company_id IN (1, 2)`);
+  }
+};
+
+/** GET /insights<path> as `who` (a Superadmin names company `companyId`); asserts the status. */
+const panel = async (who, pathAndQuery, { companyId = 1, status = 200, headers = {} } = {}) => {
+  const sep = pathAndQuery.includes("?") ? "&" : "?";
+  const url = `/insights${pathAndQuery}${who === "superadmin" ? `${sep}company_id=${companyId}` : ""}`;
+  const r = await call("GET", url, who, undefined, headers);
+  if (r.status !== status) throw new Error(`${who} GET ${url}: ${r.status} ${JSON.stringify(r.json)}`);
+  return r;
+};
+
+/** Every envelope field of a panel response (01-contracts §2). */
+const assertEnvelope = (assert, body, panelId) => {
+  assert.equal(body.panel, panelId);
+  for (const k of ["availability", "period", "sites", "label", "pending_not_in", "stamp", "links"]) assert.ok(k in body, `envelope has ${k}`);
+  assert.ok("data" in body);
+  assert.equal(typeof body.pending_not_in.emissions, "number");
+  assert.equal(typeof body.pending_not_in.kpi_values, "number");
+  assert.match(body.stamp, /^[0-9a-f]{16}$/);
+};
+
+module.exports = { setInsights, setKpi, runScript, insightsRoutes, INSIGHTS_CONTRACT_ROUTES, gatedInsightsRoutes, concrete, callAs, q, ensureKpiLibrary, kpiIds, kpiValue, wipeKpi, panel, assertEnvelope };
