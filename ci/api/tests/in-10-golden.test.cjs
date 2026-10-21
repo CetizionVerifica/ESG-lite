@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const jwt = require("jsonwebtoken");
 const { withDb } = require("../helpers.cjs");
+const { ensureKpiLibrary } = require("./in-lib.cjs"); // IN-6
 
 const ROOT = path.resolve(__dirname, "../../..");
 const CASES = require(path.join(ROOT, "ci/golden/in/cases.json"));
@@ -93,6 +94,56 @@ const GROUPS = {
     const s = (await get("manager", "/insights/summary?year=2025")).json;
     matches(s.data.pathway.gap_pct, ((row.actualTotal - row.targetTotal) / row.targetTotal) * 100, "pathway gap");
     // Later parts (IN-4 pathway panel, IN-2 ring) append their checks here.
+  },
+  // IN-6 · flow: tonnes conserved 0→1 and 1→2, disclosure counts = mapped rows of the enabled frameworks.
+  async flow(suite) {
+    const g = load(suite.file);
+    const check = (flow, c, name) => {
+      const key = (l) => `${l.source}→${l.target}`;
+      const got = new Map(flow.links.map((l) => [key(l), l]));
+      for (const [source, target, value, measure, fit] of c.links) {
+        const l = got.get(`${source}→${target}`);
+        assert.ok(l, `${name}: link ${source}→${target}`);
+        matches(l.value, value, `${name} ${source}→${target}`);
+        assert.equal(l.measure, measure, `${name} ${source}→${target} measure`);
+        if (fit) assert.equal(l.fit, fit);
+      }
+      assert.equal(flow.links.length, c.links.length, `${name}: link count`);
+      for (const [col, n] of Object.entries(c.columns)) assert.equal(flow.nodes.filter((x) => x.column === Number(col)).length, n, `${name}: column ${col}`);
+      for (const id of c.absent ?? []) assert.ok(!flow.nodes.some((x) => x.id === id), `${name}: ${id} absent`);
+      // Conservation: into each scope = out of it in tCO2e (where column 2 takes it).
+      const sum = (pred) => flow.links.filter(pred).reduce((a, l) => a + l.value, 0);
+      for (const n of [1, 2]) matches(sum((l) => l.target === `scope:${n}`), sum((l) => l.source === `scope:${n}` && l.measure === "tCO2e"), `${name}: scope ${n} conserved`);
+    };
+    const off = await get("admin", `/insights/flow?${g.kpi_off.query}`);
+    assert.equal(off.status, 200, JSON.stringify(off.json));
+    check(off.json.data, g.kpi_off, "kpi off");
+    ensureKpiLibrary();
+    const c = g.kpi_on;
+    try {
+      await withDb(async (db) => {
+        await db.query(`UPDATE company SET kpi_tracking_enabled = true WHERE company_id = 901`);
+        await db.query(`INSERT INTO company_kpi_settings (company_id, year_type, first_year, due_day, setup_completed_at) VALUES (901, 'CY', 2021, 15, now())`);
+        await db.query(`INSERT INTO company_framework (company_id, framework_id, framework_code) SELECT 901, id, code FROM kpi_framework WHERE active AND code = ANY($1::text[])`, [c.frameworks]);
+        await db.query(`INSERT INTO company_kpi (company_id, kpi_definition_id, selected, frequency) SELECT 901, id, true, 'annual' FROM kpi_definition WHERE company_id IS NULL AND code = ANY($1::text[])`, [c.kpis]);
+        for (const [code, bySite] of Object.entries(c.values)) {
+          for (const [site, v] of Object.entries(bySite)) {
+            await db.query(
+              `INSERT INTO kpi_value (company_id, site_id, kpi_definition_id, period_start, period_end, frequency, year_type, value_numeric, unit, value_canonical, source, status)
+               SELECT 901, $1, id, '2025-01-01', '2025-12-31', 'annual', 'CY', $2, NULL, $2, 'auto', 'approved' FROM kpi_definition WHERE company_id IS NULL AND code = $3`,
+              [Number(site), v, code],
+            );
+          }
+        }
+      });
+      const on = await get("admin", `/insights/flow?${c.query}`);
+      assert.equal(on.status, 200, JSON.stringify(on.json));
+      const siteLinks = g.kpi_off.links.filter(([source]) => source.startsWith("site:"));
+      check(on.json.data, { ...c, links: [...siteLinks, ...c.links] }, "kpi on");
+      assert.equal(on.json.links["disc:BRSR:P6-E7"], "/kpi/reports/BRSR?year=2025#P6-E7");
+    } finally {
+      await withDb((db) => db.query(fs.readFileSync(path.join(FIXTURE_DIR, "cleanup-in6.sql"), "utf8")));
+    }
   },
 };
 

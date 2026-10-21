@@ -1,0 +1,168 @@
+{
+  "about": "IN-6 flow goldens on ci/fixtures/in-company (CY 2025), worked by hand from the fixture table. KPI-on case: the group sets up GRI + BRSR and selects GHG_SCOPE1, GHG_SCOPE2_LB, ENERGY_TOTAL and WATER_WITHDRAWAL for company 901, with approved 2025 GHG values equal to the fixture's per-site Scope 1 and Scope 2 (data/kpi/mappings.json gives the disclosures).",
+  "kpi_off": {
+    "query": "year=2025",
+    "working": "site 901 S1 900 S2 360 S3 400; 902 460 / 220; 903 230 / 100. Scope totals 1,590 / 680 / 400 = the categories Stationary Combustion (1), Purchased Electricity (2), Business Travel (3); renewable electricity (no scope) is not a category link.",
+    "links": [
+      [
+        "site:901",
+        "scope:1",
+        900,
+        "tCO2e"
+      ],
+      [
+        "site:901",
+        "scope:2",
+        360,
+        "tCO2e"
+      ],
+      [
+        "site:901",
+        "scope:3",
+        400,
+        "tCO2e"
+      ],
+      [
+        "site:902",
+        "scope:1",
+        460,
+        "tCO2e"
+      ],
+      [
+        "site:902",
+        "scope:2",
+        220,
+        "tCO2e"
+      ],
+      [
+        "site:903",
+        "scope:1",
+        230,
+        "tCO2e"
+      ],
+      [
+        "site:903",
+        "scope:2",
+        100,
+        "tCO2e"
+      ],
+      [
+        "scope:1",
+        "cat:1",
+        1590,
+        "tCO2e"
+      ],
+      [
+        "scope:2",
+        "cat:2",
+        680,
+        "tCO2e"
+      ],
+      [
+        "scope:3",
+        "cat:3",
+        400,
+        "tCO2e"
+      ]
+    ],
+    "columns": {
+      "0": 3,
+      "1": 3,
+      "2": 3,
+      "3": 0
+    }
+  },
+  "kpi_on": {
+    "query": "year=2025",
+    "frameworks": [
+      "GRI",
+      "BRSR"
+    ],
+    "kpis": [
+      "GHG_SCOPE1",
+      "GHG_SCOPE2_LB",
+      "ENERGY_TOTAL",
+      "WATER_WITHDRAWAL"
+    ],
+    "values": {
+      "GHG_SCOPE1": {
+        "901": 900,
+        "902": 460,
+        "903": 230
+      },
+      "GHG_SCOPE2_LB": {
+        "901": 360,
+        "902": 220,
+        "903": 100
+      }
+    },
+    "working": "Scope 1 in = 900 + 460 + 230 = 1,590 = the GHG_SCOPE1 figure (sum over sites) out; Scope 2 680 = GHG_SCOPE2_LB. Scope 3 has no GHG KPI selected: 400 t in, nothing out. ENERGY_TOTAL is count-only (no tonnes). WATER_WITHDRAWAL isn't a climate/energy KPI: not shown. Disclosures (GRI 2021+, BRSR 2023; ESRS not enabled): GHG_SCOPE1 → GRI 305-1, BRSR P6-E7; GHG_SCOPE2_LB → GRI 305-2, BRSR P6-E7; ENERGY_TOTAL → GRI 302-1, BRSR P6-E1: 6 count links, 5 disclosure nodes (P6-E7 takes two).",
+    "links": [
+      [
+        "scope:1",
+        "kpi:GHG_SCOPE1",
+        1590,
+        "tCO2e"
+      ],
+      [
+        "scope:2",
+        "kpi:GHG_SCOPE2_LB",
+        680,
+        "tCO2e"
+      ],
+      [
+        "kpi:GHG_SCOPE1",
+        "disc:GRI:305-1",
+        1,
+        "count",
+        "exact"
+      ],
+      [
+        "kpi:GHG_SCOPE1",
+        "disc:BRSR:P6-E7",
+        1,
+        "count",
+        "exact"
+      ],
+      [
+        "kpi:GHG_SCOPE2_LB",
+        "disc:GRI:305-2",
+        1,
+        "count",
+        "exact"
+      ],
+      [
+        "kpi:GHG_SCOPE2_LB",
+        "disc:BRSR:P6-E7",
+        1,
+        "count",
+        "exact"
+      ],
+      [
+        "kpi:ENERGY_TOTAL",
+        "disc:GRI:302-1",
+        1,
+        "count",
+        "exact"
+      ],
+      [
+        "kpi:ENERGY_TOTAL",
+        "disc:BRSR:P6-E1",
+        1,
+        "count",
+        "exact"
+      ]
+    ],
+    "columns": {
+      "0": 3,
+      "1": 3,
+      "2": 3,
+      "3": 5
+    },
+    "absent": [
+      "kpi:WATER_WITHDRAWAL",
+      "disc:ESRS:E1-6"
+    ],
+    "site_links": "the kpi_off case's site → scope links (the same rows)"
+  }
+}
