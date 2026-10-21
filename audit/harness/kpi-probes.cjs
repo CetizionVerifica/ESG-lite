@@ -119,6 +119,7 @@ const MATRIX = {
   "DELETE /values/:id/evidence/:eid": { roles: A },
   "GET /setup": { roles: A },
   "PUT /setup": { roles: AS },
+  "PUT /setup/materiality-scores": { roles: AS }, // IN-7: Insights / RS-2 / DS-2 materiality scores (Admin, Superadmin)
   "POST /setup/invite": { roles: AS },
   "POST /setup/custom-kpis": { roles: AS },
   "GET /people/:user_id/topics": { roles: MAA },
