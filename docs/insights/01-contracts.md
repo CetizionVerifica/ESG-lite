@@ -50,8 +50,9 @@ Summary {
   net:        { value: number, unit: 'tCO2e', prior: number | null, change_pct: number | null, good: boolean | null }
   pathway:    { status: TargetStatus, gap_pct: number | null, target_year: number | null } | null   // null: no SBTi setup
   intensity:  { value: number | null, unit: string, combined: boolean, change_pct: number | null, good: boolean | null }
-  readiness:  { pct: number, by_pillar: Record<Pillar, number> } | null      // null when KPI tracking off
+  readiness:  { pct: number, by_pillar: Record<Pillar, number | null> } | null   // null when KPI tracking off; a pillar with nothing counted is null (IN-1 follow-up)
   attention:  { total: number, items: { kind: 'approvals'|'kpi_gaps'|'off_track'|'missing_submitters'|'threshold', count: number, link: string }[] }
+  renewable_share_pct: number | null   // IN-1 follow-up: hero cell 3 when KPI tracking is off (renewable kWh ÷ electricity kWh)
 }
 
 // IN-2 · GET /insights/esg-ring       (kpi_off when KPI tracking off)

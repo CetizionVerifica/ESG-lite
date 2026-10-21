@@ -10,11 +10,13 @@
  */
 import { Router } from "express";
 import { insightsSites, insightsStatus, requireInsights } from "./guard";
+import summaryRoutes from "./panels/summary";
 
 const router = Router();
 
 router.get("/status", insightsStatus); // IN-0: {enabled, kpi_tracking}, answers when off
 router.use(requireInsights); // IN-0: 403 IN_OFF / IN_FORBIDDEN below this line
 router.get("/sites", insightsSites); // IN-0: the caller's sites for the header chips
+router.use(summaryRoutes); // IN-1: GET /summary
 
 export default router;
