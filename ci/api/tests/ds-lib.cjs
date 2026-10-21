@@ -74,7 +74,7 @@ const STUDIO_CONTRACT_ROUTES = [
   ["GET", "/docs/1/versions/1/preview.html?mode=paged"],
   // PRO-0 · Pro editing and AI templates (docs/design-studio/pro/): AT-1, AT-2, PE-1, PE-2
   ["POST", "/templates/suggest"],
-  ["POST", "/docs/1/template-swap/preview"], ["POST", "/docs/1/template-swap/apply"],
+  ["POST", "/docs/1/template-swap/preview"], ["POST", "/docs/1/template-swap/apply"], // AT-2 built
   ["POST", "/assets/1/remove-background"], ["GET", "/image-jobs/1"],
   ["GET", "/brand-kit/fonts"], ["POST", "/brand-kit/fonts"], ["DELETE", "/brand-kit/fonts/1"], ["GET", "/brand-kit/fonts/1/files/1"],
 ].map(([method, p]) => ({ method, path: p }));

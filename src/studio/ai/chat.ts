@@ -76,7 +76,7 @@ const RULES: Array<{ re: RegExp; action: AiAction; reply: string; params?: (m: R
 
 /** Asks the panel can't do yet, answered without a model call. */
 const NOT_YET: Array<{ re: RegExp; reply: string }> = [
-  { re: /\b(suggest|propose)\b.*\blayout\b|\blayout\b.*\bpage\b/i, reply: "Layout suggestions aren't available yet. You can pick a page layout from the Templates drawer." },
+  { re: /\b(suggest|propose)\b.*\blayout\b|\blayout\b.*\bpage\b/i, reply: "Open the AI drawer's \"Layouts for this page\" to see three layouts for the selected page. You can also pick a page layout from the Templates drawer." } /* AT-2 */,
   { re: /\bcover\s+(art|image)\b|\bgenerate\b.*\bimage\b/i, reply: "Use \"Generate image\" in the Uploads drawer for cover art." },
 ];
 
