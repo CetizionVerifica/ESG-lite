@@ -18,3 +18,10 @@ Prove the §1 success test: Insights shows the same numbers as the source pages,
 
 ## Done when
 All goldens run green, the parity golden holds, probes find no leaks, timings meet the budget, and the workflow and e2e pass. The final PR body states the §1 checklist with evidence for each item.
+
+## IN-10 as built (draft, wave 1)
+- **Fixture `ci/fixtures/in-company/seed.sql`** (+ `cleanup.sql`, every statement by id): company 901 "IN Fixture Co" (Insights on, KPI off) with sites 901 Plant North (t), 902 Plant South (t), 903 Plant East (MWh — the other production unit); company 902 with site 904 for tenant isolation; users 901 Admin, 902 Manager (901 + 902), 903 User, 904 other Manager. Approved Scope 1/2/3 2021–2025 (one June row per scope), Scope 2 kWh = t × 1,250, renewable electricity rising on site 901, one pending row, production per site and year, base year 2021. The table of figures is the header of the SQL file.
+  Deviation from the spec: no KPIs, materiality or events yet — each module that needs them (IN-2, IN-3, IN-4, IN-6, IN-7) appends its rows to the fixture with its golden.
+- **Index `ci/golden/in/cases.json`:** one suite per module golden list plus `parity`; `skip` + `waits_on` until the module switches it to `run`.
+- **Runner `ci/api/tests/in-10-golden.test.cjs`:** loads the fixture on the API test database, runs a group per `run` suite (fails when a running suite has no group), reports skipped suites with their module. Runs now: `summary` (IN-1: five hand-worked cases — CY all sites, the Manager's two sites, at_risk site 902, off_track site 903 in MWh, FY 2026) and `parity` (summary = `/manager/overview`, the pathway gap = `/user/targets/tables`).
+- Not yet: workflow steps, probes, e2e main path (IN-10 final).
