@@ -106,7 +106,8 @@ const GROUPS = {
       assert.equal(p.actual.s1[i], r.actualScope1, `s1 ${r.year}`);
       assert.equal(p.actual.s2[i], r.actualScope2, `s2 ${r.year}`);
     }
-    // Later parts (IN-2 ring) append their checks here.
+    // The ring's coverage = /kpi/esg per topic runs inside the `story` group (IN-2), which turns KPI
+    // tracking on for company 901 for its case only; it is not repeated here (IN-10 final).
   },
   // IN-4
   async pathway(suite) {
@@ -294,7 +295,7 @@ test.after(async () => {
   await withDb((db) => db.query(CLEANUP));
 });
 
-test("the golden index: every suite has an owner, a file or a waits_on, and a group when it runs", () => {
+test("the golden index (IN-10 final): every suite runs, with its file and its runner or group", () => {
   assert.ok(CASES.suites.length >= 10);
   for (const s of CASES.suites) {
     assert.ok(["run", "skip"].includes(s.status), s.id);
@@ -303,7 +304,7 @@ test("the golden index: every suite has an owner, a file or a waits_on, and a gr
       // IN-3: a suite may run in its own (pure) runner instead of a group here.
       if (s.runner === THIS_RUNNER) assert.ok(GROUPS[s.id], `${s.id} runs but has no group in in-10-golden.test.cjs`);
       else assert.ok(fs.existsSync(path.join(ROOT, s.runner)), `${s.id}: runner ${s.runner}`);
-    } else assert.ok(s.waits_on, `${s.id} is skipped without waits_on`);
+    } else assert.fail(`${s.id} (${s.owner}) is still skipped (waits on ${s.waits_on}): IN-10 final runs every suite`);
   }
 });
 

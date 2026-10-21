@@ -1318,6 +1318,172 @@ step("DS-W11 the Design Studio goldens match (ci/golden/ds)", async (t) => {
   });
 });
 
+// ── Insights (IN-10: IN-W0–IN-W7) ── IN-10 ───────────────────────────────────
+// The same client, its FY REPORT_YEAR. K8 left KPI tracking off, so the KPI panels answer
+// kpi_off. Figures are worked by hand in scenario.cjs (INSIGHTS).
+
+const IN = SC.INSIGHTS;
+const inQuery = `year=${SC.REPORT_YEAR}&yearType=${SC.YEAR_TYPE}`;
+/** The /manager/overview period for FY REPORT_YEAR (Apr YEAR – Mar REPORT_YEAR). */
+const inOverviewPeriod = `FY${SC.YEAR}-${String(SC.REPORT_YEAR % 100).padStart(2, "0")}`;
+/** Every panel of 01-contracts §4 with its query. */
+const IN_PANELS = [
+  ["summary", "/summary"], ["esg_ring", "/esg-ring"], ["decoupling", "/decoupling"], ["target_wall", "/target-wall"],
+  ["cards", "/cards"], ["pathway", "/pathway"], ["completeness", "/completeness"], ["bridge", "/bridge?compare=prior"],
+  ["flow", "/flow"], ["materiality", "/materiality"], ["stripes", "/stripes"],
+];
+const inPanel = (path, who = S.people.manager) => call("GET", `/insights${path}${path.includes("?") ? "&" : "?"}${inQuery}`, who);
+const inSummary = async () => {
+  const r = await inPanel("/summary");
+  ok(r);
+  return r.json;
+};
+
+step("IN-W0 before Insights: the emission reports this client has (to compare once Insights is on and off)", async () => {
+  S.inEmissionsBefore = await emissionReports();
+});
+
+step("IN-W1 the Superadmin switches Insights on for this client only; Users stay out; the other client stays off", async () => {
+  assert.deepEqual((await call("GET", "/insights/status", S.people.manager)).json, { enabled: false, kpi_tracking: false });
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { insights_enabled: true }));
+  const [audit] = await kq(`SELECT changed_fields FROM audit_log WHERE entity_type = 'insights' AND entity_id = $1 ORDER BY id DESC LIMIT 1`, [S.companyId]);
+  assert.deepEqual(audit.changed_fields, { insights_enabled: { old: false, new: true } });
+  for (const who of [S.people.manager, S.admin, S.people.userMain]) assert.equal((await call("GET", "/insights/status", who)).json.enabled, true);
+  const user = await inPanel("/summary", S.people.userMain);
+  assert.equal(user.status, 403);
+  assert.equal(user.json.code, "IN_FORBIDDEN");
+  const other = S.otherAdmin || (await login(SC.OTHER_CLIENT.email, SC.OTHER_CLIENT.password));
+  S.otherAdmin = other;
+  assert.equal((await call("GET", "/insights/status", other)).json.enabled, false, "the other client stays off");
+  const off = await call("GET", "/insights/summary", other);
+  assert.equal(off.status, 403);
+  assert.equal(off.json.code, "IN_OFF");
+  const named = await call("GET", `/insights/summary?company_id=${S.companyId}`, other);
+  assert.equal(named.status, 404, "naming this client is 404 for the other client");
+});
+
+step("IN-W2 the Manager opens every panel: each answers its envelope; the KPI panels are kpi_off (K8 left KPI off)", async () => {
+  for (const [id, path] of IN_PANELS) {
+    const r = await inPanel(path);
+    ok(r);
+    assert.equal(r.json.panel, id, path);
+    for (const k of ["availability", "period", "sites", "label", "data", "pending_not_in", "stamp", "links"]) assert.ok(k in r.json, `${id} has ${k}`);
+    assert.deepEqual(r.json.period, { year: SC.REPORT_YEAR, yearType: SC.YEAR_TYPE });
+    if (id === "esg_ring" || id === "materiality") {
+      assert.equal(r.json.availability, "kpi_off", id);
+      assert.equal(r.json.data, null);
+    } else assert.ok(["ok", "no_data", "setup_incomplete"].includes(r.json.availability), `${id}: ${r.json.availability}`);
+  }
+  const sites = await call("GET", "/insights/sites", S.people.manager);
+  assert.deepEqual(sites.json.sites.map((s) => s.site_id).sort((a, b) => a - b), [...siteIds()].sort((a, b) => a - b));
+});
+
+step("IN-W3 the summary's net and pending equal /manager/overview for FY REPORT_YEAR, all sites and one", async () => {
+  for (const sites of ["", String(S.sites.main)]) {
+    const ov = await call("GET", `/manager/overview?period=${inOverviewPeriod}${sites ? `&siteIds=${sites}` : ""}`, S.people.manager);
+    ok(ov);
+    const s = await inPanel(`/summary${sites ? `?sites=${sites}` : ""}`);
+    ok(s);
+    assert.equal(s.json.data.net.value, ov.json.kpis.net, `net (${sites || "all"})`);
+    assert.equal(s.json.data.net.change_pct, ov.json.kpis.net_vs_last_year_pct);
+    assert.equal(s.json.pending_not_in.emissions, ov.json.kpis.pending_review_count, "pending as the approvals list counts it");
+    assert.equal(s.json.data.readiness, null, "no readiness with KPI tracking off");
+  }
+  assert.equal(await emissionReports(), S.inEmissionsBefore, "reading Insights moves no emission figure");
+});
+
+step("IN-W4 the Manager adds an event; it is listed, and on the pathway when the period has one", async () => {
+  const r = await call("POST", "/insights/events", S.people.manager, { ...IN.event, site_id: S.sites.main });
+  ok(r, 201);
+  S.inEventId = r.json.event.id;
+  const list = await call("GET", `/insights/events?from=${IN.event.date}&to=${IN.event.date}`, S.people.manager);
+  ok(list);
+  assert.deepEqual(list.json.events.map((e) => [e.id, e.label, e.kind, e.site_id]), [[S.inEventId, IN.event.label, IN.event.kind, S.sites.main]]);
+  const pathway = await inPanel("/pathway");
+  ok(pathway);
+  if (pathway.json.availability === "ok") {
+    const inRange = pathway.json.data.years.includes(Number(IN.event.date.slice(0, 4)));
+    assert.equal(pathway.json.data.events.some((e) => e.id === S.inEventId), inRange, "the pathway shows events inside its years");
+  }
+  // A User can't add one.
+  assert.equal((await call("POST", "/insights/events", S.people.userMain, { ...IN.event, site_id: S.sites.main })).json.code, "IN_FORBIDDEN");
+});
+
+step("IN-W5 a User submits an entry and the Manager approves it: the stamp moves and net moves by exactly its tCO₂e", async () => {
+  const before = await inSummary();
+  const e = IN.entry;
+  const r = await call("POST", "/user/emissions", S.people[e.who], {
+    site_id: S.sites[e.site],
+    category_id: S.cats[e.cat],
+    date_of_reporting: e.date,
+    activity_data_unit: e.unit,
+    activity_data: { emission_category: e.activity, activity_value: String(e.value) },
+  });
+  ok(r, 201);
+  const id = r.json.emission.pk_id;
+  if (r.json.emission.status === "draft") ok(await call("POST", "/user/emissions/submit", S.people[e.who], { ids: [id] })); // review workflow v2 (29a) is on
+  const want = SC.expectedFor(e);
+  const pending = await inSummary();
+  assert.notEqual(pending.stamp, before.stamp, "a new pending entry moves the stamp");
+  assert.equal(pending.data.net.value, before.data.net.value, "pending is never in net");
+  assert.equal(pending.pending_not_in.emissions, before.pending_not_in.emissions + 1, "and is counted (its twin folds in)");
+  ok(await call("PUT", `/user/emissions/${id}/approve`, S.people.manager, {}));
+  const after = await inSummary();
+  assert.notEqual(after.stamp, pending.stamp, "the approval moves the stamp: the cached summary is not served");
+  const delta = tonnes(want.kg) + Object.values(want.twins).reduce((a, kg) => a + tonnes(kg), 0);
+  assert.ok(Math.abs(after.data.net.value - before.data.net.value - delta) < 1e-6, `net moved ${after.data.net.value - before.data.net.value}, by hand ${delta}`);
+  assert.equal(after.pending_not_in.emissions, before.pending_not_in.emissions);
+  // The approval is a data change of its own: the reports are taken again before the switch goes off.
+  S.inEmissionsBefore = await emissionReports();
+});
+
+step("IN-W6 switching off: every /insights route answers 403 IN_OFF for every role; the emission figures are unchanged", async () => {
+  ok(await call("PUT", `/admin/companies/${S.companyId}`, S.sa, { insights_enabled: false }));
+  const { gatedInsightsRoutes } = require("../api/tests/in-lib.cjs");
+  const wrong = [];
+  for (const route of gatedInsightsRoutes()) {
+    for (const [name, who] of [["superadmin", S.sa], ["admin", S.admin], ["manager", S.people.manager], ["user", S.people.userMain]]) {
+      const sep = route.path.includes("?") ? "&" : "?";
+      const url = name === "superadmin" ? `${route.path}${sep}company_id=${S.companyId}` : route.path;
+      const hasBody = route.method !== "GET" && route.method !== "DELETE";
+      const res = await call(route.method, url, who, hasBody ? (name === "superadmin" ? { company_id: S.companyId } : {}) : undefined);
+      if (!(res.status === 403 && res.json?.code === "IN_OFF")) wrong.push(`${name} ${route.method} ${route.path}: ${res.status} ${res.json?.code ?? ""}`);
+    }
+  }
+  assert.deepEqual(wrong, []);
+  assert.deepEqual((await call("GET", "/insights/status", S.people.manager)).json, { enabled: false, kpi_tracking: false });
+  const [ev] = await kq(`SELECT id FROM insight_event WHERE id = $1`, [S.inEventId]);
+  assert.ok(ev, "turning it off keeps the events");
+  assert.equal(await emissionReports(), S.inEmissionsBefore, "byte-identical with Insights on and off");
+});
+
+// IN-10: the Insights audit probes (audit/harness/in-probes.cjs) in a scratch database with the API
+// fixture, the IN-10 fixture company and their own server (IN_PROBE_PORT, else workflow port + 6):
+// switch-off, tenant isolation, roles, site scope, the scores route, migrations twice, timings.
+// Zero findings: any fail or error is red (a timing over budget is a warning).
+step("IN-W7 the Insights audit probes report zero findings on this stack", async (t) => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const { spawnSync } = require("child_process");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "in-probes-"));
+  const out = path.join(dir, "in-probes.json");
+  try {
+    await dsScratch("inprobes", async (scratch) => {
+      const port = process.env.IN_PROBE_PORT || String(Number(process.env.WORKFLOW_PORT || 3997) + 6);
+      const run = spawnSync(process.execPath, [path.join(DS_ROOT, "audit/harness/in-probes.cjs"), DS_ROOT, out], { env: { ...process.env, DB_NAME: scratch, IN_PROBE_PORT: port }, encoding: "utf8", timeout: 15 * 60 * 1000 });
+      assert.ok(fs.existsSync(out), `the harness wrote no result (exit ${run.status}): ${`${run.stdout}${run.stderr}`.slice(-2000)}`);
+      const { counts, results } = JSON.parse(fs.readFileSync(out, "utf8"));
+      t.diagnostic(String(run.stdout).trim().split("\n").pop());
+      assert.deepEqual(results.filter((r) => r.status === "fail" || r.status === "error").map((r) => `${r.ids.join(",")} ${r.title}: ${String(r.observed).slice(0, 300)}`), []);
+      assert.equal(run.status, 0, `harness exited ${run.status}`);
+      assert.ok(counts.pass > 0);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ── Go-live checks still to come ───────────────────────────────────────────
 
 pendingStep("27 the Scope 3 audit probes pass on this stack", "S3-16", async () => require("fs").existsSync("/mnt/project-files/audit/harness/scope3-probes.cjs"), async (t) => t.skip("run audit/harness/scope3-probes.cjs from the audit harness"));
