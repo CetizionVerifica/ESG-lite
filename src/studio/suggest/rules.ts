@@ -12,6 +12,8 @@
  *   readPicks(answer, candidates, nums)   the model's answer, guarded: zod, ids in the shortlist,
  *                                         no literal number except the counts offered, page ids
  *                                         and layout slugs kept only when they exist
+ *   scrubPromptText(text, names)          company text for the prompt without emails, phones,
+ *                                         the company's names or figures (E2)
  *
  * Readiness reads counts only (approved months, Scope 3 categories with data,
  * KPI coverage %, targets set, base year set) and, per page, whether DS-2
@@ -400,4 +402,38 @@ export function readPicks(answer: string, cands: Candidate[], allowed: Set<numbe
   }
   if (issues.length) return { issues };
   return out.length ? out : { issues: ["No usable pick"] };
+}
+
+// ---------------------------------------------------------------------------
+// Prompt text hygiene (E2: no PII, no figures)
+// ---------------------------------------------------------------------------
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const FIGURE_UNITS =
+  "%|percent|per\\s?cent|tCO2e?|tCO₂e?|kgCO2e?|kgCO₂e?|tonnes?|tons?|t|kg|kWh|MWh|GWh|GJ|TJ|MJ|litres?|liters?|kl|m3|m³|km|USD|EUR|INR|GBP|crores?|lakhs?|million|mn|billion|bn|k";
+const FIGURE_RE = new RegExp(
+  [
+    "[$€£₹]\\s?\\d[\\d,.]*", // money
+    `\\d[\\d,]*(?:\\.\\d+)?\\s?(?:${FIGURE_UNITS})(?![A-Za-z])`, // a number with a unit
+    "\\d[\\d,]*\\.\\d+", // decimals
+    "\\d{1,3}(?:,\\d{2,3})+", // thousands separators (1,234 and 12,34,567)
+    "(?<!ISO\\s?)\\b\\d{5,}\\b", // long bare numbers (but ISO 14064)
+  ].join("|"),
+  "gi",
+);
+
+/**
+ * Company-written text on its way to the model (the brief note, a company template's name,
+ * description and page names), with what E2 keeps out: emails, phone numbers, the company's
+ * own names (company and brand) and figures (money, numbers with units, decimals, thousands,
+ * long numbers). Years, framework codes ("GRI 305-1", "ISO 14064-1") and small counts stay.
+ */
+export function scrubPromptText(text: string, names: string[] = []): string {
+  let out = String(text ?? "");
+  out = out.replace(/[^\s@<>()"',;]+@[^\s@<>()"',;]+\.[A-Za-z]{2,}/g, "[email]");
+  out = out.replace(/\+?\d[\d\s().-]{8,}\d/g, (m) => (m.replace(/\D/g, "").length >= 10 ? "[phone]" : m));
+  for (const n of names.map((x) => String(x ?? "").trim()).filter((x) => x.length >= 3).sort((a, b) => b.length - a.length)) {
+    out = out.replace(new RegExp(escapeRe(n), "gi"), "the company");
+  }
+  return out.replace(FIGURE_RE, "[figure]");
 }

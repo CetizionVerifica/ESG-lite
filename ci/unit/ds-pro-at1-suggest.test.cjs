@@ -161,3 +161,16 @@ test("readPicks: ids from the shortlist only, counts and years allowed, other nu
   const dup = r.readPicks(JSON.stringify({ picks: [{ templateId: 1, reasons: ["a"] }, { templateId: 1, reasons: ["b"] }] }), cands, allowed);
   assert.match(dup.issues[0], /twice/);
 });
+
+test("scrubPromptText: no emails, phones, company names or figures; years, codes and small counts stay", () => {
+  const names = ["CI Steel Co", "CI Steel", "x"];
+  const out = r.scrubPromptText(
+    "CI Steel Co (ci steel) wants a 2025 report for ISO 14064-1 and GRI 305-1. Mail esg.team@ci-steel.example or call +91 98765 43210. " +
+      "We cut 4,210 tCO2e, 12.5% less, spent ₹3 crore and $1.2m, 12,34,567 kWh, 250 t of coal, 123456 litres. Scope 3: 9 of 15 categories, 2024-2025.",
+    names,
+  );
+  for (const bad of ["CI Steel", "ci steel", "@", "98765", "4,210", "12.5", "₹3", "$1.2", "12,34,567", "250 t", "123456"]) assert.ok(!out.includes(bad), `${bad} in: ${out}`);
+  for (const ok of ["the company", "2025", "ISO 14064-1", "GRI 305-1", "[email]", "[phone]", "[figure]", "9 of 15 categories", "2024-2025"]) assert.ok(out.includes(ok), `${ok} missing: ${out}`);
+  assert.equal(r.scrubPromptText("Classic GHG inventory, about 20 pages", names), "Classic GHG inventory, about 20 pages");
+  assert.equal(r.scrubPromptText("", names), "");
+});

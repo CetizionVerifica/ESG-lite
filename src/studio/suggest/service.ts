@@ -52,6 +52,7 @@ import {
   readPicks,
   ruleShortlist,
   scoreReadiness,
+  scrubPromptText,
   templateDataUnits,
   templateFrameworks,
   wantedFrameworks,
@@ -158,8 +159,13 @@ const LABELS: Record<string, string> = {
   long: "about 40 pages",
 };
 
-export function suggestPrompt(body: TemplateSuggestBody, cands: Candidate[], periodText: string): string {
+/**
+ * The user prompt. Company-written text (the note, a company template's name, description and
+ * page names) passes scrubPromptText with the company's own names; the note is fenced (E2).
+ */
+export function suggestPrompt(body: TemplateSuggestBody, cands: Candidate[], periodText: string, names: string[] = []): string {
   const b = body.brief;
+  const clean = (s: string) => scrubPromptText(s, names);
   return [
     `KIND: ${body.kind === "ghg" ? "GHG inventory report" : "sustainability report"} · period ${periodText}`,
     "",
@@ -169,27 +175,36 @@ export function suggestPrompt(body: TemplateSuggestBody, cands: Candidate[], per
     `- Length: ${LABELS[b.length]}`,
     `- Frameworks: ${b.frameworks.length ? b.frameworks.join(", ") : "not chosen"}`,
     `- Tone: ${b.tone ?? "not chosen"}`,
-    ...(b.note ? ["- Anything else (the company's words):", fence("brief_note", b.note)] : []),
+    ...(b.note ? ["- Anything else (the company's words):", fence("brief_note", clean(b.note))] : []),
     "",
     "TEMPLATES (rule order; readiness = share of data pages with approved data)",
     ...cands.map((c) =>
       [
-        `- id ${c.template.id}: ${c.template.name} · ${c.template.format} · ${c.template.purpose} · look ${c.template.look ?? "company"} · ${c.template.pageCount} pages · frameworks ${c.template.frameworks.join(", ") || "none"}`,
-        `  description: ${c.template.description || "none"}`,
+        `- id ${c.template.id}: ${clean(c.template.name)} · ${c.template.format} · ${c.template.purpose} · look ${c.template.look ?? "company"} · ${c.template.pageCount} pages · frameworks ${c.template.frameworks.join(", ") || "none"}`,
+        `  description: ${clean(c.template.description || "") || "none"}`,
         `  readiness: ${c.readiness.score}% (${c.readiness.level}); pages that would say "Not reported": ${c.readiness.notReportedPages}`,
         ...c.readiness.badges.map((x) => `  · ${x.label}`),
-        `  pages: ${c.pages.map((p) => `${p.id}=${p.name}`).join(" | ")}`,
+        `  pages: ${c.pages.map((p) => `${p.id}=${clean(p.name)}`).join(" | ")}`,
         `  can add: ${c.addable.join(" | ") || "none"}`,
       ].join("\n"),
     ),
   ].join("\n");
 }
 
+/** The company's own names (company, brand kit), kept out of the prompt. */
+async function companyNames(caller: StudioCaller): Promise<string[]> {
+  const rows: Row[] = await AppDataSource.query(
+    `SELECT name FROM company WHERE company_id = $1 UNION SELECT name FROM brand WHERE company_id = $1`,
+    [caller.companyId],
+  ).catch(() => []);
+  return rows.map((r) => String(r.name ?? "")).filter(Boolean);
+}
+
 /** The model's picks, or null (unavailable, over budget, invalid twice). */
 async function aiPicks(caller: StudioCaller, body: TemplateSuggestBody, cands: Candidate[]): Promise<{ picks: TemplatePick[]; model: string } | null> {
   const allowed = offeredNumbers(cands);
   for (const y of [body.year, body.year - 1]) allowed.add(y);
-  const base = suggestPrompt(body, cands, body.yearType === "CY" ? String(body.year) : `FY ${body.year - 1}–${String(body.year).slice(-2)}`);
+  const base = suggestPrompt(body, cands, body.yearType === "CY" ? String(body.year) : `FY ${body.year - 1}–${String(body.year).slice(-2)}`, await companyNames(caller));
   let user = base;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
