@@ -188,4 +188,15 @@ const KPI = {
   evidence: { document_url: "https://files.example.invalid/workflow/water-bill-apr.pdf", document_name: "water-bill-apr.pdf" },
 };
 
-module.exports = { KPI, REVIEW_V2, SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };
+
+/**
+ * Insights (IN-10): the entry approved while Insights is open. 100 L of diesel at the main site in
+ * February of the report year; its tCO₂e and its Category 3 (3a) twin come from expectedFor, so the
+ * Insights net for FY REPORT_YEAR moves by exactly tonnes(kg) + tonnes(twin kg) when it is approved.
+ */
+const INSIGHTS = {
+  entry: { ref: "in-diesel-feb", who: "userMain", site: "main", cat: "fuel", date: `${YEAR + 1}-02-28`, activity: "Diesel", value: 100, unit: "litre" },
+  event: { date: `${YEAR}-09-15`, label: "Boiler retrofit", kind: "initiative" },
+};
+
+module.exports = { INSIGHTS, KPI, REVIEW_V2, SUPPLIER, YEAR, YEAR_TYPE, REPORT_YEAR, SUPERADMIN, CLIENT, OTHER_CLIENT, PEOPLE, COUNTRY, PLANT_B, CATEGORIES, FACTORS, FLIGHT, SPEND, ENTRIES, expectedFor, FACTOR_YEARS, factorYearOf, TRAVEL, travelKg, spendKg, SCREENING, screeningKg, BOUNDARY };
