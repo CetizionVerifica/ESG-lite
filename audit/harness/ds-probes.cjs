@@ -71,6 +71,7 @@ const ID_SOURCES = {
   shares: { table: "report_share", sql: `SELECT s.id FROM report_share s JOIN report_doc d ON d.id = s.doc_id WHERE d.company_id = 1 ORDER BY s.id LIMIT 1`, module: "DS-11" },
   comments: { table: "report_comment", sql: `SELECT c.id FROM report_comment c JOIN report_doc d ON d.id = c.doc_id WHERE d.company_id = 1 ORDER BY c.id LIMIT 1`, module: "DS-13" },
   approvals: { table: "report_approval", sql: `SELECT a.id FROM report_approval a JOIN report_doc d ON d.id = a.doc_id WHERE d.company_id = 1 ORDER BY a.id LIMIT 1`, module: "DS-13" },
+  "image-jobs": { table: "report_image_job", sql: `SELECT id FROM report_image_job WHERE company_id = 1 ORDER BY id LIMIT 1`, module: "PE-1" }, // PE-1
 };
 // Route parameters that are not tenant ids: nothing company-owned to cross, so DS-P03 records n/a
 // (DS-P02 and DS-P04 still probe these routes). [Wave 1 integrate]
@@ -117,6 +118,14 @@ SEED.push(async ({ q }) => {
   if (!(await q(`SELECT 1 FROM report_approval WHERE company_id = 1 LIMIT 1`)).length) {
     await q(`INSERT INTO report_approval (company_id, doc_id, rev, requested_by, reviewer_id) VALUES (1, $1, $2, 3, 2)`, [doc.id, doc.rev]);
   }
+});
+
+// PE-1: a company-1 background-removal job on the company-1 asset (a row only; the flow is tested in ds-pro-pe-1-photo).
+SEED.push(async ({ q }) => {
+  if (!(await tableExists("report_image_job"))) return;
+  const [asset] = await q(`SELECT id FROM report_asset WHERE company_id = 1 ORDER BY created_at LIMIT 1`);
+  if (!asset || (await q(`SELECT 1 FROM report_image_job WHERE company_id = 1 LIMIT 1`)).length) return;
+  await q(`INSERT INTO report_image_job (company_id, kind, asset_id, status, error_code, error_reason) VALUES (1, 'remove_background', $1, 'failed', 'DS_JOB_FAILED', 'model')`, [asset.id]);
 });
 
 const ROLES = ["user", "manager", "admin", "superadmin"];
