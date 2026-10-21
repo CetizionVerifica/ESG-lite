@@ -1,0 +1,151 @@
+{
+  "about": "IN-1 summary goldens on ci/fixtures/in-company (IN-10). Worked by hand from the fixture table; numbers compared within 1e-9 relative. pathway uses the Targets page's 3-decimal pathway figure.",
+  "cases": [
+    {
+      "name": "CY 2025, all sites (Admin)",
+      "who": "admin",
+      "query": "year=2025",
+      "working": "net 2025 = (900+360+400)+(460+220)+(230+100) = 2,670; 2024 = 1,760+710+320 = 2,790; change \u22124.3 % (Overview's 1 dp). Pathway: base 2021 S1 1,700 + S2 1,000 (S3 400 is 12.9 % < 40 %, out of the boundary) = 2,700 \u00d7 0.958^4 = 2274.185; actual S1+S2 2025 = 1,590+680 = 2,270 \u2192 on track. Intensity: 2,670 \u00f7 (12,000+5,000+2,400 t/MWh) = 0.13763, units mixed; 2024 2,790 \u00f7 18,800. Renewables 600,000 \u00f7 (450,000+275,000+125,000+600,000) kWh.",
+      "expected": {
+        "net": {
+          "value": 2670,
+          "prior": 2790,
+          "change_pct": -4.3,
+          "good": true
+        },
+        "pathway": {
+          "status": "on_track",
+          "gap_pct": -0.18402196830952386,
+          "target_year": 2030
+        },
+        "intensity": {
+          "value": 0.13762886597938145,
+          "unit": "mixed units",
+          "combined": true,
+          "change_pct": -7.260835827513576,
+          "good": true
+        },
+        "renewable_share_pct": 41.37931034482759,
+        "pending_not_in": {
+          "emissions": 1,
+          "kpi_values": 0
+        },
+        "readiness": null
+      }
+    },
+    {
+      "name": "CY 2025, sites 901 and 902 (Manager)",
+      "who": "manager",
+      "query": "year=2025",
+      "working": "net 1,660+680 = 2,340; 2024 1,760+710 = 2,470 \u2192 \u22125.3 %. Pathway base (1,500+900) = 2,400 \u00d7 0.958^4 = 2021.498; actual 1,360+580 = 1,940. Intensity 2,340 \u00f7 17,000 t; 2024 2,470 \u00f7 16,500 t.",
+      "expected": {
+        "net": {
+          "value": 2340,
+          "prior": 2470,
+          "change_pct": -5.3,
+          "good": true
+        },
+        "pathway": {
+          "status": "on_track",
+          "gap_pct": -4.031564710922299,
+          "target_year": 2030
+        },
+        "intensity": {
+          "value": 0.1376470588235294,
+          "unit": "t",
+          "combined": false,
+          "change_pct": -8.049535603715173,
+          "good": true
+        },
+        "renewable_share_pct": 45.28301886792453,
+        "pending_not_in": {
+          "emissions": 1,
+          "kpi_values": 0
+        },
+        "readiness": null
+      }
+    },
+    {
+      "name": "CY 2025, site 902: at risk (+0.9 % above the pathway)",
+      "who": "admin",
+      "query": "year=2025&sites=902",
+      "working": "base 500+300 = 800 \u00d7 0.958^4 = 673.833; actual 460+220 = 680 \u2192 +0.92 % \u2264 5 % \u2192 at risk. Net change (680\u2212710)/710 = \u22124.2 %.",
+      "expected": {
+        "net": {
+          "value": 680,
+          "prior": 710,
+          "change_pct": -4.2,
+          "good": true
+        },
+        "pathway": {
+          "status": "at_risk",
+          "gap_pct": 0.9152119293652924,
+          "target_year": 2030
+        },
+        "intensity": {
+          "value": 0.136,
+          "unit": "t",
+          "combined": false,
+          "change_pct": -4.225352112676041,
+          "good": true
+        },
+        "renewable_share_pct": 0.0,
+        "pending_not_in": {
+          "emissions": 0,
+          "kpi_values": 0
+        },
+        "readiness": null
+      }
+    },
+    {
+      "name": "CY 2025, site 903: off track (+30.6 %), production in MWh",
+      "who": "admin",
+      "query": "year=2025&sites=903",
+      "working": "base 200+100 = 300 \u00d7 0.958^4 = 252.687; actual 230+100 = 330 \u2192 off track. Net +3.1 %, but intensity fell (330/2,400 vs 320/2,300).",
+      "expected": {
+        "net": {
+          "value": 330,
+          "prior": 320,
+          "change_pct": 3.1,
+          "good": false
+        },
+        "pathway": {
+          "status": "off_track",
+          "gap_pct": 30.596350425625374,
+          "target_year": 2030
+        },
+        "intensity": {
+          "value": 0.1375,
+          "unit": "MWh",
+          "combined": false,
+          "change_pct": -1.1718749999999933,
+          "good": true
+        },
+        "renewable_share_pct": 0.0,
+        "pending_not_in": {
+          "emissions": 0,
+          "kpi_values": 0
+        },
+        "readiness": null
+      }
+    },
+    {
+      "name": "FY 2026 (Apr 2025\u2013Mar 2026) reads the June 2025 rows, as Overview's FY2025-26",
+      "who": "admin",
+      "query": "year=2026&yearType=FY",
+      "working": "June 2025 rows fall in FY 2026; June 2024 rows in FY 2025.",
+      "expected": {
+        "net": {
+          "value": 2670,
+          "prior": 2790,
+          "change_pct": -4.3,
+          "good": true
+        },
+        "pending_not_in": {
+          "emissions": 1,
+          "kpi_values": 0
+        }
+      }
+    }
+  ]
+}
