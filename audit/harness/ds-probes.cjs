@@ -73,6 +73,7 @@ const ID_SOURCES = {
   approvals: { table: "report_approval", sql: `SELECT a.id FROM report_approval a JOIN report_doc d ON d.id = a.doc_id WHERE d.company_id = 1 ORDER BY a.id LIMIT 1`, module: "DS-13" },
   "image-jobs": { table: "report_image_job", sql: `SELECT id FROM report_image_job WHERE company_id = 1 ORDER BY id LIMIT 1`, module: "PE-1" }, // PE-1
 };
+ID_SOURCES["brand-kit"] = { table: "brand_font", sql: `SELECT id FROM brand_font WHERE company_id = 1 ORDER BY id LIMIT 1`, module: "PE-2" }; // PE-2: /brand-kit/fonts/:id
 // Route parameters that are not tenant ids: nothing company-owned to cross, so DS-P03 records n/a
 // (DS-P02 and DS-P04 still probe these routes). [Wave 1 integrate]
 const NON_TENANT_PARAMS = { fonts: "the :file is a bundled font name, the same files for every company (DS-1)" };
@@ -126,6 +127,14 @@ SEED.push(async ({ q }) => {
   const [asset] = await q(`SELECT id FROM report_asset WHERE company_id = 1 ORDER BY created_at LIMIT 1`);
   if (!asset || (await q(`SELECT 1 FROM report_image_job WHERE company_id = 1 LIMIT 1`)).length) return;
   await q(`INSERT INTO report_image_job (company_id, kind, asset_id, status, error_code, error_reason) VALUES (1, 'remove_background', $1, 'failed', 'DS_JOB_FAILED', 'model')`, [asset.id]);
+});
+
+// PE-2: a company-1 brand font row (uploads, magic bytes and the licence tick are tested in ds-pro-pe-2-fonts).
+SEED.push(async ({ q }) => {
+  if (!(await tableExists("brand_font"))) return;
+  if (!(await q(`SELECT 1 FROM brand_font WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO brand_font (company_id, family, family_key, licence_confirmed_by, licence_confirmed_at, created_by) VALUES (1, 'Probe Sans', 'probe sans', 2, now(), 2)`);
+  }
 });
 
 const ROLES = ["user", "manager", "admin", "superadmin"];

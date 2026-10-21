@@ -1,0 +1,15 @@
+{
+  "effect": "curve-down",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.curve-down\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"curve\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ds-text--curve ts-title\" style=\"text-align:left;justify-content:flex-start;\"><svg class=\"ds-curve\" width=\"100%\" height=\"100%\" overflow=\"visible\" aria-hidden=\"true\"><path id=\"ds-curve-pe2_curve-down\" d=\"M 0 8.767 A 494.666 494.666 0 0 0 642.52 8.767\" fill=\"none\" stroke=\"none\"/><text fill=\"currentColor\"><textPath href=\"#ds-curve-pe2_curve-down\" startOffset=\"0%\" text-anchor=\"start\">Net zero by 2040: <tspan font-weight=\"700\">Scope 1</tspan> <tspan class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</tspan></textPath></text></svg></div></div>",
+  "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
+  "props": {
+    "align": "left",
+    "effects": {
+      "curve": {
+        "radius": -45
+      }
+    },
+    "font": null
+  },
+  "sha256": "a499b0f9148b5f0f469838469949a44ea553d9940e5cdec25f68a629dd1e6970"
+}

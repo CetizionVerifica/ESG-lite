@@ -22,6 +22,7 @@ import { assertKind, type StudioCaller } from "../guard";
 import { parse } from "../http";
 import { normalizeHex, paletteContrast } from "./contrast";
 import { buildStyles, type StyleSource } from "./styles";
+import { fontsOf } from "../fonts/service"; // PE-2
 
 type Row = Record<string, any>;
 
@@ -73,7 +74,8 @@ function toKit(caller: StudioCaller, { company, brand, palettes }: Loaded): Bran
 }
 
 export async function getBrandKit(caller: StudioCaller): Promise<BrandKit> {
-  return toKit(caller, await load(AppDataSource.manager, caller.companyId));
+  const kit = toKit(caller, await load(AppDataSource.manager, caller.companyId));
+  return { ...kit, customFonts: await fontsOf(caller.companyId) }; // PE-2: uploaded fonts (Brand fonts section, font picker)
 }
 
 /** The brand row exists (the /brands defaults and the company name), so fonts and voice have a home. */

@@ -1,5 +1,5 @@
 {
- "renderHash": "8a05c92029b3f5bafd265246868409d94abefeee29483c55a226d94fb08bea9f",
+ "renderHash": "bc13a108ebb83cd681c9abbd1e28fc6e3cb7af68cbf7b2121703df7833caf980",
  "elements": {
   "p-cover.bg": "<div class=\"ds-el ds-el--frame\" data-el-id=\"p-cover.bg\" data-type=\"frame\" data-frame=\"-3,-3,216,150,0\" data-mask=\"rect\" data-bleed=\"true\" style=\"left:-3mm;top:-3mm;width:216mm;height:150mm;z-index:0;\"><div class=\"ds-media ds-frame\" style=\"\"><img src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22160%22%20height%3D%22100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20x2%3D%221%22%20y1%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230B3B25%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232DD4BF%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22160%22%20height%3D%22100%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%2230%22%20r%3D%2214%22%20fill%3D%22%23FDE68A%22%2F%3E%3C%2Fsvg%3E\" alt=\"The plant at dawn\" style=\"width:100%;height:100%;object-fit:cover;\" data-asset-id=\"a-plant\"></div></div>",
   "p-cover.kicker": "<div class=\"ds-el ds-el--text\" data-el-id=\"p-cover.kicker\" data-type=\"text\" data-frame=\"20,160,170,8,0\" data-text-style=\"kicker\" style=\"left:20mm;top:160mm;width:170mm;height:8mm;z-index:1;\"><div class=\"ds-text ts-kicker\" style=\"text-align:left;justify-content:flex-start;color:#FFFFFF;\"><div class=\"ds-text-in\"><p>GHG INVENTORY</p></div></div></div>",
@@ -59,50 +59,50 @@
  },
  "formats": {
   "a4": {
-   "sha256": "169385b7d4e5b25887475a18c346fdf2977f0c48dfc9740f8777012381d9599f",
-   "bytes": 146794
+   "sha256": "657451d7143bb7275f1ebe165c06133b6a855a42550cea0f826c4c3e7d153202",
+   "bytes": 147044
   },
   "a4_landscape": {
-   "sha256": "53893f95004d4f6c2c7ee83ba3e9629b56c9be14146c8f90051b112dd73c6cd7",
-   "bytes": 149860
+   "sha256": "87e6b14597af04c8f325787eaecc6af5a626113de1f8f9c37c20eb88c039e5db",
+   "bytes": 150110
   },
   "letter": {
-   "sha256": "5c609f545c8b12f4c09635b747dada8b13826eb2922400f790d00dd3a8868342",
-   "bytes": 149750
+   "sha256": "65aa1ce3d81256ed9a294e91659b5a61fda2c0e8eec840b7bf276ddafe9c4a88",
+   "bytes": 150000
   },
   "a5": {
-   "sha256": "1c48e350c476eb646e1ab92c31a3b6dfc69050a3d59d368cfe0a5b2c0cc7b560",
-   "bytes": 149562
+   "sha256": "3da00f93f22e97628f37544594a196c5382d1a597ee54ea49230e014aaea9dcd",
+   "bytes": 149812
   },
   "slide_16_9": {
-   "sha256": "c520aa224c9f3a9d00e2ddef82e92ebf6c2132a89dc41381292c49eff97c1ed9",
-   "bytes": 149691
+   "sha256": "50af7e819395d78c5c9d936a47a62551230a74f6c47a5ea03245ae5d3550db37",
+   "bytes": 149941
   },
   "square": {
-   "sha256": "dc42628555323dbfd274ed5060290c3d31996e9275b3dd90ee144ac3be6530a0",
-   "bytes": 149955
+   "sha256": "6c48ac2b3a7aa31ed4b6a6e015f711c029e837d006f30c618fde914adfa958d6",
+   "bytes": 150205
   },
   "social_191": {
-   "sha256": "ac809de2d85b8b3aa0edb4bc71ea7b1df96f93cc1cd89908b7f92f6a2e6d99d8",
-   "bytes": 149556
+   "sha256": "b19c20c8268a05da04c2fd666d8a07bdf54af039b11aa2f5d2d029f393421689",
+   "bytes": 149806
   }
  },
  "modes": {
   "sheet": {
-   "sha256": "169385b7d4e5b25887475a18c346fdf2977f0c48dfc9740f8777012381d9599f",
-   "bytes": 146794
+   "sha256": "657451d7143bb7275f1ebe165c06133b6a855a42550cea0f826c4c3e7d153202",
+   "bytes": 147044
   },
   "paged": {
-   "sha256": "ba246ffc0cf1fe33a405b021027024a725510e4b795fad4143e47d6977e42cac",
-   "bytes": 146467
+   "sha256": "09330bef82eb06145382f04e01b8132816a7c125cc79d3f16beb427e8c65e1f4",
+   "bytes": 146717
   },
   "present": {
-   "sha256": "229e31dce8461fb05d671d62c854fe38d3eca1aa8b6af0b7b385bb5c5ec98969",
-   "bytes": 146408
+   "sha256": "8ba49dc8bf6c886e0f6a7abf28cdcc5811d908f76aa034e88a17ac11dc4cd5f9",
+   "bytes": 146658
   },
   "print": {
-   "sha256": "d069e076169688d8516cc7f0072e72f1b7a28ea37af7675103fecfd7aec2ceaf",
-   "bytes": 146453
+   "sha256": "4d47d56fa58ffc972376c6c0f6f2a619b3582a61a61cce61185a5580fa543c84",
+   "bytes": 146703
   }
  }
 }

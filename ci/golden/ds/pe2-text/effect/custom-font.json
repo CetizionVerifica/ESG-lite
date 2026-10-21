@@ -1,0 +1,12 @@
+{
+  "effect": "custom-font",
+  "fontFace": "@font-face{font-family:\"DS Brand 7\";font-style:normal;font-weight:400;font-display:block;src:url(\"data:font/woff2;base64,d09GMgABAAA=\") format(\"woff2\");}\n@font-face{font-family:\"DS Brand 7\";font-style:normal;font-weight:700;font-display:block;src:url(\"data:font/ttf;base64,AAEAAA==\") format(\"truetype\");}",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.custom-font\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-font=\"custom:7\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;font-family:&quot;DS Brand 7&quot;, &quot;Noto Sans&quot;, sans-serif;\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></p></div></div></div>",
+  "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
+  "props": {
+    "align": "left",
+    "effects": null,
+    "font": "custom:7"
+  },
+  "sha256": "5815dd40550e22a481345dc5ba8cc4b9f92c3dcad8c8faacc4d98e6102c17e36"
+}

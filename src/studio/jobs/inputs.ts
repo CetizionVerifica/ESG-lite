@@ -21,7 +21,9 @@ import type { ResolveResponse } from "../sources/types";
 import type { StudioCaller } from "../guard";
 import type { ReportDoc } from "../contracts";
 import { renderData } from "../../reporting/studio/render";
-import type { RenderAssets, RenderBinding, RenderBrand, RenderData } from "../../reporting/studio/render/types";
+import type { RenderAssets, RenderBinding, RenderBrand, RenderCustomFont, RenderData, RenderDoc } from "../../reporting/studio/render/types";
+import { customFontRefs } from "../../reporting/studio/render/textEffects"; // PE-2
+import { renderFonts } from "../fonts/service"; // PE-2
 
 type Row = Record<string, any>;
 
@@ -36,6 +38,8 @@ export interface RenderInputs {
   companyName: string;
   /** The brand logo as a data: URL (viewer pages), when there is one. */
   logoDataUrl: string | null;
+  /** PE-2: the uploaded fonts the doc uses, bytes inlined (pass as `customFonts` to html.ts / print.ts). */
+  customFonts: RenderCustomFont[];
 }
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -124,7 +128,8 @@ export async function renderInputs(caller: StudioCaller, doc: ReportDoc, opts: {
     fontBody: kit.fonts.body,
     logoUrl: logo,
   };
-  return { data, brand, assets: { urls }, resolved, companyName: kit.name, logoDataUrl: logo };
+  const customFonts = await renderFonts(caller.companyId, customFontRefs(doc as unknown as RenderDoc)); // PE-2
+  return { data, brand, assets: { urls }, resolved, companyName: kit.name, logoDataUrl: logo, customFonts };
 }
 
 /** Clears the image cache (tests). */

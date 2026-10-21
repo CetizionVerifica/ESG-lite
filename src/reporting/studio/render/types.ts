@@ -85,7 +85,16 @@ export interface ThemeOverrides {
 }
 
 export interface ElementPropsByType {
-  text: { doc: TextDoc; style: TextStyleId; align: "left" | "center" | "right" | "justify"; color?: string; valign?: "top" | "middle" | "bottom" };
+  text: {
+    doc: TextDoc;
+    style: TextStyleId;
+    align: "left" | "center" | "right" | "justify";
+    color?: string;
+    valign?: "top" | "middle" | "bottom";
+    /** PE-2: text effects (textEffects.ts) and a per-box font (a FontId or `custom:<id>`). */
+    effects?: RenderTextEffects;
+    font?: string;
+  };
   kpi_tile: { binding: RenderBinding; label?: string; showDelta: boolean; showSparkline: boolean; variant: "plain" | "card" | "band" };
   chart: {
     binding: RenderBinding;
@@ -254,6 +263,21 @@ export interface RenderData {
   scope3?: Record<string, Scope3CategoryRow[]>;
 }
 
+// PE-2 · text effects and uploaded brand fonts (contracts proProps.ts; slider units, not CSS)
+export interface RenderTextEffects {
+  shadow?: { blur: number; offsetX: number; offsetY: number; colour: string; opacity: number };
+  lift?: { intensity: number };
+  outline?: { width: number; colour: string };
+  highlight?: { colour: string; radius: number };
+  curve?: { radius: number };
+}
+/** An uploaded brand font family (`custom:<id>`), its files as URLs (the editor) or data: URLs (server renders). */
+export interface RenderCustomFont {
+  ref: string;
+  family: string;
+  files: { weight: number; style: "normal" | "italic"; format: "woff2" | "ttf" | "otf"; url: string }[];
+}
+
 export interface RenderAssets {
   /** assetId → URL. Unknown ids render an empty frame with the alt text. */
   urls: Record<string, string>;
@@ -269,6 +293,8 @@ export interface RenderOptions {
   assets?: RenderAssets;
   /** Base URL for @font-face (the API serves /studio/fonts/:file). Empty = inline by html.ts. */
   fontBase?: string;
+  /** PE-2: the company's uploaded fonts a doc may use (`custom:<id>`); a ref not listed falls back to the style's font. */
+  customFonts?: RenderCustomFont[];
 }
 
 /** The brand side of a theme (from `brand` + DS-3 brand kit). */

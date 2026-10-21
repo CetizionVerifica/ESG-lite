@@ -59,6 +59,7 @@ import { KpiTopicAssignment } from "../entities/KpiTopicAssignment";
 import { KpiTemplatePlan } from "../entities/KpiTemplatePlan";
 import { KpiTarget } from "../entities/KpiTarget"; // KPI-9
 import { BrandPalette } from "../entities/BrandPalette"; // DS-3
+import { BrandFont, BrandFontFile } from "../entities/BrandFont"; // PE-2
 import { StudioTemplate } from "../entities/StudioTemplate"; // DS-4
 import { StudioLayout } from "../entities/StudioLayout"; // DS-4
 import { StudioElement } from "../entities/StudioElement"; // DS-4
@@ -162,6 +163,7 @@ const entities = [
     StudioAiCall, // DS-9
     StudioReportComment, StudioReportApproval, StudioDataBaseline, // DS-13
     StudioImageJob, // PE-1
+    BrandFont, BrandFontFile, // PE-2
 ];
 
 // Parse DATABASE_URL to extract connection parameters
