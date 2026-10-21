@@ -2,7 +2,7 @@
 // site 2, own rows 2007–2013 removed by id; the fixture company's June-only rows give no_data),
 // the 72-month cap, null months, yearly batches left out; roles, site scope, tenant and
 // switch-off for both; the snapshot's timeout path (504 IN_SNAPSHOT_TIMEOUT); the PDF is one
-// page when Chromium can launch here (else that part is skipped).
+// page when Chromium can launch here, else 503 IN_SNAPSHOT_UNAVAILABLE.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
@@ -119,17 +119,22 @@ test("snapshot: the time limit answers 504 IN_SNAPSHOT_TIMEOUT", async () => {
   assert.equal(r.json.code, "IN_SNAPSHOT_TIMEOUT");
 });
 
-test("snapshot: one A4 landscape page from approved data (needs Chromium for Playwright)", async (t) => {
+test("snapshot: one A4 landscape page from approved data; 503 IN_SNAPSHOT_UNAVAILABLE without Chromium", async () => {
   let browser;
+  let chromium = true;
   try {
     browser = await require("playwright").chromium.launch();
   } catch {
-    t.skip("no Chromium for Playwright here (CI sets PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD)");
-    return;
+    chromium = false; // CI sets PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
   } finally {
     if (browser) await browser.close();
   }
   const r = await call("GET", "/insights/snapshot.pdf?year=2013&sites=2", "manager");
+  if (!chromium) {
+    assert.equal(r.status, 503, JSON.stringify(r.json));
+    assert.equal(r.json.code, "IN_SNAPSHOT_UNAVAILABLE");
+    return;
+  }
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.headers.get("content-type"), "application/pdf");
   assert.match(r.headers.get("content-disposition"), /Insights-CY2013\.pdf/);

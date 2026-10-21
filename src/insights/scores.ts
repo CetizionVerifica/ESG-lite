@@ -1,5 +1,9 @@
 /**
- * IN-7 · PUT /kpi/setup/materiality-scores (01-contracts §4, I10; shared with RS-2 / DS-2).
+ * IN-7 · GET and PUT /kpi/setup/materiality-scores (01-contracts §4, I10; shared with RS-2 / DS-2).
+ *
+ * GET (any role of the company, as GET /kpi/setup) answers the same shape as PUT. It lets the KPI
+ * setup scores block read the scores without Design Studio (GET /studio/materiality is behind the
+ * studio switch).
  *
  * Mounted on the KPI setup router (behind requireKpiTracking: 403 KPI_TRACKING_OFF while
  * off; a Superadmin passes company_id). Admin and Superadmin only (else 403 KPI_FORBIDDEN).
@@ -70,13 +74,22 @@ export async function putMaterialityScores(req: KpiRequest, body: unknown) {
   return { topics: await topicScores(caller.companyId) };
 }
 
-/** The route handler: KPI and Insights errors in their `{code, message, details}` shape. */
-export const materialityScoresRoute = async (req: AuthRequest, res: Response) => {
-  try {
-    res.json(await putMaterialityScores(req as KpiRequest, req.body));
-  } catch (err) {
-    if (err instanceof InError || err instanceof KpiError) return res.status(err.status).json(err.toBody());
-    console.error(`[insights] materiality scores failed (user ${req.user?.userId}):`, (err as Error)?.message);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
+export async function getMaterialityScores(req: KpiRequest) {
+  return { topics: await topicScores(kpiCaller(req).companyId) };
+}
+
+/** A route handler: KPI and Insights errors in their `{code, message, details}` shape. */
+const scoresRoute =
+  (what: string, work: (req: AuthRequest) => Promise<unknown>) =>
+  async (req: AuthRequest, res: Response) => {
+    try {
+      res.json(await work(req));
+    } catch (err) {
+      if (err instanceof InError || err instanceof KpiError) return res.status(err.status).json(err.toBody());
+      console.error(`[insights] materiality scores ${what} failed (user ${req.user?.userId}):`, (err as Error)?.message);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
+export const materialityScoresRoute = scoresRoute("save", (req) => putMaterialityScores(req as KpiRequest, req.body));
+export const materialityScoresGetRoute = scoresRoute("read", (req) => getMaterialityScores(req as KpiRequest));

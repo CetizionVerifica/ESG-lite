@@ -5,6 +5,8 @@
  *                                  (+ people, topic_grants, suggested_assignments for Admin/Superadmin)
  *   PUT  /kpi/setup                Admin, Superadmin: any subset of {settings, frameworks, material_topics,
  *                                  kpis, assignments} → the same shape as GET
+ *   GET  /kpi/setup/materiality-scores  any role of the company → {topics:[{esrs_topic, label, material, impact_score, financial_score}]}
+ *   PUT  /kpi/setup/materiality-scores  Admin, Superadmin: {topics:[…]} → the same shape (IN-7, src/insights/scores.ts)
  *   POST /kpi/setup/custom-kpis    Admin, Superadmin → 201 {definition}
  *   POST /kpi/setup/invite         Admin, Superadmin → {notified}: a kpi_assigned notification to each owner
  *   GET  /kpi/people/:user_id/topics   D17: {user_id, topics, by_site:[{site_id, site_name, topics}]}
@@ -17,7 +19,7 @@ import { kpiCaller, type KpiRequest } from "../guard";
 import { handle, routeId } from "../http";
 import { getPeopleTopics, putPeopleTopics } from "./topics";
 import { createCustomKpi, getSetup, inviteTeam, putSetup } from "./service";
-import { materialityScoresRoute } from "../../insights/scores"; // IN-7
+import { materialityScoresGetRoute, materialityScoresRoute } from "../../insights/scores"; // IN-7
 
 const router = Router();
 const caller = (req: unknown) => kpiCaller(req as KpiRequest);
@@ -25,6 +27,7 @@ const caller = (req: unknown) => kpiCaller(req as KpiRequest);
 router.get("/setup", handle("get setup", async (req, res) => res.json(await getSetup(caller(req)))));
 router.put("/setup", handle("save setup", async (req, res) => res.json(await putSetup(caller(req), req.body))));
 router.post("/setup/invite", handle("invite team", async (req, res) => res.json(await inviteTeam(caller(req)))));
+router.get("/setup/materiality-scores", materialityScoresGetRoute); // IN-7 follow-up: any role; read without Design Studio
 router.put("/setup/materiality-scores", materialityScoresRoute); // IN-7: Admin, Superadmin; scores for the Insights matrix (and RS-2 / DS-2)
 router.post("/setup/custom-kpis", handle("custom KPI", async (req, res) => res.status(201).json({ definition: await createCustomKpi(caller(req), req.body) })));
 
