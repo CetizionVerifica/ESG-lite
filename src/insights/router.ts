@@ -13,6 +13,7 @@ import { insightsSites, insightsStatus, requireInsights } from "./guard";
 import summaryRoutes from "./panels/summary";
 import in2Routes from "./panels/in2";
 import in4Routes from "./panels/in4";
+import flowRoutes from "./panels/flow";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.get("/sites", insightsSites); // IN-0: the caller's sites for the header 
 router.use(summaryRoutes); // IN-1: GET /summary
 router.use(in2Routes); // IN-2: GET /esg-ring, /decoupling, /target-wall
 router.use(in4Routes); // IN-4: /pathway, /completeness, /events
+router.use(flowRoutes); // IN-6: GET /flow
 
 export default router;

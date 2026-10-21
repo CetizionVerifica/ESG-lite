@@ -98,7 +98,7 @@ Bridge { from: { year: number, value: number }, to: { year: number, value: numbe
          method: 'lmdi_additive', notes: string[] }
 
 // IN-6 · GET /insights/flow
-Flow { nodes: { id: string, label: string, column: 0|1|2|3, kind: 'site'|'scope'|'kpi'|'disclosure' }[],
+Flow { nodes: { id: string, label: string, column: 0|1|2|3, kind: 'site'|'scope'|'kpi'|'disclosure'|'category' }[],   // 'category': KPI off, top categories (IN-6 follow-up)
        links: { source: string, target: string, value: number, measure: 'tCO2e'|'count', fit?: 'exact'|'partial'|'derived' }[] }
        // columns 0→1→2 carry tCO2e; 2→3 carries count (I9)
 

@@ -171,7 +171,8 @@ export interface Bridge {
 
 // IN-6 · GET /insights/flow — columns 0→1→2 carry tCO2e; 2→3 carries count (I9)
 export interface Flow {
-  nodes: Array<{ id: string; label: string; column: 0 | 1 | 2 | 3; kind: "site" | "scope" | "kpi" | "disclosure" }>;
+  /** kind "category": KPI tracking off, column 2 is the top categories (IN-0 follow-up, IN-6). */
+  nodes: Array<{ id: string; label: string; column: 0 | 1 | 2 | 3; kind: "site" | "scope" | "kpi" | "disclosure" | "category" }>;
   links: Array<{ source: string; target: string; value: number; measure: "tCO2e" | "count"; fit?: "exact" | "partial" | "derived" }>;
 }
 
