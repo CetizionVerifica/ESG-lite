@@ -6,8 +6,10 @@
  * ../process.ts, so every engine sees the same input.
  *
  * Which engine runs (`bgEngine()`):
- *  - STUDIO_BG_MODEL_PATH names a readable .onnx file → the onnxruntime-node
- *    engine (./onnx.ts), loaded once per path;
+ *  - STUDIO_BG_MODEL_PATH names a readable .onnx file AND onnxruntime-node
+ *    can be required → the onnxruntime-node engine (./onnx.ts), loaded once
+ *    per path (the package is required lazily; a server without it, or
+ *    without the file, has no engine);
  *  - else under NODE_ENV=test → the deterministic stub (./stub.ts);
  *  - else none → 503 DS_BG_UNAVAILABLE ("Background remover isn't set up on
  *    this server yet"). Nothing is ever downloaded.
@@ -15,7 +17,7 @@
 import fs from "fs";
 import path from "path";
 import { BG_MODEL_ENV, BG_MODEL_INPUT_PX } from "../../contracts";
-import { onnxEngine } from "./onnx";
+import { onnxEngine, ortAvailable } from "./onnx";
 import { stubEngine } from "./stub";
 
 export interface BgEngine {
@@ -46,10 +48,12 @@ export function bgEngine(): BgEngine | null {
     } catch {
       ok = false;
     }
-    if (ok) return onnxEngine(full, modelSide());
-    if (warned !== full) {
-      warned = full;
-      console.error(`[studio] ${BG_MODEL_ENV} is set but the file can't be read; the background remover is off.`);
+    const pkg = ok && ortAvailable();
+    if (ok && pkg) return onnxEngine(full, modelSide());
+    const why = ok ? "onnxruntime-node isn't installed" : "the file can't be read";
+    if (warned !== `${full}|${why}`) {
+      warned = `${full}|${why}`;
+      console.error(`[studio] ${BG_MODEL_ENV} is set but ${why}; the background remover is off.`);
     }
     return null;
   }

@@ -14,21 +14,60 @@
 import path from "path";
 import type { BgEngine } from "./engine";
 
-type Ort = typeof import("onnxruntime-node");
-type Session = import("onnxruntime-node").InferenceSession;
+// onnxruntime-node is optional at build time (declared in package.json, not always installed):
+// a minimal local shape of the parts used here, so tsc never needs its types.
+interface OrtTensor {
+  readonly data: unknown;
+}
+interface Session {
+  readonly inputNames: readonly string[];
+  readonly outputNames: readonly string[];
+  run(feeds: Record<string, OrtTensor>): Promise<Record<string, OrtTensor>>;
+}
+interface Ort {
+  InferenceSession: { create(file: string, opts?: Record<string, unknown>): Promise<Session> };
+  Tensor: new (type: "float32", data: Float32Array, dims: readonly number[]) => OrtTensor;
+}
 
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
 
 let ort: Ort | null = null;
+let ortMissing = false;
 const sessions = new Map<string, Promise<Session>>();
+
+/** Test hook: the module id to require (a missing name simulates a server without the package). */
+let ORT_MODULE = "onnxruntime-node";
+export function setOrtModuleForTest(name: string | null): void {
+  ORT_MODULE = name ?? "onnxruntime-node";
+  ort = null;
+  ortMissing = false;
+  sessions.clear();
+}
+
+/** onnxruntime-node, required lazily at use time; null when the package isn't installed. */
+export function loadOrt(): Ort | null {
+  if (ort) return ort;
+  if (ortMissing) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ort = require(ORT_MODULE) as Ort;
+    return ort;
+  } catch {
+    ortMissing = true;
+    return null;
+  }
+}
+
+/** True when onnxruntime-node can be loaded on this server. */
+export const ortAvailable = (): boolean => loadOrt() !== null;
 
 function session(file: string): Promise<Session> {
   let s = sessions.get(file);
   if (!s) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    ort = ort ?? (require("onnxruntime-node") as Ort);
-    s = ort.InferenceSession.create(file, { executionProviders: ["cpu"], graphOptimizationLevel: "all" });
+    const o = loadOrt();
+    if (!o) return Promise.reject(Object.assign(new Error("onnxruntime-node isn't installed"), { reason: "model" }));
+    s = o.InferenceSession.create(file, { executionProviders: ["cpu"], graphOptimizationLevel: "all" });
     // A model that can't be opened stays failed for this path until restart; drop it so a fixed file loads.
     // data-loss-reviewed: removes an entry from an in-memory Map, no record is deleted.
     s.catch(() => sessions.delete(file));
@@ -81,9 +120,9 @@ export function onnxEngine(file: string, side: number): BgEngine {
       }
       const O = ort as Ort;
       const input = new O.Tensor("float32", toTensorData(rgb, s, norm), [1, 3, s, s]);
-      let out: Record<string, { data: unknown }>;
+      let out: Record<string, OrtTensor>;
       try {
-        out = (await sess.run({ [sess.inputNames[0]]: input })) as unknown as Record<string, { data: unknown }>;
+        out = await sess.run({ [sess.inputNames[0]]: input });
       } catch (err) {
         throw Object.assign(new Error(`model: ${(err as Error)?.message ?? "run failed"}`), { reason: "model" });
       }
