@@ -140,6 +140,7 @@ All under `/insights`, behind `authenticate` → `requireInsights`. Roles: M = M
 | GET | `/insights/bridge` | M A S | IN-5 | `?compare=prior|base` |
 | GET | `/insights/flow` | M A S | IN-6 | KPI part only when KPI on |
 | GET | `/insights/materiality` | M A S | IN-7 | KPI |
+| GET | `/kpi/setup/materiality-scores` | M A S U | IN-7 follow-up | `{topics:[{esrs_topic, label, material, impact_score, financial_score}]}`; the KPI setup scores block reads here, so it works without Design Studio |
 | PUT | `/kpi/setup/materiality-scores` | A S | IN-7 | `{topics:[{esrs_topic, impact_score, financial_score}]}` (shared with RS-2) |
 | GET | `/insights/stripes` | M A S | IN-8 | last 72 months max |
 | GET | `/insights/snapshot.pdf` | M A S | IN-8 | same query; streamed; 60 s limit |
@@ -192,6 +193,7 @@ IN_EVENT_INVALID    400  zod issues
 IN_SCORES_INVALID   400  score outside 0..10, unknown topic
 IN_AI_BUDGET        429  IN-9 budget exceeded; cards fall back to rule text
 IN_SNAPSHOT_TIMEOUT 504  PDF snapshot exceeded 60 s
+IN_SNAPSHOT_UNAVAILABLE 503  the server's PDF printer (Playwright's Chromium) can't start (IN-8 follow-up)
 ```
 
 ## 8. AI wording (IN-9)

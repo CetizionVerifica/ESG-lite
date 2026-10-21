@@ -43,7 +43,7 @@ test("§6 rules: eleven ids, each with its params", () => {
 test("§7 error codes with their statuses", () => {
   const expect = {
     IN_OFF: 403, IN_FORBIDDEN: 403, IN_SITE_NOT_FOUND: 404, IN_EVENT_NOT_FOUND: 404, IN_EVENT_INVALID: 400,
-    IN_SCORES_INVALID: 400, IN_AI_BUDGET: 429, IN_SNAPSHOT_TIMEOUT: 504, IN_VALIDATION: 400, IN_COMPANY_REQUIRED: 400,
+    IN_SCORES_INVALID: 400, IN_AI_BUDGET: 429, IN_SNAPSHOT_TIMEOUT: 504, IN_SNAPSHOT_UNAVAILABLE: 503, IN_VALIDATION: 400, IN_COMPANY_REQUIRED: 400,
   };
   assert.deepEqual(Object.fromEntries(Object.entries(c.IN_ERRORS).map(([k, v]) => [k, v.status])), expect);
   const e = new c.InError("IN_OFF");

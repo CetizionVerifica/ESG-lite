@@ -1,4 +1,4 @@
-// IN-7 · GET /insights/materiality and PUT /kpi/setup/materiality-scores:
+// IN-7 · GET /insights/materiality and GET/PUT /kpi/setup/materiality-scores:
 // worst-status roll-up, weight normalisation, scored false with a missing
 // score (by hand), kpi_off, setup_incomplete, the pillar filter, roles
 // (scores Admin and Superadmin only), validation (IN_SCORES_INVALID),
@@ -151,6 +151,40 @@ test("scores roles, tenant and switch: Manager/User 403; company 2's Admin can't
     await setKpi(1, true);
   }
   assert.equal(Number((await q(`SELECT impact_score FROM company_material_topic WHERE company_id = 1 AND esrs_topic = 'E3'`))[0].impact_score), 7);
+});
+
+test("GET /kpi/setup/materiality-scores: every role of the company reads, without Design Studio; tenant, Superadmin and KPI switch", async () => {
+  const [studio] = await q(`SELECT design_studio_enabled FROM company WHERE company_id = 1`);
+  await q(`UPDATE company SET design_studio_enabled = false WHERE company_id = 1`);
+  try {
+    const want = (await call("GET", "/kpi/setup/materiality-scores", "admin")).json;
+    assert.deepEqual(
+      want.topics.map((t) => [t.esrs_topic, t.material]),
+      [["E1", true], ["E3", true], ["E5", true], ["S1", false]],
+    );
+    assert.equal(want.topics.find((t) => t.esrs_topic === "E3").impact_score, 7);
+    for (const who of ["manager", "user", "multiSiteUser"]) {
+      const r = await call("GET", "/kpi/setup/materiality-scores", who);
+      assert.equal(r.status, 200, who);
+      assert.deepEqual(r.json, want, who);
+    }
+    const sa = await call("GET", "/kpi/setup/materiality-scores?company_id=1", "superadmin");
+    assert.deepEqual(sa.json, want);
+    assert.equal((await call("GET", "/kpi/setup/materiality-scores", "superadmin")).json.code, "KPI_COMPANY_REQUIRED");
+    assert.equal((await call("GET", "/kpi/setup/materiality-scores?company_id=1", "otherManager")).status, 404);
+    // Company 2 reads its own (empty) topics, never company 1's.
+    assert.deepEqual((await call("GET", "/kpi/setup/materiality-scores?company_id=2", "superadmin")).json, { topics: [] });
+    await setKpi(1, false);
+    try {
+      const off = await call("GET", "/kpi/setup/materiality-scores", "admin");
+      assert.equal(off.status, 403);
+      assert.equal(off.json.code, "KPI_TRACKING_OFF");
+    } finally {
+      await setKpi(1, true);
+    }
+  } finally {
+    await q(`UPDATE company SET design_studio_enabled = $1 WHERE company_id = 1`, [studio.design_studio_enabled === true]);
+  }
 });
 
 test("panel roles, scope, tenant and switch-off", async () => {

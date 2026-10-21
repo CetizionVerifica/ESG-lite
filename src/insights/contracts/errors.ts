@@ -20,6 +20,8 @@ export const IN_ERRORS = {
   IN_SCORES_INVALID: { status: 400, message: "Scores must be between 0 and 10 for a material topic." },
   IN_AI_BUDGET: { status: 429, message: "This month's AI wording budget is used up; cards show their standard text." },
   IN_SNAPSHOT_TIMEOUT: { status: 504, message: "The PDF snapshot took too long. Try again with fewer sites." },
+  // IN-8 follow-up: the server's PDF printer (Playwright's Chromium) can't start
+  IN_SNAPSHOT_UNAVAILABLE: { status: 503, message: "PDF snapshots aren't set up on this server yet." },
   // Plumbing
   IN_VALIDATION: { status: 400, message: "The request isn't valid." },
   IN_COMPANY_REQUIRED: { status: 400, message: "Choose a client (company_id)." },

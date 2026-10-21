@@ -119,6 +119,7 @@ const MATRIX = {
   "DELETE /values/:id/evidence/:eid": { roles: A },
   "GET /setup": { roles: A },
   "PUT /setup": { roles: AS },
+  "GET /setup/materiality-scores": { roles: A }, // IN-7 follow-up: read the scores without Design Studio
   "PUT /setup/materiality-scores": { roles: AS }, // IN-7: Insights / RS-2 / DS-2 materiality scores (Admin, Superadmin)
   "POST /setup/invite": { roles: AS },
   "POST /setup/custom-kpis": { roles: AS },

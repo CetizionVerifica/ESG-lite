@@ -84,3 +84,16 @@ I couldn't message the FE session from this cloud session (cross-session messagi
 ## Performance (probes, this machine, cache missed every call)
 
 p95 ms: summary 53, esg_ring 19 (kpi_off), decoupling 55, target_wall 44, pathway 63, completeness 37, flow 37, cards 94, bridge 32, materiality 17 (kpi_off), stripes 46 — all inside layer rule 8 (summary ≤ 400, others ≤ 800). KPI-on timings with 40 KPIs were not measured (the fixture has KPI tracking off).
+
+## Follow-ups after the merge (2026-10-21, branch `claude/project-thread-r40yj9`)
+
+The open cross-repo items from ESG-lite #179 and ESG-lite_FE #229:
+
+| Item | State |
+|---|---|
+| `renewable_share_pct` in `/insights/summary` | Already sent by IN-1 (`panels/summary.ts`), KPI on or off. The FE mirror now reads it as required. |
+| FE mirror: `by_pillar` nullable, `renewable_share_pct`, flow node kind `"category"` | Done in ESG-lite_FE (`src/lib/insights/contracts.ts`); the hero says "not counted yet" for a null pillar. |
+| KPI setup scores block needed Design Studio (`/studio/materiality`) | New `GET /kpi/setup/materiality-scores` (any role of the company, behind KPI tracking only, same shape as the PUT). The FE block reads and saves there. API test in `in-7-materiality`, route in `kpi-probes.cjs`. |
+| PDF snapshot: print route, auth, Chromium | The server-side HTML stays (the backend can't reach the FE in CI or production). The FE already sends the Authorization header (blob request). Without Chromium the route now answers 503 `IN_SNAPSHOT_UNAVAILABLE` (new IN-0 error code) instead of 500, and the FE points to Export ▸ Print view (`/insights/print`, the browser's own Print). |
+| FE against the real backend | Run on 2026-10-21 against `ci/fixtures/in-company` (KPI off, then on): every Insights call 200, no console errors, no panel errors; KPI setup scores saved with Design Studio off; PDF 503 → toast → Print view. |
+| PE-1 background removal without the ONNX model | Already graceful: 503 `DS_BG_UNAVAILABLE` and a plain message in the photo editor. No change. |

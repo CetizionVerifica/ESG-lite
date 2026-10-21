@@ -11,7 +11,11 @@
  * The limit is read at call time from INSIGHTS_SNAPSHOT_TIMEOUT_MS, and under NODE_ENV=test
  * only from the `x-insights-snapshot-timeout-ms` header too, so the API test can force the path.
  * Auth: the Authorization header, as every /insights route (no ?token=: /insights is mounted
- * with `authenticate`, not the report middleware).
+ * with `authenticate`, not the report middleware). The FE fetches it as a blob with the header.
+ *
+ * Printer missing: when Playwright's Chromium can't start on this server, the answer is
+ * 503 IN_SNAPSHOT_UNAVAILABLE (not a bare 500), and the FE offers its print view
+ * (/insights/print, the browser's own Print) instead.
  */
 import { randomUUID } from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
@@ -88,11 +92,19 @@ export async function snapshotInput(scope: InsightsScope, generated = new Date()
   };
 }
 
+/** True when the error says the printer's browser couldn't start (not installed, or missing system libraries). */
+export const printerMissing = (err: unknown): boolean =>
+  /Executable doesn't exist|browserType\.launch|Failed to launch|Host system is missing dependencies|playwright install/i.test(String((err as Error)?.message ?? err));
+
 async function printPdf(html: string): Promise<Buffer> {
   const path = join(tmpdir(), `insights-snapshot-${randomUUID()}.pdf`);
   try {
     await htmlToPdf(html, path);
     return await readFile(path);
+  } catch (err) {
+    if (!printerMissing(err)) throw err;
+    console.error("[insights] snapshot printer unavailable: Playwright's Chromium can't start on this server.");
+    throw new InError("IN_SNAPSHOT_UNAVAILABLE");
   } finally {
     await unlink(path).catch(() => {});
   }

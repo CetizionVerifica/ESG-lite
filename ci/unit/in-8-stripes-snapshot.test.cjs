@@ -39,6 +39,13 @@ test("withTimeout: the work when it is fast, IN_SNAPSHOT_TIMEOUT when it is slow
   await assert.rejects(snap.withTimeout(new Promise((r) => setTimeout(() => r(1), 200)), 5), (e) => e.code === "IN_SNAPSHOT_TIMEOUT" && e.status === 504);
 });
 
+test("printerMissing: Chromium that can't start, not other print failures", () => {
+  assert.equal(snap.printerMissing(new Error("browserType.launch: Executable doesn't exist at /ms-playwright/chromium_headless_shell-1/chrome")), true);
+  assert.equal(snap.printerMissing(new Error("browserType.launch: Host system is missing dependencies to run browsers.")), true);
+  assert.equal(snap.printerMissing(new Error("In-page rendering failed:\nTypeError: x")), false);
+  assert.equal(snap.printerMissing(new Error("page.waitForFunction: Timeout 60000ms exceeded")), false);
+});
+
 const EVIL = `<script>alert("x")</script>&'`;
 const input = (over = {}) => ({
   company: EVIL,
