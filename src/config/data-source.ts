@@ -72,6 +72,7 @@ import { StudioReportComment } from "../entities/StudioReportComment"; // DS-13
 import { StudioReportApproval } from "../entities/StudioReportApproval"; // DS-13
 import { StudioDataBaseline } from "../entities/StudioDataBaseline"; // DS-13
 import { InsightEvent } from "../entities/InsightEvent"; // IN-4
+import { InsightAiCall } from "../entities/InsightAiCall"; // IN-9
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -162,6 +163,7 @@ const entities = [
     StudioAiCall, // DS-9
     StudioReportComment, StudioReportApproval, StudioDataBaseline, // DS-13
     InsightEvent, // IN-4
+    InsightAiCall, // IN-9
 ];
 
 // Parse DATABASE_URL to extract connection parameters
