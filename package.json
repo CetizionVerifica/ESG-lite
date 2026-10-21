@@ -72,6 +72,7 @@
     "migrate:ds-13-collab": "ts-node src/scripts/migrateDs13Collab.ts",
     "migrate:in-switch": "ts-node src/scripts/migrateInSwitch.ts",
     "migrate:in-events": "ts-node src/scripts/migrateInEvents.ts",
+    "migrate:in-ai-calls": "ts-node src/scripts/migrateInAiCalls.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",
     "test:api": "node ci/api/run.cjs",
     "test:unit": "node --test ci/unit/*.test.cjs",

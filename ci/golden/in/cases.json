@@ -10,6 +10,6 @@
     { "id": "rules", "owner": "IN-3", "status": "run", "file": "ci/golden/in/rules/fixture.json", "runner": "ci/unit/in-3-rules.test.cjs", "what": "each rule at its firing edge and just below; ranking keeps the right 6 of 8" },
     { "id": "bridge", "owner": "IN-5", "status": "run", "file": "ci/golden/in/bridge/fixture.json", "runner": "ci/api/tests/in-10-golden.test.cjs", "what": "2024 → 2025 all sites (output index) and one unit, base 2021 → 2025 by hand; Σ steps = change; no_data; the 52,100 → 49,700 example (ci/unit/in-5-lmdi.test.cjs); production missing and zero kWh in ci/api/tests/in-5-bridge.test.cjs" },
     { "id": "materiality", "owner": "IN-7", "status": "run", "file": "ci/golden/in/materiality/fixture.json", "runner": "ci/api/tests/in-10-golden.test.cjs", "what": "worst-status roll-up; weight normalisation; scored false with one missing score" },
-    { "id": "ai", "owner": "IN-9", "status": "skip", "waits_on": "IN-9", "file": "ci/golden/in/ai/recorded.json", "runner": "ci/api/tests/in-10-golden.test.cjs", "what": "recorded model responses replayed; guard keeps numbers as tokens" }
+    { "id": "ai", "owner": "IN-9", "status": "run", "file": "ci/golden/in/ai/recorded.json", "runner": "ci/unit/in-9-ai.test.cjs", "what": "recorded model responses replayed through the guard (accepted, each rejection reason, unparsable); the API replay with a stub is ci/api/tests/in-9-ai.test.cjs" }
   ]
 }
