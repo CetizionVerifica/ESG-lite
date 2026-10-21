@@ -92,7 +92,35 @@ const GROUPS = {
     const row = t.tables.table3.find((r) => r.year === 2025);
     const s = (await get("manager", "/insights/summary?year=2025")).json;
     matches(s.data.pathway.gap_pct, ((row.actualTotal - row.targetTotal) / row.targetTotal) * 100, "pathway gap");
-    // Later parts (IN-4 pathway panel, IN-2 ring) append their checks here.
+    // IN-4: /insights/pathway = /user/targets/tables (pathway and actual per year) for the same base year and rate.
+    const p = (await get("manager", "/insights/pathway?year=2025")).json.data;
+    t.tables.table1.forEach((r, i) => {
+      assert.equal(p.years[i], r.year);
+      assert.equal(p.pathway[i], r.targetEmission, `pathway ${r.year}`);
+    });
+    for (const r of t.tables.table3.filter((x) => x.status !== "No Data")) {
+      const i = p.years.indexOf(r.year);
+      assert.equal(p.actual.s1[i], r.actualScope1, `s1 ${r.year}`);
+      assert.equal(p.actual.s2[i], r.actualScope2, `s2 ${r.year}`);
+    }
+    // Later parts (IN-2 ring) append their checks here.
+  },
+  // IN-4
+  async pathway(suite) {
+    for (const c of load(suite.file).cases) {
+      const r = await get(c.who, `/insights/pathway?${c.query}`);
+      assert.equal(r.status, 200, `${c.name}: ${JSON.stringify(r.json)}`);
+      assert.equal(r.json.availability, "ok", c.name);
+      matches(r.json.data, c.expected, c.name);
+    }
+  },
+  // IN-4
+  async completeness(suite) {
+    for (const c of load(suite.file).cases) {
+      const r = await get(c.who, `/insights/completeness?${c.query}`);
+      assert.equal(r.status, 200, `${c.name}: ${JSON.stringify(r.json)}`);
+      matches(r.json.data, c.expected, c.name);
+    }
   },
 };
 
