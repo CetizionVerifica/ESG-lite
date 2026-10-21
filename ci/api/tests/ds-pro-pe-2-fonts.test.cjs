@@ -278,7 +278,7 @@ async function docWithFont(font, who = "manager", title = "PE-2 Font doc") {
   return { id: c.json.id, rev: p.json.rev };
 }
 
-test("renders: preview.html embeds the used custom font from the stored bytes; another company's or a deleted one falls back", async () => {
+test("renders: preview.html embeds the used custom font from the stored bytes; another company's or a deleted one falls back", async (t) => {
   const a = await upload("manager", woff2(), "plex.woff2", { family: "Plex Brand" });
   assert.equal(a.status, 201);
   const b64 = woff2().toString("base64");
@@ -320,6 +320,6 @@ test("renders: preview.html embeds the used custom font from the stored bytes; a
   const after = (await call("GET", `/studio/docs/${doc.id}/preview.html?mode=paged`, "admin")).buffer.toString("utf8");
   assert.ok(!after.includes("DS Brand"), "a deleted font falls back to the style's font");
   assert.ok(after.includes(`data-font="${a.json.ref}"`), "the box keeps its font ref");
-  if (!chromiumOk) test.diagnostic(`PDF embedding not checked: ${why}`);
+  if (!chromiumOk) t.diagnostic(`PDF embedding not checked: ${why}`);
   await clean();
 });
