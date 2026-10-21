@@ -4,14 +4,14 @@
  *   previewSwap(caller, id, body)   the doc restyled with another template; nothing saved
  *   applySwap(caller, id, body)     rebuilds the same preview, checks its hash, saves it as one
  *                                   new rev through DS-5's PATCH path (final, rev, sites, template
- *                                   locks, autosave) and points the doc at the new template
+ *                                   locks, autosave) and points the doc at the new template in
+ *                                   the same UPDATE
  *
  * The template must be one the company can see (system or its own), of the doc's kind
  * (else DS_LAYOUT_NOT_FOUND, as an unknown id) and of the doc's format (else
  * DS_FORMAT_INVALID: another format is Resize). No model call: the swap is deterministic,
  * so the preview hash is stable until the doc or the template changes.
  */
-import { AppDataSource } from "../../config/data-source";
 import {
   DsError,
   ReportDocSchema,
@@ -24,7 +24,7 @@ import {
   type ThemeOverrides,
 } from "../contracts";
 import { patchDoc } from "../docs/service";
-import { docResponse, loadDocRow, type DocRow } from "../docs/store";
+import { loadDocRow, type DocRow } from "../docs/store";
 import type { StudioCaller } from "../guard";
 import { parse } from "../http";
 import { listLayouts, templateDoc } from "../library/service";
@@ -84,7 +84,6 @@ export async function applySwap(caller: StudioCaller, id: number, raw: unknown):
   if (body.rev !== row.rev) throw new DsError("DS_VERSION_CONFLICT", { rev: row.rev });
   const preview = await buildPreview(caller, row, doc, body.templateId);
   if (preview.previewHash !== body.previewHash) throw new DsError("DS_VERSION_CONFLICT", { rev: row.rev, reason: "preview_changed" });
-  await patchDoc(caller, id, { rev: row.rev, doc: preview.doc });
-  await AppDataSource.query(`UPDATE report_doc SET template_id = $1 WHERE id = $2 AND company_id = $3`, [preview.templateId, id, caller.companyId]);
-  return docResponse(await loadDocRow(caller, id));
+  // One UPDATE saves the restyled draft, the new rev and the new template_id together.
+  return patchDoc(caller, id, { rev: row.rev, doc: preview.doc }, { templateId: preview.templateId });
 }

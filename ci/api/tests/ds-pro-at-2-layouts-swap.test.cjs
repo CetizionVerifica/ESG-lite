@@ -324,6 +324,33 @@ test("finals stay immutable: apply on a final answers DS_FINAL_IMMUTABLE", async
   assert.equal(after.status, "final");
 });
 
+test("apply is one write: when the database refuses the new template, neither the draft nor the rev moves", async () => {
+  await setStudio(1, true);
+  const doc = await makeDoc("AT-2 Atomic");
+  const night = await templateId("ghg-inventory-night");
+  const p = await call("POST", `/studio/docs/${doc.id}/template-swap/preview`, "admin", { templateId: night, rev: doc.rev });
+  assert.equal(p.status, 200, JSON.stringify(p.json));
+  const [before] = await q(`SELECT template_id FROM report_doc WHERE id = $1`, [doc.id]);
+  // A trigger that fails any template_id change on this doc stands in for a write failing mid-apply.
+  await q(`CREATE OR REPLACE FUNCTION at2_refuse_template() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'at2 test: template_id refused'; END $$ LANGUAGE plpgsql`);
+  await q(`CREATE TRIGGER at2_refuse_template BEFORE UPDATE ON report_doc FOR EACH ROW WHEN (NEW.id = ${Number(doc.id)} AND NEW.template_id IS DISTINCT FROM OLD.template_id) EXECUTE FUNCTION at2_refuse_template()`);
+  try {
+    const a = await call("POST", `/studio/docs/${doc.id}/template-swap/apply`, "admin", { templateId: night, rev: doc.rev, previewHash: p.json.previewHash });
+    assert.ok(a.status >= 500, `the refused write fails the apply (got ${a.status})`);
+  } finally {
+    await q(`DROP TRIGGER IF EXISTS at2_refuse_template ON report_doc`);
+    await q(`DROP FUNCTION IF EXISTS at2_refuse_template()`);
+  }
+  const [row] = await q(`SELECT rev, template_id, draft -> 'design' ->> 'templateId' AS t FROM report_doc WHERE id = $1`, [doc.id]);
+  assert.equal(Number(row.rev), doc.rev, "no new rev");
+  assert.equal(row.t, doc.doc.design.templateId, "the draft keeps its template");
+  assert.equal(String(row.template_id), String(before.template_id), "template_id unchanged");
+  // With nothing in the way, the same preview applies.
+  const ok = await call("POST", `/studio/docs/${doc.id}/template-swap/apply`, "admin", { templateId: night, rev: doc.rev, previewHash: p.json.previewHash });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.equal(ok.json.rev, doc.rev + 1);
+});
+
 test("a Superadmin previews and applies a swap for the company it names", async () => {
   await setStudio(1, true);
   const doc = await makeDoc("AT-2 Superadmin");
