@@ -21,7 +21,7 @@
 - Doc load: `loadDocRow` (company → 404 `DS_DOC_NOT_FOUND`, `assertKind` → 403 `DS_KIND_OFF`, the `assertDocSitesReadable` rule via `canReadSites` → 404). A doc being built → 409 `DS_VERSION_CONFLICT {rev, building}`.
 - Template: `templateDoc` (system or the company's own; another company's → 404 `DS_LAYOUT_NOT_FOUND`); other kind → `DS_LAYOUT_NOT_FOUND`; other format → 422 `DS_FORMAT_INVALID` (that is Resize).
 - Preview: stale `rev` → 409 `DS_VERSION_CONFLICT {rev}`; the result is re-validated with `ReportDocSchema`; nothing saved, also on a final.
-- Apply: final → 409 `DS_FINAL_IMMUTABLE`; stale `rev` or a `previewHash` that no longer matches (doc, template or target template changed) → 409 `DS_VERSION_CONFLICT {rev}`; else one rev through DS-5's `patchDoc` (rev, final, sites, template locks, autosave) and `report_doc.template_id` set to the new template. No model call.
+- Apply: final → 409 `DS_FINAL_IMMUTABLE`; stale `rev` or a `previewHash` that no longer matches (doc, template or target template changed) → 409 `DS_VERSION_CONFLICT {rev}`; else one rev through DS-5's `patchDoc` (rev, final, sites, template locks, autosave), with `report_doc.template_id` set in the same `UPDATE` as the draft and rev (`updateDraft`'s `templateId`), so a failed write moves neither. No model call.
 
 **Plumbing:** `ci/golden/ds/lib/routes.cjs` and `ci/api/tests/ds-lib.cjs` keep the two swap routes (marked built); `audit/harness/ds-probes.cjs` needs no new `ID_SOURCES` line (`docs` is DS-5's). DS-9 chat (`ai/chat.ts`) now points "suggest a layout" asks at the drawer's layouts. Recorded answer in `ci/fixtures/studio/ai/recorded.json`; DS golden `ci/golden/ds/ai/recorded/suggest_layouts.json` (via `ci/golden/ds/lib/layouts.cjs`) pins candidates, frames moved and decoration added per option.
 
@@ -35,11 +35,10 @@
 
 ## Not done / open
 - FE (ghost previews, side-by-side swap preview, one undo step) is the FE lane; the FE repo isn't here, so nothing was synced.
-- Apply saves the doc (`patchDoc`) and then sets `report_doc.template_id` in a second statement, not one transaction; a failure between the two leaves the new doc with the old `template_id` (the doc's own `design.templateId` is already right).
 
 ## Tests run (2026-10-21, branch `at-2-layouts-swap`)
 - `npm run build` ok.
 - Unit (`npm run test:unit`): 645 tests, 633 pass, 0 fail, 12 skipped (`ci/unit/ds-pro-at-2-layouts.test.cjs`: 8).
-- API (`npm run test:api`, fresh DB): 791 tests, 784 pass, 0 fail, 7 skipped (`ds-pro-at-2-layouts-swap.test.cjs`: 9 — switch-off/role/401, tenant, kind-off, three options kept and fenced, retry → `DS_AI_OUTPUT_INVALID`, `DS_VALIDATION` targets, preview/apply incl. stale rev, stale hash and other-template hash, final immutable, Superadmin apply).
+- API (`npm run test:api`, fresh DB): 791 tests, 784 pass, 0 fail, 7 skipped (`ds-pro-at-2-layouts-swap.test.cjs`: 9 — switch-off/role/401, tenant, kind-off, three options kept and fenced, retry → `DS_AI_OUTPUT_INVALID`, `DS_VALIDATION` targets, preview/apply incl. stale rev, stale hash and other-template hash, final immutable, Superadmin apply). Follow-up (2026-10-21): +1, "apply is one write" (a trigger refuses the `template_id` change; no new rev, draft and `template_id` unchanged). It failed on the old two-statement apply and passes now: the file is 10/10.
 - DS golden (`npm run test:ds-golden`, fresh DB): 423 run, 423 matched, 0 failed, 2 skipped (Chromium not installed).
 - DS probes (`audit/harness/ds-probes.cjs`, fresh DB): 362 pass / 0 fail / 0 error / 5 n/a; P01–P05 pass on both swap routes.
