@@ -32,6 +32,11 @@ const reset = async () => {
 let firstRun;
 let secondRun;
 test.before(async () => {
+  // The library and docs tables this file's last test needs (idempotent; run alone or in the suite).
+  for (const name of ["migrateDs4Library", "migrateDs5Docs"]) {
+    const r = runScript(name);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+  }
   firstRun = runScript("migrateDsProPe1Photo");
   secondRun = runScript("migrateDsProPe1Photo");
   await reset();

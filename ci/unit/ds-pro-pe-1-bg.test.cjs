@@ -1,8 +1,10 @@
 // PE-1 · the background remover around its engine (src/studio/images/bgRemove/, process.ts):
-// engine choice from STUDIO_BG_MODEL_PATH / NODE_ENV, the stub, tensor and mask conversion, and a
-// real onnxruntime-node run on a tiny model this test writes itself (ReduceMean over the colour
-// channels; no model is downloaded or committed). The cut-out keeps the subject, clears the
-// background, keeps the source's own transparency and never grows past the asset limit.
+// engine choice from STUDIO_BG_MODEL_PATH / NODE_ENV and whether onnxruntime-node can be required,
+// the stub, tensor and mask conversion, the onnx engine against a stand-in onnxruntime module this
+// test writes itself, and (only when the package is installed) a real onnxruntime-node run on a
+// tiny model also written here (ReduceMean over the colour channels; no model is downloaded or
+// committed). The cut-out keeps the subject, clears the background, keeps the source's own
+// transparency and never grows past the asset limit.
 //   npm run build && node --test ci/unit/ds-pro-pe-1-bg.test.cjs
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -43,8 +45,46 @@ function meanModel(side) {
   return Buffer.concat([vint(1, 8 /* ir_version */), bytes(8, Buffer.concat([str(1, ""), vint(2, 13)])), bytes(7, graph)]);
 }
 
+// Is the real package installed here? (Declared in package.json; the build never needs it.)
+let hasOrt = false;
+try {
+  require.resolve("onnxruntime-node");
+  hasOrt = true;
+} catch {
+  hasOrt = false;
+}
+
+// A stand-in for onnxruntime-node with the same surface the engine uses: the "model" averages the
+// colour channels (what meanModel does), so the onnx engine's own code runs end to end.
+const fakeOrtDir = fs.mkdtempSync(path.join(os.tmpdir(), "pe1-ort-"));
+const FAKE_ORT = path.join(fakeOrtDir, "fake-ort.cjs");
+fs.writeFileSync(
+  FAKE_ORT,
+  `const fs = require("fs");
+class Tensor { constructor(type, data, dims) { this.type = type; this.data = data; this.dims = dims; } }
+module.exports = {
+  Tensor,
+  InferenceSession: {
+    async create(file) {
+      if (!fs.readFileSync(file).length) throw new Error("empty model");
+      return {
+        inputNames: ["x"], outputNames: ["y"],
+        async run(feeds) {
+          const x = feeds.x; const plane = x.dims[2] * x.dims[3];
+          const y = new Float32Array(plane);
+          for (let p = 0; p < plane; p++) y[p] = (x.data[p] + x.data[plane + p] + x.data[2 * plane + p]) / 3;
+          return { y: new Tensor("float32", y, [1, 1, x.dims[2], x.dims[3]]) };
+        },
+      };
+    },
+  },
+};
+`,
+);
+
 const env = { ...process.env };
 test.afterEach(() => {
+  O.setOrtModuleForTest(null);
   for (const k of ["STUDIO_BG_MODEL_PATH", "STUDIO_BG_MODEL_SIZE", "STUDIO_BG_MODEL_NORM", "NODE_ENV"]) {
     if (env[k] === undefined) delete process.env[k];
     else process.env[k] = env[k];
@@ -63,6 +103,7 @@ const alphaOf = async (png) => {
 };
 
 test("engine choice: a readable model → onnx; none under NODE_ENV=test → stub; none otherwise → unavailable", () => {
+  O.setOrtModuleForTest(FAKE_ORT);
   delete process.env.STUDIO_BG_MODEL_PATH;
   process.env.NODE_ENV = "test";
   assert.equal(E.bgEngine(), stubEngine);
@@ -83,6 +124,40 @@ test("engine choice: a readable model → onnx; none under NODE_ENV=test → stu
   assert.equal(E.bgEngine().side, 64);
   process.env.STUDIO_BG_MODEL_SIZE = "5";
   assert.equal(E.modelSide(), 320, "out of range → the contract's 320");
+});
+
+test("engine choice: a model file but no onnxruntime-node package → unavailable (never the stub, nothing installed)", () => {
+  O.setOrtModuleForTest("pe1-onnxruntime-node-not-installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pe1-"));
+  const file = path.join(dir, "u2netp.onnx");
+  fs.writeFileSync(file, meanModel(64));
+  process.env.STUDIO_BG_MODEL_PATH = file;
+  for (const mode of ["test", "production"]) {
+    process.env.NODE_ENV = mode;
+    assert.equal(O.ortAvailable(), false);
+    assert.equal(E.bgEngine(), null, `${mode}: DS_BG_UNAVAILABLE`);
+  }
+});
+
+test("onnx engine (stand-in onnxruntime module): tensor in, saliency out, a bright subject is cut out", async () => {
+  O.setOrtModuleForTest(FAKE_ORT);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pe1-"));
+  const file = path.join(dir, "mean.onnx");
+  fs.writeFileSync(file, meanModel(64));
+  process.env.STUDIO_BG_MODEL_PATH = file;
+  process.env.STUDIO_BG_MODEL_SIZE = "64";
+  process.env.STUDIO_BG_MODEL_NORM = "half";
+  const engine = E.bgEngine();
+  assert.equal(engine.name, "onnx:mean.onnx");
+  const out = await PR.removeBackgroundBytes(await square(64, "#000000", "#ffffff"), engine);
+  const alpha = await alphaOf(out.bytes);
+  assert.equal(alpha(2, 2), 0, "the dark background is cleared");
+  assert.equal(alpha(32, 32), 255, "the bright subject is kept");
+  // A model file the runtime can't open fails the job with reason "model".
+  const empty = path.join(dir, "empty.onnx");
+  fs.writeFileSync(empty, "");
+  process.env.STUDIO_BG_MODEL_PATH = empty;
+  await assert.rejects(PR.removeBackgroundBytes(await square(64, "#000000", "#ffffff"), E.bgEngine()), (e) => e.reason === "model");
 });
 
 test("tensor and mask conversion: NCHW planes, both normalisations, min–max scaled mask", () => {
@@ -107,7 +182,7 @@ test("stub engine: keeps what differs from the border colour, deterministically"
   assert.equal(alpha(40, 40), 255);
 });
 
-test("onnxruntime-node: a real model run (our tiny mean model) cuts out a bright subject", async () => {
+test("onnxruntime-node: a real model run (our tiny mean model) cuts out a bright subject", { skip: hasOrt ? false : "onnxruntime-node isn't installed here (declared in package.json; nothing is installed by tests)" }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pe1-"));
   const file = path.join(dir, "mean.onnx");
   fs.writeFileSync(file, meanModel(64));
