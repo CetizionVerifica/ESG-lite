@@ -15,6 +15,7 @@ const { setupCompany } = require("./kpi-lib.cjs"); // IN-2
 
 const ROOT = path.resolve(__dirname, "../../..");
 const CASES = require(path.join(ROOT, "ci/golden/in/cases.json"));
+const THIS_RUNNER = "ci/api/tests/in-10-golden.test.cjs"; // IN-3
 // seed.sql, then each module's own seed-<module>.sql (IN-2, IN-4, …) in name order; cleanup the
 // same way, modules first. Each module keeps its fixture rows in its own file so parallel lanes
 // never edit the same SQL.
@@ -239,13 +240,16 @@ test("the golden index: every suite has an owner, a file or a waits_on, and a gr
     assert.ok(["run", "skip"].includes(s.status), s.id);
     if (s.status === "run") {
       assert.ok(fs.existsSync(path.join(ROOT, s.file)), `${s.id}: ${s.file}`);
-      assert.ok(GROUPS[s.id], `${s.id} runs but has no group in in-10-golden.test.cjs`);
+      // IN-3: a suite may run in its own (pure) runner instead of a group here.
+      if (s.runner === THIS_RUNNER) assert.ok(GROUPS[s.id], `${s.id} runs but has no group in in-10-golden.test.cjs`);
+      else assert.ok(fs.existsSync(path.join(ROOT, s.runner)), `${s.id}: runner ${s.runner}`);
     } else assert.ok(s.waits_on, `${s.id} is skipped without waits_on`);
   }
 });
 
 for (const suite of CASES.suites) {
-  if (suite.status === "run") test(`golden ${suite.id} (${suite.owner}): ${suite.what}`, () => GROUPS[suite.id](suite));
+  if (suite.status === "run" && suite.runner !== THIS_RUNNER) test(`golden ${suite.id} (${suite.owner}) runs in ${suite.runner}`, () => assert.ok(fs.existsSync(path.join(ROOT, suite.runner)))); // IN-3
+  else if (suite.status === "run") test(`golden ${suite.id} (${suite.owner}): ${suite.what}`, () => GROUPS[suite.id](suite));
   else test(`golden ${suite.id} (${suite.owner})`, { skip: `waits on ${suite.waits_on}` }, () => {});
 }
 

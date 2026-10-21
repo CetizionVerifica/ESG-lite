@@ -31,3 +31,21 @@ One fixture per rule at the firing edge and just below it; the ranking with 8 fi
 
 ## Done when
 Every rule is covered by a golden at its edge, the cards render with working links, and no card text contains a number the API didn't send.
+
+## IN-3 as built (backend)
+- **`rules/`:** `facts.ts` (the `Facts` shape), `card.ts` (`card(...)`, `Rule`), `thresholds.ts` (every §6 number as a named constant, `RULE_WEIGHT` for ranking inside a severity, `displayPct`: 0 dp, 1 dp under 10, never −0), one file per rule (`decoupling.ts` … `pending_large.ts`, pure `(facts) => InsightCard | null`), `engine.ts`:
+  - `collectFacts(scope, today?)`: summary, decoupling (5 years) and target wall through `panelResponse` (shared panel cache; a panel that isn't `ok` is null), Overview's gross / `by_category` / pending (`pending_review_count`, `pending_emission`, net), per-site scopes (IN-6's `scopesBySite`, two or more sites only), renewable share last year and this year (`sources/energy`), `/kpi/esg` pillars and movers (KPI on and set up only).
+  - `runRules(facts, max = 6)`: every rule, ranked critical → attention → good → info, then `RULE_WEIGHT`.
+  - **`ruleCards(scope, today?)`: the hook IN-9 wraps** (reword `text` only; keep params, link, panel).
+- **`GET /insights/cards`** (`panels/cards.ts`, `buildCards`, one `router.use` line `// IN-3`): `CardsQuerySchema`, `ai` in the cache key; cards are `source: 'rule'`, `id` = the rule id; `links` maps card id → link.
+- **Rule decisions** (within §6):
+  - `intensity_change`: `change_pct` is the size of the move, severity gives the direction; it doesn't fire on a combined index over mixed production units.
+  - `pathway_on_track`: `margin_pct` = how far below the pathway (0 on it).
+  - `target_off_track`: KPI targets only (the SBTi items have their own pathway cards); `first_name` = the wall's worst item; link = that target when one, else `/kpi/targets`.
+  - `site_concentration`: needs two or more sites; the largest share over the three scopes; `scope` is the number 1–3.
+  - `coverage_gap`: after 9 months of the period have passed (`monthsPassed`, or the period has ended); the lowest pillar below 60 %; `missing` = values not filed.
+  - `biggest_mover`: `/kpi/esg`'s first mover with a change ≥ 0.05 %, signed `change_pct`.
+  - `pending_large`: pending tCO₂e ≥ 5 % of the approved net (any pending tCO₂e when net is 0).
+  - `renewables_jump`: renewable share of electricity from emission rows (sources/energy), this year vs last year, +10 pp.
+- **Goldens:** `ci/golden/in/rules/fixture.json` (a quiet facts object; each rule at its edge and just below; eight rules firing → the right six), run by `ci/unit/in-3-rules.test.cjs` (pure). The golden index lets a `run` suite name its own runner (the in-10 runner checks the file exists instead of a group).
+- **Tests:** `ci/api/tests/in-3-cards.test.cjs` (envelope; largest_source and pending_large by hand from the API fixture; ≤ 6 and ordered; KPI off drops only the KPI rules; `?ai=1`; roles, site scope, tenant, switch-off); `ci/unit/in-3-rules.test.cjs`.
