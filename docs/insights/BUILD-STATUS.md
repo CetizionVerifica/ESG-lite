@@ -29,7 +29,19 @@ Each module's "As built" section (files, deviations, decisions) is in its spec c
 
 ## Final suites on `in/local` (IN-10 final merged)
 
-_Final full run in progress when this was first committed; the next commit fills in its results._
+All green (2026-10-21, commit `a57d010` + this file):
+
+| Suite | Result |
+|---|---|
+| Data safety (CI isolation, destructive changes vs `origin/production`) | pass |
+| Typecheck, build, `insights:contracts --check` | pass |
+| Unit (`test:unit`) | 712 pass, 0 fail, 12 skipped (pre-existing) |
+| Scope 3 golden | 32 run, 0 failed |
+| Migrations: all 62 `migrate:*` twice on production's schema, `schema-diff`, `migrate-all` twice on the seeded base | pass |
+| Calculation snapshot (plain and `GOLDEN_REVIEW_V2=1`) | matches (23 entries, 6 reports) |
+| API (`ci/api/run.cjs`, `NODE_ENV=test`) | 860 pass, 0 fail, 8 skipped |
+| Workflow (`test:workflow`) | **Workflow test: 97 passed, 4 skipped** (68 + 29 categories; skips: 18 SE-4, 27 S3-16, DS-W7/W8 Chromium) |
+| Design Studio golden | 423 run, 423 matched, 2 skipped (Chromium) |
 
 Suite runs per merge point on `in/local`: wave-1 tip (full, green), IN-2 (safety, build, unit, API, workflow — green), IN-4 (full incl. migrations — green: API 823 / 0 fail, workflow 60 pass + categories 29), wave-2 tip IN-6 (safety, build, unit, golden, API, workflow — green: API 829 / 0 fail), then waves 3 + 4 + IN-10 final together (full, above). The wave-3 and wave-4 merges were each checked on the merged tree with the Insights API tests plus the related existing suites (KPI route walk `kpi-d18`, `kpi-3`, `ds-2`, `ds-9`: 100 and 105 pass, 0 fail) before moving `in/local`, but `in/local` was not stopped at those two tips for a full run: the wave-3 tip alone fails workflow step K9 (see "Defects" below), fixed by IN-10 final.
 
