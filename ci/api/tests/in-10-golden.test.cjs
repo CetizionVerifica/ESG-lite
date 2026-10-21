@@ -10,6 +10,8 @@ const fs = require("fs");
 const path = require("path");
 const jwt = require("jsonwebtoken");
 const { withDb } = require("../helpers.cjs");
+const { ensureKpiLibrary, kpiIds, kpiValue } = require("./in-lib.cjs"); // IN-2
+const { setupCompany } = require("./kpi-lib.cjs"); // IN-2
 
 const ROOT = path.resolve(__dirname, "../../..");
 const CASES = require(path.join(ROOT, "ci/golden/in/cases.json"));
@@ -93,6 +95,55 @@ const GROUPS = {
     const s = (await get("manager", "/insights/summary?year=2025")).json;
     matches(s.data.pathway.gap_pct, ((row.actualTotal - row.targetTotal) / row.targetTotal) * 100, "pathway gap");
     // Later parts (IN-4 pathway panel, IN-2 ring) append their checks here.
+  },
+  // IN-2: decoupling (hand series), the target wall without KPI (SBTi items; expected_pct and status
+  // from the I6 line at today), the ESG ring with KPI tracking on for company 901 (then off again).
+  async story(suite) {
+    const g = load(suite.file);
+    for (const c of g.decoupling) {
+      const r = await get(c.who, `/insights${c.path}`);
+      assert.equal(r.status, 200, `${c.name}: ${JSON.stringify(r.json)}`);
+      matches(r.json, c.expected, c.name);
+    }
+    const w = (await get(g.wall.who, `/insights${g.wall.path}`)).json;
+    matches(w.data, g.wall.expected, g.wall.name);
+    const yearEnd = (y) => Date.UTC(y, 11, 31, 23, 59, 59);
+    const now = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+    for (const it of w.data.items) {
+      const exp = Math.min(100, Math.max(0, ((now - yearEnd(it.baseline.year)) / (yearEnd(it.target.year) - yearEnd(it.baseline.year))) * 100));
+      matches(it.expected_pct, exp, `${it.id} expected`);
+      const status = it.progress_pct >= 100 ? "reached" : it.progress_pct >= exp ? "on_track" : exp - it.progress_pct <= 10 ? "at_risk" : "off_track";
+      assert.equal(it.status, status, `${it.id} status`);
+    }
+    // ESG ring (KPI on for the case only).
+    ensureKpiLibrary();
+    const ring = g.ring;
+    await withDb((db) => db.query(`UPDATE company SET kpi_tracking_enabled = true WHERE company_id = 901`));
+    try {
+      await setupCompany(901, { frameworks: ["GRI"], kpis: ring.kpis, frequencies: Object.fromEntries(ring.kpis.map((k) => [k, "annual"])), topicOwners: false });
+      const ids = await kpiIds(ring.kpis);
+      for (const [code, site, v, status, source] of ring.values) await kpiValue(901, ids[code], site, 2025, v, status, source);
+      const r = (await get("admin", "/insights/esg-ring?year=2025")).json;
+      assert.equal(r.availability, "ok", JSON.stringify(r));
+      matches(r.data.pct, ring.expected.pct, "ring pct");
+      for (const [pillar, ep] of Object.entries(ring.expected.pillars)) {
+        const p = r.data.pillars.find((x) => x.pillar === pillar);
+        const { topics, ...rest } = ep;
+        matches(p, rest, `ring ${pillar}`);
+        for (const [topic, et] of Object.entries(topics ?? {})) matches(p.topics.find((t) => t.topic === topic), et, `ring ${topic}`);
+      }
+      // parity: each topic's coverage rounds to /kpi/esg's.
+      const e = (await get("admin", "/kpi/esg?year=2025")).json;
+      for (const p of e.pillars) for (const t of p.topics) {
+        const rt = r.data.pillars.find((x) => x.pillar === p.pillar).topics.find((x) => x.topic === t.topic);
+        assert.equal(Math.round(rt.coverage_pct), t.coverage_pct ?? 0, `parity ${t.topic}`);
+        assert.equal(rt.kpis, t.kpis);
+        assert.equal(rt.approved, t.approved);
+      }
+    } finally {
+      await withDb((db) => db.query(read("cleanup-in2.sql")));
+      await withDb((db) => db.query(`UPDATE company SET kpi_tracking_enabled = false WHERE company_id = 901`));
+    }
   },
 };
 

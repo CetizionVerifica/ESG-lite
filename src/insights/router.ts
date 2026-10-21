@@ -11,6 +11,7 @@
 import { Router } from "express";
 import { insightsSites, insightsStatus, requireInsights } from "./guard";
 import summaryRoutes from "./panels/summary";
+import in2Routes from "./panels/in2";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.get("/status", insightsStatus); // IN-0: {enabled, kpi_tracking}, answers
 router.use(requireInsights); // IN-0: 403 IN_OFF / IN_FORBIDDEN below this line
 router.get("/sites", insightsSites); // IN-0: the caller's sites for the header chips
 router.use(summaryRoutes); // IN-1: GET /summary
+router.use(in2Routes); // IN-2: GET /esg-ring, /decoupling, /target-wall
 
 export default router;

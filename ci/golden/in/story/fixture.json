@@ -1,0 +1,394 @@
+{
+  "about": "IN-2 story goldens on ci/fixtures/in-company (decoupling, target wall, ESG ring). Worked by hand from the fixture table; numbers within 1e-9 relative; series compare every year.",
+  "decoupling": [
+    {
+      "name": "Decoupling CY 2025, 5 years, all sites: base 2021 (the SBTi base year), output in t and MWh combined by base-year emissions",
+      "who": "admin",
+      "path": "/decoupling?year=2025&years=5",
+      "working": "site indices 901 and 903: 100,105,110,115,120; 902: 100. Weights = 2021 emissions 2,000 / 800 / 300: 2025 = (2,000\u00d7120 + 800\u00d7100 + 300\u00d7120) \u00f7 3,100 = 114.839. Net 3,100 \u2192 2,670 = 86.129. Intensity 3,100/17,000 \u2192 2,670/19,400.",
+      "expected": {
+        "availability": "ok",
+        "data": {
+          "base_year": 2021,
+          "years": [
+            2021,
+            2022,
+            2023,
+            2024,
+            2025
+          ],
+          "combined_output": true,
+          "decoupled": true,
+          "series": [
+            {
+              "key": "output",
+              "index": [
+                100.0,
+                103.70967741935483,
+                107.41935483870968,
+                111.12903225806451,
+                114.83870967741936
+              ],
+              "raw": [
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "unit": "index"
+            },
+            {
+              "key": "emissions",
+              "index": [
+                100.0,
+                96.45161290322581,
+                93.54838709677419,
+                90.0,
+                86.12903225806451
+              ],
+              "raw": [
+                3100,
+                2990,
+                2900,
+                2790,
+                2670
+              ],
+              "unit": "tCO2e"
+            },
+            {
+              "key": "intensity",
+              "index": [
+                100.0,
+                93.16348973607039,
+                87.38036157390997,
+                81.38297872340426,
+                75.47389424675758
+              ],
+              "raw": [
+                0.18235294117647058,
+                0.16988636363636364,
+                0.15934065934065933,
+                0.14840425531914894,
+                0.13762886597938145
+              ]
+            }
+          ],
+          "headline": {
+            "output_change_pct": 14.83870967741936,
+            "emissions_change_pct": -13.870967741935488,
+            "intensity_change_pct": -24.52610575324242
+          }
+        }
+      }
+    },
+    {
+      "name": "Decoupling, the Manager's sites 901 + 902 (one unit, t): raw output is the sum",
+      "who": "manager",
+      "path": "/decoupling?year=2025",
+      "working": "weights 2,000 / 800: 2025 = (2,000\u00d7120 + 800\u00d7100) \u00f7 2,800 = 114.286; raw 15,000 \u2192 17,000 t; net 2,800 \u2192 2,340.",
+      "expected": {
+        "availability": "ok",
+        "data": {
+          "base_year": 2021,
+          "years": [
+            2021,
+            2022,
+            2023,
+            2024,
+            2025
+          ],
+          "combined_output": false,
+          "decoupled": true,
+          "series": [
+            {
+              "key": "output",
+              "index": [
+                100.0,
+                103.57142857142857,
+                107.14285714285714,
+                110.71428571428571,
+                114.28571428571429
+              ],
+              "raw": [
+                15000,
+                15500,
+                16000,
+                16500,
+                17000
+              ],
+              "unit": "t"
+            },
+            {
+              "key": "emissions",
+              "index": [
+                100.0,
+                96.07142857142857,
+                92.5,
+                88.21428571428571,
+                83.57142857142857
+              ],
+              "raw": [
+                2800,
+                2690,
+                2590,
+                2470,
+                2340
+              ],
+              "unit": "tCO2e"
+            },
+            {
+              "key": "intensity",
+              "index": [
+                100.0,
+                92.97235023041475,
+                86.71874999999999,
+                80.19480519480518,
+                73.73949579831933
+              ],
+              "raw": [
+                0.18666666666666668,
+                0.1735483870967742,
+                0.161875,
+                0.1496969696969697,
+                0.1376470588235294
+              ]
+            }
+          ],
+          "headline": {
+            "output_change_pct": 14.285714285714292,
+            "emissions_change_pct": -16.42857142857143,
+            "intensity_change_pct": -26.260504201680675
+          }
+        }
+      }
+    },
+    {
+      "name": "Decoupling, 3 years: the SBTi base year 2021 is outside the window, so the first year with both (2023) is the base",
+      "who": "admin",
+      "path": "/decoupling?year=2025&years=3",
+      "working": "weights 2023 emissions 1,850 / 740 / 310; 901 and 903 indices 100, 104.545, 109.091.",
+      "expected": {
+        "availability": "ok",
+        "data": {
+          "base_year": 2023,
+          "years": [
+            2023,
+            2024,
+            2025
+          ],
+          "combined_output": true,
+          "decoupled": true,
+          "series": [
+            {
+              "key": "output",
+              "index": [
+                100.0,
+                103.38557993730407,
+                106.77115987460816
+              ],
+              "raw": [
+                null,
+                null,
+                null
+              ],
+              "unit": "index"
+            },
+            {
+              "key": "emissions",
+              "index": [
+                100.0,
+                96.20689655172414,
+                92.06896551724138
+              ],
+              "raw": [
+                2900,
+                2790,
+                2670
+              ],
+              "unit": "tCO2e"
+            },
+            {
+              "key": "intensity",
+              "index": [
+                100.0,
+                93.13646368305211,
+                86.37397795947388
+              ],
+              "raw": [
+                0.15934065934065933,
+                0.14840425531914894,
+                0.13762886597938145
+              ]
+            }
+          ],
+          "headline": {
+            "output_change_pct": 6.771159874608159,
+            "emissions_change_pct": -7.931034482758619,
+            "intensity_change_pct": -13.626022040526124
+          }
+        }
+      }
+    },
+    {
+      "name": "Decoupling with one year of data is no_data",
+      "who": "admin",
+      "path": "/decoupling?year=2021&years=2",
+      "working": "2020 has nothing.",
+      "expected": {
+        "availability": "no_data",
+        "data": null
+      }
+    }
+  ],
+  "wall": {
+    "name": "Target wall without KPI tracking: the SBTi near-term and net-zero items only",
+    "who": "admin",
+    "path": "/target-wall?year=2025",
+    "working": "near-term: baseline 2021 boundary S1+S2 = 2,700; target 2030 = 2,700 \u00d7 0.958^9 = 1835.073; latest 2025 = 2,270 \u2192 progress (2,700\u22122,270)/(2,700\u22121835.073) = 49.7152 %. Net zero: 2,700 \u2192 270 in 2050; progress 430/2,430 = 17.695 %. expected_pct and status follow the I6 line at today (computed in the runner).",
+    "expected": {
+      "items": [
+        {
+          "id": "sbti:near",
+          "source": "sbti",
+          "pillar": "environment",
+          "unit": "tCO2e",
+          "baseline": {
+            "year": 2021,
+            "value": 2700
+          },
+          "target": {
+            "year": 2030,
+            "value": 1835.073
+          },
+          "latest": {
+            "year": 2025,
+            "value": 2270
+          },
+          "progress_pct": 49.715178275160795,
+          "direction_good": "down",
+          "link": "/targets"
+        },
+        {
+          "id": "sbti:long",
+          "source": "sbti",
+          "pillar": "environment",
+          "unit": "tCO2e",
+          "baseline": {
+            "year": 2021,
+            "value": 2700
+          },
+          "target": {
+            "year": 2050,
+            "value": 270
+          },
+          "latest": {
+            "year": 2025,
+            "value": 2270
+          },
+          "progress_pct": 17.695473251028808,
+          "direction_good": "down",
+          "link": "/targets"
+        }
+      ]
+    }
+  },
+  "ring": {
+    "name": "ESG ring on company 901 with KPI tracking on: climate 4 KPIs (2 auto with approved values) \u2192 50 % covered, auto_share 50; water pending; governance approved",
+    "working": "climate: GHG_SCOPE1 and GHG_SCOPE2_LB approved auto values (site 901, 2025), GHG_SCOPE2_MB and GHG_INTENSITY_REVENUE none \u2192 approved 2 of 4 counted. Water: one site's value pending \u2192 0 %. WOMEN_ON_BOARD approved \u2192 governance 100 %. Overall 3 \u00f7 (3 + 1 + 2) = 50 %.",
+    "kpis": [
+      "GHG_SCOPE1",
+      "GHG_SCOPE2_LB",
+      "GHG_SCOPE2_MB",
+      "GHG_INTENSITY_REVENUE",
+      "WATER_WITHDRAWAL",
+      "WOMEN_ON_BOARD"
+    ],
+    "values": [
+      [
+        "GHG_SCOPE1",
+        901,
+        1590,
+        "approved",
+        "auto"
+      ],
+      [
+        "GHG_SCOPE2_LB",
+        901,
+        680,
+        "approved",
+        "auto"
+      ],
+      [
+        "WATER_WITHDRAWAL",
+        901,
+        100,
+        "approved",
+        "manual"
+      ],
+      [
+        "WATER_WITHDRAWAL",
+        902,
+        50,
+        "pending",
+        "manual"
+      ],
+      [
+        "WATER_WITHDRAWAL",
+        903,
+        70,
+        "approved",
+        "manual"
+      ],
+      [
+        "WOMEN_ON_BOARD",
+        null,
+        30,
+        "approved",
+        "manual"
+      ]
+    ],
+    "expected": {
+      "pct": 50,
+      "pillars": {
+        "environment": {
+          "kpis": 5,
+          "approved": 2,
+          "coverage_pct": 40,
+          "topics": {
+            "climate": {
+              "kpis": 4,
+              "approved": 2,
+              "coverage_pct": 50,
+              "auto_share": 50
+            },
+            "water": {
+              "kpis": 1,
+              "approved": 0,
+              "coverage_pct": 0,
+              "auto_share": 0
+            }
+          }
+        },
+        "social": {
+          "kpis": 0,
+          "approved": 0,
+          "coverage_pct": 0
+        },
+        "governance": {
+          "kpis": 1,
+          "approved": 1,
+          "coverage_pct": 100,
+          "topics": {
+            "governance": {
+              "kpis": 1,
+              "approved": 1,
+              "coverage_pct": 100,
+              "auto_share": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

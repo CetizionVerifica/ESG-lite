@@ -88,3 +88,62 @@ export function countAbove<T>(now: T[], before: T[], key: (r: T) => string | num
   }
   return n;
 }
+
+// ── IN-2 (story panels) ──────────────────────────────────────────────────────
+//   indexSeries(values, baseIdx)        each value ÷ the base value × 100; null when either is
+//                                       missing or the base is 0
+//   combinedOutputIndex(perSite, w, b)  I7: each site's output indexed in its own unit, then
+//                                       averaged by base-year emission weight over the sites
+//                                       that have a value that year (weights renormalised)
+//   lastValue(series)                   the last non-null value, or null
+//   towardsTarget(base, target, now)    % of the way from baseline to target (100 = reached,
+//                                       whichever way is good); null without a span or a figure
+//   wallOrder(a, b)                     the target wall's sort: status (worst first), then
+//                                       (expected − progress) descending, unknown gaps last
+
+export function indexSeries(values: Array<number | null>, baseIdx: number): Array<number | null> {
+  const base = values[baseIdx];
+  return values.map((v) => (v === null || v === undefined || base === null || base === undefined || base === 0 ? null : (v / base) * 100));
+}
+
+export function combinedOutputIndex(perSite: Array<Array<number | null>>, weights: number[], baseIdx: number): Array<number | null> {
+  const indexed = perSite.map((s) => indexSeries(s, baseIdx));
+  const len = perSite.reduce((m, s) => Math.max(m, s.length), 0);
+  const out: Array<number | null> = [];
+  for (let i = 0; i < len; i++) {
+    let w = 0;
+    let sum = 0;
+    indexed.forEach((s, k) => {
+      const v = s[i];
+      const wk = weights[k] ?? 0;
+      if (v === null || v === undefined || !(wk > 0)) return;
+      w += wk;
+      sum += wk * v;
+    });
+    out.push(w > 0 ? sum / w : null);
+  }
+  return out;
+}
+
+export const lastValue = (series: Array<number | null>): number | null => {
+  for (let i = series.length - 1; i >= 0; i--) if (series[i] !== null && series[i] !== undefined) return series[i];
+  return null;
+};
+
+export function towardsTarget(baseline: number, target: number, now: number | null): number | null {
+  if (now === null || baseline === target) return null;
+  return ((now - baseline) / (target - baseline)) * 100 || 0;
+}
+
+const STATUS_RANK: Record<TargetStatus, number> = { off_track: 0, at_risk: 1, on_track: 2, reached: 3, no_data: 4 };
+export function wallOrder(a: { status: TargetStatus; progress_pct: number | null; expected_pct: number | null; id: string }, b: typeof a): number {
+  const s = STATUS_RANK[a.status] - STATUS_RANK[b.status];
+  if (s) return s;
+  const gap = (x: typeof a) => (x.progress_pct === null || x.expected_pct === null ? null : x.expected_pct - x.progress_pct);
+  const ga = gap(a);
+  const gb = gap(b);
+  if (ga !== null && gb !== null && ga !== gb) return gb - ga;
+  if (ga === null && gb !== null) return 1;
+  if (gb === null && ga !== null) return -1;
+  return a.id.localeCompare(b.id);
+}
