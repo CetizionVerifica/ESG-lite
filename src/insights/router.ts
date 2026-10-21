@@ -17,6 +17,7 @@ import flowRoutes from "./panels/flow";
 import cardsRoutes from "./panels/cards";
 import bridgeRoutes from "./panels/bridge";
 import materialityRoutes from "./panels/materiality";
+import in8Routes from "./panels/in8";
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use(flowRoutes); // IN-6: GET /flow
 router.use(cardsRoutes); // IN-3: GET /cards
 router.use(bridgeRoutes); // IN-5: GET /bridge?compare=prior|base
 router.use(materialityRoutes); // IN-7: GET /materiality
+router.use(in8Routes); // IN-8: GET /stripes, /snapshot.pdf
 
 export default router;
