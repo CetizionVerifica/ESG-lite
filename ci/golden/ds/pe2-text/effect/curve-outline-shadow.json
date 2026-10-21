@@ -1,0 +1,22 @@
+{
+  "effect": "curve-outline-shadow",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.curve-outline-shadow\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"curve lift outline\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ds-text--curve ts-title\" style=\"text-align:right;justify-content:flex-start;\"><svg class=\"ds-curve\" width=\"100%\" height=\"100%\" overflow=\"visible\" aria-hidden=\"true\" style=\"filter:drop-shadow(0mm 0.84mm 1.5mm rgba(15,23,42,0.4))\"><path id=\"ds-curve-pe2_curve-outline-shadow\" d=\"M 0 228.656 A 321.26 321.26 0 0 1 642.52 228.656\" fill=\"none\" stroke=\"none\"/><text fill=\"currentColor\" stroke=\"#0F5132\" stroke-width=\"1.361\" stroke-linejoin=\"round\" paint-order=\"stroke fill\"><textPath href=\"#ds-curve-pe2_curve-outline-shadow\" startOffset=\"100%\" text-anchor=\"end\">Net zero by 2040: <tspan font-weight=\"700\">Scope 1</tspan> <tspan class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</tspan></textPath></text></svg></div></div>",
+  "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
+  "props": {
+    "align": "right",
+    "effects": {
+      "curve": {
+        "radius": 100
+      },
+      "lift": {
+        "intensity": 80
+      },
+      "outline": {
+        "colour": "#0F5132",
+        "width": 30
+      }
+    },
+    "font": null
+  },
+  "sha256": "7c9feea179841ea886d7ca059993b804bed80e34c060545bf5b03aa9ee2c6c16"
+}

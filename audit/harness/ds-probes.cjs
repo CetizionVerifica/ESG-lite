@@ -57,6 +57,7 @@ const na = (why) => ({ na: why });
 // Manager-only routes (01-contracts §4 "M"): an Admin gets DS_ROLE. POST /docs/:id/jobs is M
 // only for kind 'final' (body-dependent) and is probed by DS-11's own tests.
 const MANAGER_ONLY_ROUTES = ["PUT /brand-kit", "POST /docs/:id/shares", "GET /docs/:id/shares", "DELETE /shares/:id", "POST /approvals/:id/decide"];
+MANAGER_ONLY_ROUTES.push("POST /brand-kit/fonts", "DELETE /brand-kit/fonts/:id"); // PRO-0 (PE-2, E3)
 // Routes that take a kind (query or body): a sustainability request with KPI off → DS_KIND_OFF.
 const KIND_ROUTES = { "GET /readiness": "query", "GET /styles": "query", "GET /templates": "query", "GET /layouts": "query", "POST /docs": "body" };
 // Where a company-1 id for a route parameter comes from, by the first path segment. Each module
@@ -70,7 +71,9 @@ const ID_SOURCES = {
   shares: { table: "report_share", sql: `SELECT s.id FROM report_share s JOIN report_doc d ON d.id = s.doc_id WHERE d.company_id = 1 ORDER BY s.id LIMIT 1`, module: "DS-11" },
   comments: { table: "report_comment", sql: `SELECT c.id FROM report_comment c JOIN report_doc d ON d.id = c.doc_id WHERE d.company_id = 1 ORDER BY c.id LIMIT 1`, module: "DS-13" },
   approvals: { table: "report_approval", sql: `SELECT a.id FROM report_approval a JOIN report_doc d ON d.id = a.doc_id WHERE d.company_id = 1 ORDER BY a.id LIMIT 1`, module: "DS-13" },
+  "image-jobs": { table: "report_image_job", sql: `SELECT id FROM report_image_job WHERE company_id = 1 ORDER BY id LIMIT 1`, module: "PE-1" }, // PE-1
 };
+ID_SOURCES["brand-kit"] = { table: "brand_font", sql: `SELECT id FROM brand_font WHERE company_id = 1 ORDER BY id LIMIT 1`, module: "PE-2" }; // PE-2: /brand-kit/fonts/:id
 // Route parameters that are not tenant ids: nothing company-owned to cross, so DS-P03 records n/a
 // (DS-P02 and DS-P04 still probe these routes). [Wave 1 integrate]
 const NON_TENANT_PARAMS = { fonts: "the :file is a bundled font name, the same files for every company (DS-1)" };
@@ -118,6 +121,22 @@ SEED.push(async ({ q }) => {
   }
 });
 
+// PE-1: a company-1 background-removal job on the company-1 asset (a row only; the flow is tested in ds-pro-pe-1-photo).
+SEED.push(async ({ q }) => {
+  if (!(await tableExists("report_image_job"))) return;
+  const [asset] = await q(`SELECT id FROM report_asset WHERE company_id = 1 ORDER BY created_at LIMIT 1`);
+  if (!asset || (await q(`SELECT 1 FROM report_image_job WHERE company_id = 1 LIMIT 1`)).length) return;
+  await q(`INSERT INTO report_image_job (company_id, kind, asset_id, status, error_code, error_reason) VALUES (1, 'remove_background', $1, 'failed', 'DS_JOB_FAILED', 'model')`, [asset.id]);
+});
+
+// PE-2: a company-1 brand font row (uploads, magic bytes and the licence tick are tested in ds-pro-pe-2-fonts).
+SEED.push(async ({ q }) => {
+  if (!(await tableExists("brand_font"))) return;
+  if (!(await q(`SELECT 1 FROM brand_font WHERE company_id = 1 LIMIT 1`)).length) {
+    await q(`INSERT INTO brand_font (company_id, family, family_key, licence_confirmed_by, licence_confirmed_at, created_by) VALUES (1, 'Probe Sans', 'probe sans', 2, now(), 2)`);
+  }
+});
+
 const ROLES = ["user", "manager", "admin", "superadmin"];
 
 const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = $1`, [t])).length > 0;
@@ -130,7 +149,11 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
     const call = caller(ESG_DIR, stack.base, SECRET);
     const built = builtRoutes(ESG_DIR);
     const builtKeys = new Set(built.map(shape));
-    const isBuilt = (k) => builtKeys.has(shape({ method: k.split(" ")[0], path: k.split(" ")[1] }));
+    // PRO-0: a route whose module hasn't landed answers 501 DS_NOT_BUILT past the guard (src/studio/notBuilt.ts);
+    // it counts as not built (filled once the switch is on, below).
+    const stubbed = new Set();
+    const isBuilt = (k) => builtKeys.has(shape({ method: k.split(" ")[0], path: k.split(" ")[1] })) && !stubbed.has(shape({ method: k.split(" ")[0], path: k.split(" ")[1] }));
+    const pastGuardBad = (res) => guardCodes.has(res.code) || (res.status >= 500 && res.code !== "DS_NOT_BUILT");
     const key = (r) => `${r.method} ${r.path}`;
     const managerOnly = new Set(MANAGER_ONLY_ROUTES.map((k) => shape({ method: k.split(" ")[0], path: k.split(" ")[1] })));
     const isManagerOnly = (r) => managerOnly.has(shape(r));
@@ -174,6 +197,7 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
     await setKpi(1, false);
     await setKpi(2, false);
     for (const step of SEED) await step({ call, q });
+    for (const r of gated) if ((await as(r, "manager")).code === "DS_NOT_BUILT") stubbed.add(shape(r)); // PRO-0
 
     for (const r of gated) {
       await probe("DS-P02", `${r.method} ${r.path}: company 2's people naming company 1`, "404 (never 200 or 403)", async () => {
@@ -214,11 +238,11 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
           if (!(res.status === 403 && res.code === "DS_ROLE")) wrong.push(`${who} ${res.status} ${res.code ?? ""}`);
         }
         const mgr = await as(r, "manager");
-        if (guardCodes.has(mgr.code) || mgr.status >= 500) wrong.push(`manager ${mgr.status} ${mgr.code ?? ""}`);
+        if (pastGuardBad(mgr)) wrong.push(`manager ${mgr.status} ${mgr.code ?? ""}`);
         const adm = await as(r, "admin");
-        if (isManagerOnly(r) && isBuilt(key(r))) {
+        if (isManagerOnly(r) && builtKeys.has(shape(r))) { // PRO-0: routed (stubs check the role too)
           if (!(adm.status === 403 && adm.code === "DS_ROLE")) wrong.push(`admin ${adm.status} ${adm.code ?? ""} (M route)`);
-        } else if (guardCodes.has(adm.code) || adm.status >= 500) wrong.push(`admin ${adm.status} ${adm.code ?? ""}`);
+        } else if (pastGuardBad(adm)) wrong.push(`admin ${adm.status} ${adm.code ?? ""}`);
         return wrong.length ? wrong.join("; ") : true;
       });
     }
@@ -229,7 +253,7 @@ const tableExists = async (t) => (await q(`SELECT 1 FROM pg_tables WHERE scheman
         const none = await call(r.method, concrete(r.path), "superadmin", bodyOf(r));
         if (!(none.status === 400 && none.code === "DS_COMPANY_REQUIRED")) return `without company_id: ${none.status} ${none.code}`;
         const sa = await as(r, "superadmin");
-        if (guardCodes.has(sa.code) || sa.status >= 500) return `with company_id: ${sa.status} ${sa.code}`;
+        if (pastGuardBad(sa)) return `with company_id: ${sa.status} ${sa.code}`;
         return true;
       });
     }

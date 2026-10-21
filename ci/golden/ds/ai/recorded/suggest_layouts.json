@@ -1,4 +1,220 @@
 {
   "action": "suggest_layouts",
-  "built": false
+  "built": true,
+  "candidates": [
+    "ghg-inventory/exec_summary",
+    "ghg-inventory/methodology",
+    "ghg-one-page/summary",
+    "ghg-inventory/scope1",
+    "ghg-inventory/scope2",
+    "ghg-inventory/trend",
+    "ghg-inventory/period",
+    "ghg-inventory/compliance"
+  ],
+  "options": [
+    {
+      "added": [
+        "p-summary.band:shape"
+      ],
+      "id": "A",
+      "issues": [],
+      "layoutSlug": "ghg-one-page/summary",
+      "moved": {
+        "p-summary.body": {
+          "h": 24,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 250
+        },
+        "p-summary.heading": {
+          "h": 26,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 24
+        },
+        "p-summary.market": {
+          "h": 30,
+          "rotation": 0,
+          "w": 39.75,
+          "x": 18,
+          "y": 56
+        },
+        "p-summary.s3": {
+          "h": 32,
+          "rotation": 0,
+          "w": 84,
+          "x": 108,
+          "y": 210
+        },
+        "p-summary.split": {
+          "h": 76,
+          "rotation": 0,
+          "w": 84,
+          "x": 18,
+          "y": 94
+        },
+        "p-summary.waterfall": {
+          "h": 76,
+          "rotation": 0,
+          "w": 84,
+          "x": 108,
+          "y": 94
+        }
+      },
+      "name": "Chart + story",
+      "placed": [
+        "p-summary.heading",
+        "p-summary.body",
+        "p-summary.split",
+        "p-summary.waterfall",
+        "p-summary.s3",
+        "p-summary.market",
+        "p-summary.note"
+      ],
+      "reason": "The split chart answers where emissions come from first; the story sits beside it."
+    },
+    {
+      "added": [
+        "p-summary.footrule:divider"
+      ],
+      "id": "B",
+      "issues": [],
+      "layoutSlug": "ghg-inventory/exec_summary",
+      "moved": {
+        "p-summary.body": {
+          "h": 32,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 182
+        },
+        "p-summary.heading": {
+          "h": 14,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 26
+        },
+        "p-summary.market": {
+          "h": 24,
+          "rotation": 0,
+          "w": 84,
+          "x": 108,
+          "y": 220
+        },
+        "p-summary.note": {
+          "h": 14,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 250
+        },
+        "p-summary.pn": {
+          "h": 6,
+          "rotation": 0,
+          "w": 30,
+          "x": 162,
+          "y": 281
+        },
+        "p-summary.s3": {
+          "h": 24,
+          "rotation": 0,
+          "w": 84,
+          "x": 18,
+          "y": 46
+        },
+        "p-summary.split": {
+          "h": 72,
+          "rotation": 0,
+          "w": 84,
+          "x": 18,
+          "y": 104
+        },
+        "p-summary.waterfall": {
+          "h": 72,
+          "rotation": 0,
+          "w": 84,
+          "x": 108,
+          "y": 104
+        }
+      },
+      "name": "Big numbers first",
+      "placed": [
+        "p-summary.heading",
+        "p-summary.body",
+        "p-summary.split",
+        "p-summary.waterfall",
+        "p-summary.s3",
+        "p-summary.market",
+        "p-summary.note"
+      ],
+      "reason": "Leads with the headline figures, then the two charts and the summary text."
+    },
+    {
+      "added": [
+        "p-summary.footrule:divider"
+      ],
+      "id": "C",
+      "issues": [],
+      "layoutSlug": "ghg-inventory/scope2",
+      "moved": {
+        "p-summary.heading": {
+          "h": 14,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 26
+        },
+        "p-summary.market": {
+          "h": 30,
+          "rotation": 0,
+          "w": 84,
+          "x": 108,
+          "y": 46
+        },
+        "p-summary.pn": {
+          "h": 6,
+          "rotation": 0,
+          "w": 30,
+          "x": 162,
+          "y": 281
+        },
+        "p-summary.s3": {
+          "h": 30,
+          "rotation": 0,
+          "w": 84,
+          "x": 18,
+          "y": 46
+        },
+        "p-summary.split": {
+          "h": 60,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 172
+        },
+        "p-summary.waterfall": {
+          "h": 80,
+          "rotation": 0,
+          "w": 174,
+          "x": 18,
+          "y": 84
+        }
+      },
+      "name": "Two charts side by side",
+      "placed": [
+        "p-summary.heading",
+        "p-summary.body",
+        "p-summary.split",
+        "p-summary.waterfall",
+        "p-summary.s3",
+        "p-summary.market",
+        "p-summary.note"
+      ],
+      "reason": "Puts both charts at the same size so readers compare them directly."
+    }
+  ],
+  "valid": true
 }

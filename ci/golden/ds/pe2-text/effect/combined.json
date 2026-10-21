@@ -1,0 +1,28 @@
+{
+  "effect": "combined",
+  "fontFace": "@font-face{font-family:\"DS Brand 7\";font-style:normal;font-weight:400;font-display:block;src:url(\"data:font/woff2;base64,d09GMgABAAA=\") format(\"woff2\");}\n@font-face{font-family:\"DS Brand 7\";font-style:normal;font-weight:700;font-display:block;src:url(\"data:font/ttf;base64,AAEAAA==\") format(\"truetype\");}",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.combined\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"shadow outline highlight\" data-font=\"custom:7\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title ds-fx-outline\" style=\"text-align:left;justify-content:flex-start;font-family:&quot;DS Brand 7&quot;, &quot;Noto Sans&quot;, sans-serif;-webkit-text-stroke:0.24mm #FFFFFF;paint-order:stroke fill;--ds-ol-fb:0.12mm 0mm 0 #FFFFFF,-0.12mm 0mm 0 #FFFFFF,0mm 0.12mm 0 #FFFFFF,0mm -0.12mm 0 #FFFFFF,0.12mm 0.12mm 0 #FFFFFF,-0.12mm 0.12mm 0 #FFFFFF,0.12mm -0.12mm 0 #FFFFFF,-0.12mm -0.12mm 0 #FFFFFF,0mm 0.3mm 0.4mm rgba(0,0,0,0.5);text-shadow:0mm 0.3mm 0.4mm rgba(0,0,0,0.5);\"><div class=\"ds-text-in\"><p><span class=\"ds-hl\" style=\"background:#FDE68A;border-radius:0em;\">Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></span></p></div></div></div>",
+  "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
+  "props": {
+    "align": "left",
+    "effects": {
+      "highlight": {
+        "colour": "#FDE68A",
+        "radius": 0
+      },
+      "outline": {
+        "colour": "#FFFFFF",
+        "width": 20
+      },
+      "shadow": {
+        "blur": 10,
+        "colour": "#000000",
+        "offsetX": 0,
+        "offsetY": 10,
+        "opacity": 50
+      }
+    },
+    "font": "custom:7"
+  },
+  "sha256": "313e0897869e18547f69fba130f37c796b618c1e4687ca86daa2cddbe09ad328"
+}

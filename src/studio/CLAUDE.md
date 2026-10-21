@@ -34,3 +34,11 @@ src/studio/
 8. **Errors** use `{code, message, details}` with codes from `contracts/errors.ts` only.
 9. **Migrations** are `src/scripts/migrateDs<N><Name>.ts`, idempotent, registered as `migrate:ds-<n>-<name>`, and run twice in CI.
 10. **Tests:** `ci/api/tests/ds-<n>-*.test.cjs` covering tenant isolation, roles, switch-off and kind-off for every endpoint; `ci/unit/ds-*.test.cjs` for pure logic. GHG source goldens compare against `/user/ghg/tables` for the seed companies.
+
+## Pro editing (AT-1, AT-2, PE-1, PE-2) — see docs/design-studio/pro/
+- Plan: `docs/design-studio/pro/01-pro-editing-and-ai-templates.md` (README.md is the Canva premium teardown; `canvas/project/*.dc.html` are the mockups). Contracts and their rules: `docs/design-studio/pro/PRO-0.md`.
+- Contracts live in `contracts/proProps.ts` (element props: image `adjust`/`filter`/`duotone`/`originalAssetId`, text `effects`/`font`) and `contracts/pro.ts` (API shapes, limits, model-output schemas). Change them there first (a PRO-0 follow-up), re-run `npm run studio:contracts` and copy the snapshot to the FE.
+- Routes (PRO-0 stubs answer 501 `DS_NOT_BUILT` until the module replaces its router file): `suggest/router.ts` (AT-1 `POST /templates/suggest`), `swap/router.ts` (AT-2 `POST /docs/:id/template-swap/preview|apply`; `suggest_layouts` runs through DS-9 `POST /docs/:id/ai`), `images/router.ts` (PE-1 `POST /assets/:id/remove-background`, `GET /image-jobs/:id`; engine in `images/bgRemove/`), `fonts/router.ts` (PE-2 `/brand-kit/fonts`, Manager-only writes).
+- Transparency is the existing element `opacity` (0..1); the UI shows 0..100 %. Every new visual prop renders in the shared renderer (editor = Page view = PNG = PDF) with a DS golden per effect.
+- Figures stay chips: AI reasons, layouts and template swaps never type or change a number (DS-9 guard). The AT-1 model sees template names/descriptions, coverage counts and the fenced brief only (E2). Image edits are non-destructive (background removal makes a new asset; the original is kept).
+- A built module adds its rows to `audit/harness/ds-probes.cjs` `ID_SOURCES` (`image-jobs`, `brand-kit` fonts) and keeps `ci/golden/ds/lib/routes.cjs` + `ci/api/tests/ds-lib.cjs` in step.

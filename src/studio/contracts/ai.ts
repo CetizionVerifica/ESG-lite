@@ -8,6 +8,7 @@ import { z } from "zod";
 import { FreeformPageSchema, ElementSchema, TextDocSchema } from "./schema";
 import { CheckSeveritySchema } from "./enums";
 import { GhgMetricSchema, KpiRefSchema, ReportInputKeySchema } from "./sources";
+import { LAYOUT_OPTIONS_PER_PAGE, LayoutOptionMetaSchema } from "./pro"; // PRO-0
 
 export const RS_AI_ACTIONS = [
   "draft_report",
@@ -77,6 +78,8 @@ export const SuggestionSchema = z
           .array(z.object({ message: z.string(), pageId: z.string().optional(), elementId: z.string().optional(), severity: CheckSeveritySchema }).strict())
           .optional(),
         assetId: z.string().optional(),
+        // PRO-0 (AT-2): `suggest_layouts` describes payload.pages[i] in layoutOptions[i] (pro.ts).
+        layoutOptions: z.array(LayoutOptionMetaSchema).max(LAYOUT_OPTIONS_PER_PAGE).optional(),
       })
       .strict(),
     sources: z.array(SuggestionSourceSchema),

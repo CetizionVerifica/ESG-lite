@@ -14,6 +14,8 @@ export * from "./docs"; // DS-5
 export * from "./jobs"; // DS-11
 export * from "./resize"; // DS-10
 export * from "./collab"; // DS-13
+export * from "./proProps"; // PRO-0: image edits, text effects, font refs (element props)
+export * from "./pro"; // PRO-0: AT-1, AT-2, PE-1, PE-2 API shapes
 
 import type { ReportKind } from "./enums";
 

@@ -1,0 +1,11 @@
+{
+  "effect": "bundled-font",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.bundled-font\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-font=\"ibm-plex-serif\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;font-family:&quot;IBM Plex Serif&quot;, &quot;Noto Sans&quot;, serif;\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></p></div></div></div>",
+  "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
+  "props": {
+    "align": "left",
+    "effects": null,
+    "font": "ibm-plex-serif"
+  },
+  "sha256": "dd09a23c80873ae0d6add4eaceb639189328d78b96f7d8df704a393096f28a60"
+}
