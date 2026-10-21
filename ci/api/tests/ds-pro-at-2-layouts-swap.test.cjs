@@ -272,7 +272,18 @@ test("template swap: preview saves nothing; apply saves one rev with every eleme
   const stale = await call("POST", `/studio/docs/${doc.id}/template-swap/apply`, "admin", { templateId: night, rev: doc.rev, previewHash: "0".repeat(64) });
   assert.equal(stale.status, 409);
   assert.equal(stale.json.code, "DS_VERSION_CONFLICT");
-  const a = await call("POST", `/studio/docs/${doc.id}/template-swap/apply`, "admin", { templateId: night, rev: doc.rev, previewHash: p.json.previewHash });
+  assert.equal(stale.json.details.rev, doc.rev, "the conflict names the current rev");
+  // A stale rev with the right hash is a conflict too.
+  const oldRev = await call("POST", `/studio/docs/${doc.id}/template-swap/apply`, "admin", { templateId: night, rev: doc.rev - 1, previewHash: p.json.previewHash });
+  assert.equal(oldRev.status, 409);
+  assert.equal(oldRev.json.code, "DS_VERSION_CONFLICT");
+  assert.equal(oldRev.json.details.rev, doc.rev);
+  // A preview for one template can't be applied as another.
+  const other = await call("POST", `/studio/docs/${doc.id}/template-swap/apply`, "admin", { templateId: await templateId("ghg-inventory-classic"), rev: doc.rev, previewHash: p.json.previewHash });
+  assert.equal(other.status, 409, JSON.stringify(other.json));
+  assert.equal(other.json.code, "DS_VERSION_CONFLICT");
+  assert.equal((await call("GET", `/studio/docs/${doc.id}`, "admin")).json.rev, doc.rev, "refused applies save nothing");
+  const a =await call("POST", `/studio/docs/${doc.id}/template-swap/apply`, "admin", { templateId: night, rev: doc.rev, previewHash: p.json.previewHash });
   assert.equal(a.status, 200, JSON.stringify(a.json));
   assert.equal(a.json.rev, doc.rev + 1, "one new rev");
   assert.equal(a.json.doc.design.templateId, "ghg-inventory-night");
@@ -305,4 +316,22 @@ test("finals stay immutable: apply on a final answers DS_FINAL_IMMUTABLE", async
   const [row] = await q(`SELECT rev, draft -> 'design' ->> 'templateId' AS t FROM report_doc WHERE id = $1`, [doc.id]);
   assert.equal(Number(row.rev), doc.rev);
   assert.equal(row.t, doc.doc.design.templateId);
+  // Preview stays read-only on a final.
+  const pf = await call("POST", `/studio/docs/${doc.id}/template-swap/preview`, "manager", { templateId: night, rev: doc.rev });
+  assert.equal(pf.status, 200, JSON.stringify(pf.json));
+  const [after] = await q(`SELECT rev, status FROM report_doc WHERE id = $1`, [doc.id]);
+  assert.equal(Number(after.rev), doc.rev);
+  assert.equal(after.status, "final");
+});
+
+test("a Superadmin previews and applies a swap for the company it names", async () => {
+  await setStudio(1, true);
+  const doc = await makeDoc("AT-2 Superadmin");
+  const night = await templateId("ghg-inventory-night");
+  const p = await call("POST", `/studio/docs/${doc.id}/template-swap/preview?company_id=1`, "superadmin", { company_id: 1, templateId: night, rev: doc.rev });
+  assert.equal(p.status, 200, JSON.stringify(p.json));
+  const a = await call("POST", `/studio/docs/${doc.id}/template-swap/apply?company_id=1`, "superadmin", { company_id: 1, templateId: night, rev: doc.rev, previewHash: p.json.previewHash });
+  assert.equal(a.status, 200, JSON.stringify(a.json));
+  assert.equal(a.json.rev, doc.rev + 1);
+  assert.equal(a.json.doc.design.templateId, "ghg-inventory-night");
 });
