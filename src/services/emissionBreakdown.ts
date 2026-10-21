@@ -43,13 +43,18 @@ const toNumber = (raw: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-/** The entry's activity value: a canonical key first, then the category's number columns, then a spend amount. */
-export function consumptionOf(data: Record<string, unknown>, numberColumns: string[]): number {
+/** The entry's activity value: a canonical key first, then the category's number columns, then a spend amount; null when none has a number. */
+export function quantityOf(data: Record<string, unknown>, numberColumns: string[]): number | null {
   for (const key of [...CONSUMPTION_KEYS, ...numberColumns, ...SPEND_AMOUNT_KEYS]) {
     const n = toNumber(valueCI(data, key));
     if (n !== null) return n;
   }
-  return 0;
+  return null;
+}
+
+/** quantityOf, counting an entry without one as 0 (a breakdown sums them). */
+export function consumptionOf(data: Record<string, unknown>, numberColumns: string[]): number {
+  return quantityOf(data, numberColumns) ?? 0;
 }
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places;
