@@ -7,7 +7,7 @@ Written 2026-10-21. Branch `ds-pro/local` in ESG-lite. Built in a cloud session 
 | Module | Branch | Commits added in this session | Module doc |
 |---|---|---|---|
 | **AT-1** `POST /studio/templates/suggest` | `at-1-template-suggest` | `44cff98` 3/4 prompt hygiene, `b8b196c` 4/4 docs | `AT-1.md` |
-| **AT-2** `suggest_layouts` + template swap preview/apply | `at-2-layouts-swap` | `46c3b66` 4/4 tests, route plumbing, docs | `AT-2.md` |
+| **AT-2** `suggest_layouts` + template swap preview/apply | `at-2-layouts-swap` | `46c3b66` 4/4 tests, route plumbing, docs; `2a3d372` 5/5 apply in one UPDATE | `AT-2.md` |
 | **PE-1** remove background, image jobs, photo props | `pe-1-photo-edit` | `2e336f1` 2/5 lazy engine, `3085c4f` 3/5 tests, `ac886de` 4/5 docs | `PE-1.md` |
 | **PE-2** text effects, brand fonts, find and replace | `pe-2-text-fonts-find` | `81f6d3a` 4/4 docs + test fix | `PE-2.md` |
 
@@ -16,6 +16,7 @@ Written 2026-10-21. Branch `ds-pro/local` in ESG-lite. Built in a cloud session 
   - `suggest_layouts` returns 3 options, built by the server from candidate layout slugs, and runs through the DS-9 literal-number guard.
   - Swap preview saves nothing.
   - Swap apply saves one new rev. A stale rev or hash answers 409 `DS_VERSION_CONFLICT {rev}`, and a final answers `DS_FINAL_IMMUTABLE`.
+  - Follow-up 5/5: apply sets `report_doc.template_id` in the same `UPDATE` as the draft and rev. Before, it was a second statement, and a failure between the two left the new draft on the old template. A new API test makes the database refuse the change and checks that nothing moves; it failed on the old code and passes now.
 - **PE-1:**
   - **Engine:** `onnxruntime-node` is loaded lazily with `require` inside a try/catch, and the model path comes from `STUDIO_BG_MODEL_PATH`. If the package or the model is missing, the endpoint answers 503 `DS_BG_UNAVAILABLE`. Under `NODE_ENV=test` the stub engine runs.
   - **Result:** a new derived asset with `derivedFrom`. The original asset is kept, and `originalAssetId` on the element points back to it.
@@ -50,7 +51,8 @@ Environment: local Postgres 16, `NODE_ENV=test`, throwaway `ci_*` databases.
 | + AT-1 | 635 / 0 / 12 | 784 / 0 / 7 |
 | + AT-2 | 643 / 0 / 12 | 793 / 0 / 7 |
 | + PE-1 | 651 / 0 / 14 | 800 / 0 / 7 |
-| + PE-2 (final) | **658 / 0 / 14** | **806 / 0 / 7** |
+| + PE-2 | 658 / 0 / 14 | 806 / 0 / 7 |
+| + AT-2 5/5 (final) | **658 / 0 / 14** | **807 / 0 / 7** |
 
 Other checks on the final `ds-pro/local`:
 - **DS golden:** 455 run, 455 matched, 0 failed, 2 skipped.
@@ -71,13 +73,12 @@ Other checks on the final `ds-pro/local`:
    - `.npmrc` sets `onnxruntime-node-install=skip`. Nobody checked that key against the package.
    - Jobs run in a one-at-a-time runner inside the API process, not in the DS-11 queue.
    - No test covers the limit of 3 jobs at once per company (409), because the stub finishes too fast.
-4. **AT-2 apply is two writes, not one transaction:** `patchDoc` saves the doc, then a separate UPDATE sets `report_doc.template_id`. If the second write fails, the doc's `design.templateId` is already correct but the row's `template_id` stays stale.
-5. **AT-1:**
+4. **AT-1:**
    - `pagesToDrop`/`pagesToAdd` are shown on the cards but not applied to the build.
    - There is no recorded-answer golden for `suggest_templates`, because the action is not in `AI_ACTIONS`.
-6. **PE-2:**
+5. **PE-2:**
    - The whole font file is embedded and Chromium subsets it in the PDF; there is no server-side subsetting.
    - A comment in `render/textEffects.ts` names the golden folder `pro-text/`, but it is `pe2-text/`. It was left alone so `RENDER_HASH` doesn't move again.
-7. **Stale comment in `ci/golden/ds/lib/routes.cjs`:** it still says the PRO routes answer 501 until each module lands. Comment only.
+6. **Stale comment in `ci/golden/ds/lib/routes.cjs`:** it still says the PRO routes answer 501 until each module lands. Comment only.
 
 Deviations from the plan are listed per module in `AT-1.md`, `AT-2.md`, `PE-1.md` and `PE-2.md`.
