@@ -133,11 +133,12 @@ export const toAsset = (r: Row): StudioAsset => ({
   mime: r.mime,
   sha256: r.sha256,
   createdAt: new Date(r.created_at).toISOString(),
+  ...(r.derived_from ? { derivedFrom: { assetId: String(r.derived_from), op: "remove_background" as const } } : {}), // PE-1
 });
 
-const COLS = `id, kind, w, h, alt, folder, r2_key, bytes, mime, sha256, created_at`;
+const COLS = `id, kind, w, h, alt, folder, r2_key, bytes, mime, sha256, created_at, derived_from`; // PE-1: + derived_from
 
-async function store(caller: StudioCaller, clean: CleanImage, opts: { kind: "image" | "ai_image"; folder: string | null; alt: string }): Promise<{ asset: StudioAsset; created: boolean }> {
+async function store(caller: Pick<StudioCaller, "companyId" | "userId">, clean: CleanImage, opts: { kind: "image" | "ai_image"; folder: string | null; alt: string; derivedFrom?: { assetId: string; op: "remove_background" } }): Promise<{ asset: StudioAsset; created: boolean }> {
   const sha256 = createHash("sha256").update(clean.bytes).digest("hex");
   const [existing]: Row[] = await AppDataSource.query(`SELECT ${COLS} FROM report_asset WHERE company_id = $1 AND sha256 = $2 ORDER BY created_at LIMIT 1`, [caller.companyId, sha256]);
   if (existing) return { asset: toAsset(existing), created: false };
@@ -145,8 +146,8 @@ async function store(caller: StudioCaller, clean: CleanImage, opts: { kind: "ima
   await putAsset(key, clean.bytes, clean.mime);
   try {
     const [row]: Row[] = await AppDataSource.query(
-      `INSERT INTO report_asset (company_id, kind, r2_key, mime, bytes, w, h, alt, sha256, folder, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ${COLS}`,
-      [caller.companyId, opts.kind, key, clean.mime, clean.bytes.length, clean.w, clean.h, opts.alt, sha256, opts.folder, caller.userId || null],
+      `INSERT INTO report_asset (company_id, kind, r2_key, mime, bytes, w, h, alt, sha256, folder, created_by, derived_from, derived_op) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING ${COLS}`,
+      [caller.companyId, opts.kind, key, clean.mime, clean.bytes.length, clean.w, clean.h, opts.alt, sha256, opts.folder, caller.userId || null, opts.derivedFrom?.assetId ?? null, opts.derivedFrom?.op ?? null],
     );
     return { asset: toAsset(row), created: true };
   } catch (err) {
@@ -231,4 +232,20 @@ export async function generateAsset(caller: StudioCaller, body: unknown): Promis
   if (!m) throw new DsError("DS_AI_UNAVAILABLE");
   const clean = await cleanImage(Buffer.from(m[2], "base64"));
   return (await store(caller, clean, { kind: "ai_image", folder: b.folder || "AI images", alt: b.prompt.slice(0, 500) })).asset;
+}
+
+// ---------------------------------------------------------------------------
+// PE-1: derived assets (background removed) and reading a source's bytes
+// ---------------------------------------------------------------------------
+
+/** Stores a derived image (a PNG made from `source`) as a NEW asset; the source row is untouched. */
+export async function storeDerivedAsset(owner: { companyId: number; userId: number | null }, source: { id: string; alt: string; folder: string | null }, image: { bytes: Buffer; w: number; h: number }, op: "remove_background"): Promise<StudioAsset> {
+  const clean: CleanImage = { bytes: image.bytes, mime: "image/png", w: image.w, h: image.h };
+  return (await store({ companyId: owner.companyId, userId: owner.userId ?? 0 }, clean, { kind: "image", folder: source.folder, alt: source.alt, derivedFrom: { assetId: source.id, op } })).asset;
+}
+
+/** One company asset's row (id, mime, key, alt, folder), or null (tenant-checked). */
+export async function companyAssetRow(companyId: number, id: string): Promise<Row | null> {
+  const [row]: Row[] = await AppDataSource.query(`SELECT ${COLS} FROM report_asset WHERE id = $1 AND company_id = $2`, [assetId(id), companyId]);
+  return row ?? null;
 }

@@ -67,6 +67,7 @@ import { StudioReportDoc } from "../entities/StudioReportDoc"; // DS-5
 import { StudioReportDocVersion } from "../entities/StudioReportDocVersion"; // DS-5
 import { StudioReportJob } from "../entities/StudioReportJob"; // DS-11
 import { StudioReportShare } from "../entities/StudioReportShare"; // DS-11
+import { StudioImageJob } from "../entities/StudioImageJob"; // PE-1
 import { StudioAiCall } from "../entities/StudioAiCall"; // DS-9
 import { StudioReportComment } from "../entities/StudioReportComment"; // DS-13
 import { StudioReportApproval } from "../entities/StudioReportApproval"; // DS-13
@@ -160,6 +161,7 @@ const entities = [
     StudioReportJob, StudioReportShare, // DS-11
     StudioAiCall, // DS-9
     StudioReportComment, StudioReportApproval, StudioDataBaseline, // DS-13
+    StudioImageJob, // PE-1
 ];
 
 // Parse DATABASE_URL to extract connection parameters

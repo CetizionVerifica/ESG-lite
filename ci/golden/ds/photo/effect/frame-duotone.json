@@ -1,0 +1,24 @@
+{
+  "css": "grayscale(1) contrast(1.1)",
+  "effect": "frame-duotone",
+  "element": {
+    "id": "p-el.f-circle",
+    "opacity": null,
+    "props": {
+      "duotone": {
+        "dark": "#18497b",
+        "light": "#f39a2b"
+      },
+      "filter": "mono"
+    },
+    "type": "frame"
+  },
+  "html": "<div class=\"ds-el ds-el--frame\" data-el-id=\"p-el.f-circle\" data-type=\"frame\" data-frame=\"60,60,40,40,0\" data-mask=\"circle\" style=\"left:60mm;top:60mm;width:40mm;height:40mm;z-index:36;\"><div class=\"ds-media ds-frame\" style=\"border-radius:50%;\"><svg class=\"ds-fx-defs\" aria-hidden=\"true\" focusable=\"false\" width=\"0\" height=\"0\" style=\"position:absolute;width:0;height:0;overflow:hidden;\"><filter id=\"ds-fx-p-el_f-circle-927a120e\" x=\"0\" y=\"0\" width=\"1\" height=\"1\" color-interpolation-filters=\"sRGB\"><feColorMatrix type=\"matrix\" values=\"0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0 0 0 1 0\"/><feComponentTransfer><feFuncR type=\"table\" tableValues=\"0.094 0.953\"/><feFuncG type=\"table\" tableValues=\"0.286 0.604\"/><feFuncB type=\"table\" tableValues=\"0.482 0.169\"/></feComponentTransfer></filter></svg><div class=\"ds-fx\" style=\"position:absolute;left:0;top:0;width:100%;height:100%;filter:url(#ds-fx-p-el_f-circle-927a120e);\"><img src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22160%22%20height%3D%22100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20x2%3D%221%22%20y1%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230B3B25%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232DD4BF%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22160%22%20height%3D%22100%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%2230%22%20r%3D%2214%22%20fill%3D%22%23FDE68A%22%2F%3E%3C%2Fsvg%3E\" alt=\"Circle\" style=\"width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.1);\" data-asset-id=\"a-plant\"></div></div></div>",
+  "sameInModes": [
+    "sheet",
+    "paged",
+    "present",
+    "print"
+  ],
+  "svgFilter": "<filter id=\"ds-fx-p-el_f-circle-927a120e\" x=\"0\" y=\"0\" width=\"1\" height=\"1\" color-interpolation-filters=\"sRGB\"><feColorMatrix type=\"matrix\" values=\"0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0 0 0 1 0\"/><feComponentTransfer><feFuncR type=\"table\" tableValues=\"0.094 0.953\"/><feFuncG type=\"table\" tableValues=\"0.286 0.604\"/><feFuncB type=\"table\" tableValues=\"0.482 0.169\"/></feComponentTransfer></filter>"
+}

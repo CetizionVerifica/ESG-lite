@@ -46,6 +46,14 @@ export class StudioAsset {
   @Column({ type: "varchar", length: 60, nullable: true })
   folder!: string | null;
 
+  /** PE-1: the source asset when this one was derived from it (background removed); null = an upload. */
+  @Column({ type: "uuid", nullable: true })
+  derived_from!: string | null;
+
+  /** PE-1: how it was derived (remove_background). */
+  @Column({ type: "varchar", length: 30, nullable: true })
+  derived_op!: string | null;
+
   @Column({ type: "int", nullable: true })
   created_by!: number | null;
 

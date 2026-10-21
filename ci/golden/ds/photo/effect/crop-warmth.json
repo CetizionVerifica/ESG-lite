@@ -1,0 +1,23 @@
+{
+  "css": "contrast(0.9)",
+  "effect": "crop-warmth",
+  "element": {
+    "id": "p-el.img-crop",
+    "opacity": null,
+    "props": {
+      "adjust": {
+        "contrast": -20,
+        "warmth": 30
+      }
+    },
+    "type": "image"
+  },
+  "html": "<div class=\"ds-el ds-el--image\" data-el-id=\"p-el.img-crop\" data-type=\"image\" data-frame=\"80,15,50,40,0\" style=\"left:80mm;top:15mm;width:50mm;height:40mm;z-index:33;\"><div class=\"ds-media\" style=\"\"><svg class=\"ds-fx-defs\" aria-hidden=\"true\" focusable=\"false\" width=\"0\" height=\"0\" style=\"position:absolute;width:0;height:0;overflow:hidden;\"><filter id=\"ds-fx-p-el_img-crop-cc4ad147\" x=\"0\" y=\"0\" width=\"1\" height=\"1\" color-interpolation-filters=\"sRGB\"><feColorMatrix type=\"matrix\" values=\"1.045 0 0 0 0 0 1 0 0 0 0 0 0.955 0 0 0 0 0 1 0\"/></filter></svg><div class=\"ds-fx\" style=\"position:absolute;left:0;top:0;width:100%;height:100%;filter:url(#ds-fx-p-el_img-crop-cc4ad147);\"><img src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22160%22%20height%3D%22100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20x2%3D%221%22%20y1%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230B3B25%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232DD4BF%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22160%22%20height%3D%22100%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%2230%22%20r%3D%2214%22%20fill%3D%22%23FDE68A%22%2F%3E%3C%2Fsvg%3E\" alt=\"Cropped plant\" style=\"position:absolute;left:-10mm;top:-5mm;width:80mm;height:60mm;object-fit:fill;filter:contrast(0.9);\" data-asset-id=\"a-plant\"></div></div></div>",
+  "sameInModes": [
+    "sheet",
+    "paged",
+    "present",
+    "print"
+  ],
+  "svgFilter": "<filter id=\"ds-fx-p-el_img-crop-cc4ad147\" x=\"0\" y=\"0\" width=\"1\" height=\"1\" color-interpolation-filters=\"sRGB\"><feColorMatrix type=\"matrix\" values=\"1.045 0 0 0 0 0 1 0 0 0 0 0 0.955 0 0 0 0 0 1 0\"/></filter>"
+}
