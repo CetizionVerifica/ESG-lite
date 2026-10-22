@@ -4,7 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { allowedUnitsFor, buildUnitOptions } = require(path.resolve("dist/services/emissionWrite/unitOptions.js"));
+const { allowedUnitsFor, buildUnitOptions, isUnitAllowed } = require(path.resolve("dist/services/emissionWrite/unitOptions.js"));
 const { applyFactor } = require(path.resolve("dist/services/emissionWrite/methods/activity.js"));
 const { canonicalUnit } = require(path.resolve("dist/services/emissionWrite/units.js"));
 
@@ -78,4 +78,11 @@ test("buildUnitOptions: one entry per factor name, global name and alias; an ali
   assert.deepEqual(byName["City gas"], { name: "City gas", maps_to: "Unknown", factor_unit: "cubic meter", units: ["SCM", "litre"] });
   assert.equal(options.fixed_unit, null);
   assert.deepEqual(options.all_units, ["litre", "kWh", "SCM", "kg"]);
+});
+
+test("isUnitAllowed folds aliases and, for per_unit specs, unit keys (U3-BE audit)", () => {
+  assert.equal(isUnitAllowed(["litre", "kl"], "Ltr"), true);
+  assert.equal(isUnitAllowed(["litre", "kl"], "kWh"), false);
+  assert.equal(isUnitAllowed(["tonne.km"], "Tonne KM"), false);
+  assert.equal(isUnitAllowed(["tonne.km"], "Tonne KM", true), true);
 });

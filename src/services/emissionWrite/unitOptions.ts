@@ -141,3 +141,9 @@ export const unitOptionsSourceOf = (ctx: LoadedContext): UnitOptionsSource => {
 /** The allowed units of one activity name (case-blind), or null when the name isn't one of the site × category's. */
 export const unitsForActivity = (options: UnitOptionsByActivity, name: string): string[] | null =>
   options.activities.find((a) => normalizeName(a.name) === normalizeName(name))?.units ?? null;
+
+/** Whether `unit` is one of `allowed`, with aliases and spellings folded as the engine folds them ("Ltr" is litre). */
+export const isUnitAllowed = (allowed: string[], unit: string, perUnit = false): boolean => {
+  const keyOf = (u: string) => canonicalUnit(perUnit ? normalizeUnitKey(u) : u);
+  return allowed.some((u) => keyOf(u) === keyOf(unit));
+};
