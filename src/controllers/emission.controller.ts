@@ -39,6 +39,7 @@ import {
 import { pcfDataChanged } from "../pcf/staleness";
 import { kpiSourceChanged } from "../kpi/auto/hook"; // KPI-5: auto KPI values follow approved rows
 import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
+import { addEntryQuantities } from "../services/entryQuantity";
 import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
 import { checkKeysFor, refreshChecks, refreshChecksSafely } from "../scope3/review/service";
 import { parseRowQuality } from "../scope3/dq/input";
@@ -299,6 +300,8 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
       // FERA rows: parent category name and the partner entry's status.
       await enrichFeraRows(data as any[], (sql, params) => AppDataSource.query(sql, params));
+      // Each row's quantity, by the Breakdown panel's rule (its form's number fields too).
+      await addEntryQuantities(data as any[]);
 
       return res.status(200).json({
         data,
@@ -328,6 +331,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
 
     // FERA rows: parent category name and the partner entry's status.
     await enrichFeraRows(emissions as any[], (sql, params) => AppDataSource.query(sql, params));
+    await addEntryQuantities(emissions as any[]);
 
     return res.status(200).json(emissions);
   } catch (error) {
