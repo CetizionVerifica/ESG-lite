@@ -429,7 +429,8 @@ test("attaching evidence lifts reliability, removing it lowers it again, and the
     return rows[0].supplier_id;
   });
   t.after(() => withDb((db) => db.query(`DELETE FROM "supplier" WHERE supplier_id = $1`, [supplierId])));
-  const row = await postRow({ date_of_reporting: "2026-11-30", method: "supplier_specific", supplier_id: supplierId });
+  // A month that has started: a new entry for a future month is refused (F-10).
+  const row = await postRow({ date_of_reporting: "2026-05-31", method: "supplier_specific", supplier_id: supplierId });
   assert.equal(row.status, 201, JSON.stringify(row.json));
   const pk = row.json.emission.pk_id;
   created.push(pk);
