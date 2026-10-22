@@ -125,6 +125,29 @@ test("only_ready recomputes stale checks: a lowered change limit holds a row sto
   assert.equal((await q("SELECT status FROM emission WHERE pk_id = $1", [may]))[0].status, "pending");
 });
 
+test("Keep both saves a second bill for the same month as its own entry, held as a possible duplicate (F-06)", async () => {
+  const first = await add("2026-02-11", 453.88);
+  const body = { site_id: SITE, category_id: 1, date_of_reporting: "2026-02-11", activity_data_unit: "litre", activity_data: { emission_category: DIESEL, activity_value: "26.3" } };
+  const dup = await call("POST", "/user/emissions", "otherUser", body);
+  assert.equal(dup.status, 409);
+  assert.equal(dup.json.existing_emission.pk_id, first);
+  assert.equal((await call("POST", "/user/emissions?replace=true&keep_both=true", "otherUser", body)).status, 400);
+
+  const kept = await call("POST", "/user/emissions?keep_both=true", "otherUser", body);
+  assert.equal(kept.status, 201, JSON.stringify(kept.json));
+  const second = kept.json.emission.pk_id;
+  created.push(second);
+  const rows = await q("SELECT pk_id, activity_data->>'activity_value' AS value FROM emission WHERE pk_id = ANY($1) ORDER BY pk_id", [[first, second]]);
+  assert.deepEqual(rows.map((r) => r.value), ["453.88", "26.3"], "the first entry is untouched");
+  assert.ok((await checksOf(second)).held.includes("NO_DUPLICATE"), "the reviewer still sees it as a possible duplicate");
+  assert.ok((await checksOf(first)).held.includes("NO_DUPLICATE"));
+
+  // Leave the later tests' months and ready counts as they were.
+  await q("DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1)", [[first, second]]);
+  await q("DELETE FROM emission WHERE pk_id = ANY($1)", [[first, second]]);
+  created.splice(0, created.length, ...created.filter((id) => id !== first && id !== second));
+});
+
 test("NO_DUPLICATE, FACTOR_FOUND and UNIT_OK hold rows", async () => {
   // Typed entries refuse a same-date duplicate (409), so the pair is made the
   // way older uploads leave them: a second row moved onto the same date.

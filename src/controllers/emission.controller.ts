@@ -579,38 +579,46 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 
     if (duplicate) {
       const replace = req.query.replace === "true";
-      if (!replace) {
+      // Keep both (F-06): a second bill for the same activity and month (another coal delivery) is saved as
+      // its own entry with its own evidence. The review check NO_DUPLICATE still holds it for the reviewer.
+      const keepBoth = req.query.keep_both === "true";
+      if (replace && keepBoth) {
+        return res.status(400).json({ message: "Choose either replace or keep_both, not both." });
+      }
+      if (!replace && !keepBoth) {
         return res.status(409).json({
           message: "Duplicate emission entry already exists for this site, category, date, and emission subcategory.",
           existing_emission: duplicate,
           duplicate: true,
         });
       }
-      // Replace mode: delete the existing entry (and its FERA links) before creating new one
-      const idsToDelete = [duplicate.pk_id];
-      if (duplicate.fera_linked_id) {
-        idsToDelete.push(duplicate.fera_linked_id);
+      if (replace) {
+        // Replace mode: delete the existing entry (and its FERA links) before creating new one
+        const idsToDelete = [duplicate.pk_id];
+        if (duplicate.fera_linked_id) {
+          idsToDelete.push(duplicate.fera_linked_id);
+        }
+        // Every emission that links back to this one (reverse FERA link; a
+        // Scope 2 row may have a T&D-loss twin too, S3-7)
+        const linkedBack = await repo.find({
+          where: { fera_linked_id: duplicate.pk_id },
+        });
+        for (const l of linkedBack) {
+          if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
+        }
+        // Delete related documents first, then their stored files
+        const replacedFiles = await documentFilesForEmissions(idsToDelete);
+        const docRepo = AppDataSource.getRepository(EmissionDocument);
+        await docRepo
+          .createQueryBuilder()
+          .delete()
+          .where("emission_id IN (:...ids)", { ids: idsToDelete })
+          .execute();
+        await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
+        await repo.delete(idsToDelete);
+        await removeDeletedDocumentFiles(replacedFiles);
+        await pcfDataChanged("emission", idsToDelete);
       }
-      // Every emission that links back to this one (reverse FERA link; a
-      // Scope 2 row may have a T&D-loss twin too, S3-7)
-      const linkedBack = await repo.find({
-        where: { fera_linked_id: duplicate.pk_id },
-      });
-      for (const l of linkedBack) {
-        if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
-      }
-      // Delete related documents first, then their stored files
-      const replacedFiles = await documentFilesForEmissions(idsToDelete);
-      const docRepo = AppDataSource.getRepository(EmissionDocument);
-      await docRepo
-        .createQueryBuilder()
-        .delete()
-        .where("emission_id IN (:...ids)", { ids: idsToDelete })
-        .execute();
-      await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
-      await repo.delete(idsToDelete);
-      await removeDeletedDocumentFiles(replacedFiles);
-      await pcfDataChanged("emission", idsToDelete);
     }
 
     // Factor, total and FERA twin come from the emission write service (IM1),
