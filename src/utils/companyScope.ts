@@ -113,6 +113,26 @@ export const accessibleSiteIds = async (
 };
 
 /**
+ * The sites Overview and submission status cover, by name: a Manager's own sites, or every site of
+ * a company Admin's company (M5, read-only). Null when the user doesn't exist.
+ */
+export const overseenSites = async (userId: number, role: string | undefined): Promise<Map<number, string> | null> => {
+  const out = new Map<number, string>();
+  if (role === UserRole.ADMIN) {
+    const companyId = await resolveUserCompanyId(userId);
+    if (!companyId) return out;
+    const sites = await siteRepo.find({ where: { company: { company_id: companyId } }, select: { site_id: true, name: true }, order: { site_id: "ASC" } });
+    sites.forEach((s) => out.set(s.site_id, s.name));
+    return out;
+  }
+  const user = await userRepo.findOne({ where: { user_id: userId }, relations: ["site", "sites"] });
+  if (!user) return null;
+  if (user.site) out.set(user.site.site_id, user.site.name);
+  (user.sites || []).forEach((s) => out.set(s.site_id, s.name));
+  return out;
+};
+
+/**
  * The sites a read may cover. With requested ids: forbidden when any is not
  * the caller's, else those ids. Without: every site the caller may read, or
  * null (no filter) for a Superadmin. An empty list means the caller has no

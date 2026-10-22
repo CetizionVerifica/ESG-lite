@@ -1,6 +1,5 @@
 import { Response } from "express";
-import { AppDataSource } from "../config/data-source";
-import { User } from "../entities/User";
+import { overseenSites } from "../utils/companyScope";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
@@ -49,15 +48,9 @@ export const getManagerOverview = async (req: AuthRequest, res: Response) => {
     }
     const categoryIds = parseCategoryIds(categoryQuery);
 
-    const manager = await AppDataSource.getRepository(User).findOne({
-      where: { user_id: managerId },
-      relations: ["site", "sites"],
-    });
-    if (!manager) return res.status(404).json({ message: "Manager not found" });
-
-    const managed = new Map<number, string>();
-    if (manager.site) managed.set(manager.site.site_id, manager.site.name);
-    (manager.sites || []).forEach((s) => managed.set(s.site_id, s.name));
+    // A Manager's sites, or a company Admin's company sites (M5).
+    const managed = await overseenSites(managerId, req.user?.role);
+    if (!managed) return res.status(404).json({ message: "Manager not found" });
 
     const requested = parseSiteIds(req.query as { siteIds?: unknown; siteId?: unknown });
     if (requested.some((id) => !managed.has(id))) {
