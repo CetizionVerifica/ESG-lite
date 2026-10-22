@@ -13,6 +13,7 @@ import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, e
 import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { lockedSiteMonths, siteMonthOf } from "../scope3/review/periodLock";
 import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
@@ -448,6 +449,36 @@ export const getEmissionsBySiteAndCategory = async (req: AuthRequest, res: Respo
   }
 };
 
+/**
+ * GET /user/emissions/period-mode/site/:siteId/category/:categoryId
+ *   ?reporting_period=monthly|yearly&year_type=CY|FY&date_of_reporting=YYYY-MM-DD
+ * The save's own mode lock, asked before typing (F-13/F-27): `{conflict, message}`, both null when
+ * the period is free. Counts every entry on the site and category, as the save does. Saves nothing.
+ */
+export const getPeriodMode = async (req: AuthRequest, res: Response) => {
+  try {
+    const siteId = Number(req.params.siteId);
+    const categoryId = Number(req.params.categoryId);
+    const { reporting_period, year_type, date_of_reporting } = req.query as Record<string, string | undefined>;
+    const date = new Date(`${String(date_of_reporting ?? "").slice(0, 10)}T00:00:00Z`);
+    if (!Number.isInteger(categoryId) || categoryId <= 0) return res.status(400).json({ message: "category must be a positive integer" });
+    if (reporting_period !== "monthly" && reporting_period !== "yearly") return res.status(400).json({ message: "reporting_period must be monthly or yearly" });
+    if (Number.isNaN(date.getTime())) return res.status(400).json({ message: "date_of_reporting must be a date (YYYY-MM-DD)" });
+    if (reporting_period === "yearly" && year_type !== "CY" && year_type !== "FY") return res.status(400).json({ message: "year_type must be CY or FY for yearly data" });
+    const conflict = await findModeLockConflict(repo, {
+      site_id: siteId,
+      category_id: categoryId,
+      reporting_period,
+      year_type: reporting_period === "yearly" ? (year_type as "CY" | "FY") : null,
+      date_of_reporting: date,
+    });
+    res.json({ conflict, message: conflict ? modeLockMessage(conflict, reporting_period) : null });
+  } catch (error) {
+    console.error("[emissions] period mode check failed:", (error as Error)?.message);
+    res.status(500).json({ message: "Couldn't check the period" });
+  }
+};
+
 // Create a new emission entry
 export const createEmission = async (req: AuthRequest, res: Response) => {
   try {
@@ -489,6 +520,11 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: periodError });
     }
     const effectivePeriod: "monthly" | "yearly" = reporting_period === "yearly" ? "yearly" : "monthly";
+    // A month or CY/FY year that hasn't started can't be filed, as on edit and import (F-10, 22 Oct 2026).
+    const notStarted = futurePeriodError(effectivePeriod, effectivePeriod === "yearly" ? year_type : null, new Date(date_of_reporting));
+    if (notStarted) {
+      return res.status(400).json({ message: notStarted });
+    }
     const modeConflict = await findModeLockConflict(repo, {
       site_id,
       category_id,
@@ -497,18 +533,9 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       date_of_reporting: new Date(date_of_reporting),
     });
     if (modeConflict) {
-      let conflictMessage: string;
-      if (effectivePeriod === "yearly" && modeConflict.conflicting_period === "monthly") {
-        conflictMessage = `This category already has ${modeConflict.conflicting_rows} monthly entr${modeConflict.conflicting_rows === 1 ? "y" : "ies"} in ${modeConflict.window.start} – ${modeConflict.window.end}. Delete them first, or continue entering monthly.`;
-      } else if (effectivePeriod === "yearly") {
-        // Overlapping yearly batch of the other calendar (CY vs FY): their
-        // windows share up to nine months, so both existing double counts.
-        conflictMessage = `This year overlaps an existing ${modeConflict.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${modeConflict.conflicting_year_type} batch first, or file this data under ${modeConflict.conflicting_year_type} too.`;
-      } else {
-        conflictMessage = `This category already has a yearly batch covering ${modeConflict.window.start} – ${modeConflict.window.end}. Delete the yearly data first, or file this entry under a different period.`;
-      }
+      // Same wording as manager edits and imports (CY vs FY overlaps: their windows share up to nine months).
       return res.status(409).json({
-        message: conflictMessage,
+        message: modeLockMessage(modeConflict, effectivePeriod),
         mode_lock: true,
         conflict: modeConflict,
       });
@@ -553,38 +580,46 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 
     if (duplicate) {
       const replace = req.query.replace === "true";
-      if (!replace) {
+      // Keep both (F-06): a second bill for the same activity and month (another coal delivery) is saved as
+      // its own entry with its own evidence. The review check NO_DUPLICATE still holds it for the reviewer.
+      const keepBoth = req.query.keep_both === "true";
+      if (replace && keepBoth) {
+        return res.status(400).json({ message: "Choose either replace or keep_both, not both." });
+      }
+      if (!replace && !keepBoth) {
         return res.status(409).json({
           message: "Duplicate emission entry already exists for this site, category, date, and emission subcategory.",
           existing_emission: duplicate,
           duplicate: true,
         });
       }
-      // Replace mode: delete the existing entry (and its FERA links) before creating new one
-      const idsToDelete = [duplicate.pk_id];
-      if (duplicate.fera_linked_id) {
-        idsToDelete.push(duplicate.fera_linked_id);
+      if (replace) {
+        // Replace mode: delete the existing entry (and its FERA links) before creating new one
+        const idsToDelete = [duplicate.pk_id];
+        if (duplicate.fera_linked_id) {
+          idsToDelete.push(duplicate.fera_linked_id);
+        }
+        // Every emission that links back to this one (reverse FERA link; a
+        // Scope 2 row may have a T&D-loss twin too, S3-7)
+        const linkedBack = await repo.find({
+          where: { fera_linked_id: duplicate.pk_id },
+        });
+        for (const l of linkedBack) {
+          if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
+        }
+        // Delete related documents first, then their stored files
+        const replacedFiles = await documentFilesForEmissions(idsToDelete);
+        const docRepo = AppDataSource.getRepository(EmissionDocument);
+        await docRepo
+          .createQueryBuilder()
+          .delete()
+          .where("emission_id IN (:...ids)", { ids: idsToDelete })
+          .execute();
+        await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
+        await repo.delete(idsToDelete);
+        await removeDeletedDocumentFiles(replacedFiles);
+        await pcfDataChanged("emission", idsToDelete);
       }
-      // Every emission that links back to this one (reverse FERA link; a
-      // Scope 2 row may have a T&D-loss twin too, S3-7)
-      const linkedBack = await repo.find({
-        where: { fera_linked_id: duplicate.pk_id },
-      });
-      for (const l of linkedBack) {
-        if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
-      }
-      // Delete related documents first, then their stored files
-      const replacedFiles = await documentFilesForEmissions(idsToDelete);
-      const docRepo = AppDataSource.getRepository(EmissionDocument);
-      await docRepo
-        .createQueryBuilder()
-        .delete()
-        .where("emission_id IN (:...ids)", { ids: idsToDelete })
-        .execute();
-      await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
-      await repo.delete(idsToDelete);
-      await removeDeletedDocumentFiles(replacedFiles);
-      await pcfDataChanged("emission", idsToDelete);
     }
 
     // Factor, total and FERA twin come from the emission write service (IM1),
@@ -3280,5 +3315,92 @@ export const getPeriodTotal = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Fetch previous period total error:", error);
     return res.status(500).json({ message: "Failed to fetch previous period total" });
+  }
+};
+/**
+ * GET|POST /admin/emission-factors/:id/recalculate (Superadmin; F-04/F-09, N4): after a factor's
+ * value is corrected, the entries calculated with it keep their old totals until someone edits
+ * them. GET counts what a recalculation would change; POST recalculates them with the engine, as
+ * an edit does (FERA and T&D twins follow, review checks refresh). Candidates are the factor's
+ * site and category; a row counts when the engine picks this factor for it now. Statuses stay
+ * (an approved row stays approved, with a "factor_recalculation" audit entry giving old and new
+ * totals); rows in a locked month are left and counted.
+ */
+export const recalculateFactorEntries = async (req: AuthRequest, res: Response) => {
+  try {
+    const factorId = Number(req.params.id);
+    if (!Number.isInteger(factorId) || factorId <= 0) return res.status(400).json({ message: "Invalid factor id" });
+    const write = req.method === "POST";
+    const factor = await AppDataSource.getRepository(EmissionFactor).findOne({ where: { emission_factor_id: factorId }, relations: ["site", "category"] });
+    if (!factor?.site || !factor.category) return res.status(404).json({ message: "Emission factor not found" });
+
+    const rows = await repo.find({
+      where: { site: { site_id: factor.site.site_id }, category: { category_id: factor.category.category_id } },
+      relations: ["site", "category", "created_by"],
+      order: { pk_id: "ASC" },
+    });
+    const locked = new Set(
+      (await lockedSiteMonths(AppDataSource.manager, rows.map((r) => siteMonthOf(r.site.site_id, ymd(r.date_of_reporting))))).map((s) => `${s.year}-${s.month}`),
+    );
+    const changedBy = write ? await AppDataSource.getRepository(User).findOne({ where: { user_id: req.user?.userId } }) : null;
+    const summary = { checked: 0, uses_factor: 0, changed: 0, unchanged: 0, locked: 0, failed: 0, before_tco2e: 0, after_tco2e: 0 };
+    const changes: Array<{ pk_id: number; status: string; date_of_reporting: string; old_total: number; new_total: number }> = [];
+    for (const row of rows) {
+      summary.checked++;
+      const prepared = await recalculateEntry(row, row.activity_data, row.extra_data, undefined, "caller", row.activity_data);
+      if (!prepared.ok) {
+        if (Number((row.emission_factor_snapshot as any)?.emission_factor_id) === factorId) summary.failed++;
+        continue;
+      }
+      if (prepared.entry.factor?.emission_factor_id !== factorId) continue;
+      summary.uses_factor++;
+      const oldTotal = Number(row.total_emission) || 0;
+      const newTotal = Number(prepared.entry.computed?.total ?? 0);
+      if (Math.abs(newTotal - oldTotal) < 0.005) {
+        summary.unchanged++;
+        continue;
+      }
+      const month = siteMonthOf(row.site.site_id, ymd(row.date_of_reporting));
+      if (month && locked.has(`${month.year}-${month.month}`)) {
+        summary.locked++;
+        continue;
+      }
+      summary.changed++;
+      summary.before_tco2e += oldTotal;
+      summary.after_tco2e += newTotal;
+      changes.push({ pk_id: row.pk_id, status: row.status, date_of_reporting: ymd(row.date_of_reporting), old_total: oldTotal, new_total: newTotal });
+      if (!write) continue;
+
+      const priorCheckKeys = await checkKeysFor(AppDataSource.manager, [row.pk_id]);
+      applyComputed(row, prepared.entry);
+      await repo.save(row);
+      const twin = row.fera_linked_id ? await recalculateLinkedFera(row, row.activity_data, prepared.entry.fera, prepared.entry.feraSkipped) : null;
+      const tdLoss = await syncTdLossTwin(row, row.activity_data);
+      await refreshChecksSafely(AppDataSource.manager, [row.pk_id, row.fera_linked_id, twin?.pk_id, tdLoss?.pk_id].filter(Boolean) as number[], priorCheckKeys);
+      await pcfDataChanged("emission", [row.pk_id]);
+      await kpiSourceChanged("emission", [row.pk_id]);
+      await AppDataSource.getRepository(AuditLog).save(
+        AppDataSource.getRepository(AuditLog).create({
+          entity_type: "emission",
+          entity_id: row.pk_id,
+          action: "factor_recalculation",
+          changed_fields: { total_emission: { old: oldTotal, new: newTotal } },
+          reason: `Emission factor ${factorId} (${factor.emission_category_name}, ${factor.year}) was corrected: recalculated with ${factor.factor_value} per ${factor.denominator_unit}.`,
+          changed_by: changedBy || undefined,
+        }),
+      );
+    }
+    const round = (n: number) => Math.round(n * 100) / 100;
+    return res.json({
+      factor: { emission_factor_id: factorId, site_id: factor.site.site_id, category_id: factor.category.category_id, name: factor.emission_category_name, year: factor.year, value: Number(factor.factor_value), unit: factor.denominator_unit },
+      recalculated: write,
+      ...summary,
+      before_tco2e: round(summary.before_tco2e),
+      after_tco2e: round(summary.after_tco2e),
+      changes: changes.slice(0, 200),
+    });
+  } catch (error) {
+    console.error("Recalculate factor entries error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

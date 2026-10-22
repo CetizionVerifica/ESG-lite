@@ -310,7 +310,7 @@ test("a manager edit can't move an entry into a period filed the other way (mode
     const intoYearly = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong year" });
     assert.equal(intoYearly.status, 409);
     assert.equal(intoYearly.json.mode_lock, true);
-    assert.match(intoYearly.json.message, /yearly batch covering 2024-01-01 – 2024-12-31/);
+    assert.match(intoYearly.json.message, /yearly batch for CY 2024\. Delete/);
 
     const midYear = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong date" });
     assert.equal(midYear.status, 400);
@@ -469,4 +469,50 @@ test("a contributor's update with an empty, zero or negative amount is refused a
     await q("DELETE FROM emission_factors WHERE emission_factor_id = 901");
     await clearAudit("emission", [990]);
   }
+});
+
+test("Add data can ask how a year is filed before typing (F-13/F-27)", async () => {
+  // Site 1, category 2: monthly rows in 2025, a yearly CY 2024 batch (row 13).
+  const path = (query) => `/user/emissions/period-mode/site/1/category/2?${query}`;
+  const [{ n }] = await q("SELECT count(*)::int AS n FROM emission WHERE site_id = 1 AND category_id = 2 AND reporting_period = 'monthly' AND date_of_reporting BETWEEN '2025-01-01' AND '2025-12-31'");
+  assert.ok(n > 0, "fixture has monthly 2025 rows");
+
+  const cy2025 = await call("GET", path("reporting_period=yearly&year_type=CY&date_of_reporting=2025-12-31"), "user");
+  assert.equal(cy2025.status, 200, JSON.stringify(cy2025.json));
+  assert.equal(cy2025.json.conflict.conflicting_period, "monthly");
+  assert.equal(cy2025.json.conflict.conflicting_rows, n);
+  assert.ok(cy2025.json.message.includes(`already filed monthly for CY 2025 (${n} monthly entr`), cy2025.json.message);
+
+  const month2024 = await call("GET", path("reporting_period=monthly&date_of_reporting=2024-06-30"), "user");
+  assert.equal(month2024.status, 200);
+  assert.equal(month2024.json.conflict.conflicting_period, "yearly");
+  assert.match(month2024.json.message, /yearly batch for CY 2024\. Delete/);
+
+  const free = await call("GET", path("reporting_period=yearly&year_type=CY&date_of_reporting=2019-12-31"), "user");
+  assert.deepEqual(free.json, { conflict: null, message: null });
+
+  for (const bad of ["reporting_period=weekly&date_of_reporting=2025-12-31", "reporting_period=yearly&date_of_reporting=2025-12-31", "reporting_period=monthly&date_of_reporting=soon"]) {
+    assert.equal((await call("GET", path(bad), "user")).status, 400, bad);
+  }
+  // Another company's site, and no token.
+  assert.equal((await call("GET", path("reporting_period=monthly&date_of_reporting=2025-09-30"), "otherUser")).status, 403);
+  assert.equal((await call("GET", path("reporting_period=monthly&date_of_reporting=2025-09-30"), null)).status, 401);
+});
+
+test("a new entry for a month or year that hasn't started is refused and nothing is saved (F-10)", async () => {
+  const now = new Date();
+  const nextMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0)).toISOString().slice(0, 10);
+  const before = Number((await q("SELECT count(*)::int AS n FROM emission"))[0].n);
+  const month = await call("POST", "/user/emissions", "user", {
+    site_id: 1, category_id: 1, activity_data: { activity_value: 10, emission_category: "Diesel" }, activity_data_unit: "litre", date_of_reporting: nextMonthEnd,
+  });
+  assert.equal(month.status, 400, JSON.stringify(month.json));
+  assert.match(month.json.message, /is in the future/);
+  const year = await call("POST", "/user/emissions", "user", {
+    site_id: 1, category_id: 1, activity_data: { activity_value: 10, emission_category: "Diesel" }, activity_data_unit: "litre",
+    date_of_reporting: `${now.getUTCFullYear() + 1}-12-31`, reporting_period: "yearly", year_type: "CY",
+  });
+  assert.equal(year.status, 400, JSON.stringify(year.json));
+  assert.match(year.json.message, /has not started yet/);
+  assert.equal(Number((await q("SELECT count(*)::int AS n FROM emission"))[0].n), before);
 });

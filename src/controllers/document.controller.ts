@@ -757,3 +757,68 @@ export const linkInvoiceDocuments = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+type BackingFile = { ref: string; file_name?: string; file_size?: number; invoice_id?: number };
+const sameName = (a: unknown, b: unknown) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+
+/**
+ * POST /user/documents/already-backing (F-16): which of these files already back another entry of
+ * the same site, category and period — the same bill entered twice under two disposal methods is a
+ * double count the duplicate check can't see. Read-only; Add data warns and never blocks.
+ * Body: {site_id, category_id, date_of_reporting, files: [{ref, file_name?, file_size?, invoice_id?}], exclude_ids?}.
+ * A file matches a document of the same AI invoice, or of the same name (any case) and size.
+ * → {matches: [{ref, file_name, entries: [{pk_id, emission_category, total_emission, status}]}]}.
+ */
+export const findBackedEntries = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = Number(req.user?.userId);
+    const { site_id, category_id, date_of_reporting } = req.body ?? {};
+    const files: BackingFile[] = Array.isArray(req.body?.files) ? req.body.files : [];
+    const exclude: number[] = Array.isArray(req.body?.exclude_ids) ? req.body.exclude_ids.map(Number).filter(Number.isInteger) : [];
+    const date = String(date_of_reporting ?? "").slice(0, 10);
+    if (!Number.isInteger(Number(site_id)) || !Number.isInteger(Number(category_id)) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ message: "site_id, category_id and date_of_reporting (YYYY-MM-DD) are required" });
+    }
+    if (files.length === 0 || files.length > 50 || files.some((f) => typeof f?.ref !== "string" || (!f.file_name && !Number.isInteger(f.invoice_id)))) {
+      return res.status(400).json({ message: "files must be 1-50 items with a ref and a file_name or invoice_id" });
+    }
+    const m = AppDataSource.manager;
+    // A bill's own file name and size, so a re-upload of the same file (a new invoice id) still matches.
+    const invoiceIds = [...new Set(files.map((f) => Number(f.invoice_id)).filter((id) => Number.isInteger(id) && id > 0))];
+    const invoices = new Map<number, { file_name: string; file_size: number | null }>();
+    if (invoiceIds.length && (await invoiceTablePresent(m))) {
+      const rows = await m.query(`SELECT invoice_id, file_name, file_size FROM invoice WHERE invoice_id = ANY($1)`, [invoiceIds]);
+      for (const r of rows) invoices.set(Number(r.invoice_id), { file_name: r.file_name, file_size: r.file_size == null ? null : Number(r.file_size) });
+    }
+    const docs: Array<{ original_name: string; file_size: number | null; ai_invoice_id: number | null; pk_id: number; emission_category: string | null; total_emission: string | null; status: string }> =
+      await m.query(
+        `SELECT d.original_name, d.file_size, d.ai_invoice_id, e.pk_id, e.activity_data ->> 'emission_category' AS emission_category, e.total_emission, e.status::text AS status
+           FROM emission_document d JOIN emission e ON e.pk_id = d.emission_id
+          WHERE e.site_id = $1 AND e.category_id = $2 AND e.date_of_reporting = $3 AND NOT (e.pk_id = ANY($4))
+            AND (e.status::text <> 'draft' OR e.created_by = $5)
+          ORDER BY e.pk_id LIMIT 2000`,
+        [Number(site_id), Number(category_id), date, exclude, userId],
+      );
+    const matches = files
+      .map((f) => {
+        const bill = f.invoice_id ? invoices.get(Number(f.invoice_id)) : undefined;
+        const name = f.file_name ?? bill?.file_name;
+        const size = f.file_size ?? bill?.file_size ?? null;
+        const hits = docs.filter(
+          (d) => (f.invoice_id && Number(d.ai_invoice_id) === Number(f.invoice_id)) || (name && size && sameName(d.original_name, name) && Number(d.file_size) === Number(size)),
+        );
+        const entries = [...new Map(hits.map((d) => [Number(d.pk_id), d])).values()].map((d) => ({
+          pk_id: Number(d.pk_id),
+          emission_category: d.emission_category,
+          total_emission: d.total_emission == null ? null : Number(d.total_emission),
+          status: d.status,
+        }));
+        return { ref: f.ref, file_name: name ?? null, entries };
+      })
+      .filter((x) => x.entries.length > 0);
+    res.json({ matches });
+  } catch (error) {
+    console.error("[documents] already-backing check failed:", (error as Error)?.message);
+    res.status(500).json({ message: "Couldn't check the evidence" });
+  }
+};

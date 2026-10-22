@@ -125,6 +125,29 @@ test("only_ready recomputes stale checks: a lowered change limit holds a row sto
   assert.equal((await q("SELECT status FROM emission WHERE pk_id = $1", [may]))[0].status, "pending");
 });
 
+test("Keep both saves a second bill for the same month as its own entry, held as a possible duplicate (F-06)", async () => {
+  const first = await add("2026-02-11", 453.88);
+  const body = { site_id: SITE, category_id: 1, date_of_reporting: "2026-02-11", activity_data_unit: "litre", activity_data: { emission_category: DIESEL, activity_value: "26.3" } };
+  const dup = await call("POST", "/user/emissions", "otherUser", body);
+  assert.equal(dup.status, 409);
+  assert.equal(dup.json.existing_emission.pk_id, first);
+  assert.equal((await call("POST", "/user/emissions?replace=true&keep_both=true", "otherUser", body)).status, 400);
+
+  const kept = await call("POST", "/user/emissions?keep_both=true", "otherUser", body);
+  assert.equal(kept.status, 201, JSON.stringify(kept.json));
+  const second = kept.json.emission.pk_id;
+  created.push(second);
+  const rows = await q("SELECT pk_id, activity_data->>'activity_value' AS value FROM emission WHERE pk_id = ANY($1) ORDER BY pk_id", [[first, second]]);
+  assert.deepEqual(rows.map((r) => r.value), ["453.88", "26.3"], "the first entry is untouched");
+  assert.ok((await checksOf(second)).held.includes("NO_DUPLICATE"), "the reviewer still sees it as a possible duplicate");
+  assert.ok((await checksOf(first)).held.includes("NO_DUPLICATE"));
+
+  // Leave the later tests' months and ready counts as they were.
+  await q("DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1)", [[first, second]]);
+  await q("DELETE FROM emission WHERE pk_id = ANY($1)", [[first, second]]);
+  created.splice(0, created.length, ...created.filter((id) => id !== first && id !== second));
+});
+
 test("NO_DUPLICATE, FACTOR_FOUND and UNIT_OK hold rows", async () => {
   // Typed entries refuse a same-date duplicate (409), so the pair is made the
   // way older uploads leave them: a second row moved onto the same date.
@@ -142,6 +165,40 @@ test("NO_DUPLICATE, FACTOR_FOUND and UNIT_OK hold rows", async () => {
   const noUnit = await add("2026-07-15", 5, { activity_data_unit: undefined });
   const held = (await checksOf(noUnit)).held;
   assert.ok(held.includes("UNIT_OK") && held.includes("FACTOR_FOUND"), JSON.stringify(held));
+});
+
+test("a row saved before factor snapshots reads the factor library, and a factor added later clears its hold (F-15)", async () => {
+  // An old row has no snapshot. Its 2025 factor (Diesel, 9151) is in the library, so it isn't held.
+  const old = await add("2026-05-15", 7);
+  await q(`UPDATE emission SET emission_factor_snapshot = NULL WHERE pk_id = $1`, [old]);
+  await refreshChecks(AppDataSource.manager, [old]);
+  assert.ok(!(await checksOf(old)).held.includes("FACTOR_FOUND"), JSON.stringify(await checksOf(old)));
+
+  // An old row whose activity has no factor for its year is held, until a Superadmin adds one.
+  const LATE = "CI S3-15 Late fuel";
+  const [{ pk_id: late }] = await q(
+    `INSERT INTO emission (activity_data, activity_data_unit, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period)
+     VALUES ($1, 'litre', 0.01, 'tCO2e', '2026-04-30', 'pending', 4, 1, $2, 'monthly') RETURNING pk_id`,
+    [{ emission_category: LATE, activity_value: "4" }, SITE],
+  );
+  created.push(late);
+  await refreshChecks(AppDataSource.manager, [late]);
+  assert.ok((await checksOf(late)).held.includes("FACTOR_FOUND"));
+  const factor = await call("POST", "/admin/emission-factors", "superadmin", {
+    site_id: SITE, category_id: 1, year: 2025, factor_value: 2.5, denominator_unit: "litre", source: "CI", emission_category_name: LATE,
+  });
+  assert.equal(factor.status, 201, JSON.stringify(factor.json));
+  try {
+    // The re-check runs after the response, in the background.
+    let held = true;
+    for (let i = 0; i < 50 && held; i++) {
+      held = (await checksOf(late)).held.includes("FACTOR_FOUND");
+      if (held) await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(held, false, "the new 2025 factor clears the hold");
+  } finally {
+    await q(`DELETE FROM emission_factors WHERE emission_factor_id = $1`, [factor.json.emissionFactor.emission_factor_id]);
+  }
 });
 
 test("IMPORT_MATCH_SURE reuses the XI5 rule", async () => {
@@ -221,7 +278,9 @@ const addTwin = async (parentId, factorYear) => {
 const statusOf = async (id) => (await q("SELECT status FROM emission WHERE pk_id = $1", [id]))[0].status;
 
 test("a pending FERA pair is ready only when both rows are; only_ready never approves a held twin or parent", async () => {
-  const parent = await add("2026-11-10", 100); // nothing in October: passes the threshold
+  // Nothing in September yet (the next test adds it): passes the threshold. A month that has
+  // started, since new entries can't be filed for one that hasn't (F-10).
+  const parent = await add("2026-10-10", 100);
   await attach(parent);
   assert.deepEqual(await checksOf(parent), { ready: true, held: [] });
 

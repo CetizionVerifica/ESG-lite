@@ -7,6 +7,7 @@ import {
   getEmissions,
   getEmissionBreakdown,
   getEmissionsBySiteAndCategory,
+  getPeriodMode,
   createEmission,
   updateEmission,
   deleteEmission,
@@ -61,6 +62,7 @@ import {
   deleteDocument,
   bulkDeleteDocuments,
   linkInvoiceDocuments,
+  findBackedEntries,
 } from "../controllers/document.controller";
 import { getCompanies, getCompanyNameBySites, getReportingCalendar } from "../controllers/company.controller";
 import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
@@ -115,6 +117,7 @@ router.get("/column-configs/site/:siteId/category/:categoryId", guardSiteParam("
 // Emission routes
 router.get("/emissions", getEmissions);
 router.get("/emissions/site/:siteId/category/:categoryId", getEmissionsBySiteAndCategory);
+router.get("/emissions/period-mode/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getPeriodMode);
 router.get("/emissions/pending", getPendingEmissions);
 router.post("/emissions", guardBodySites("site_id"), guardPeriodOpen("create"), createEmission);
 // S3-15 part 2: submit own drafts; dry-run checks for the live panel (saves nothing).
@@ -187,6 +190,7 @@ router.get("/documents/:id", getDocumentById);
 router.post("/documents", documentUpload.single("file"), uploadDocument);
 router.post("/documents/multiple", documentUpload.array("files", 10), uploadMultipleDocuments);
 router.post("/documents/from-invoice", linkInvoiceDocuments);
+router.post("/documents/already-backing", guardBodySites("site_id"), findBackedEntries);
 router.put("/documents/:id", updateDocument);
 router.delete("/documents/bulk-delete", bulkDeleteDocuments);
 router.delete("/documents/:id", deleteDocument);

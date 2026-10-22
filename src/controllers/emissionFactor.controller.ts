@@ -7,6 +7,18 @@ import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { FACTOR_TYPES } from "../scope3/contracts/factor";
 import { eeioPriceProblem, factorTypeWarning, ghgCategoryOf, parseFactorMeta, unitMissing, UNIT_REQUIRED, withNewFactorDefaults } from "../scope3/factors/meta";
+import { refreshFactorChecksLater } from "../scope3/review/service";
+
+// After a factor write, the pending entries it can change are re-checked in the background (F-15).
+type FactorKey = { siteId: number; categoryId: number; year: number };
+const keyOf = (f: { site?: { site_id: number } | null; category?: { category_id: number } | null; year: number }): FactorKey | null =>
+  f.site && f.category ? { siteId: Number(f.site.site_id), categoryId: Number(f.category.category_id), year: Number(f.year) } : null;
+const recheck = (keys: Array<FactorKey | null>) => refreshFactorChecksLater(AppDataSource.manager, keys.filter((k): k is FactorKey => k !== null));
+/** The site, category and year of factor rows about to be deleted. */
+const keysOfIds = async (where: string, params: unknown[]): Promise<FactorKey[]> =>
+  (await AppDataSource.query(`SELECT site_id, category_id, year FROM emission_factors WHERE ${where}`, params)).map(
+    (r: { site_id: number; category_id: number; year: number }) => ({ siteId: Number(r.site_id), categoryId: Number(r.category_id), year: Number(r.year) }),
+  );
 
 const repo = AppDataSource.getRepository(EmissionFactor);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -201,6 +213,7 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
     });
 
     await repo.save(emissionFactor);
+    recheck([{ siteId: Number(site_id), categoryId: Number(category_id), year: Number(year) }]);
 
     // Fetch with relations for response
     const savedFactor = await repo.findOne({
@@ -257,6 +270,8 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
         message: "Emission factor not found",
       });
     }
+    // Where the factor was before the edit: those entries are re-checked too.
+    const before = keyOf(emissionFactor);
 
     // Validate site if provided
     if (site_id !== undefined) {
@@ -324,6 +339,7 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
       where: { emission_factor_id: emissionFactor.emission_factor_id },
       relations: ["site", "category"],
     });
+    recheck([before, updatedFactor ? keyOf(updatedFactor) : null]);
     const warning = factorTypeWarning(ghgCategoryOf(category), emissionFactor.factor_type);
 
     return res.status(200).json({
@@ -345,6 +361,7 @@ export const deleteEmissionFactor = async (req: Request, res: Response) => {
 
     const emissionFactor = await repo.findOne({
       where: { emission_factor_id: parseInt(id) },
+      relations: ["site", "category"],
     });
 
     if (!emissionFactor) {
@@ -354,6 +371,7 @@ export const deleteEmissionFactor = async (req: Request, res: Response) => {
     }
 
     await repo.delete({ emission_factor_id: parseInt(id) });
+    recheck([keyOf(emissionFactor)]);
 
     return res.status(200).json({
       message: "Emission factor deleted successfully",
@@ -460,6 +478,7 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
       warnings: [] as (ReturnType<typeof factorTypeWarning> & { index: number })[],
     };
 
+    const created: FactorKey[] = [];
     for (const [index, factor] of factors.entries()) {
       const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name } = factor;
 
@@ -531,9 +550,11 @@ export const bulkCreateEmissionFactors = async (req: Request, res: Response) => 
 
       await repo.save(emissionFactor);
       results.created++;
+      created.push({ siteId: Number(site_id), categoryId: Number(category_id), year: Number(year) });
       const warning = factorTypeWarning(ghgCategoryOf(category), emissionFactor.factor_type);
       if (warning) results.warnings.push({ ...warning, index });
     }
+    recheck(created);
 
     return res.status(201).json({
       message: `Bulk upload completed: ${results.created} created, ${results.skipped} skipped`,
@@ -595,7 +616,10 @@ export const bulkDeleteEmissionFactors = async (req: Request, res: Response) => 
       });
     }
 
+    const numericIds = ids.map(Number).filter((n: number) => Number.isInteger(n) && n > 0);
+    const removed = numericIds.length ? await keysOfIds("emission_factor_id = ANY($1::int[])", [numericIds]) : [];
     const result = await repo.delete(ids);
+    recheck(removed);
 
     return res.status(200).json({
       message: `Successfully deleted ${result.affected} emission factor(s)`,
@@ -660,7 +684,9 @@ export const deleteEmissionFactorsByBatch = async (req: Request, res: Response) 
       return res.status(400).json({ message: "batchId is required" });
     }
 
+    const removed = await keysOfIds("upload_batch_id = $1", [batchId]);
     const result = await repo.delete({ upload_batch_id: batchId });
+    recheck(removed);
 
     return res.status(200).json({
       message: `Deleted ${result.affected} emission factor(s) from batch`,

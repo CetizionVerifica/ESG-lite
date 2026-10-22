@@ -28,6 +28,12 @@ export interface CheckContext {
   previousMonthTotal: number | null;
   /** The XI5 attention rule matched (low-confidence or edited smart-import row). */
   importNeedsAttention: boolean;
+  /**
+   * For a row saved before factor snapshots existed (a total but no snapshot): the site's factor
+   * library has a factor for the row's target year and activity. A row with no snapshot and no
+   * total had no factor applied and stays held. Ignored when the row has a snapshot (F-15).
+   */
+  factorInLibrary?: boolean;
 }
 
 export const DEFAULT_THRESHOLD_PCT = 5;
@@ -40,7 +46,11 @@ export const monthChangePct = (monthTotal: number | null, previousMonthTotal: nu
 
 const passes: Record<CheckId, (row: CheckRow, ctx: CheckContext) => boolean> = {
   // The snapshot factor is for the row's target year: no factor, or an older year's (FACTOR_FALLBACK_YEAR), holds it.
-  FACTOR_FOUND: (row) => !!row.emission_factor_snapshot && Number(row.emission_factor_snapshot.year) === targetYearFor(row.date_of_reporting),
+  // A row saved before snapshots existed has none; the factor library decides for it (F-15).
+  FACTOR_FOUND: (row, ctx) =>
+    row.emission_factor_snapshot
+      ? Number(row.emission_factor_snapshot.year) === targetYearFor(row.date_of_reporting)
+      : ctx.factorInLibrary === true,
   // A unit is given and matches or converts to the factor's unit. Without a factor only the unit's presence counts.
   UNIT_OK: (row) => {
     const unit = (row.activity_data_unit ?? "").trim();

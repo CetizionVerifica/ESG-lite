@@ -103,7 +103,8 @@ test("S3-3 on spend rows: method spend_based, the engine's data quality and data
     assert.equal(q.total, Math.round((kgFor(2000, 0.42) / 1000) * 100) / 100, "S3-3 never moves the S3-5 total");
   }
   // A quantity in a currency unit with no method (bulk and Claude rows) is a spend row too, and recorded as one.
-  const bulk = await typed("2026-12-31", { emission_category: "Steel mills S3-5", activity_value: "3000" }, { invoice_date: "2026-09-03" }, "INR");
+  // A month that has started: a new entry for a future month is refused (F-10).
+  const bulk = await typed("2026-03-31", { emission_category: "Steel mills S3-5", activity_value: "3000" }, { invoice_date: "2026-09-03" }, "INR");
   assert.equal(bulk.status, 201, JSON.stringify(bulk.json));
   assert.equal((await quality(bulk.json.emission.pk_id)).method, "spend_based");
 });

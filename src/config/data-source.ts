@@ -170,6 +170,17 @@ const entities = [
     InsightAiCall, // IN-9
 ];
 
+/**
+ * F-14 (22 Oct 2026): an optional session time zone, e.g. DB_TIMEZONE=UTC. A database server set
+ * to another zone (a local Postgres in Asia/Calcutta) otherwise writes now() into the
+ * `timestamp without time zone` columns in its own zone, and the app reads them back shifted.
+ * Unset: the server's own setting, exactly as before.
+ */
+const sessionTimezone = (): { options?: string } => {
+    const tz = (process.env.DB_TIMEZONE || "").trim();
+    return /^[A-Za-z0-9_+\-/]+$/.test(tz) ? { options: `-c timezone=${tz}` } : {};
+};
+
 // Parse DATABASE_URL to extract connection parameters
 const parseDbUrl = (url: string) => {
     const regex = /postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
@@ -220,6 +231,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
                     // Keep connection alive — prevents ECONNRESET from idle connection drops
                     keepAlive: true,
                     keepAliveInitialDelayMillis: 10000,
+                    ...sessionTimezone(),
                 },
             };
         }
@@ -241,6 +253,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
                 idleTimeoutMillis: 30000,
                 keepAlive: true,
                 keepAliveInitialDelayMillis: 10000,
+                ...sessionTimezone(),
             },
         } as DataSourceOptions;
     }
@@ -269,6 +282,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
             connectionTimeoutMillis: 5000,
             idleTimeoutMillis: 30000,
             keepAlive: true,
+            ...sessionTimezone(),
         },
     };
 };

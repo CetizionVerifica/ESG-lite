@@ -5,7 +5,7 @@
  * and are matched by month.
  */
 import type { ImportPeriod } from "../../imports/contracts";
-import { validatePeriodFields } from "../reportingPeriod";
+import { monthWords, validatePeriodFields } from "../reportingPeriod";
 
 export interface StoredPeriod {
   date_of_reporting: string; // YYYY-MM-DD
@@ -25,7 +25,7 @@ export const toStoredPeriod = (period: ImportPeriod, category_id: number, now: D
     if (Number.isNaN(d.getTime())) return { ok: false, message: `"${period.date}" is not a valid date.` };
     const thisMonth = now.toISOString().slice(0, 7);
     if (period.date.slice(0, 7) > thisMonth) {
-      return { ok: false, message: `${period.date.slice(0, 7)} is in the future; monthly data can only be filed for months that have started.` };
+      return { ok: false, message: `${monthWords(period.date.slice(0, 7))} is in the future; monthly data can only be filed for months that have started.` };
     }
     return { ok: true, period: { date_of_reporting: period.date, reporting_period: "monthly", year_type: null } };
   }

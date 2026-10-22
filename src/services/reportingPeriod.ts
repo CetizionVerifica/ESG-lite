@@ -40,6 +40,14 @@ const EARLIEST_TIMEZONE_MS = 14 * 60 * 60 * 1000;
  * CY/FY year (yearly) that hasn't started yet, else null. Same wording as the
  * import path (emissionWrite/period.ts toStoredPeriod).
  */
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-11" → "Nov 2026", as the app writes a month (F-25). */
+export const monthWords = (ym: string): string => {
+  const [y, m] = ym.split("-").map(Number);
+  return MONTH_SHORT[m - 1] ? `${MONTH_SHORT[m - 1]} ${y}` : ym;
+};
+
 export const futurePeriodError = (
     reportingPeriod: ReportingPeriod,
     yearType: YearType | null | undefined,
@@ -50,7 +58,7 @@ export const futurePeriodError = (
     const latest = new Date(now.getTime() + EARLIEST_TIMEZONE_MS).toISOString().slice(0, 10);
     if (reportingPeriod === "monthly") {
         const month = date.toISOString().slice(0, 7);
-        return month > latest.slice(0, 7) ? `${month} is in the future; monthly data can only be filed for months that have started.` : null;
+        return month > latest.slice(0, 7) ? `${monthWords(month)} is in the future; monthly data can only be filed for months that have started.` : null;
     }
     if (yearType && periodWindow(yearType, date).start > latest) return `${yearType} ${date.getUTCFullYear()} has not started yet.`;
     return null;

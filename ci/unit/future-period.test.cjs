@@ -12,7 +12,7 @@ test("a month that has started anywhere is allowed; a later one is refused", () 
   const now = at("2026-10-15T08:00:00Z");
   assert.equal(futurePeriodError("monthly", null, at("2026-10-31"), now), null);
   assert.equal(futurePeriodError("monthly", null, at("2025-02-28"), now), null);
-  assert.match(futurePeriodError("monthly", null, at("2026-11-30"), now), /2026-11 is in the future/);
+  assert.match(futurePeriodError("monthly", null, at("2026-11-30"), now), /^Nov 2026 is in the future/);
 });
 
 test("in Dubai just after midnight on the 1st, the new month already counts", () => {
