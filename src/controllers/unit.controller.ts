@@ -132,9 +132,17 @@ export const getUnitFits = async (_: Request, res: Response) => {
       const ctx = await cache.context(rows[0].site_id, rows[0].category_id);
       const options = buildUnitOptions(unitOptionsSourceOf(ctx));
       const perUnit = ctx.spec?.mode === "per_unit";
-      // Aliases repeat their factor's list; the factor names are enough to say what a unit fits.
-      const named = options.activities.filter((a) => !a.maps_to);
-      for (const u of rows) fits.push({ unit_id: Number(u.unit_id), activities: named.filter((a) => isUnitAllowed(a.units, u.unit_name, perUnit)).map((a) => a.name) });
+      for (const u of rows) {
+        // Named by the factor each entry resolves to: an alias (or a form mapping that repeats the factor's
+        // own name, as mapped forms do) counts as its factor, once.
+        const names = new Map<string, string>();
+        for (const a of options.activities) {
+          if (!isUnitAllowed(a.units, u.unit_name, perUnit)) continue;
+          const name = (a.maps_to ?? a.name).trim();
+          if (!names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+        }
+        fits.push({ unit_id: Number(u.unit_id), activities: [...names.values()] });
+      }
     }
     return res.status(200).json({ fits });
   } catch (error) {
