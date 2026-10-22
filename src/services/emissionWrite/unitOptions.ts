@@ -7,7 +7,7 @@
  */
 import { normalizeUnitKey } from "../calculationSpec";
 import { normalizeName } from "./resolve";
-import { canonicalUnit, getConversionFactor, unitsMatchExact } from "./units";
+import { canonicalUnit, convertibleUnitsOf, getConversionFactor, unitsMatchExact } from "./units";
 import type { LoadedContext } from "./context";
 
 export interface AllowedUnitsInput {
@@ -95,9 +95,12 @@ export const buildUnitOptions = (src: UnitOptionsSource): UnitOptionsByActivity 
   const options = (factors: Factor[]) => {
     const sorted = [...factors].sort(newestFirst);
     const factorUnits = sorted.map((f) => f.denominator_unit);
+    // Every unit the engine converts to the factor's unit is offered too, after the admin's units so
+    // their spelling wins (#183 follow-up): an auto-generated form has only the factor's unit.
+    const convertible = [...new Set(clean(factorUnits))].flatMap(convertibleUnitsOf);
     return {
       factor_unit: clean(factorUnits)[0] ?? null,
-      units: allowedUnitsFor({ factorUnits, candidates, fixedUnit: src.fixedUnit, perUnit: src.perUnit, specUnitKeys: src.specUnitKeys }),
+      units: allowedUnitsFor({ factorUnits, candidates: [...candidates, ...convertible], fixedUnit: src.fixedUnit, perUnit: src.perUnit, specUnitKeys: src.specUnitKeys }),
     };
   };
 

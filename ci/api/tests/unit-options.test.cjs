@@ -60,11 +60,13 @@ test("a User gets each emission category's units, the factor unit first", async 
   assert.deepEqual(Object.keys(byName).sort(), ["CI U183 HSD", "Diesel", "Diesel (avg biofuel blend)", "Natural gas"]);
 
   assert.equal(byName.Diesel.factor_unit, "litre");
-  sameUnits(byName.Diesel.units, ["litre", "SCM"]); // SCM is a cubic metre, which converts to litres; kWh and kg don't
+  // SCM is a cubic metre, which converts to litres; kWh and kg don't. kl, gallon and ml come from the
+  // engine's conversion table though no admin unit row names them (#183 follow-up).
+  sameUnits(byName.Diesel.units, ["litre", "SCM", "kl", "gallon", "ml"]);
   assert.deepEqual(byName["Diesel (avg biofuel blend)"].units, byName.Diesel.units);
   // Natural gas is per cubic metre: the admin's "SCM" is that unit, so it comes first.
   assert.equal(byName["Natural gas"].factor_unit, "cubic meter");
-  sameUnits(byName["Natural gas"].units, ["SCM", "litre"]);
+  sameUnits(byName["Natural gas"].units, ["SCM", "litre", "kl", "gallon", "ml"]);
   // The alias resolves to its factor, as the engine does on save.
   assert.equal(byName["CI U183 HSD"].maps_to, "Diesel");
   assert.deepEqual(byName["CI U183 HSD"].units, byName.Diesel.units);

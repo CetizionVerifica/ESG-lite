@@ -12,7 +12,8 @@ export const unitConversions: Record<string, Record<string, number>> = {
   kl: { litre: 1000, gallon: 264.172, ml: 1000000, "cubic meter": 1 },
   "kilo litre": { litre: 1000, gallon: 264.172, ml: 1000000, "cubic meter": 1 },
   gallon: { litre: 3.78541, ml: 3785.41, "cubic meter": 0.00378541, kl: 0.00378541 },
-  ml: { litre: 0.001, gallon: 0.000264172, kl: 0.000001 },
+  // ml → cubic meter, g → tonne and mj → mwh (#183 follow-up) were one-way gaps: those rows were refused, no saved total moves.
+  ml: { litre: 0.001, gallon: 0.000264172, kl: 0.000001, "cubic meter": 0.000001 },
   "cubic meter": { litre: 1000, gallon: 264.172, kl: 1 },
   // Weight
   //
@@ -23,12 +24,12 @@ export const unitConversions: Record<string, Record<string, number>> = {
   tonne: { kg: 1000, lb: 2204.62, g: 1000000 , tonnes : 1, ton: 1 },
   Tonnes : { kg: 1000, lb: 2204.62, g: 1000000, tonne : 1 },
   tonnes: { kg: 1000, lb: 2204.62, g: 1000000, tonne: 1, ton: 1 }, 
-  g: { kg: 0.001, lb: 0.00220462 },
+  g: { kg: 0.001, lb: 0.00220462, tonne: 0.000001 },
   // Energy
   kwh: { mwh: 0.001, gj: 0.0036, mj: 3.6 },
   mwh: { kwh: 1000, gj: 3.6, mj: 3600 },
   gj: { kwh: 277.778, mwh: 0.277778, mj: 1000 },
-  mj: { kwh: 0.277778, gj: 0.001 },
+  mj: { kwh: 0.277778, gj: 0.001, mwh: 0.000277778 },
   // Currency — seed values only. These are refreshed from the live FX service
   // below (refreshCurrencyRates), because a frozen rate silently skews every
   // spend-based Scope 3 figure: the previous hardcoded 83.5 had drifted ~15%
@@ -143,6 +144,38 @@ export const getConversionFactor = (fromUnit: string, toUnit: string): number | 
   const to = canonicalUnit(toUnit);
   if (from && from === to) return 1;
   return unitConversions[from]?.[to] || null;
+};
+
+/** How a unit is written in a dropdown, where the table's lower-case key reads badly. */
+const UNIT_LABELS: Record<string, string> = { kwh: "kWh", mwh: "MWh", gj: "GJ", mj: "MJ" };
+
+/** One spelling per unit: "ton", "tonnes" and "Tonnes" are keyed apart in the table but are all the tonne. */
+const spellingOf = (unit: string): string => {
+  const c = canonicalUnit(unit);
+  const singular = c.length > 3 && c.endsWith("s") ? c.slice(0, -1) : c;
+  return singular === "ton" ? "tonne" : singular;
+};
+
+/**
+ * Every unit the engine converts to `factorUnit` (#183 follow-up), so a dropdown can offer them even
+ * when no admin unit row names them: the keys of `unitConversions` with a conversion to it, in table
+ * order, written as UNIT_LABELS says. Left out: currencies (spend rows have their own fields), the
+ * factor unit itself, and other spellings of one unit ("ton", "tonnes" for a tonne factor; one of
+ * them, preferably "tonne", for a kg factor). "kl" stays for a cubic meter factor: it is a unit of
+ * its own that happens to equal 1.
+ */
+export const convertibleUnitsOf = (factorUnit: string): string[] => {
+  const target = spellingOf(factorUnit);
+  const currencies = new Set<string>(CONVERTIBLE_CURRENCIES.map((c) => c.toLowerCase()));
+  const bySpelling = new Map<string, string>();
+  for (const key of Object.keys(unitConversions)) {
+    const spelling = spellingOf(key);
+    if (!spelling || spelling === target || currencies.has(canonicalUnit(key))) continue;
+    if (getConversionFactor(key, factorUnit) === null) continue;
+    const kept = bySpelling.get(spelling);
+    if (kept === undefined || (canonicalUnit(kept) !== spelling && canonicalUnit(key) === spelling)) bySpelling.set(spelling, key);
+  }
+  return [...bySpelling.values()].map((key) => UNIT_LABELS[canonicalUnit(key)] ?? key);
 };
 
 /**
