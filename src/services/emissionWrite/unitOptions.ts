@@ -8,6 +8,7 @@
 import { normalizeUnitKey } from "../calculationSpec";
 import { normalizeName } from "./resolve";
 import { canonicalUnit, getConversionFactor, unitsMatchExact } from "./units";
+import type { LoadedContext } from "./context";
 
 export interface AllowedUnitsInput {
   /** The activity's factor units, newest factor first. Blank ones are ignored. */
@@ -122,3 +123,21 @@ export const buildUnitOptions = (src: UnitOptionsSource): UnitOptionsByActivity 
     activities: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)),
   };
 };
+
+/** The unit-options input of one site × category, from the engine's own context. */
+export const unitOptionsSourceOf = (ctx: LoadedContext): UnitOptionsSource => {
+  const perUnit = ctx.spec?.mode === "per_unit";
+  return {
+    factors: ctx.factors.factors,
+    mappings: ctx.mappings.entries(),
+    formUnits: ctx.formUnits ?? [],
+    methodUnits: ctx.method_unit_names ?? [],
+    fixedUnit: ctx.form?.fixed_unit ?? null,
+    perUnit,
+    specUnitKeys: perUnit ? Object.keys(ctx.spec?.methods ?? {}) : null,
+  };
+};
+
+/** The allowed units of one activity name (case-blind), or null when the name isn't one of the site × category's. */
+export const unitsForActivity = (options: UnitOptionsByActivity, name: string): string[] | null =>
+  options.activities.find((a) => normalizeName(a.name) === normalizeName(name))?.units ?? null;

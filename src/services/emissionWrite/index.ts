@@ -55,7 +55,7 @@ export { CheckCache, findDuplicate, modeLockMessage } from "./checks";
 export { toStoredPeriod, monthsCovered, monthOf } from "./period";
 export { targetYearFor } from "./resolve";
 export { getConversionFactor, unitsMatchExact } from "./units";
-export { allowedUnitsFor, buildUnitOptions, type UnitOptionsByActivity } from "./unitOptions";
+export { allowedUnitsFor, buildUnitOptions, unitOptionsSourceOf, unitsForActivity, type UnitOptionsByActivity } from "./unitOptions";
 export type { EngineIssue } from "./compute";
 
 // ---------------------------------------------------------------------------

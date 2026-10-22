@@ -3,7 +3,7 @@ import { AppDataSource } from "../config/data-source";
 import { Unit } from "../entities/Unit";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
-import { ContextCache, buildUnitOptions } from "../services/emissionWrite";
+import { ContextCache, buildUnitOptions, unitOptionsSourceOf } from "../services/emissionWrite";
 
 const repo = AppDataSource.getRepository(Unit);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -104,18 +104,7 @@ export const getUnitOptionsBySiteAndCategory = async (req: Request, res: Respons
     if (!(await cache.site(siteId))) return res.status(404).json({ message: "Site not found" });
     const ctx = await cache.context(siteId, categoryId);
     if (!ctx.assigned) return res.status(403).json({ message: "This category isn't assigned to the site" });
-    const perUnit = ctx.spec?.mode === "per_unit";
-    return res.status(200).json(
-      buildUnitOptions({
-        factors: ctx.factors.factors,
-        mappings: ctx.mappings.entries(),
-        formUnits: ctx.formUnits ?? [],
-        methodUnits: ctx.method_unit_names ?? [],
-        fixedUnit: ctx.form?.fixed_unit ?? null,
-        perUnit,
-        specUnitKeys: perUnit ? Object.keys(ctx.spec?.methods ?? {}) : null,
-      }),
-    );
+    return res.status(200).json(buildUnitOptions(unitOptionsSourceOf(ctx)));
   } catch (error) {
     console.error("Fetch unit options error:", error);
     return res.status(500).json({ message: "Internal server error" });
