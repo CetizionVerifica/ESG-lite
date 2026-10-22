@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { parseCompanyHeader, withPreferredCompany } from "../utils/activeCompany";
 import { verifyToken } from "../utils/jwt";
 import { CLIENT_INACTIVE_CODE, CLIENT_INACTIVE_MESSAGE, isUserClientInactive } from "../services/clientStatus";
 
@@ -25,7 +26,8 @@ export const authenticate = (
   } catch {
     return res.status(401).json({ message: "Invalid token" });
   }
-  return rejectInactiveClient(req, res, next);
+  // M6: the company chosen in the account menu, honoured only where the user belongs to it.
+  return withPreferredCompany(parseCompanyHeader(req.headers["x-company-id"]), () => rejectInactiveClient(req, res, next));
 };
 
 /**
