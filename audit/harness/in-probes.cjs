@@ -123,6 +123,7 @@ const ROUTES = {
   "GET /materiality": { url: "/insights/materiality?year=2025", panel: "materiality" },
   "GET /stripes": { url: "/insights/stripes?year=2025", panel: "stripes" },
   "GET /snapshot.pdf": { url: "/insights/snapshot.pdf?year=2025", pdf: true },
+  "GET /site-compare": { url: "/insights/site-compare?year=2025", panel: "site_compare" },
 };
 
 /** Every route of the compiled /insights router, walked from its Express stack. */

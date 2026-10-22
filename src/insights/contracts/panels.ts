@@ -203,6 +203,33 @@ export interface Stripes {
   max: number;
 }
 
+// IN-11 · GET /insights/site-compare (the Sites tab) — rows sorted by net desc, then site id
+export interface SiteCompareRow {
+  site_id: number;
+  site: string;
+  /** Overview's by_site net for the period. */
+  net: number;
+  /** The same months last year (Overview's last_year); null when nothing is due yet. */
+  prior: number | null;
+  change_pct: number | null;
+  good: boolean | null;
+  /** The site's share of the scope's net, %; null when the net is 0. */
+  share_pct: number | null;
+  scope_1: number;
+  scope_2: number;
+  scope_3: number;
+  /** Approved emissions ÷ approved production of the site; change on last year in the same unit. */
+  intensity: { value: number | null; unit: string | null; change_pct: number | null; good: boolean | null };
+  /** Approved ÷ expected (emission categories + manual site KPIs) over the months started so far (Completeness tab's counts). */
+  completeness_pct: number | null;
+  /** Entries of the period waiting for approval (Overview's by_site pending). */
+  pending: number;
+  link: string;
+}
+export interface SiteCompare {
+  rows: SiteCompareRow[];
+}
+
 /** Panel id → its data type. */
 export interface PanelDataMap {
   summary: Summary;
@@ -216,6 +243,7 @@ export interface PanelDataMap {
   flow: Flow;
   materiality: Materiality;
   stripes: Stripes;
+  site_compare: SiteCompare;
 }
 
 /** Panel id → its GET path under /insights (01-contracts §4). */
@@ -231,4 +259,5 @@ export const PANEL_PATHS: Record<PanelId, string> = {
   flow: "/flow",
   materiality: "/materiality",
   stripes: "/stripes",
+  site_compare: "/site-compare",
 };

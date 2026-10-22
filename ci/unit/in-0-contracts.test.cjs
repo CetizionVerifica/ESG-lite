@@ -11,7 +11,7 @@ const { spawnSync } = require("child_process");
 const c = require(path.resolve("dist/insights/contracts/index.js"));
 
 test("§1 enums hold the contract values", () => {
-  assert.deepEqual([...c.PANEL_IDS], ["summary", "esg_ring", "decoupling", "target_wall", "cards", "pathway", "completeness", "bridge", "flow", "materiality", "stripes"]);
+  assert.deepEqual([...c.PANEL_IDS], ["summary", "esg_ring", "decoupling", "target_wall", "cards", "pathway", "completeness", "bridge", "flow", "materiality", "stripes", "site_compare"]);
   assert.deepEqual([...c.AVAILABILITIES], ["ok", "kpi_off", "no_data", "setup_incomplete"]);
   assert.deepEqual([...c.TARGET_STATUSES], ["on_track", "at_risk", "off_track", "reached", "no_data"]);
   assert.deepEqual([...c.TARGET_STATUS_ORDER], ["off_track", "at_risk", "on_track", "reached", "no_data"]);

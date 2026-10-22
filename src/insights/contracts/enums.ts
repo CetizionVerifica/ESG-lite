@@ -18,6 +18,7 @@ export const PANEL_IDS = [
   "flow",
   "materiality",
   "stripes",
+  "site_compare",
 ] as const;
 export const PanelIdSchema = z.enum(PANEL_IDS);
 export type PanelId = z.infer<typeof PanelIdSchema>;
