@@ -47,7 +47,7 @@ const INSIGHTS_CONTRACT_ROUTES = [
   ["GET", "/sites"], ["GET", "/summary?year=2025"], ["GET", "/esg-ring"], ["GET", "/decoupling?years=5"], ["GET", "/target-wall"],
   ["GET", "/cards"], ["GET", "/cards?ai=1"], ["GET", "/pathway"], ["GET", "/completeness"],
   ["GET", "/events?from=2025-01-01&to=2025-12-31"], ["POST", "/events"], ["PATCH", "/events/1"], ["DELETE", "/events/1"],
-  ["GET", "/bridge?compare=base"], ["GET", "/flow"], ["GET", "/materiality"], ["GET", "/stripes"], ["GET", "/snapshot.pdf"],
+  ["GET", "/bridge?compare=base"], ["GET", "/flow"], ["GET", "/materiality"], ["GET", "/stripes"], ["GET", "/snapshot.pdf"], ["GET", "/site-compare"],
 ].map(([method, p]) => ({ method, path: p }));
 
 /** A concrete URL for a route pattern (":id" → 1). */
