@@ -13,6 +13,7 @@ import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, e
 import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { lockedSiteMonths, siteMonthOf } from "../scope3/review/periodLock";
 import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
 import { AuditLog } from "../entities/AuditLog";
@@ -3314,5 +3315,92 @@ export const getPeriodTotal = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Fetch previous period total error:", error);
     return res.status(500).json({ message: "Failed to fetch previous period total" });
+  }
+};
+/**
+ * GET|POST /admin/emission-factors/:id/recalculate (Superadmin; F-04/F-09, N4): after a factor's
+ * value is corrected, the entries calculated with it keep their old totals until someone edits
+ * them. GET counts what a recalculation would change; POST recalculates them with the engine, as
+ * an edit does (FERA and T&D twins follow, review checks refresh). Candidates are the factor's
+ * site and category; a row counts when the engine picks this factor for it now. Statuses stay
+ * (an approved row stays approved, with a "factor_recalculation" audit entry giving old and new
+ * totals); rows in a locked month are left and counted.
+ */
+export const recalculateFactorEntries = async (req: AuthRequest, res: Response) => {
+  try {
+    const factorId = Number(req.params.id);
+    if (!Number.isInteger(factorId) || factorId <= 0) return res.status(400).json({ message: "Invalid factor id" });
+    const write = req.method === "POST";
+    const factor = await AppDataSource.getRepository(EmissionFactor).findOne({ where: { emission_factor_id: factorId }, relations: ["site", "category"] });
+    if (!factor?.site || !factor.category) return res.status(404).json({ message: "Emission factor not found" });
+
+    const rows = await repo.find({
+      where: { site: { site_id: factor.site.site_id }, category: { category_id: factor.category.category_id } },
+      relations: ["site", "category", "created_by"],
+      order: { pk_id: "ASC" },
+    });
+    const locked = new Set(
+      (await lockedSiteMonths(AppDataSource.manager, rows.map((r) => siteMonthOf(r.site.site_id, ymd(r.date_of_reporting))))).map((s) => `${s.year}-${s.month}`),
+    );
+    const changedBy = write ? await AppDataSource.getRepository(User).findOne({ where: { user_id: req.user?.userId } }) : null;
+    const summary = { checked: 0, uses_factor: 0, changed: 0, unchanged: 0, locked: 0, failed: 0, before_tco2e: 0, after_tco2e: 0 };
+    const changes: Array<{ pk_id: number; status: string; date_of_reporting: string; old_total: number; new_total: number }> = [];
+    for (const row of rows) {
+      summary.checked++;
+      const prepared = await recalculateEntry(row, row.activity_data, row.extra_data, undefined, "caller", row.activity_data);
+      if (!prepared.ok) {
+        if (Number((row.emission_factor_snapshot as any)?.emission_factor_id) === factorId) summary.failed++;
+        continue;
+      }
+      if (prepared.entry.factor?.emission_factor_id !== factorId) continue;
+      summary.uses_factor++;
+      const oldTotal = Number(row.total_emission) || 0;
+      const newTotal = Number(prepared.entry.computed?.total ?? 0);
+      if (Math.abs(newTotal - oldTotal) < 0.005) {
+        summary.unchanged++;
+        continue;
+      }
+      const month = siteMonthOf(row.site.site_id, ymd(row.date_of_reporting));
+      if (month && locked.has(`${month.year}-${month.month}`)) {
+        summary.locked++;
+        continue;
+      }
+      summary.changed++;
+      summary.before_tco2e += oldTotal;
+      summary.after_tco2e += newTotal;
+      changes.push({ pk_id: row.pk_id, status: row.status, date_of_reporting: ymd(row.date_of_reporting), old_total: oldTotal, new_total: newTotal });
+      if (!write) continue;
+
+      const priorCheckKeys = await checkKeysFor(AppDataSource.manager, [row.pk_id]);
+      applyComputed(row, prepared.entry);
+      await repo.save(row);
+      const twin = row.fera_linked_id ? await recalculateLinkedFera(row, row.activity_data, prepared.entry.fera, prepared.entry.feraSkipped) : null;
+      const tdLoss = await syncTdLossTwin(row, row.activity_data);
+      await refreshChecksSafely(AppDataSource.manager, [row.pk_id, row.fera_linked_id, twin?.pk_id, tdLoss?.pk_id].filter(Boolean) as number[], priorCheckKeys);
+      await pcfDataChanged("emission", [row.pk_id]);
+      await kpiSourceChanged("emission", [row.pk_id]);
+      await AppDataSource.getRepository(AuditLog).save(
+        AppDataSource.getRepository(AuditLog).create({
+          entity_type: "emission",
+          entity_id: row.pk_id,
+          action: "factor_recalculation",
+          changed_fields: { total_emission: { old: oldTotal, new: newTotal } },
+          reason: `Emission factor ${factorId} (${factor.emission_category_name}, ${factor.year}) was corrected: recalculated with ${factor.factor_value} per ${factor.denominator_unit}.`,
+          changed_by: changedBy || undefined,
+        }),
+      );
+    }
+    const round = (n: number) => Math.round(n * 100) / 100;
+    return res.json({
+      factor: { emission_factor_id: factorId, site_id: factor.site.site_id, category_id: factor.category.category_id, name: factor.emission_category_name, year: factor.year, value: Number(factor.factor_value), unit: factor.denominator_unit },
+      recalculated: write,
+      ...summary,
+      before_tco2e: round(summary.before_tco2e),
+      after_tco2e: round(summary.after_tco2e),
+      changes: changes.slice(0, 200),
+    });
+  } catch (error) {
+    console.error("Recalculate factor entries error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

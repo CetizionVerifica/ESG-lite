@@ -20,6 +20,7 @@ import {
   updateCountry,
 } from "../controllers/country.controller";
 import { createCategory, deleteCategory, getCategories, updateCategory } from "../controllers/category.controller";
+import { recalculateFactorEntries } from "../controllers/emission.controller";
 import { createEmissionFactor, deleteEmissionFactor, deleteEmissionFactorsByBatch, getEmissionFactorBatches, getEmissionFactorById, getEmissionFactors, getEmissionFactorsByCategory, getEmissionFactorsBySite, getEmissionCategoryNames, updateEmissionFactor, bulkCreateEmissionFactors, bulkDeleteEmissionFactors } from "../controllers/emissionFactor.controller";
 import { bulkCreateColumns, createColumn, deleteColumn, getColumns, updateColumn } from "../controllers/column.controller";
 import {
@@ -162,6 +163,9 @@ router.get("/emission-factors", getEmissionFactors);
 router.get("/emission-factors/category-names", getEmissionCategoryNames);
 router.get("/emission-factors/:id", getEmissionFactorById);
 router.put("/emission-factors/:id", updateEmissionFactor);
+// N4: recalculate the entries a corrected factor applies to (GET counts, POST writes).
+router.get("/emission-factors/:id/recalculate", recalculateFactorEntries);
+router.post("/emission-factors/:id/recalculate", recalculateFactorEntries);
 router.delete("/emission-factors/:id", deleteEmissionFactor);
 router.get("/emission-factors/site/:siteId", getEmissionFactorsBySite);
 router.get("/emission-factors/category/:categoryId", getEmissionFactorsByCategory);
