@@ -35,7 +35,10 @@ export const allowedUnitsFor = ({ factorUnits, candidates, fixedUnit, perUnit = 
   if (fixedUnit?.trim()) return [fixedUnit.trim()];
   const rowUnit = (u: string) => (perUnit ? normalizeUnitKey(u) : u);
   const keyOf = (u: string) => canonicalUnit(rowUnit(u));
-  const unique = (units: string[]) => units.filter((u, i) => units.findIndex((x) => keyOf(x) === keyOf(u)) === i);
+  const unique = (units: string[]) => {
+    const seen = new Set<string>();
+    return units.filter((u) => !seen.has(keyOf(u)) && !!seen.add(keyOf(u)));
+  };
 
   const factors = unique(clean(factorUnits));
   const pool = unique([...clean(candidates), ...factors]);
@@ -86,7 +89,8 @@ const newestFirst = (a: Factor, b: Factor) => b.year - a.year || a.emission_fact
 
 /** Every activity name of a site × category with the units its rows may use. */
 export const buildUnitOptions = (src: UnitOptionsSource): UnitOptionsByActivity => {
-  const factorUnitList = clean([...src.factors].sort(newestFirst).map((f) => f.denominator_unit));
+  // Distinct spellings only: a spend category has thousands of factors in one or two currencies.
+  const factorUnitList = [...new Set(clean([...src.factors].sort(newestFirst).map((f) => f.denominator_unit)))];
   const candidates = [...src.formUnits, ...src.methodUnits, ...factorUnitList];
   const options = (factors: Factor[]) => {
     const sorted = [...factors].sort(newestFirst);
@@ -116,10 +120,11 @@ export const buildUnitOptions = (src: UnitOptionsSource): UnitOptionsByActivity 
     byName.set(key, { name: m.name.trim(), maps_to: m.factor_name, ...options(target) });
   }
 
-  const all = clean([...src.formUnits, ...factorUnitList]);
+  const seen = new Set<string>();
+  const all = clean([...src.formUnits, ...factorUnitList]).filter((u) => !seen.has(canonicalUnit(u)) && !!seen.add(canonicalUnit(u)));
   return {
     fixed_unit: src.fixedUnit?.trim() || null,
-    all_units: all.filter((u, i) => all.findIndex((x) => canonicalUnit(x) === canonicalUnit(u)) === i),
+    all_units: all,
     activities: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)),
   };
 };

@@ -116,6 +116,8 @@ export const getUnitOptionsBySiteAndCategory = async (req: Request, res: Respons
  * its site × category that may use it, by the same rule as the Add data dropdown. An empty list means
  * the unit fits no emission category there. One request for the whole Units list.
  */
+const FITS_CONCURRENCY = 6;
+
 export const getUnitFits = async (_: Request, res: Response) => {
   try {
     const units: Array<{ unit_id: number; unit_name: string; site_id: number; category_id: number }> = await AppDataSource.query(
@@ -128,7 +130,7 @@ export const getUnitFits = async (_: Request, res: Response) => {
       (byPair.get(key) ?? byPair.set(key, []).get(key)!).push(u);
     }
     const fits: Array<{ unit_id: number; activities: string[] }> = [];
-    for (const rows of byPair.values()) {
+    const fitPair = async (rows: typeof units) => {
       const ctx = await cache.context(rows[0].site_id, rows[0].category_id);
       const options = buildUnitOptions(unitOptionsSourceOf(ctx));
       const perUnit = ctx.spec?.mode === "per_unit";
@@ -143,7 +145,11 @@ export const getUnitFits = async (_: Request, res: Response) => {
         }
         fits.push({ unit_id: Number(u.unit_id), activities: [...names.values()] });
       }
-    }
+    };
+    // A few site × category loads at a time (149 pairs on a production copy: ~6 s one by one).
+    const pairs = [...byPair.values()];
+    for (let i = 0; i < pairs.length; i += FITS_CONCURRENCY) await Promise.all(pairs.slice(i, i + FITS_CONCURRENCY).map(fitPair));
+    fits.sort((a, b) => a.unit_id - b.unit_id);
     return res.status(200).json({ fits });
   } catch (error) {
     console.error("Fetch unit fits error:", error);
