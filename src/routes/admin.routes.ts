@@ -41,6 +41,7 @@ import {
   getUnits,
   getUnitById,
   getUnitsBySiteAndCategory,
+  getUnitOptionsBySiteAndCategory,
   createUnit,
   updateUnit,
   deleteUnit,
@@ -190,6 +191,7 @@ router.delete("/column-configs/:id/columns", removeColumnsFromConfig);
 
 // Unit routes
 router.get("/units", getUnits);
+router.get("/units/site/:siteId/category/:categoryId/by-activity", getUnitOptionsBySiteAndCategory);
 router.get("/units/:id", getUnitById);
 router.get("/units/site/:siteId/category/:categoryId", getUnitsBySiteAndCategory);
 router.post("/units", createUnit);

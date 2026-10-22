@@ -3,6 +3,7 @@ import { AppDataSource } from "../config/data-source";
 import { Unit } from "../entities/Unit";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
+import { ContextCache, buildUnitOptions } from "../services/emissionWrite";
 
 const repo = AppDataSource.getRepository(Unit);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -83,6 +84,41 @@ export const getUnitsBySiteAndCategory = async (req: Request, res: Response) => 
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+};
+
+/**
+ * GET …/units/site/:siteId/category/:categoryId/by-activity (#183): for each
+ * emission category of the site × category, the units its rows may use (the
+ * factor's unit and the units the engine converts to it). Read through the
+ * engine's own context, so the list matches what saving accepts.
+ */
+export const getUnitOptionsBySiteAndCategory = async (req: Request, res: Response) => {
+  try {
+    const siteId = Number(req.params.siteId);
+    const categoryId = Number(req.params.categoryId);
+    if (!Number.isInteger(siteId) || !Number.isInteger(categoryId)) {
+      return res.status(400).json({ message: "siteId and categoryId must be numbers" });
+    }
+    const cache = new ContextCache(AppDataSource.manager);
+    if (!(await cache.site(siteId))) return res.status(404).json({ message: "Site not found" });
+    const ctx = await cache.context(siteId, categoryId);
+    if (!ctx.assigned) return res.status(403).json({ message: "This category isn't assigned to the site" });
+    const perUnit = ctx.spec?.mode === "per_unit";
+    return res.status(200).json(
+      buildUnitOptions({
+        factors: ctx.factors.factors,
+        mappings: ctx.mappings.entries(),
+        formUnits: ctx.formUnits ?? [],
+        methodUnits: ctx.method_unit_names ?? [],
+        fixedUnit: ctx.form?.fixed_unit ?? null,
+        perUnit,
+        specUnitKeys: perUnit ? Object.keys(ctx.spec?.methods ?? {}) : null,
+      }),
+    );
+  } catch (error) {
+    console.error("Fetch unit options error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 

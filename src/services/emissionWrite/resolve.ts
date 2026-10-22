@@ -119,12 +119,12 @@ export class FactorIndex {
  * is consulted first, as the bulk importer does.
  */
 export class MappingIndex {
-  private readonly byName = new Map<string, { factor_name: string; emission_factor_id: number | null }>();
+  private readonly byName = new Map<string, { name: string; factor_name: string; emission_factor_id: number | null }>();
 
   static async load(manager: EntityManager, company_id: number, site_id: number, category_id: number, config: ColumnConfig | null): Promise<MappingIndex> {
     const idx = new MappingIndex();
     for (const [key, value] of Object.entries(config?.emission_category_mapping ?? {})) {
-      if (key && value) idx.byName.set(normalizeName(key), { factor_name: String(value).trim(), emission_factor_id: null });
+      if (key && value) idx.byName.set(normalizeName(key), { name: key.trim(), factor_name: String(value).trim(), emission_factor_id: null });
     }
     const rows = await manager.getRepository(EmissionCategoryMapping).find({
       where: [
@@ -137,7 +137,7 @@ export class MappingIndex {
       const key = normalizeName(m.company_category_name);
       if (!key || !m.global_category_name) continue;
       if (!idx.byName.has(key) || m.site_id !== null) {
-        idx.byName.set(key, { factor_name: m.global_category_name.trim(), emission_factor_id: m.emission_factor_id ?? null });
+        idx.byName.set(key, { name: m.company_category_name.trim(), factor_name: m.global_category_name.trim(), emission_factor_id: m.emission_factor_id ?? null });
       }
     }
     return idx;
@@ -145,6 +145,11 @@ export class MappingIndex {
 
   get(sheetName: string): { factor_name: string; emission_factor_id: number | null } | null {
     return this.byName.get(normalizeName(sheetName)) ?? null;
+  }
+
+  /** Every mapping as it resolves: the client's wording as stored, the factor name and the pinned factor (#183 unit options). */
+  entries(): Array<{ name: string; factor_name: string; emission_factor_id: number | null }> {
+    return [...this.byName.values()];
   }
 }
 
