@@ -448,6 +448,36 @@ export const getEmissionsBySiteAndCategory = async (req: AuthRequest, res: Respo
   }
 };
 
+/**
+ * GET /user/emissions/period-mode/site/:siteId/category/:categoryId
+ *   ?reporting_period=monthly|yearly&year_type=CY|FY&date_of_reporting=YYYY-MM-DD
+ * The save's own mode lock, asked before typing (F-13/F-27): `{conflict, message}`, both null when
+ * the period is free. Counts every entry on the site and category, as the save does. Saves nothing.
+ */
+export const getPeriodMode = async (req: AuthRequest, res: Response) => {
+  try {
+    const siteId = Number(req.params.siteId);
+    const categoryId = Number(req.params.categoryId);
+    const { reporting_period, year_type, date_of_reporting } = req.query as Record<string, string | undefined>;
+    const date = new Date(`${String(date_of_reporting ?? "").slice(0, 10)}T00:00:00Z`);
+    if (!Number.isInteger(categoryId) || categoryId <= 0) return res.status(400).json({ message: "category must be a positive integer" });
+    if (reporting_period !== "monthly" && reporting_period !== "yearly") return res.status(400).json({ message: "reporting_period must be monthly or yearly" });
+    if (Number.isNaN(date.getTime())) return res.status(400).json({ message: "date_of_reporting must be a date (YYYY-MM-DD)" });
+    if (reporting_period === "yearly" && year_type !== "CY" && year_type !== "FY") return res.status(400).json({ message: "year_type must be CY or FY for yearly data" });
+    const conflict = await findModeLockConflict(repo, {
+      site_id: siteId,
+      category_id: categoryId,
+      reporting_period,
+      year_type: reporting_period === "yearly" ? (year_type as "CY" | "FY") : null,
+      date_of_reporting: date,
+    });
+    res.json({ conflict, message: conflict ? modeLockMessage(conflict, reporting_period) : null });
+  } catch (error) {
+    console.error("[emissions] period mode check failed:", (error as Error)?.message);
+    res.status(500).json({ message: "Couldn't check the period" });
+  }
+};
+
 // Create a new emission entry
 export const createEmission = async (req: AuthRequest, res: Response) => {
   try {

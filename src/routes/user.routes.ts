@@ -7,6 +7,7 @@ import {
   getEmissions,
   getEmissionBreakdown,
   getEmissionsBySiteAndCategory,
+  getPeriodMode,
   createEmission,
   updateEmission,
   deleteEmission,
@@ -115,6 +116,7 @@ router.get("/column-configs/site/:siteId/category/:categoryId", guardSiteParam("
 // Emission routes
 router.get("/emissions", getEmissions);
 router.get("/emissions/site/:siteId/category/:categoryId", getEmissionsBySiteAndCategory);
+router.get("/emissions/period-mode/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getPeriodMode);
 router.get("/emissions/pending", getPendingEmissions);
 router.post("/emissions", guardBodySites("site_id"), guardPeriodOpen("create"), createEmission);
 // S3-15 part 2: submit own drafts; dry-run checks for the live panel (saves nothing).

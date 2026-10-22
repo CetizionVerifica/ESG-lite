@@ -20,7 +20,8 @@ test("a yearly entry over monthly ones names the year and suggests monthly first
   assert.match(modeLockMessage({ ...conflict, conflicting_rows: 1 }, "yearly"), /\(1 monthly entry\)/);
 });
 
-test("a monthly entry over a yearly batch keeps its wording", () => {
+test("a monthly entry over a yearly batch names the year too", () => {
   const conflict = { conflicting_period: "yearly", conflicting_rows: 1, conflicting_year_type: "CY", window: { start: "2024-01-01", end: "2024-12-31" } };
-  assert.match(modeLockMessage(conflict, "monthly"), /yearly batch covering 2024-01-01 – 2024-12-31/);
+  assert.equal(modeLockMessage(conflict, "monthly"), "This category already has a yearly batch for CY 2024. Delete the yearly data first, or file this entry under a different period.");
+  assert.match(modeLockMessage({ ...conflict, conflicting_year_type: "FY", window: { start: "2024-04-01", end: "2025-03-31" } }, "monthly"), /yearly batch for FY 2024-25\./);
 });

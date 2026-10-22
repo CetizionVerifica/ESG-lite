@@ -138,7 +138,7 @@ export const modeLockMessage = (c: ModeLockConflict, period: "monthly" | "yearly
   if (period === "yearly") {
     return `This year overlaps an existing ${c.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${c.conflicting_year_type} batch first, or file this data under ${c.conflicting_year_type} too.`;
   }
-  return `This category already has a yearly batch covering ${c.window.start} – ${c.window.end}. Delete the yearly data first, or file this entry under a different period.`;
+  return `This category already has a yearly batch for ${yearWindowLabel(c.window)}. Delete the yearly data first, or file this entry under a different period.`;
 };
 
 /**
