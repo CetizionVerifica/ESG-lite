@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { Emission } from "../entities/Emission";
 import { UserRole } from "../types/type";
+import { overseenSites } from "../utils/companyScope";
 
 /**
  * GET /manager/submission-status?month=2026-03
@@ -28,16 +29,10 @@ export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
     const userRepo = AppDataSource.getRepository(User);
     const emissionRepo = AppDataSource.getRepository(Emission);
 
-    // Get manager's sites
-    const manager = await userRepo.findOne({
-      where: { user_id: managerId },
-      relations: ["sites", "site"],
-    });
-    if (!manager) return res.status(404).json({ message: "Manager not found" });
-
-    const managerSiteIds = new Set<number>();
-    if (manager.site) managerSiteIds.add((manager.site as any).site_id);
-    if (manager.sites) manager.sites.forEach((s: any) => managerSiteIds.add(s.site_id));
+    // The manager's sites, or a company Admin's company sites (M5).
+    const overseen = await overseenSites(managerId, req.user?.role);
+    if (!overseen) return res.status(404).json({ message: "Manager not found" });
+    const managerSiteIds = new Set<number>(overseen.keys());
 
     if (managerSiteIds.size === 0) {
       return res.json({ users: [] });

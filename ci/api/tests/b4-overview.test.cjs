@@ -212,7 +212,7 @@ test("periods: month, quarter, FY", async () => {
 test("role and site checks", async () => {
   assert.equal((await call("GET", "/manager/overview?siteIds=3", "manager")).status, 403);
   assert.equal((await call("GET", "/manager/overview?siteIds=1,3", "manager")).status, 403);
-  for (const who of ["user", "admin", "superadmin"]) {
+  for (const who of ["user", "superadmin"]) {
     assert.equal((await call("GET", "/manager/overview", who)).status, 403, who);
   }
   assert.equal((await call("GET", "/manager/overview", null)).status, 401);
@@ -220,6 +220,23 @@ test("role and site checks", async () => {
   const other = (await call("GET", "/manager/overview?period=2025", "otherManager")).json;
   assert.deepEqual(other.site_ids, [3]);
   close(other.kpis.gross, 999, "other company sees only its own site");
+});
+
+test("a company Admin reads Overview and submission status for the company's sites, read-only (M5)", async () => {
+  const manager = (await call("GET", "/manager/overview?period=2025", "manager")).json;
+  const admin = await call("GET", "/manager/overview?period=2025", "admin");
+  assert.equal(admin.status, 200, JSON.stringify(admin.json));
+  assert.deepEqual(admin.json.site_ids, [1, 2], "company 1's sites; site 3 is company 2's");
+  close(admin.json.kpis.gross, manager.kpis.gross, "same figures as the manager of those sites");
+  assert.equal((await call("GET", "/manager/overview?period=2025&siteIds=1", "admin")).status, 200);
+  assert.equal((await call("GET", "/manager/overview?siteIds=3", "admin")).status, 403, "another company's site");
+
+  const status = await call("GET", "/manager/submission-status?month=2025-09", "admin");
+  assert.equal(status.status, 200, JSON.stringify(status.json));
+  assert.deepEqual(status.json.users.map((u) => u.user_id).sort((a, b) => a - b), [1, 7]);
+  // Managing users stays a Manager's job.
+  assert.equal((await call("GET", "/manager/users", "admin")).status, 403);
+  assert.equal((await call("GET", "/manager/submission-status?month=2025-09", "user")).status, 403);
 });
 
 test("yearly batches count only in a whole year of their own type", async () => {
