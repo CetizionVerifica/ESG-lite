@@ -10,7 +10,7 @@ import { User } from "./User";
 
 @Entity()
 export class AuditLog {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 
   @Column()
@@ -18,7 +18,8 @@ export class AuditLog {
   // KPI-0: KPI modules write `kpi_value`, `kpi_setup`, `kpi_period_lock`, `kpi_target`, `kpi_library` (src/kpi/contracts/enums.ts).
   entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping" | "import_mapping_profile" | `scope3_${string}` | `kpi_${string}`;
 
-  @Column()
+  // Holds emission ids among others, so bigint like emission.pk_id (#191).
+  @Column({ type: "bigint" })
   entity_id!: number;
 
   @Column()

@@ -27,7 +27,7 @@ export interface NotificationMeta {
 @Index("notification_upload_batch_user_uq", { synchronize: false })
 @Entity()
 export class Notification {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 
   @ManyToOne(() => User, { onDelete: "CASCADE" })

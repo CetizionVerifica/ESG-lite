@@ -21,10 +21,10 @@ const SQL: Record<Kind, string> = {
      WHERE s.stale = false
        AND s.status IN ('in_review', 'approved', 'published')
        AND (
-         EXISTS (SELECT 1 FROM pcf_result r WHERE r.pcf_study_id = s.pcf_study_id AND r.emission_ids_used && $1::int[])
+         EXISTS (SELECT 1 FROM pcf_result r WHERE r.pcf_study_id = s.pcf_study_id AND r.emission_ids_used && $1::bigint[])
          OR EXISTS (
            SELECT 1 FROM emission e JOIN category c ON c.category_id = e.category_id
-            WHERE e.pk_id = ANY($1::int[]) AND e.status = 'approved' AND e.site_id = s.site_id
+            WHERE e.pk_id = ANY($1::bigint[]) AND e.status = 'approved' AND e.site_id = s.site_id
               AND substring(c.scope from '[123]') IN ('1', '2')
               AND e.date_of_reporting <= s.reference_end
               AND (CASE WHEN e.reporting_period = 'yearly'

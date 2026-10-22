@@ -68,7 +68,7 @@ async function checkAccess(manager: EntityManager, caller: Caller, rows: LiveChe
     `SELECT e.pk_id, e.site_id, e.status::text AS status, e.created_by, e.fera_linked_id,
             EXISTS (SELECT 1 FROM emission_document d WHERE d.emission_id = e.pk_id OR d.emission_id = e.fera_linked_id
                        OR d.emission_id IN (SELECT p.pk_id FROM emission p WHERE p.fera_linked_id = e.pk_id)) AS has_evidence
-       FROM emission e WHERE e.pk_id = ANY($1::int[])`,
+       FROM emission e WHERE e.pk_id = ANY($1::bigint[])`,
     [ids],
   );
   for (const id of ids) {
@@ -76,7 +76,7 @@ async function checkAccess(manager: EntityManager, caller: Caller, rows: LiveChe
     const othersDraft = r && r.status === "draft" && Number(r.created_by) !== Number(caller.userId);
     if (!r || othersDraft || (allowed && !allowed.has(Number(r.site_id)))) throw new AccessError(404, "Not found.");
     const family: Array<{ pk_id: number }> = await manager.query(
-      `SELECT pk_id FROM emission WHERE pk_id = $1::int OR fera_linked_id = $1::int OR pk_id = $2::int OR fera_linked_id = $2::int`,
+      `SELECT pk_id FROM emission WHERE pk_id = $1::bigint OR fera_linked_id = $1::bigint OR pk_id = $2::bigint OR fera_linked_id = $2::bigint`,
       [id, r.fera_linked_id],
     );
     saved.set(id, { ...r, pk_id: id, site_id: Number(r.site_id), family: family.map((f) => Number(f.pk_id)), has_evidence: Boolean(r.has_evidence) });
@@ -91,7 +91,7 @@ const monthTotal = async (manager: EntityManager, siteId: number, categoryId: nu
       WHERE site_id = $1 AND category_id = $2 AND activity_data ->> 'emission_category' = $3
         AND status::text = ANY($4) AND reporting_period = 'monthly'
         AND date_of_reporting >= $5::date AND date_of_reporting < ($5::date + interval '1 month')
-        AND pk_id <> ALL($6::int[])`,
+        AND pk_id <> ALL($6::bigint[])`,
     [siteId, categoryId, ec, COUNTED, month, exclude],
   );
   return r?.total === null || r?.total === undefined ? null : Number(r.total);
@@ -142,7 +142,7 @@ export async function liveChecks(manager: EntityManager, caller: Caller, rows: L
     const others: Array<{ pk_id: number; activity_data: any }> = await manager.query(
       `SELECT pk_id, activity_data FROM emission
         WHERE site_id = $1 AND category_id = $2 AND date_of_reporting = $3::date AND reporting_period = $4
-          AND status::text = ANY($5) AND pk_id <> ALL($6::int[])
+          AND status::text = ANY($5) AND pk_id <> ALL($6::bigint[])
         ORDER BY pk_id`,
       [row.site_id, row.category_id, row.date_of_reporting, reporting_period, COUNTED, exclude],
     );

@@ -96,7 +96,7 @@ export class ImportPlan {
 @Entity({ name: "import_plan_row" })
 @Unique(["plan_id", "row_ref"])
 export class ImportPlanRow {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 
   @Index()
@@ -129,7 +129,7 @@ export class ImportPlanRow {
 @Entity({ name: "import_plan_match" })
 @Unique(["plan_id", "site_id", "category_id", "sheet_name"])
 export class ImportPlanMatch {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 
   @Index()

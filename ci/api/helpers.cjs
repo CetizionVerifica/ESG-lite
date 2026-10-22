@@ -1,7 +1,12 @@
 // Shared helpers for ci/api/tests: signed tokens for the fixture users, an
 // HTTP caller and a direct database client.
 const jwt = require("jsonwebtoken");
-const { Client } = require("pg");
+const { Client, types } = require("pg");
+
+// #191: read bigint (widened ids, counts) and bigint[] as numbers, as the app does (src/config/pgTypes.ts).
+types.setTypeParser(types.builtins.INT8, (v) => (v === null ? null : Number(v)));
+const parseInt8Array = types.getTypeParser(1016, "text");
+types.setTypeParser(1016, (v) => parseInt8Array(v).map((x) => (x === null ? null : Number(x))));
 
 const BASE = process.env.API_BASE;
 const SECRET = process.env.JWT_SECRET;

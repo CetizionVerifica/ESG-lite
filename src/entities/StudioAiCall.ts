@@ -11,7 +11,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 @Index("IDX_report_ai_call_doc_created", ["doc_id", "created_at"])
 @Index("IDX_report_ai_call_company_created", ["company_id", "created_at"])
 export class StudioAiCall {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 
   @Column({ type: "int" })

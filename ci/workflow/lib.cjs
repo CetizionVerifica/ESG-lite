@@ -3,7 +3,12 @@
 // need it, and `migrateAll` to stand in for a redeploy.
 const path = require("path");
 const { spawnSync } = require("child_process");
-const { Client } = require("pg");
+const { Client, types } = require("pg");
+
+// #191: read bigint (widened ids, counts) and bigint[] as numbers, as the app does (src/config/pgTypes.ts).
+types.setTypeParser(types.builtins.INT8, (v) => (v === null ? null : Number(v)));
+const parseInt8Array = types.getTypeParser(1016, "text");
+types.setTypeParser(1016, (v) => parseInt8Array(v).map((x) => (x === null ? null : Number(x))));
 const { assertThrowawayDb } = require("../lib/throwaway-db.cjs");
 
 // Also guards a direct `node --test workflow.test.cjs` run, which skips run.cjs.

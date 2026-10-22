@@ -19,6 +19,7 @@ import { Notification } from "../entities/Notification";
 import { Brand } from "../entities/Brand";
 import dotenv from "dotenv";
 import { registerPgTypeParsers } from "./pgTypes";
+import { BigintIdSubscriber } from "./bigintIdSubscriber";
 import { EmissionThreshold } from "../entities/Threshold";
 import { MaterialFactor } from "../entities/MaterialFactor";
 import { PcfStudy } from "../entities/PcfStudy";
@@ -218,6 +219,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
                 synchronize: makeSync, // Never auto-sync in production
                 logging: ["error"],
                 entities,
+                subscribers: [BigintIdSubscriber], // #191
                 ssl: { rejectUnauthorized: false }, // Accept managed DB certs (self-signed/internal CA)
                 // Handle pool-level connection errors (e.g. ECONNRESET on idle clients)
                 poolErrorHandler: (err: any) => {
@@ -244,6 +246,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
             synchronize: makeSync,
             logging: ["error"],
             entities,
+            subscribers: [BigintIdSubscriber], // #191
             ssl: { rejectUnauthorized: false },
             poolErrorHandler: (err: any) => {
                 console.error("Database pool error:", err.message || err);
@@ -272,6 +275,7 @@ const getDataSourceConfig = (): DataSourceOptions => {
         // no corresponding entity (activity_data, final_emission, invoice, uploaded_documents...).
         logging: false,
         entities,
+        subscribers: [BigintIdSubscriber], // #191
         // Enable SSL if connecting to a managed DB (host is not localhost)
         ssl:
             process.env.DB_HOST &&

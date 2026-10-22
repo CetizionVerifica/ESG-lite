@@ -104,7 +104,7 @@ async function affected(kind: Kind, ids: number[]): Promise<Hit[]> {
           `SELECT s.company_id, e.site_id, e.date_of_reporting AS d_from, e.date_of_reporting AS d_to, COALESCE(ks.year_type, 'CY') AS year_type, cat.scope, cat.ghg_category
              FROM emission e JOIN category cat ON cat.category_id = e.category_id JOIN site s ON s.site_id = e.site_id JOIN company c ON c.company_id = s.company_id AND c.kpi_tracking_enabled
              LEFT JOIN company_kpi_settings ks ON ks.company_id = s.company_id
-            WHERE e.pk_id = ANY($1::int[])`,
+            WHERE e.pk_id = ANY($1::bigint[])`,
           [ids],
         )
       : await AppDataSource.query(

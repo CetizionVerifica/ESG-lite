@@ -53,7 +53,8 @@ export class PcfResult {
   @Column("jsonb")
   factor_snapshot!: Record<string, unknown>;
 
-  @Column("int", { array: true, nullable: true })
+  // bigint[] like emission.pk_id (#191); staleness.ts overlaps it with a bigint[] parameter.
+  @Column("bigint", { array: true, nullable: true })
   emission_ids_used!: number[] | null;
 
   @Column("int", { array: true, nullable: true })

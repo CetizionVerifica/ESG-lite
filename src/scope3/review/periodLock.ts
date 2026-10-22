@@ -78,9 +78,9 @@ export const siteMonthsOfRows = async (manager: EntityManager, ids: unknown[]): 
   const rows: Array<{ site_id: number; year: number; month: number }> = await manager.query(
     `SELECT DISTINCT e.site_id, EXTRACT(YEAR FROM e.date_of_reporting)::int AS year, EXTRACT(MONTH FROM e.date_of_reporting)::int AS month
        FROM emission e
-      WHERE e.pk_id = ANY($1::int[])
-         OR e.fera_linked_id = ANY($1::int[])
-         OR e.pk_id IN (SELECT f.fera_linked_id FROM emission f WHERE f.pk_id = ANY($1::int[]) AND f.fera_linked_id IS NOT NULL)`,
+      WHERE e.pk_id = ANY($1::bigint[])
+         OR e.fera_linked_id = ANY($1::bigint[])
+         OR e.pk_id IN (SELECT f.fera_linked_id FROM emission f WHERE f.pk_id = ANY($1::bigint[]) AND f.fera_linked_id IS NOT NULL)`,
     [list],
   );
   return rows.map((r) => ({ site_id: Number(r.site_id), year: Number(r.year), month: Number(r.month) }));
@@ -105,7 +105,7 @@ export const lockedRowIds = async (manager: EntityManager, ids: unknown[]): Prom
        FROM emission e
        JOIN site s ON s.site_id = e.site_id
        JOIN company c ON c.company_id = s.company_id
-      WHERE e.pk_id = ANY($1::int[]) AND c.review_workflow_v2 = true
+      WHERE e.pk_id = ANY($1::bigint[]) AND c.review_workflow_v2 = true
         AND EXISTS (SELECT 1 FROM period_lock l
                      WHERE l.company_id = c.company_id
                        AND (l.site_id = e.site_id OR l.site_id IS NULL)

@@ -7,7 +7,7 @@ import { Entity, PrimaryGeneratedColumn, Column, Index } from "typeorm";
  */
 @Entity({ name: "mcp_tool_call" })
 export class McpToolCall {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 
   @Index("IDX_mcp_tool_call_grant_id")

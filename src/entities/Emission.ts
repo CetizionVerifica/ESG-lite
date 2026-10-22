@@ -34,7 +34,8 @@ export enum EmissionStatus {
 @Index("IDX_emission_site_category_date", ["site", "category", "date_of_reporting", "pk_id"])
 @Entity()
 export class Emission {
-  @PrimaryGeneratedColumn()
+  // #191: bigint, like every column that stores an emission id.
+  @PrimaryGeneratedColumn({ type: "bigint" })
   pk_id!: number;
 
   @Column("jsonb")
@@ -98,7 +99,7 @@ export class Emission {
   year_type!: "CY" | "FY" | null;
 
   @Index("IDX_emission_fera_linked_id")
-  @Column({ nullable: true })
+  @Column({ type: "bigint", nullable: true })
   fera_linked_id!: number;
 
   // S3-7: the Category 3 sub-activity of a FERA twin (3a_upstream_fuels,

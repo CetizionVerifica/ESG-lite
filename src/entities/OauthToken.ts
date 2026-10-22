@@ -11,7 +11,7 @@ export type OauthTokenKind = (typeof OAUTH_TOKEN_KINDS)[number];
  */
 @Entity({ name: "oauth_token" })
 export class OauthToken {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: "bigint" })
   token_id!: number;
 
   @Index({ unique: true })

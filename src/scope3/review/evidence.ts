@@ -20,7 +20,7 @@ export const othersDraftIds = async (manager: EntityManager, ids: unknown[], use
   const list = ints(ids);
   if (!list.length) return new Set();
   const rows: Array<{ pk_id: number }> = await manager.query(
-    `SELECT pk_id FROM emission WHERE pk_id = ANY($1::int[]) AND status::text = 'draft' AND created_by IS DISTINCT FROM $2`,
+    `SELECT pk_id FROM emission WHERE pk_id = ANY($1::bigint[]) AND status::text = 'draft' AND created_by IS DISTINCT FROM $2`,
     [list, Number(userId) || 0],
   );
   return new Set(rows.map((r) => Number(r.pk_id)));
@@ -41,7 +41,7 @@ export const logLockedEvidence = async (
   if (!list.length) return 0;
   try {
     const hits: Array<{ document_id: number; emission_id: number; lock_id: number }> = await manager.query(
-      `WITH p AS (SELECT DISTINCT * FROM unnest($1::int[], $2::int[]) AS p(document_id, emission_id))
+      `WITH p AS (SELECT DISTINCT * FROM unnest($1::int[], $2::bigint[]) AS p(document_id, emission_id))
        SELECT p.document_id, p.emission_id, l.id AS lock_id
          FROM p
          JOIN emission e ON e.pk_id = p.emission_id

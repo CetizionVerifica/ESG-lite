@@ -135,7 +135,7 @@ async function rowsOf(t: Table, ids: number[]): Promise<ScopedRow[]> {
   if (!ids.length) return [];
   const may = t === EMISSION ? UPLOADER_MAY_APPROVE("e") : "false";
   return AppDataSource.query(
-    `SELECT e.${t.key} AS id, e.site_id, e.created_by, e.status::text AS status, ${may} AS uploader_may_approve FROM ${t.table} e WHERE e.${t.key} = ANY($1::int[])`,
+    `SELECT e.${t.key} AS id, e.site_id, e.created_by, e.status::text AS status, ${may} AS uploader_may_approve FROM ${t.table} e WHERE e.${t.key} = ANY($1::bigint[])`, // #191: emission ids are bigint
     [ids]
   );
 }
