@@ -3,6 +3,7 @@ import { User } from "../entities/User";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
 import { UserRole } from "../types/type";
+import { preferredCompanyId } from "./activeCompany";
 
 const userRepo = AppDataSource.getRepository(User);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -19,7 +20,9 @@ const ADMIN_COMPANY_RELATIONS = [
  * Resolve the company a user belongs to. An Admin belongs to a company
  * (`user.company_id`); everyone else's company is derived from their single
  * site or, for multi-site roles, their first site. Returns null when the user
- * is not linked to any company.
+ * is not linked to any company. M6: a person with sites at several clients
+ * gets the company chosen in the account menu (`X-Company-Id`) when they
+ * belong to it.
  */
 export const resolveUserCompanyId = async (
   userId: number
@@ -31,6 +34,16 @@ export const resolveUserCompanyId = async (
 
   if (!user) {
     return null;
+  }
+
+  const preferred = preferredCompanyId();
+  if (
+    preferred !== null &&
+    (user.company_id === preferred ||
+      user.site?.company?.company_id === preferred ||
+      (user.sites ?? []).some((s) => s.company?.company_id === preferred))
+  ) {
+    return preferred;
   }
 
   return (
