@@ -65,3 +65,7 @@
 - New figures (index, LMDI drivers, flow widths, rule values) are computed only in `src/insights/derive/`. Approved data only; every panel returns `pending_not_in`.
 - Insight cards come from deterministic rules in `src/insights/rules/`. AI may reword a card (IN-9) with `{{v:key}}` tokens only — never numbers, never new claims. Log every call in `insight_ai_call`.
 - Don't change Overview, Targets, `/kpi/dashboard`, `/kpi/esg`, the GHG report or KPI-11 behaviour for Insights. New tables ship as idempotent `migrate:in-*` scripts. Every new endpoint gets tenant-isolation, role, site-scope and switch-off tests.
+
+## Ids and keys — see issue #191
+- New tables use `@PrimaryGeneratedColumn({ type: "bigint" })` (`BIGSERIAL` in a `migrate:*` script) or `uuid`, and every column that references them is `bigint`. TypeScript types stay `number`.
+- The app reads `bigint` as a number (`src/config/pgTypes.ts`, exact up to 2^53), so an uncast `count(*)` or `SUM` of an integer column is a number too. Never compare one to a string.

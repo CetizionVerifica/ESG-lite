@@ -18,6 +18,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { Notification } from "../entities/Notification";
 import { Brand } from "../entities/Brand";
 import dotenv from "dotenv";
+import { registerPgTypeParsers } from "./pgTypes";
 import { EmissionThreshold } from "../entities/Threshold";
 import { MaterialFactor } from "../entities/MaterialFactor";
 import { PcfStudy } from "../entities/PcfStudy";
@@ -286,5 +287,8 @@ const getDataSourceConfig = (): DataSourceOptions => {
         },
     };
 };
+
+// #191: bigint values (widened ids, counts) come back as numbers, not strings.
+registerPgTypeParsers();
 
 export const AppDataSource = new DataSource(getDataSourceConfig());
