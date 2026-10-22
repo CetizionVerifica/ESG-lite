@@ -11,7 +11,7 @@ import { getCalculationSpec } from "../calculationSpec";
 import { getSelectColumns } from "../activityValue";
 import { FactorIndex, MappingIndex } from "./resolve";
 import type { CategoryContext } from "./compute";
-import { methodUnits, offeredMethods } from "../../scope3/dq/methodOptions";
+import { methodUnits, offeredMethods, readMethodOptions } from "../../scope3/dq/methodOptions";
 import { SpendRateSource } from "../../scope3/spend/rates";
 import { NO_FORM_SETTINGS, readFormSettings, type FormSettings } from "../../forms/formConfig";
 
@@ -25,6 +25,8 @@ export interface LoadedContext extends CategoryContext {
   form?: FormSettings;
   /** SE-2: the company's currency for a spend row whose row and form name none (INR for current clients). */
   default_currency?: string | null;
+  /** #183: the units the form's method_options name, as written there (unit options only; never used to calculate). */
+  method_unit_names?: string[];
 }
 
 export class ContextCache {
@@ -98,6 +100,7 @@ export class ContextCache {
       // SE-2: the form's choice → method map, hidden-field defaults, fixed unit and currency.
       form: configs[0] ? readFormSettings(configs[0], configs[0]) : NO_FORM_SETTINGS,
       default_currency: site?.company?.default_currency ?? null,
+      method_unit_names: configs[0]?.method_options ? readMethodOptions(configs[0].method_options).flatMap((o) => o.units) : [],
     };
   }
 }

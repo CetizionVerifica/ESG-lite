@@ -8,6 +8,8 @@ import { In } from "typeorm";
 import { ColumnConfig } from "../../entities/ColumnConfig";
 import { ImportError } from "../errors";
 import { IMPORT_LIMITS } from "../limits";
+import { ContextCache } from "../../services/emissionWrite/context";
+import { buildUnitOptions, unitOptionsSourceOf, unitsForActivity } from "../../services/emissionWrite/unitOptions";
 import type { ActivityOption, CalcMode, ContextCategory, ContextSite, FormField, ImportContext, ReadinessCell as ContractReadinessCell } from "../contracts";
 
 // IM3 · Import context: everything Claude (or the P27 page) needs to map a
@@ -377,7 +379,7 @@ export async function searchActivities(
   );
   if (!assigned.length) throw new ImportError("IMPORT_FORBIDDEN", { reason: "CATEGORY_NOT_ASSIGNED" });
 
-  const [factors, mappings] = await Promise.all([
+  const [factors, mappings, engine] = await Promise.all([
     AppDataSource.query(
       `SELECT year, emission_category_name, global_category_name, denominator_unit
          FROM emission_factors WHERE site_id = $1 AND category_id = $2`,
@@ -389,7 +391,10 @@ export async function searchActivities(
         WHERE company_id = $1 AND category_id = $2 AND (site_id IS NULL OR site_id = $3)`,
       [scope.company_id, category_id, site_id],
     ) as Promise<MappingRow[]>,
+    // #183: the units each name accepts, decided by the engine's own context.
+    new ContextCache(AppDataSource.manager).context(site_id, category_id),
   ]);
+  const unitOptions = buildUnitOptions(unitOptionsSourceOf(engine));
 
   const byName = new Map<string, ActivityOption>();
   const add = (name: string | null, kind: "factor" | "mapping", unit: string | null, year: number | null, maps_to?: string) => {
@@ -403,7 +408,7 @@ export async function searchActivities(
       if (cur.kind === "mapping" && kind === "factor") { cur.kind = "factor"; delete cur.maps_to; }
       return;
     }
-    byName.set(k, { name: t, kind, ...(maps_to ? { maps_to } : {}), units: unit ? [unit] : [], latest_year: year });
+    byName.set(k, { name: t, kind, ...(maps_to ? { maps_to } : {}), units: unit ? [unit] : [], accepted_units: [], latest_year: year });
   };
   for (const f of factors) {
     add(f.emission_category_name, "factor", f.denominator_unit, Number(f.year));
@@ -429,7 +434,7 @@ export async function searchActivities(
     .filter((x) => x.r >= 0)
     .sort((a, b) => a.r - b.r || a.m.name.localeCompare(b.m.name))
     .slice(0, limit)
-    .map((x) => ({ ...x.m, units: uniqSorted(x.m.units) }));
+    .map((x) => ({ ...x.m, units: uniqSorted(x.m.units), accepted_units: unitsForActivity(unitOptions, x.m.name) ?? unitOptions.all_units }));
 }
 
 /** Per site × category: is an import for `year` possible, and if not, what fixes it. */

@@ -34,7 +34,7 @@ import {
   getPeriodTotal,
 } from "../controllers/emission.controller";
 import { getEmissionFactorsBySiteAndCategory } from "../controllers/emissionFactor.controller";
-import { getUnitsBySiteAndCategory } from "../controllers/unit.controller";
+import { getUnitOptionsBySiteAndCategory, getUnitsBySiteAndCategory } from "../controllers/unit.controller";
 import { getProductsBySite } from "../controllers/product.controller";
 import {
   createProductionData,
@@ -151,6 +151,7 @@ router.delete("/emissions/:id", guardEmissionParam(), guardPeriodOpen("param"), 
 router.get("/emission-factors/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getEmissionFactorsBySiteAndCategory);
 
 // Unit routes
+router.get("/units/site/:siteId/category/:categoryId/by-activity", guardSiteParam("siteId"), getUnitOptionsBySiteAndCategory);
 router.get("/units/site/:siteId/category/:categoryId", guardSiteParam("siteId"), getUnitsBySiteAndCategory);
 
 // Product routes (read-only for users)

@@ -11,6 +11,7 @@
     "seed:superadmin": "ts-node src/seeds/seedSuperAdmin.ts",
     "seed:emissions": "ts-node src/seeds/seedEmissionsFromExcel.ts",
     "migrate:all": "node scripts/migrate-all.cjs",
+    "audit:unit-fit": "node scripts/audit-unit-fit.cjs",
     "migrate:calculation-column": "ts-node src/scripts/addCalculationColumn.ts",
     "migrate:scope3-row-quality": "ts-node src/scripts/addEmissionRowQualityColumns.ts",
     "migrate:entry-forms": "ts-node src/scripts/migrateEntryForms.ts",
