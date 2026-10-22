@@ -11,7 +11,8 @@
       "bridge",
       "flow",
       "materiality",
-      "stripes"
+      "stripes",
+      "site_compare"
     ],
     "KPI_PANELS": [
       "esg_ring",
@@ -118,7 +119,8 @@
     "bridge": "/bridge",
     "flow": "/flow",
     "materiality": "/materiality",
-    "stripes": "/stripes"
+    "stripes": "/stripes",
+    "site_compare": "/site-compare"
   },
   "otherPaths": [
     "/status",

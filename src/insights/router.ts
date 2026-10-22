@@ -18,6 +18,7 @@ import cardsRoutes from "./panels/cards";
 import bridgeRoutes from "./panels/bridge";
 import materialityRoutes from "./panels/materiality";
 import in8Routes from "./panels/in8";
+import siteCompareRoutes from "./panels/siteCompare";
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use(cardsRoutes); // IN-3: GET /cards
 router.use(bridgeRoutes); // IN-5: GET /bridge?compare=prior|base
 router.use(materialityRoutes); // IN-7: GET /materiality
 router.use(in8Routes); // IN-8: GET /stripes, /snapshot.pdf
+router.use(siteCompareRoutes); // IN-11: GET /site-compare (the Sites tab)
 
 export default router;

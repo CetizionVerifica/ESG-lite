@@ -1330,7 +1330,7 @@ const inOverviewPeriod = `FY${SC.YEAR}-${String(SC.REPORT_YEAR % 100).padStart(2
 const IN_PANELS = [
   ["summary", "/summary"], ["esg_ring", "/esg-ring"], ["decoupling", "/decoupling"], ["target_wall", "/target-wall"],
   ["cards", "/cards"], ["pathway", "/pathway"], ["completeness", "/completeness"], ["bridge", "/bridge?compare=prior"],
-  ["flow", "/flow"], ["materiality", "/materiality"], ["stripes", "/stripes"],
+  ["flow", "/flow"], ["materiality", "/materiality"], ["stripes", "/stripes"], ["site_compare", "/site-compare"],
 ];
 const inPanel = (path, who = S.people.manager) => call("GET", `/insights${path}${path.includes("?") ? "&" : "?"}${inQuery}`, who);
 const inSummary = async () => {
@@ -1388,6 +1388,16 @@ step("IN-W3 the summary's net and pending equal /manager/overview for FY REPORT_
     assert.equal(s.json.data.net.change_pct, ov.json.kpis.net_vs_last_year_pct);
     assert.equal(s.json.pending_not_in.emissions, ov.json.kpis.pending_review_count, "pending as the approvals list counts it");
     assert.equal(s.json.data.readiness, null, "no readiness with KPI tracking off");
+  }
+  // IN-11 · the Sites tab: each site's net and pending are Overview's by_site.
+  const ov = await call("GET", `/manager/overview?period=${inOverviewPeriod}`, S.people.manager);
+  const sc = await inPanel("/site-compare");
+  ok(sc);
+  assert.equal(sc.json.availability, ov.json.kpis.approved_count > 0 ? "ok" : "no_data");
+  for (const row of sc.json.data?.rows ?? []) {
+    const site = ov.json.by_site.find((x) => x.site_id === row.site_id);
+    assert.equal(row.net, site.net, `site ${row.site_id} net`);
+    assert.equal(row.pending, site.pending, `site ${row.site_id} pending`);
   }
   assert.equal(await emissionReports(), S.inEmissionsBefore, "reading Insights moves no emission figure");
 });
