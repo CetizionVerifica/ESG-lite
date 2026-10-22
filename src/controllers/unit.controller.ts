@@ -3,7 +3,7 @@ import { AppDataSource } from "../config/data-source";
 import { Unit } from "../entities/Unit";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
-import { ContextCache, buildUnitOptions, unitOptionsSourceOf } from "../services/emissionWrite";
+import { ContextCache, buildUnitOptions, isUnitAllowed, unitOptionsSourceOf } from "../services/emissionWrite";
 
 const repo = AppDataSource.getRepository(Unit);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -107,6 +107,38 @@ export const getUnitOptionsBySiteAndCategory = async (req: Request, res: Respons
     return res.status(200).json(buildUnitOptions(unitOptionsSourceOf(ctx)));
   } catch (error) {
     console.error("Fetch unit options error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * GET /admin/units/fits (#183 U3-FE): for every unit row, the emission categories (factor names) of
+ * its site × category that may use it, by the same rule as the Add data dropdown. An empty list means
+ * the unit fits no emission category there. One request for the whole Units list.
+ */
+export const getUnitFits = async (_: Request, res: Response) => {
+  try {
+    const units: Array<{ unit_id: number; unit_name: string; site_id: number; category_id: number }> = await AppDataSource.query(
+      `SELECT unit_id, unit_name, site_id, category_id FROM unit WHERE site_id IS NOT NULL AND category_id IS NOT NULL`,
+    );
+    const cache = new ContextCache(AppDataSource.manager);
+    const byPair = new Map<string, typeof units>();
+    for (const u of units) {
+      const key = `${u.site_id}:${u.category_id}`;
+      (byPair.get(key) ?? byPair.set(key, []).get(key)!).push(u);
+    }
+    const fits: Array<{ unit_id: number; activities: string[] }> = [];
+    for (const rows of byPair.values()) {
+      const ctx = await cache.context(rows[0].site_id, rows[0].category_id);
+      const options = buildUnitOptions(unitOptionsSourceOf(ctx));
+      const perUnit = ctx.spec?.mode === "per_unit";
+      // Aliases repeat their factor's list; the factor names are enough to say what a unit fits.
+      const named = options.activities.filter((a) => !a.maps_to);
+      for (const u of rows) fits.push({ unit_id: Number(u.unit_id), activities: named.filter((a) => isUnitAllowed(a.units, u.unit_name, perUnit)).map((a) => a.name) });
+    }
+    return res.status(200).json({ fits });
+  } catch (error) {
+    console.error("Fetch unit fits error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

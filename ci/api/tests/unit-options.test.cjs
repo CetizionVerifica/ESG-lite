@@ -107,3 +107,18 @@ test("the Superadmin twin under /admin returns the same lists; other roles can't
   assert.equal((await options("manager", 1, 1, "/admin")).status, 403);
   assert.equal((await call("GET", "/user/units/site/1/category/1/by-activity")).status, 401);
 });
+
+test("U3-FE: GET /admin/units/fits names what each unit fits; a unit fitting nothing has an empty list; Superadmin only", async () => {
+  const res = await call("GET", "/admin/units/fits", "superadmin");
+  assert.equal(res.status, 200);
+  const units = await withDb((db) => db.query(`SELECT unit_id, unit_name, category_id FROM unit WHERE description = $1 AND site_id = 1`, [TAG]));
+  const fitsOf = (name, category) => res.json.fits.find((f) => f.unit_id === units.rows.find((u) => u.unit_name === name && u.category_id === category).unit_id).activities.sort();
+  assert.deepEqual(fitsOf("litre", 1), ["Diesel", "Diesel (avg biofuel blend)", "Natural gas"]);
+  assert.deepEqual(fitsOf("SCM", 1), ["Diesel", "Diesel (avg biofuel blend)", "Natural gas"]);
+  assert.deepEqual(fitsOf("kg", 1), []);
+  assert.deepEqual(fitsOf("kWh", 1), []);
+  // Site 1 × Purchased Electricity fixes MWh: only MWh fits its activity.
+  assert.deepEqual(fitsOf("MWh", 2), ["Grid electricity"]);
+  assert.deepEqual(fitsOf("kWh", 2), []);
+  assert.equal((await call("GET", "/admin/units/fits", "manager")).status, 403);
+});
