@@ -3,7 +3,7 @@ import { AppDataSource } from "../config/data-source";
 import { Unit } from "../entities/Unit";
 import { Site } from "../entities/Site";
 import { Category } from "../entities/Category";
-import { ContextCache, buildUnitOptions, unitOptionsSourceOf } from "../services/emissionWrite";
+import { ContextCache, buildUnitOptions, isUnitAllowed, unitOptionsSourceOf } from "../services/emissionWrite";
 
 const repo = AppDataSource.getRepository(Unit);
 const siteRepo = AppDataSource.getRepository(Site);
@@ -107,6 +107,52 @@ export const getUnitOptionsBySiteAndCategory = async (req: Request, res: Respons
     return res.status(200).json(buildUnitOptions(unitOptionsSourceOf(ctx)));
   } catch (error) {
     console.error("Fetch unit options error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * GET /admin/units/fits (#183 U3-FE): for every unit row, the emission categories (factor names) of
+ * its site × category that may use it, by the same rule as the Add data dropdown. An empty list means
+ * the unit fits no emission category there. One request for the whole Units list.
+ */
+const FITS_CONCURRENCY = 6;
+
+export const getUnitFits = async (_: Request, res: Response) => {
+  try {
+    const units: Array<{ unit_id: number; unit_name: string; site_id: number; category_id: number }> = await AppDataSource.query(
+      `SELECT unit_id, unit_name, site_id, category_id FROM unit WHERE site_id IS NOT NULL AND category_id IS NOT NULL`,
+    );
+    const cache = new ContextCache(AppDataSource.manager);
+    const byPair = new Map<string, typeof units>();
+    for (const u of units) {
+      const key = `${u.site_id}:${u.category_id}`;
+      (byPair.get(key) ?? byPair.set(key, []).get(key)!).push(u);
+    }
+    const fits: Array<{ unit_id: number; activities: string[] }> = [];
+    const fitPair = async (rows: typeof units) => {
+      const ctx = await cache.context(rows[0].site_id, rows[0].category_id);
+      const options = buildUnitOptions(unitOptionsSourceOf(ctx));
+      const perUnit = ctx.spec?.mode === "per_unit";
+      for (const u of rows) {
+        // Named by the factor each entry resolves to: an alias (or a form mapping that repeats the factor's
+        // own name, as mapped forms do) counts as its factor, once.
+        const names = new Map<string, string>();
+        for (const a of options.activities) {
+          if (!isUnitAllowed(a.units, u.unit_name, perUnit)) continue;
+          const name = (a.maps_to ?? a.name).trim();
+          if (!names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+        }
+        fits.push({ unit_id: Number(u.unit_id), activities: [...names.values()] });
+      }
+    };
+    // A few site × category loads at a time (149 pairs on a production copy: ~6 s one by one).
+    const pairs = [...byPair.values()];
+    for (let i = 0; i < pairs.length; i += FITS_CONCURRENCY) await Promise.all(pairs.slice(i, i + FITS_CONCURRENCY).map(fitPair));
+    fits.sort((a, b) => a.unit_id - b.unit_id);
+    return res.status(200).json({ fits });
+  } catch (error) {
+    console.error("Fetch unit fits error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -86,3 +86,16 @@ test("isUnitAllowed folds aliases and, for per_unit specs, unit keys (U3-BE audi
   assert.equal(isUnitAllowed(["tonne.km"], "Tonne KM"), false);
   assert.equal(isUnitAllowed(["tonne.km"], "Tonne KM", true), true);
 });
+
+test("decided 22 Oct: a km factor takes miles and metres; Kilo Litre is KL (no conversion value changes)", () => {
+  assert.deepEqual(allowedUnitsFor({ factorUnits: ["km"], candidates: ["km", "mile", "m", "kg"] }), ["km", "mile", "m"]);
+  const factor = { denominator_unit: "km", factor_value: 0.2, emission_category_name: "Van" };
+  const mile = applyFactor(100, "miles", factor);
+  assert.equal(mile.ok, true);
+  assert.equal(mile.computed.conversion, 1.60934);
+  // "Kilo Litre" folds into KL: an entry saved in it is offered on a KL form, and converts to litre as before.
+  assert.equal(isUnitAllowed(["KL", "litre"], "Kilo Litre"), true);
+  const litreFactor = { denominator_unit: "litre", factor_value: 2.68, emission_category_name: "Diesel" };
+  assert.equal(applyFactor(2, "Kilo Litre", litreFactor).computed.conversion, 1000);
+  assert.equal(applyFactor(2, "KL", litreFactor).computed.conversion, 1000);
+});

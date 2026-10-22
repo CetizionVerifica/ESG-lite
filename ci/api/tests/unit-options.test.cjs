@@ -41,8 +41,9 @@ test.before(() =>
     );
     // Site 1 × Purchased Electricity fixes the unit (SE-2 form.units.fixed).
     await db.query(
-      `INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options, column_dependencies, dependent_options, extra_fields, units)
-         VALUES ($1, 'CI U183 grid', 1, 2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '{"fixed": "MWh"}'::jsonb)`,
+      // A mapped form whose choice maps to the factor's own name, as the auto-generated forms do.
+      `INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options, column_dependencies, dependent_options, extra_fields, units, emission_category_mapping)
+         VALUES ($1, 'CI U183 grid', 1, 2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '{"fixed": "MWh"}'::jsonb, '{"Grid electricity": "Grid electricity"}'::jsonb)`,
       [CFG],
     );
   }),
@@ -106,4 +107,20 @@ test("the Superadmin twin under /admin returns the same lists; other roles can't
   assert.deepEqual(admin.json, user.json);
   assert.equal((await options("manager", 1, 1, "/admin")).status, 403);
   assert.equal((await call("GET", "/user/units/site/1/category/1/by-activity")).status, 401);
+});
+
+test("U3-FE: GET /admin/units/fits names what each unit fits; a unit fitting nothing has an empty list; Superadmin only", async () => {
+  const res = await call("GET", "/admin/units/fits", "superadmin");
+  assert.equal(res.status, 200);
+  const units = await withDb((db) => db.query(`SELECT unit_id, unit_name, category_id FROM unit WHERE description = $1 AND site_id = 1`, [TAG]));
+  const fitsOf = (name, category) => res.json.fits.find((f) => f.unit_id === units.rows.find((u) => u.unit_name === name && u.category_id === category).unit_id).activities.sort();
+  // The alias "CI U183 HSD" resolves to Diesel and isn't listed a second time.
+  assert.deepEqual(fitsOf("litre", 1), ["Diesel", "Diesel (avg biofuel blend)", "Natural gas"]);
+  assert.deepEqual(fitsOf("SCM", 1), ["Diesel", "Diesel (avg biofuel blend)", "Natural gas"]);
+  assert.deepEqual(fitsOf("kg", 1), []);
+  assert.deepEqual(fitsOf("kWh", 1), []);
+  // Site 1 × Purchased Electricity fixes MWh: only MWh fits its activity.
+  assert.deepEqual(fitsOf("MWh", 2), ["Grid electricity"]);
+  assert.deepEqual(fitsOf("kWh", 2), []);
+  assert.equal((await call("GET", "/admin/units/fits", "manager")).status, 403);
 });
