@@ -391,7 +391,10 @@ export const ActivityOptionSchema = z.object({
   name: z.string(),
   kind: z.enum(["factor", "mapping"]),
   maps_to: z.string().optional(),
+  /** The factor's own units. */
   units: z.array(z.string()),
+  /** #183: every unit a row may use for this activity (the factor unit first, then the units the engine converts to it). */
+  accepted_units: z.array(z.string()),
   latest_year: z.number().int().nullable(),
 });
 export type ActivityOption = z.infer<typeof ActivityOptionSchema>;

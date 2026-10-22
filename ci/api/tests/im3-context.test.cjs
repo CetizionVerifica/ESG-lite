@@ -212,6 +212,7 @@ test("a company 2 token gets nothing of company 1", async () => {
   const theirs = await activities("otherManager", "site_id=3&category_id=1");
   assert.equal(theirs.status, 200);
   assert.deepEqual(theirs.json.map((a) => a.name), [`${MAP_PREFIX} C2 Fuel`, "Other Diesel"]);
+  assert.deepEqual(theirs.json.map((a) => a.accepted_units), [["L"], ["L"]]); // company 1's form units (kg) never leak in
   assert.ok(!theirs.json.some((a) => a.name.includes("HSD")));
 });
 
@@ -224,10 +225,13 @@ test("activities search ranks exact, prefix, contains and limits", async () => {
   assert.equal(hsd.kind, "mapping");
   assert.equal(hsd.maps_to, "Diesel");
   assert.deepEqual(hsd.units, ["L", "litre"]);
+  // #183: L and litre are one unit; the form's kg doesn't convert to a litre factor, so it isn't accepted.
+  assert.deepEqual(hsd.accepted_units, ["L"]);
   assert.equal(hsd.latest_year, 2024);
   const diesel = all.json[1];
   assert.equal(diesel.kind, "factor");
   assert.deepEqual(diesel.units, ["L", "litre"]);
+  assert.deepEqual(diesel.accepted_units, ["L"]);
   assert.equal(diesel.latest_year, 2024);
 
   const q = await activities("manager", "site_id=1&category_id=1&q=DIESEL");

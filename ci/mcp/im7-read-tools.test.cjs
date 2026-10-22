@@ -254,12 +254,13 @@ test("find_activity: exact → prefix → contains, at most 10, company 2's mapp
   assert.deepEqual(d.matches.map((m) => m.name), ["Diesel", "Diesel (stationary)"]);
   assert.equal(d.matches[0].latest_year, 2024);
   assert.deepEqual(d.matches[0].units, ["L", "litre"]);
+  assert.deepEqual(d.matches[0].accepted_units, ["L"]); // #183: the units a row may use (L and litre are one unit)
   assert.equal(d.truncated, false);
   assert.equal(r.content[0].text, "find_activity: site 1 × category 1, 2 match(es)");
   noSheetText(r.content[0].text);
   // The client's own wording (a P23 mapping) is found by its name and says what it maps to.
   d = (await callTool(client, "find_activity", { company_id: 1, site_id: 1, category_id: 1, query: "hsd" })).structuredContent;
-  assert.deepEqual(d.matches.map((m) => [m.name, m.kind, m.maps_to]), [[`${MAP} HSD`, "mapping", "Diesel"]]);
+  assert.deepEqual(d.matches.map((m) => [m.name, m.kind, m.maps_to, m.accepted_units]), [[`${MAP} HSD`, "mapping", "Diesel", ["L"]]]);
 
   r = await callTool(client, "find_activity", { company_id: 1, site_id: 1, category_id: 1, query: "fuel oil" });
   d = r.structuredContent;

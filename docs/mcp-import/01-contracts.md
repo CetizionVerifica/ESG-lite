@@ -85,7 +85,7 @@ Limits: 2,000 rows per request, 20,000 rows per plan, 10 open draft plans per us
 | Method and path | Module | Body / query | Returns |
 |---|---|---|---|
 | `GET /imports/context` | IM3 | `?company_id` (Superadmin required, else own) | `ImportContext` (below) |
-| `GET /imports/context/activities` | IM3 | `?site_id&category_id&q&limit` | `[{ name, kind: "factor" \| "mapping", maps_to?, units: string[], latest_year }]` |
+| `GET /imports/context/activities` | IM3 | `?site_id&category_id&q&limit` | `[{ name, kind: "factor" \| "mapping", maps_to?, units: string[], accepted_units: string[], latest_year }]`; `units` are the factor's own units, `accepted_units` every unit a row may use for the name (the factor unit first, then the units the engine converts to it; the form's fixed unit when it has one) (#183) |
 | `GET /imports/readiness` | IM3 | `?company_id&year` | per site × category: `{ form: bool, factor_years: number[], period_modes }` |
 | `POST /imports/plans` | IM2 | `{ source_name, channel, company_id?, rows: ImportRow[] }` | `ImportPlan` + first 50 `PlannedRow`s with issues first |
 | `POST /imports/plans/:id/rows` | IM2 | `{ version, rows }` (append) | `ImportPlan` |
@@ -133,7 +133,7 @@ WriterContext = { user_id, role, company_id, allowed_site_ids: number[], allowed
 | `whoami` | IM7 | — | Superadmin name, clients with Claude imports switched on, limits | readOnly |
 | `list_sites_and_categories` | IM7 | `{ company_id }` | `ImportContext` without activity lists | readOnly |
 | `get_category_form` | IM7 | `{ site_id, category_id }` | form fields, calc mode, units, period modes, 50 most used activity names | readOnly |
-| `find_activity` | IM7 | `{ site_id, category_id, query }` | up to 10 matches with units and latest year | readOnly |
+| `find_activity` | IM7 | `{ site_id, category_id, query }` | up to 10 matches with units, accepted units (#183) and latest year | readOnly |
 | `check_readiness` | IM7 | `{ company_id, year }` | readiness grid with what's missing and the app page that fixes it | readOnly |
 | `plan_import` | IM8 | `{ company_id, source_name, rows, plan_id?, version? }` (plan_id = append; every row's site must belong to `company_id`) | `ImportPlan` + issue rows | not readOnly, not destructive (draft only) |
 | `get_import_plan` | IM8 | `{ plan_id, state?, code?, page? }` | `ImportPlan` + rows | readOnly |

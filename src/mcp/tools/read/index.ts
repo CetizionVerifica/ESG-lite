@@ -291,7 +291,7 @@ export const readTools: ToolDefinition<any>[] = [
     name: "find_activity",
     title: "Find activity",
     description:
-      "Up to 10 activity names (emission factors and the client's saved mappings) matching a query for one site × category, exact matches first. Use it to resolve a sheet's wording to a name plan_import accepts; nothing is created.",
+      "Up to 10 activity names (emission factors and the client's saved mappings) matching a query for one site × category, exact matches first. Use it to resolve a sheet's wording to a name plan_import accepts; nothing is created. accepted_units: units the row can use for this activity.",
     input: { ...ToolInputs.find_activity.shape, company_id: siteCompanyId },
     scope: SCOPE,
     annotations: readOnly,

@@ -9,7 +9,7 @@ The single source for enums, panel response shapes, tables, API, error codes, in
 
 ```ts
 PanelId        = 'summary' | 'esg_ring' | 'decoupling' | 'target_wall' | 'cards' | 'pathway'
-               | 'completeness' | 'bridge' | 'flow' | 'materiality' | 'stripes'
+               | 'completeness' | 'bridge' | 'flow' | 'materiality' | 'stripes' | 'site_compare'
 Availability   = 'ok' | 'kpi_off' | 'no_data' | 'setup_incomplete'
 TargetStatus   = 'on_track' | 'at_risk' | 'off_track' | 'reached' | 'no_data'   // at_risk: behind expected by ≤ I6 threshold
 TargetSource   = 'sbti' | 'kpi'
@@ -110,6 +110,18 @@ Materiality { scored: boolean,       // false → topics listed without position
 // IN-8 · GET /insights/stripes
 Stripes { months: string[], values: (number|null)[], unit: 'tCO2e', min: number, max: number }
 
+// IN-11 · GET /insights/site-compare     (the Sites tab; panel id site_compare, as /insights/sites is the header chips)
+SiteCompare { rows: { site_id: number, site: string,
+                      net: number,                    // Overview by_site net
+                      prior: number|null,             // Overview last_year.by_site net; null while last year isn't due
+                      change_pct: number|null, good: boolean|null,   // Overview by_site net_vs_last_year_pct; good when it fell
+                      share_pct: number|null,         // site net ÷ scope net
+                      scope_1: number, scope_2: number, scope_3: number,
+                      intensity: { value: number|null, unit: string|null, change_pct: number|null, good: boolean|null },
+                      completeness_pct: number|null,  // Completeness tab counts summed over the months started
+                      pending: number,                // Overview by_site pending
+                      link: string }[] }              // /overview?period=…&siteIds=…; rows by net desc, then site_id
+
 EventRef { id: number, date: string, label: string, kind: EventKind, site_id: number | null }
 ```
 
@@ -144,6 +156,7 @@ All under `/insights`, behind `authenticate` → `requireInsights`. Roles: M = M
 | PUT | `/kpi/setup/materiality-scores` | A S | IN-7 | `{topics:[{esrs_topic, impact_score, financial_score}]}` (shared with RS-2) |
 | GET | `/insights/stripes` | M A S | IN-8 | last 72 months max |
 | GET | `/insights/snapshot.pdf` | M A S | IN-8 | same query; streamed; 60 s limit |
+| GET | `/insights/site-compare` | M A S | IN-11 | the Sites tab; works without KPI tracking (completeness counts KPIs only when KPI is on) |
 
 ## 5. Tables and columns
 
