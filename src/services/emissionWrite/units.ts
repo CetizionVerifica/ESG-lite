@@ -37,6 +37,12 @@ export const unitConversions: Record<string, Record<string, number>> = {
   usd: { inr: 95.77, eur: 0.86 },
   eur: { usd: 1 / 0.86 },
 
+  // Distance (#183, decided 22 Oct 2026): the same values as the FE preview table
+  // (ESG-lite_FE src/utils/unitConversions.ts), so a mile row saves what it previews.
+  km: { m: 1000, mile: 0.621371 },
+  m: { km: 0.001, mile: 0.000621371 },
+  mile: { km: 1.60934, m: 1609.34 },
+
   "tonne.km": { "kg.km": 1000, "g.km": 1000000 },
 "kg.km": { "tonne.km": 0.001, "g.km": 1000 },
 "g.km": { "tonne.km": 0.000001, "kg.km": 0.001},
@@ -96,6 +102,27 @@ export const UNIT_ALIASES: Record<string, string> = {
   kgs: "kg",
   kilogram: "kg",
   kilograms: "kg",
+  // A kilolitre written out (#183): converts exactly as KL already did; saved "Kilo Litre" rows now match a KL form.
+  "kilo litre": "kl",
+  "kilo litres": "kl",
+  "kilo liter": "kl",
+  "kilo liters": "kl",
+  kilolitre: "kl",
+  kilolitres: "kl",
+  kiloliter: "kl",
+  kiloliters: "kl",
+  // Distance spellings (#183).
+  kms: "km",
+  kilometre: "km",
+  kilometres: "km",
+  kilometer: "km",
+  kilometers: "km",
+  mi: "mile",
+  miles: "mile",
+  metre: "m",
+  metres: "m",
+  meter: "m",
+  meters: "m",
 };
 
 /**
