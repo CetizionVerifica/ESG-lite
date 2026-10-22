@@ -62,6 +62,7 @@ import {
   deleteDocument,
   bulkDeleteDocuments,
   linkInvoiceDocuments,
+  findBackedEntries,
 } from "../controllers/document.controller";
 import { getCompanies, getCompanyNameBySites, getReportingCalendar } from "../controllers/company.controller";
 import { getMappingsByCompany } from "../controllers/emissionCategoryMapping.controller";
@@ -188,6 +189,7 @@ router.get("/documents/:id", getDocumentById);
 router.post("/documents", documentUpload.single("file"), uploadDocument);
 router.post("/documents/multiple", documentUpload.array("files", 10), uploadMultipleDocuments);
 router.post("/documents/from-invoice", linkInvoiceDocuments);
+router.post("/documents/already-backing", guardBodySites("site_id"), findBackedEntries);
 router.put("/documents/:id", updateDocument);
 router.delete("/documents/bulk-delete", bulkDeleteDocuments);
 router.delete("/documents/:id", deleteDocument);

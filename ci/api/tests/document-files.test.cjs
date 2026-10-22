@@ -113,3 +113,37 @@ test("deleting a document keeps a file another document still uses", async () =>
     await q("DELETE FROM emission WHERE pk_id IN (957, 958, 959)");
   }
 });
+
+test("Add data can ask whether a file already backs another entry of the period (F-16)", async () => {
+  await q(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period)
+           VALUES (961, '{"activity_value": 3.16, "emission_category": "Recycle"}', 0.05, 'tCO2e', '2025-06-30', 'pending', 1, 2, 1, 'monthly'),
+                  (962, '{"activity_value": 3.16, "emission_category": "Recover"}', 0.07, 'tCO2e', '2025-06-30', 'approved', 1, 2, 1, 'monthly')`);
+  // A re-upload of invoice 1's file: a new invoice id, the same name and size.
+  await q(`INSERT INTO invoice (invoice_id, file_name, cloudinary_url, cloudinary_public_id, file_type, file_size, uploaded_by, site_id, category_id)
+           VALUES (963, 'Sept-Electricity.pdf', 'https://res.cloudinary.example.invalid/raw/upload/invoices/sept2.pdf', 'invoices/sept2', 'application/pdf', 52000, 1, 1, 2)`);
+  try {
+    assert.equal((await call("POST", "/user/documents/from-invoice", "user", { invoice_id: 1, emission_ids: [961] })).status, 201);
+    await upload(962, "spent-carbon.pdf"); // 16 bytes: "evidence for 962"
+    const ask = (files, more = {}) => call("POST", "/user/documents/already-backing", "user", { site_id: 1, category_id: 2, date_of_reporting: "2025-06-30", files, ...more });
+
+    const bill = await ask([{ ref: "row-1", invoice_id: 1 }]);
+    assert.equal(bill.status, 200, JSON.stringify(bill.json));
+    assert.deepEqual(bill.json.matches, [{ ref: "row-1", file_name: "sept-electricity.pdf", entries: [{ pk_id: 961, emission_category: "Recycle", total_emission: 0.05, status: "pending" }] }]);
+    assert.deepEqual((await ask([{ ref: "again", invoice_id: 963 }])).json.matches.map((x) => x.entries.map((e) => e.pk_id)), [[961]], "a re-upload of the same file matches");
+    assert.deepEqual((await ask([{ ref: "file", file_name: "SPENT-carbon.pdf", file_size: 16 }])).json.matches[0].entries.map((e) => e.pk_id), [962]);
+
+    assert.deepEqual((await ask([{ ref: "file", file_name: "spent-carbon.pdf", file_size: 17 }])).json.matches, [], "another size is another file");
+    assert.deepEqual((await ask([{ ref: "row-1", invoice_id: 1 }], { exclude_ids: [961] })).json.matches, [], "the entry being edited doesn't count");
+    assert.deepEqual((await ask([{ ref: "row-1", invoice_id: 1 }], { date_of_reporting: "2025-07-31" })).json.matches, [], "another month");
+
+    assert.equal((await ask([])).status, 400);
+    assert.equal((await ask([{ ref: "x" }])).status, 400);
+    assert.equal((await call("POST", "/user/documents/already-backing", "otherUser", { site_id: 1, category_id: 2, date_of_reporting: "2025-06-30", files: [{ ref: "a", invoice_id: 1 }] })).status, 403);
+    assert.equal((await q("SELECT COUNT(*)::int AS n FROM emission_document WHERE emission_id IN (961, 962)"))[0].n, 2, "nothing changed");
+  } finally {
+    await call("DELETE", "/user/emissions/962", "user");
+    await q("DELETE FROM emission_document WHERE emission_id IN (961, 962)");
+    await q("DELETE FROM emission WHERE pk_id IN (961, 962)");
+    await q("DELETE FROM invoice WHERE invoice_id = 963");
+  }
+});
