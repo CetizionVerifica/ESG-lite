@@ -243,7 +243,16 @@ export const deleteSite = async (req: Request, res: Response) => {
       ));
       const assigned = returned<{ user_id: number }>(await m.query(`DELETE FROM user_sites WHERE site_id = $1 RETURNING user_id`, [siteId]));
       const people = new Set([...moved, ...assigned].map((r) => Number(r.user_id)));
-      const withoutSite = moved.filter((r) => r.site_id === null).length;
+      // Whoever lost access and now has no site at all: no main site and no other assignment
+      // (most people reach their sites through user_sites only).
+      const [{ n: withoutSite }] = people.size
+        ? await m.query(
+            `SELECT COUNT(*)::int AS n FROM "user" u
+              WHERE u.user_id = ANY($1) AND u.site_id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM user_sites us WHERE us.user_id = u.user_id)`,
+            [[...people]],
+          )
+        : [{ n: 0 }];
 
       for (const table of SITE_ROWS_WITHOUT_FK) {
         if (await tablePresent(m, table)) await m.query(`DELETE FROM ${table} WHERE site_id = $1`, [siteId]);

@@ -14,8 +14,8 @@ const SITE = 960;
 test.after(async () => {
   await q(`DELETE FROM emission WHERE site_id = $1`, [SITE]);
   await q(`DELETE FROM invoice WHERE site_id = $1`, [SITE]);
-  await q(`DELETE FROM user_sites WHERE site_id = $1 OR user_id IN (961, 962)`, [SITE]);
-  await q(`DELETE FROM "user" WHERE user_id IN (961, 962)`);
+  await q(`DELETE FROM user_sites WHERE site_id = $1 OR user_id IN (961, 962, 963)`, [SITE]);
+  await q(`DELETE FROM "user" WHERE user_id IN (961, 962, 963)`);
   await q(`DELETE FROM site WHERE site_id = $1`, [SITE]);
 });
 
@@ -23,10 +23,12 @@ test("a site with people, entries, evidence and bills is deleted; people keep th
   await q(`INSERT INTO site (site_id, name, address, contact_person, company_id) VALUES ($1, 'CI Site To Delete', 'Plot 960', 'CI', 1)`, [SITE]);
   await q(`INSERT INTO site_categories (site_id, category_id) VALUES ($1, 1), ($1, 2)`, [SITE]);
   // 961's main site is the one going and they also work at site 1; 962 works only there; 7 is assigned to it.
+  // 963 is assigned to it only (no main site), as most people are today.
   await q(`INSERT INTO "user" (user_id, name, email, password, role, site_id) VALUES
              (961, 'CI Two Sites', 'ci-two-sites@example.invalid', 'x', 'User', $1),
-             (962, 'CI One Site', 'ci-one-site@example.invalid', 'x', 'User', $1)`, [SITE]);
-  await q(`INSERT INTO user_sites (user_id, site_id) VALUES (961, 1), (7, $1)`, [SITE]);
+             (962, 'CI One Site', 'ci-one-site@example.invalid', 'x', 'User', $1),
+             (963, 'CI Assigned Only', 'ci-assigned-only@example.invalid', 'x', 'Manager', NULL)`, [SITE]);
+  await q(`INSERT INTO user_sites (user_id, site_id) VALUES (961, 1), (7, $1), (963, $1)`, [SITE]);
   await q(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period)
            VALUES (9601, '{"activity_value": 1, "emission_category": "Diesel"}', 1, 'tCO2e', '2025-05-31', 'approved', 961, 1, $1, 'monthly'),
                   (9602, '{"activity_value": 2, "emission_category": "Diesel"}', 2, 'tCO2e', '2025-06-30', 'pending', 962, 1, $1, 'monthly')`, [SITE]);
@@ -43,8 +45,8 @@ test("a site with people, entries, evidence and bills is deleted; people keep th
   const res = await call("DELETE", `/admin/sites/${SITE}`, "superadmin");
   assert.equal(res.status, 200, JSON.stringify(res.json));
   assert.deepEqual(res.json.deleted, { entries: 2, bills: 1 });
-  assert.equal(res.json.people_kept, 3);
-  assert.equal(res.json.people_without_site, 1);
+  assert.equal(res.json.people_kept, 4);
+  assert.equal(res.json.people_without_site, 2, "962 and 963 have no site left");
 
   assert.equal((await q(`SELECT COUNT(*)::int AS n FROM site WHERE site_id = $1`, [SITE]))[0].n, 0);
   assert.equal((await q(`SELECT COUNT(*)::int AS n FROM emission WHERE site_id = $1`, [SITE]))[0].n, 0, "its entries go with it");
@@ -54,8 +56,8 @@ test("a site with people, entries, evidence and bills is deleted; people keep th
   assert.equal((await q(`SELECT COUNT(*)::int AS n FROM site_categories WHERE site_id = $1`, [SITE]))[0].n, 0);
   assert.equal((await q(`SELECT COUNT(*)::int AS n FROM user_sites WHERE site_id = $1`, [SITE]))[0].n, 0);
 
-  const people = await q(`SELECT user_id, site_id FROM "user" WHERE user_id IN (7, 961, 962) ORDER BY user_id`);
-  assert.deepEqual(people.map((u) => [u.user_id, u.site_id]), [[7, null], [961, 1], [962, null]], "accounts stay: 961 moves to site 1, 962 has no site");
+  const people = await q(`SELECT user_id, site_id FROM "user" WHERE user_id IN (7, 961, 962, 963) ORDER BY user_id`);
+  assert.deepEqual(people.map((u) => [u.user_id, u.site_id]), [[7, null], [961, 1], [962, null], [963, null]], "accounts stay: 961 moves to site 1, 962 and 963 have no site");
   assert.deepEqual((await q(`SELECT site_id FROM user_sites WHERE user_id = 7 ORDER BY site_id`)).map((r) => r.site_id), [1, 2], "7 keeps their other sites");
 });
 
