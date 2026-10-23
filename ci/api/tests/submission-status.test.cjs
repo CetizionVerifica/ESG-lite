@@ -53,6 +53,9 @@ test("filing for another site doesn't count, and that site's name isn't shown", 
     assert.equal(own.submission_count, ownBefore + 1);
     assert.equal(own.status, "submitted");
     assert.equal(own.site_name, "CI Plant A, CI Plant B", "both of the manager's plants, in site order");
+    assert.deepEqual(own.site_ids, [1, 2]);
+    assert.deepEqual(own.site_names, ["CI Plant A", "CI Plant B"]);
+    assert.deepEqual(other.site_ids, [3]);
     // The company Admin (M5) reads the same.
     assert.equal(await count("admin", "2023-04", 7), ownBefore + 1);
   } finally {

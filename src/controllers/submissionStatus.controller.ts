@@ -75,7 +75,10 @@ export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
       user_id: number;
       name: string;
       email: string;
+      /** The caller's sites they work on, joined for display; one per site in site_ids / site_names. */
       site_name: string;
+      site_ids: number[];
+      site_names: string[];
       submission_count: number;
       status: "submitted" | "missing";
     }[] = [];
@@ -85,7 +88,8 @@ export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
       const theirs = new Set<number>();
       if (user.site) theirs.add(user.site.site_id);
       (user.sites || []).forEach((s) => theirs.add(s.site_id));
-      const siteNames = siteIds.filter((id) => theirs.has(id)).map((id) => overseen.get(id));
+      const theirIds = siteIds.filter((id) => theirs.has(id));
+      const siteNames = theirIds.map((id) => overseen.get(id) ?? `Site ${id}`);
 
       const count = counts.get(user.user_id) ?? 0;
       result.push({
@@ -93,6 +97,8 @@ export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
         name: `${user.name || ""} ${user.last_name || ""}`.trim() || user.email,
         email: user.email,
         site_name: siteNames.join(", ") || "N/A",
+        site_ids: theirIds,
+        site_names: siteNames,
         submission_count: count,
         status: count > 0 ? "submitted" : "missing",
       });
