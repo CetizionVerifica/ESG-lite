@@ -336,6 +336,8 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
       entries: num(c?.entries),
       approved: num(c?.approved),
       pending: num(c?.pending),
+      // As the approvals list shows them (FERA twins folded), like kpis.pending_review_count.
+      pending_review: num(c?.pending_review),
       rejected: num(c?.rejected),
     };
   });

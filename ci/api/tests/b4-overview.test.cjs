@@ -6,7 +6,7 @@
 // them: GET /user/emissions?siteId= for every site.
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { call } = require("../helpers.cjs");
+const { call, withDb } = require("../helpers.cjs");
 
 // ---- ports of the dashboard's browser-side aggregation --------------------
 function filterEmissions(emissions, { selectedCategory, selectedYear }) {
@@ -292,4 +292,21 @@ test("categoryId must be a positive integer", async () => {
     assert.equal((await call("GET", `/manager/overview?categoryId=${bad}`, "manager")).status, 400, bad);
   }
   assert.equal((await call("GET", "/manager/overview?categoryId=2", "manager")).status, 200);
+});
+
+test("a site's pending_review folds a pending FERA twin into its entry, like the approvals list", async () => {
+  const q = async (sql, params) => (await withDb((db) => db.query(sql, params))).rows;
+  const site2 = async () => (await call("GET", "/manager/overview?period=2023", "manager")).json.by_site.find((s) => s.site_id === 2);
+  const before = await site2();
+  // A pending entry at Plant B with its pending twin (category 5 is FERA): two rows, one to review.
+  await q(`INSERT INTO emission (pk_id, activity_data, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, fera_linked_id)
+           VALUES (9311, '{"activity_value": 1}', 1, 'tCO2e', '2023-07-31', 'pending', 7, 1, 2, 'monthly', 9312),
+                  (9312, '{"activity_value": 1}', 0.2, 'tCO2e', '2023-07-31', 'pending', 7, 5, 2, 'monthly', 9311)`);
+  try {
+    const after = await site2();
+    assert.equal(after.pending, before.pending + 2, "pending still counts every row");
+    assert.equal(after.pending_review, before.pending_review + 1);
+  } finally {
+    await q("DELETE FROM emission WHERE pk_id IN (9311, 9312)");
+  }
 });
