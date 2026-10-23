@@ -25,6 +25,16 @@ const siteRepo = AppDataSource.getRepository(Site);
 const MANAGEABLE_ROLES: UserRole[] = [UserRole.USER, UserRole.MANAGER];
 
 /**
+ * An older account may still hold another client's sites (new ones can't, see P20): the Admin
+ * sees and changes only their own company's, and never learns the other client's site names.
+ */
+const onlyCompanySites = (user: User, siteIds: Set<number>): User => {
+  user.sites = (user.sites || []).filter((s) => siteIds.has(s.site_id));
+  if (user.site && !siteIds.has(user.site.site_id)) user.site = null as any;
+  return user;
+};
+
+/**
  * Resolve the company scope (companyId + its site IDs) for the logged-in admin.
  * Writes an error response and returns null when the admin has no company.
  */
@@ -94,7 +104,7 @@ export const getCompanyUsers = async (req: AuthRequest, res: Response) => {
       order: { user_id: "ASC" },
     });
 
-    return res.status(200).json(users);
+    return res.status(200).json(users.map((u) => onlyCompanySites(u, scope.siteIds)));
   } catch (error) {
     console.error("Fetch company users error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -320,31 +330,23 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
       user.role = role;
     }
 
+    // An older account's sites at other clients aren't this Admin's to change: they stay
+    // (with their categories) whatever the Admin sets for their own company.
+    const elsewhereIds = [...new Set([...(user.sites || []).map((s) => s.site_id), ...(user.site ? [user.site.site_id] : [])])].filter(
+      (sid) => !scope.siteIds.has(sid)
+    );
+    const elsewhere = elsewhereIds.length ? await siteRepo.find({ where: { site_id: In(elsewhereIds) }, relations: ["categories"] }) : [];
+
     if (site_ids !== undefined && Array.isArray(site_ids)) {
-      if (site_ids.length > 0) {
-        const sites = await siteRepo.find({
-          where: { site_id: In(site_ids) },
-          relations: ["categories"],
-        });
-        user.sites = sites;
-        user.categories = collectSiteCategories(sites);
-      } else {
-        user.sites = [];
-        user.categories = [];
-      }
+      const sites = site_ids.length > 0 ? await siteRepo.find({ where: { site_id: In(site_ids) }, relations: ["categories"] }) : [];
+      user.sites = [...sites, ...elsewhere];
+      user.categories = collectSiteCategories(user.sites);
       user.site = null as any;
     } else if (site_id !== undefined) {
       user.site = site_id ? ({ site_id } as any) : null;
-      user.sites = [];
-      if (site_id) {
-        const siteWithCats = await siteRepo.findOne({
-          where: { site_id },
-          relations: ["categories"],
-        });
-        user.categories = siteWithCats?.categories || [];
-      } else {
-        user.categories = [];
-      }
+      user.sites = elsewhere;
+      const siteWithCats = site_id ? await siteRepo.findOne({ where: { site_id }, relations: ["categories"] }) : null;
+      user.categories = collectSiteCategories([...(siteWithCats ? [siteWithCats] : []), ...elsewhere]);
     }
 
     // KPI topics (D17: an alias of PUT /kpi/people/:user_id/topics). The switch is
@@ -383,7 +385,7 @@ export const updateCompanyUser = async (req: AuthRequest, res: Response) => {
 
     return res.status(200).json({
       message: "User updated successfully",
-      user: updatedUser,
+      user: updatedUser ? onlyCompanySites(updatedUser, scope.siteIds) : updatedUser,
       ...(kpiTopicResult ? { kpi_topics: kpiTopicResult.topics, kpi_topic_site_ids: kpiTopicResult.site_ids, kpi_topic_moves: kpiTopicResult.moved } : {}),
     });
   } catch (error) {
