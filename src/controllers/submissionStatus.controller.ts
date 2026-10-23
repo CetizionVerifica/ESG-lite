@@ -1,14 +1,18 @@
 import { Response } from "express";
+import { Brackets } from "typeorm";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
-import { Emission } from "../entities/Emission";
 import { UserRole } from "../types/type";
 import { overseenSites } from "../utils/companyScope";
 
 /**
  * GET /manager/submission-status?month=2026-03
  * Returns submission status for all users the manager oversees.
+ *
+ * A User counts as submitted when they filed for one of the caller's sites that month: entries at
+ * other sites (another plant, another client) don't count, and an automatic FERA twin isn't an
+ * entry of its own. Each User is listed with the caller's sites they work on, never other sites.
  */
 export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
   try {
@@ -23,26 +27,49 @@ export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
     const [yearStr, monthStr] = monthParam.split("-");
     const year = parseInt(yearStr);
     const month = parseInt(monthStr);
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // last day
-
-    const userRepo = AppDataSource.getRepository(User);
-    const emissionRepo = AppDataSource.getRepository(Emission);
+    // Calendar dates, independent of the server's time zone.
+    const startDate = `${monthParam}-01`;
+    const endDate = `${monthParam}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
 
     // The manager's sites, or a company Admin's company sites (M5).
     const overseen = await overseenSites(managerId, req.user?.role);
     if (!overseen) return res.status(404).json({ message: "Manager not found" });
-    const managerSiteIds = new Set<number>(overseen.keys());
+    const siteIds = [...overseen.keys()].sort((a, b) => a - b);
 
-    if (managerSiteIds.size === 0) {
+    if (siteIds.length === 0) {
       return res.json({ users: [] });
     }
 
-    // Get all users under these sites
-    const users = await userRepo.find({
-      where: { role: UserRole.USER },
-      relations: ["site", "sites"],
-    });
+    // The Users of these sites, through either site field.
+    const users = await AppDataSource.getRepository(User)
+      .createQueryBuilder("user")
+      .leftJoinAndSelect("user.site", "site")
+      .leftJoinAndSelect("user.sites", "msite")
+      .where("user.role = :role", { role: UserRole.USER })
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where("site.site_id IN (:...siteIds)", { siteIds }).orWhere("msite.site_id IN (:...siteIds)", { siteIds });
+        })
+      )
+      .getMany();
+
+    // What each of them filed for these sites in the month, in one query.
+    const counts = new Map<number, number>();
+    if (users.length) {
+      const rows: { created_by: number; n: number }[] = await AppDataSource.query(
+        `SELECT e.created_by, COUNT(*)::int AS n
+           FROM emission e
+           JOIN category c ON c.category_id = e.category_id
+          WHERE e.created_by = ANY($1) AND e.site_id = ANY($2)
+            -- S3-15 part 2: a Draft isn't submitted yet.
+            AND e.status::text <> 'draft'
+            AND e.date_of_reporting >= $3 AND e.date_of_reporting <= $4
+            AND NOT (LOWER(c.category_name) = 'fera' AND e.fera_linked_id IS NOT NULL)
+          GROUP BY e.created_by`,
+        [users.map((u) => u.user_id), siteIds, startDate, endDate]
+      );
+      rows.forEach((r) => counts.set(Number(r.created_by), Number(r.n)));
+    }
 
     const result: {
       user_id: number;
@@ -54,33 +81,18 @@ export const getSubmissionStatus = async (req: AuthRequest, res: Response) => {
     }[] = [];
 
     for (const user of users) {
-      // Check if user belongs to any of manager's sites
-      const userSiteIds: number[] = [];
-      if (user.site) userSiteIds.push((user.site as any).site_id);
-      if (user.sites) user.sites.forEach((s: any) => userSiteIds.push(s.site_id));
+      // Their sites that the caller oversees, once each, in the caller's site order.
+      const theirs = new Set<number>();
+      if (user.site) theirs.add(user.site.site_id);
+      (user.sites || []).forEach((s) => theirs.add(s.site_id));
+      const siteNames = siteIds.filter((id) => theirs.has(id)).map((id) => overseen.get(id));
 
-      const matchingSites = userSiteIds.filter((id) => managerSiteIds.has(id));
-      if (matchingSites.length === 0) continue;
-
-      // Count emissions for this user in the target month
-      const count = await emissionRepo
-        .createQueryBuilder("e")
-        .where("e.created_by = :userId", { userId: user.user_id })
-        // S3-15 part 2: a Draft isn't submitted yet.
-        .andWhere("e.status::text <> 'draft'")
-        .andWhere("e.date_of_reporting >= :startDate", { startDate: startDate.toISOString().split("T")[0] })
-        .andWhere("e.date_of_reporting <= :endDate", { endDate: endDate.toISOString().split("T")[0] })
-        .getCount();
-
-      // Get the site name for display
-      const primarySite = user.site || (user.sites && user.sites[0]);
-      const siteName = (primarySite as any)?.name || "N/A";
-
+      const count = counts.get(user.user_id) ?? 0;
       result.push({
         user_id: user.user_id,
         name: `${user.name || ""} ${user.last_name || ""}`.trim() || user.email,
         email: user.email,
-        site_name: siteName,
+        site_name: siteNames.join(", ") || "N/A",
         submission_count: count,
         status: count > 0 ? "submitted" : "missing",
       });
