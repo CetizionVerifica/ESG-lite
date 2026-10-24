@@ -60,11 +60,15 @@ test("totals, per-client month counts and activity", async () => {
         sites: await one(`SELECT COUNT(*) n FROM site`),
         users: await one(`SELECT COUNT(*) n FROM "user" WHERE role <> 'Superadmin'`),
         emission_factors: await one(`SELECT COUNT(*) n FROM emission_factors`),
+        site_emission_factors: await one(`SELECT COUNT(*) n FROM emission_factors WHERE site_id IS NOT NULL`),
+        global_emission_factors: await one(`SELECT COUNT(*) n FROM emission_factors WHERE site_id IS NULL`),
         entries_this_month: await one(`SELECT COUNT(*) n FROM emission WHERE created_at >= date_trunc('month', LOCALTIMESTAMP)`),
         pending_entries: await one(`SELECT COUNT(*) n FROM emission WHERE status = 'pending'`),
       };
     });
     assert.deepEqual(res.json.totals, expected);
+    // #253: site factors (the Factors page) and the global spend library add up to every factor row.
+    assert.equal(res.json.totals.site_emission_factors + res.json.totals.global_emission_factors, res.json.totals.emission_factors);
     assert.ok(res.json.totals.entries_this_month >= 2);
 
     const company2 = res.json.clients.find((c) => c.company_id === 2);
