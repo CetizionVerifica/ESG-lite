@@ -20,6 +20,21 @@ export const foldedFeraTwinSql = (e: string, c: string): string =>
 export const pendingReviewCountSql = (e: string, c: string): string =>
   `COUNT(*) FILTER (WHERE ${e}.status = 'pending' AND NOT ${foldedFeraTwinSql(e, c)})`;
 
+// "This row is an automatic FERA twin": a FERA row linked to a non-FERA entry
+// at the same site, either direction of the link. A FERA entry filed on its
+// own has no such partner and is an entry like any other.
+export const automaticFeraTwinSql = (e: string, c: string): string =>
+  `(LOWER(${c}.category_name) = 'fera' AND EXISTS (
+     SELECT 1 FROM emission fp
+       JOIN category fpc ON fpc.category_id = fp.category_id
+      WHERE (fp.pk_id = ${e}.fera_linked_id OR fp.fera_linked_id = ${e}.pk_id)
+        AND fp.pk_id <> ${e}.pk_id AND fp.site_id = ${e}.site_id
+        AND LOWER(fpc.category_name) <> 'fera'))`;
+
+// Approved entries as people filed them: automatic FERA twins left out.
+export const approvedEntryCountSql = (e: string, c: string): string =>
+  `COUNT(*) FILTER (WHERE ${e}.status = 'approved' AND NOT ${automaticFeraTwinSql(e, c)})`;
+
 type FeraRow = { pk_id: number; fera_linked_id?: number | null; category?: { category_name?: string } | null };
 
 const isFera = (row: FeraRow): boolean => row.category?.category_name?.toLowerCase() === "fera";
