@@ -7,7 +7,7 @@
 import { AppDataSource } from "../config/data-source";
 import { Emission } from "../entities/Emission";
 import { UserRole } from "../types/type";
-import { pendingReviewCountSql } from "../utils/feraFold";
+import { approvedEntryCountSql, pendingReviewCountSql } from "../utils/feraFold";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -259,6 +259,7 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
     .select("e.site_id", "site_id")
     .addSelect("COUNT(*)", "entries")
     .addSelect("COUNT(*) FILTER (WHERE e.status = 'approved')", "approved")
+    .addSelect(approvedEntryCountSql("e", "c"), "approved_entries")
     .addSelect("COUNT(*) FILTER (WHERE e.status = 'pending')", "pending")
     .addSelect(pendingReviewCountSql("e", "c"), "pending_review")
     .addSelect("COUNT(*) FILTER (WHERE e.status = 'rejected')", "rejected")
@@ -283,6 +284,7 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
   for (const c of counts) {
     kpis.entries += num(c.entries);
     kpis.approved_count += num(c.approved);
+    kpis.approved_entry_count += num(c.approved_entries);
     kpis.pending_count += num(c.pending);
     kpis.pending_review_count += num(c.pending_review);
     kpis.rejected_count += num(c.rejected);
@@ -437,6 +439,9 @@ const emptyKpis = () => ({
   scope_3: 0,
   entries: 0,
   approved_count: 0,
+  // Approved entries as people filed them (automatic FERA twins left out);
+  // approved_count counts every approved row.
+  approved_entry_count: 0,
   pending_count: 0,
   // Pending entries as the approvals list shows them (FERA twins of a pending
   // entry fold into it); pending_count counts every pending row.
