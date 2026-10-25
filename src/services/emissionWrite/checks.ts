@@ -135,10 +135,11 @@ export const modeLockMessage = (c: ModeLockConflict, period: "monthly" | "yearly
     const n = c.conflicting_rows;
     return `This category is already filed monthly for ${yearWindowLabel(c.window)} (${n} monthly entr${n === 1 ? "y" : "ies"}). Keep entering it monthly, or delete those entries first to file the year as one entry.`;
   }
+  // #246: a person reads these, so "yearly data" (one entry or several), not the bulk-upload word "batch".
   if (period === "yearly") {
-    return `This year overlaps an existing ${c.conflicting_year_type} yearly batch on this category. A category uses CY or FY for a given period, not both — delete the ${c.conflicting_year_type} batch first, or file this data under ${c.conflicting_year_type} too.`;
+    return `This year overlaps ${c.conflicting_year_type} yearly data already filed on this category. A category uses CY or FY for a given period, not both — delete the ${c.conflicting_year_type} yearly data first, or file this data under ${c.conflicting_year_type} too.`;
   }
-  return `This category already has a yearly batch for ${yearWindowLabel(c.window)}. Delete the yearly data first, or file this entry under a different period.`;
+  return `This category already has yearly data for ${yearWindowLabel(c.window)}. Delete the yearly data first, or file this entry under a different period.`;
 };
 
 /**

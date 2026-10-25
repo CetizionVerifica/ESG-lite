@@ -310,7 +310,7 @@ test("a manager edit can't move an entry into a period filed the other way (mode
     const intoYearly = await call("PUT", "/user/emissions/manager-edit/2", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong year" });
     assert.equal(intoYearly.status, 409);
     assert.equal(intoYearly.json.mode_lock, true);
-    assert.match(intoYearly.json.message, /yearly batch for CY 2024\. Delete/);
+    assert.match(intoYearly.json.message, /yearly data for CY 2024\. Delete/);
 
     const midYear = await call("PUT", "/user/emissions/manager-edit/13", "manager", { date_of_reporting: "2024-06-30", reason: "Wrong date" });
     assert.equal(midYear.status, 400);
@@ -486,7 +486,7 @@ test("Add data can ask how a year is filed before typing (F-13/F-27)", async () 
   const month2024 = await call("GET", path("reporting_period=monthly&date_of_reporting=2024-06-30"), "user");
   assert.equal(month2024.status, 200);
   assert.equal(month2024.json.conflict.conflicting_period, "yearly");
-  assert.match(month2024.json.message, /yearly batch for CY 2024\. Delete/);
+  assert.match(month2024.json.message, /yearly data for CY 2024\. Delete/);
 
   const free = await call("GET", path("reporting_period=yearly&year_type=CY&date_of_reporting=2019-12-31"), "user");
   assert.deepEqual(free.json, { conflict: null, message: null });

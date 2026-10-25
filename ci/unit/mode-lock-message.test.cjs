@@ -22,6 +22,15 @@ test("a yearly entry over monthly ones names the year and suggests monthly first
 
 test("a monthly entry over a yearly batch names the year too", () => {
   const conflict = { conflicting_period: "yearly", conflicting_rows: 1, conflicting_year_type: "CY", window: { start: "2024-01-01", end: "2024-12-31" } };
-  assert.equal(modeLockMessage(conflict, "monthly"), "This category already has a yearly batch for CY 2024. Delete the yearly data first, or file this entry under a different period.");
-  assert.match(modeLockMessage({ ...conflict, conflicting_year_type: "FY", window: { start: "2024-04-01", end: "2025-03-31" } }, "monthly"), /yearly batch for FY 2024-25\./);
+  assert.equal(modeLockMessage(conflict, "monthly"), "This category already has yearly data for CY 2024. Delete the yearly data first, or file this entry under a different period.");
+  assert.match(modeLockMessage({ ...conflict, conflicting_year_type: "FY", window: { start: "2024-04-01", end: "2025-03-31" } }, "monthly"), /yearly data for FY 2024-25\./);
+});
+
+test("a yearly entry over the other calendar's yearly data names that calendar, not 'batch' (#246)", () => {
+  const conflict = { conflicting_period: "yearly", conflicting_rows: 1, conflicting_year_type: "CY", window: { start: "2025-04-01", end: "2026-03-31" } };
+  assert.equal(
+    modeLockMessage(conflict, "yearly"),
+    "This year overlaps CY yearly data already filed on this category. A category uses CY or FY for a given period, not both — delete the CY yearly data first, or file this data under CY too.",
+  );
+  assert.doesNotMatch(modeLockMessage(conflict, "yearly"), /batch/);
 });
