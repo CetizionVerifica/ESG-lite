@@ -16,8 +16,12 @@
 // Widening rewrites the table and its indexes under an ACCESS EXCLUSIVE lock
 // (seconds at today's sizes). Each group is one transaction that takes all its
 // locks first, each with lock_timeout 10s, so traffic never queues behind it for long.
-// A group that can't get its locks is retried; if it still can't, the run fails
-// and the API doesn't start rather than run with entities and schema apart.
+// A group that can't get its locks is retried. If a group still fails (busy
+// tables, a legacy view on a column, a rewrite over STATEMENT_TIMEOUT), the run
+// logs it and exits 0 so the API starts on the integer columns: every value
+// fits, the int8 parser returns numbers, and the only array match
+// (src/pcf/staleness.ts) casts both sides, so the code works on either width.
+// Set BIGINT_IDS_STRICT=true to fail the start instead. The next start retries.
 // The emission ids (emission.pk_id and every column that stores one) are one
 // group, so they always agree; each log table is a group of its own.
 // The build that serves traffic meanwhile must have #199: older code matches
@@ -54,6 +58,8 @@ export const BIGINT_ID_GROUPS: BigintGroup[] = [
 ];
 
 const LOCK_TIMEOUT = "10s";
+// Cap each rewrite so a large table can't hold the API start (and its locks) open.
+const STATEMENT_TIMEOUT = "120s";
 const ATTEMPTS = 5;
 const RETRY_WAIT_MS = 5000;
 // lock_not_available (lock_timeout) and deadlock_detected: someone else held a lock; try again.
@@ -143,7 +149,7 @@ async function widenGroup(group: BigintGroup): Promise<void> {
     try {
       await runner.startTransaction();
       await runner.query(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`);
-      await runner.query(`SET LOCAL statement_timeout = 0`);
+      await runner.query(`SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT}'`);
       await runner.query(`LOCK TABLE ${tables.map(ident).join(", ")} IN ACCESS EXCLUSIVE MODE`);
       // Read again under the locks: another instance may have widened it meanwhile.
       const states = await inspect(runner, group.columns);
@@ -166,10 +172,18 @@ async function widenGroup(group: BigintGroup): Promise<void> {
 async function main() {
   await AppDataSource.initialize();
   try {
-    for (const group of BIGINT_ID_GROUPS) await widenGroup(group);
+    for (const group of BIGINT_ID_GROUPS) {
+      try {
+        await widenGroup(group);
+      } catch (err: any) {
+        if (/^(1|true|yes)$/i.test(process.env.BIGINT_IDS_STRICT || "")) throw err;
+        console.error(`${group.name}: not widened (${err?.code ?? "no code"}: ${err?.message ?? err}); the API starts on integer ids.`);
+      }
+    }
     const left = pending(await inspect(AppDataSource, BIGINT_ID_GROUPS.flatMap((g) => g.columns)));
-    if (left.length) throw new Error(`still not bigint: ${left.map((s) => `${s.table}.${s.column}`).join(", ")}`);
-    console.log("#191 bigint ids present.");
+    const names = left.map((s) => `${s.table}.${s.column}`).join(", ");
+    if (left.length && /^(1|true|yes)$/i.test(process.env.BIGINT_IDS_STRICT || "")) throw new Error(`still not bigint: ${names}`);
+    console.log(left.length ? `#191 still integer: ${names}. See docs/release-checklist.md #191.` : "#191 bigint ids present.");
   } finally {
     await AppDataSource.destroy();
   }
