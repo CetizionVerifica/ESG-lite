@@ -121,6 +121,9 @@ export const getConsole = async (req: Request, res: Response) => {
            (SELECT COUNT(*) FROM site)::int AS sites,
            (SELECT COUNT(*) FROM "user" WHERE role <> 'Superadmin')::int AS users,
            (SELECT COUNT(*) FROM emission_factors)::int AS emission_factors,
+           -- #253: as the Factors page counts them (a site's factors), and the global spend library (no site).
+           (SELECT COUNT(*) FROM emission_factors WHERE site_id IS NOT NULL)::int AS site_emission_factors,
+           (SELECT COUNT(*) FROM emission_factors WHERE site_id IS NULL)::int AS global_emission_factors,
            (SELECT COUNT(*) FROM emission
              WHERE created_at >= date_trunc('month', LOCALTIMESTAMP))::int AS entries_this_month,
            (SELECT COUNT(*) FROM emission WHERE status = 'pending')::int AS pending_entries`,
