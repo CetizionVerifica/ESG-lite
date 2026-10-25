@@ -10,6 +10,9 @@ const { assertThrowawayDb } = require("../lib/throwaway-db.cjs");
 assertThrowawayDb();
 
 const ROOT = path.resolve(__dirname, "../..");
+// #191: the server's own int8 parsers, so a bigint id or count(*) read here is
+// the number the API sends, not a string.
+require(path.join(ROOT, "dist/config/pgTypes.js")).installPgTypeParsers();
 
 /** A signed-in person: { token, user }. */
 async function login(email, password) {

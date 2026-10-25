@@ -1,7 +1,12 @@
 // Shared helpers for ci/api/tests: signed tokens for the fixture users, an
 // HTTP caller and a direct database client.
+const path = require("path");
 const jwt = require("jsonwebtoken");
 const { Client } = require("pg");
+
+// #191: the server's own int8 parsers, so a bigint id or count(*) read here is
+// the number the API sends, not a string.
+require(path.resolve(__dirname, "../../dist/config/pgTypes.js")).installPgTypeParsers();
 
 const BASE = process.env.API_BASE;
 const SECRET = process.env.JWT_SECRET;

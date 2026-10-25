@@ -82,7 +82,12 @@ import { SupplierFactor } from "../entities/SupplierFactor";
 import { SupplierFacilityData } from "../entities/SupplierFacilityData";
 import { PeriodLock } from "../entities/PeriodLock"; // S3-15
 import { NothingThisMonth } from "../entities/NothingThisMonth"; // S3-15
+import { installPgTypeParsers } from "./pgTypes";
 dotenv.config();
+
+// #191: bigint ids, count(*) and other int8 values come back as numbers, not strings.
+// Before the DataSource below is created.
+installPgTypeParsers();
 
 const isProduction = process.env.NODE_ENV === "production";
 
