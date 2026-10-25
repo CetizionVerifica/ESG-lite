@@ -53,7 +53,7 @@ export class PcfResult {
   @Column("jsonb")
   factor_snapshot!: Record<string, unknown>;
 
-  @Column("int", { array: true, nullable: true })
+  @Column("bigint", { array: true, nullable: true }) // #191: emission.pk_id values
   emission_ids_used!: number[] | null;
 
   @Column("int", { array: true, nullable: true })

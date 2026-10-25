@@ -107,7 +107,7 @@ export async function submitDrafts(caller: Caller, ids: number[]): Promise<Submi
   const wanted = ints(ids);
   const rows: DraftRow[] = await AppDataSource.query(
     `SELECT pk_id, site_id, status::text AS status, created_by, to_char(date_of_reporting, 'YYYY-MM-DD') AS date, total_emission
-       FROM emission WHERE pk_id = ANY($1::int[])`,
+       FROM emission WHERE pk_id = ANY($1::bigint[])`,
     [wanted],
   );
   const visible = await visibleRows(caller, rows, wanted);
@@ -132,8 +132,8 @@ export async function submitDrafts(caller: Caller, ids: number[]): Promise<Submi
     const result: unknown = await tx.query(
       `UPDATE emission SET status = 'pending', updated_at = now()
         WHERE status = 'draft'
-          AND (pk_id = ANY($1::int[]) OR fera_linked_id = ANY($1::int[])
-               OR pk_id IN (SELECT fera_linked_id FROM emission WHERE pk_id = ANY($1::int[]) AND fera_linked_id IS NOT NULL))
+          AND (pk_id = ANY($1::bigint[]) OR fera_linked_id = ANY($1::bigint[])
+               OR pk_id IN (SELECT fera_linked_id FROM emission WHERE pk_id = ANY($1::bigint[]) AND fera_linked_id IS NOT NULL))
         RETURNING pk_id`,
       [acceptedIds],
     );
@@ -141,7 +141,7 @@ export async function submitDrafts(caller: Caller, ids: number[]): Promise<Submi
     const movedIds = updated.map((u) => Number(u.pk_id));
     await tx.query(
       `INSERT INTO audit_log (entity_type, entity_id, action, changed_fields, reason, changed_by)
-       SELECT 'emission', id, 'submit', $2::jsonb, NULL, $3 FROM unnest($1::int[]) AS id`,
+       SELECT 'emission', id, 'submit', $2::jsonb, NULL, $3 FROM unnest($1::bigint[]) AS id`,
       [movedIds, JSON.stringify({ status: { old: "draft", new: "pending" } }), caller.userId],
     );
     await refreshChecksSafely(tx, movedIds);
@@ -255,7 +255,7 @@ const ANY_STATUS = [EmissionStatus.DRAFT, EmissionStatus.PENDING, EmissionStatus
 export async function dryRunChecks(caller: Caller, ids: number[]): Promise<{ results: Array<{ id: number; status: string; checks: RowChecks }> }> {
   const wanted = ints(ids);
   const rows: Array<{ pk_id: number; site_id: number; status: string; created_by: number | null }> = await AppDataSource.query(
-    `SELECT pk_id, site_id, status::text AS status, created_by FROM emission WHERE pk_id = ANY($1::int[])`,
+    `SELECT pk_id, site_id, status::text AS status, created_by FROM emission WHERE pk_id = ANY($1::bigint[])`,
     [wanted],
   );
   const visible = await visibleRows(caller, rows, wanted);

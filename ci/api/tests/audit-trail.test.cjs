@@ -9,7 +9,7 @@ const { call, withDb } = require("../helpers.cjs");
 const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
 const auditRows = (entity, id) =>
   q("SELECT action, changed_fields, reason, changed_by FROM audit_log WHERE entity_type=$1 AND entity_id=$2 ORDER BY id", [entity, id]);
-const clearAudit = (entity, ids) => q("DELETE FROM audit_log WHERE entity_type=$1 AND entity_id = ANY($2::int[])", [entity, ids]);
+const clearAudit = (entity, ids) => q("DELETE FROM audit_log WHERE entity_type=$1 AND entity_id = ANY($2::bigint[])", [entity, ids]);
 
 test("approve and reject write an audit row, FERA twin included", async () => {
   try {

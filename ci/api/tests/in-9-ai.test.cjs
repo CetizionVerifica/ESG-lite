@@ -35,7 +35,7 @@ const goodAnswer = (prompt) => {
 const stampRows = [];
 
 const reset = async () => {
-  if (stampRows.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [stampRows.splice(0)]);
+  if (stampRows.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [stampRows.splice(0)]);
   await setInsights(1, false);
   await setInsights(2, false);
   await setKpi(1, false);

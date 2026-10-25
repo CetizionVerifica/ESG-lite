@@ -12,7 +12,7 @@ import "reflect-metadata";
 import { AppDataSource } from "../config/data-source";
 
 export const DS9_AI_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS "report_ai_call" ("id" SERIAL NOT NULL, "company_id" integer NOT NULL, "doc_id" integer, "action" character varying(40) NOT NULL, "model" character varying(120) NOT NULL, "tokens_in" integer NOT NULL DEFAULT '0', "tokens_out" integer NOT NULL DEFAULT '0', "cost_usd" numeric(10,5) NOT NULL DEFAULT '0', "ok" boolean NOT NULL, "error_code" character varying(40), "user_id" integer, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_2ab4b284b4527b78301c3df6613" PRIMARY KEY ("id"))`,
+  `CREATE TABLE IF NOT EXISTS "report_ai_call" ("id" BIGSERIAL NOT NULL, "company_id" integer NOT NULL, "doc_id" integer, "action" character varying(40) NOT NULL, "model" character varying(120) NOT NULL, "tokens_in" integer NOT NULL DEFAULT '0', "tokens_out" integer NOT NULL DEFAULT '0', "cost_usd" numeric(10,5) NOT NULL DEFAULT '0', "ok" boolean NOT NULL, "error_code" character varying(40), "user_id" integer, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_2ab4b284b4527b78301c3df6613" PRIMARY KEY ("id"))`,
   `CREATE INDEX IF NOT EXISTS "IDX_report_ai_call_doc_created" ON "report_ai_call" ("doc_id", "created_at")`,
   `CREATE INDEX IF NOT EXISTS "IDX_report_ai_call_company_created" ON "report_ai_call" ("company_id", "created_at")`,
 ];

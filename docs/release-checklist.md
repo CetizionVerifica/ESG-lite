@@ -43,3 +43,31 @@ existing ones. `migrate:all` picks it up from there.
 - A draft footprint with a received, undecided supplier answer can't be deleted (409) until the answer is accepted or rejected; a decided request goes with its study.
 - `SUPPLIER_REQUEST_MAIL` stays unset or `sink` until real supplier emails are approved; `live` sends through Brevo.
 - `FRONTEND_URL` must be set: supplier links are `${FRONTEND_URL}/supplier/<token>`.
+
+## #191 bigint ids (`migrate:bigint-ids`)
+- Widens `emission.pk_id` and the columns that store it (`emission.fera_linked_id`, `emission_document.emission_id`, `pcf_result.emission_ids_used`, `audit_log.entity_id`, the legacy `invoice.emission_id` where it exists), plus `audit_log.id`, `notification.id`, `mcp_tool_call.id`, `import_plan_row.id`, `import_plan_match.id`, `report_ai_call.id` and `oauth_token.token_id`, and their sequences, from integer to bigint. Lossless; a second run changes nothing.
+- Each table is rewritten under an ACCESS EXCLUSIVE lock: seconds to a minute for a table under about 1 GB. Check the sizes before deploying, and plan a longer window for anything much bigger:
+  ```sql
+  SELECT relname, pg_size_pretty(pg_total_relation_size(oid)) AS size FROM pg_class
+   WHERE relname IN ('emission', 'emission_document', 'pcf_result', 'audit_log', 'invoice', 'notification', 'mcp_tool_call',
+                     'import_plan_row', 'import_plan_match', 'report_ai_call', 'oauth_token')
+   ORDER BY pg_total_relation_size(oid) DESC;
+  ```
+- A view or rule built on one of these columns stops the widening, and the API doesn't start. This lists any (expect none):
+  ```sql
+  SELECT DISTINCT v.relname AS view, d.refobjid::regclass AS on_table FROM pg_depend d
+    JOIN pg_rewrite r ON r.oid = d.objid JOIN pg_class v ON v.oid = r.ev_class
+   WHERE d.classid = 'pg_rewrite'::regclass AND v.oid <> d.refobjid
+     AND d.refobjid::regclass::text IN ('emission', 'emission_document', 'pcf_result', 'audit_log', 'invoice', 'notification',
+                                        'mcp_tool_call', 'import_plan_row', 'import_plan_match', 'report_ai_call', 'oauth_token');
+  ```
+- The legacy `final_emission` and `activity_data` tables have no DDL in any repo. If `\d final_emission` or `\d activity_data` shows a column holding emission ids, add it to the "emission ids" group in `src/scripts/migrateBigintIds.ts` first.
+- Deploy order: the build running when the columns widen must already have #199 (the PCF staleness match cast to `bigint[]`). Older code runs `emission_ids_used && $1::int[]`, which fails on the widened column. The hook only logs it, so footprints stop going stale with no visible error. Redeploy with #198 and #199 first (no schema change), then merge this and redeploy again.
+- Take the backup, then deploy in a low-traffic window. Each table lock waits at most 10 s, and a group tries 5 times. If the tables stay busy, the container stops with a lock timeout in the log and the API doesn't start. Redeploy when traffic is lower.
+- After the deploy every column above is `bigint` (`SELECT table_name, column_name, data_type FROM information_schema.columns WHERE ...`) and its sequence too (`SELECT sequencename, data_type, max_value FROM pg_sequences`). The API log around the deploy has no `pcfDataChanged failed` line.
+- Rollback: revert this PR's code only and keep the widened columns. `bigint` holds every old value, and the int8 parser (#198) keeps ids as numbers. Never roll back to a build older than #199 (see Deploy order).
+- Monthly check, alert above 50%:
+  ```sql
+  SELECT sequencename, last_value, max_value, round(100.0 * last_value / max_value, 2) AS pct_used
+    FROM pg_sequences WHERE last_value IS NOT NULL ORDER BY pct_used DESC LIMIT 10;
+  ```

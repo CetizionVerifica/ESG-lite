@@ -13,7 +13,7 @@ const own = { emissions: [], production: [], products: [] };
 const reset = async () => {
   await setInsights(1, false);
   await setInsights(2, false);
-  if (own.emissions.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [own.emissions]);
+  if (own.emissions.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [own.emissions]);
   if (own.production.length) await q(`DELETE FROM production_data WHERE production_id = ANY($1::int[])`, [own.production]);
   if (own.products.length) await q(`DELETE FROM product WHERE product_id = ANY($1::int[])`, [own.products]);
   await q(`DELETE FROM company_base_year WHERE company_id IN (1, 2)`);

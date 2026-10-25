@@ -85,8 +85,8 @@ test.before(async () => {
 
 test.after(async () => {
   if (created.length) {
-    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::int[])`, [created]);
-    await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[]) OR fera_linked_id = ANY($1::int[])`, [created]);
+    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::bigint[])`, [created]);
+    await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[]) OR fera_linked_id = ANY($1::bigint[])`, [created]);
   }
   await q(`DELETE FROM emission WHERE category_id IN (${CAT}, ${SPEND})`);
   const configs = (await q(`SELECT pk_id FROM column_config WHERE category_id IN (${CAT}, ${SPEND})`)).map((r) => r.pk_id);

@@ -311,7 +311,7 @@ test("a Draft belongs to its author: for anyone else it doesn't exist on any wri
 
   // Batches: an imported row its contributor is fixing (a Draft) is skipped by batch approve, reject and delete.
   const batch = "ci-s315b-batch-drafts";
-  await q(`UPDATE emission SET upload_batch_id = $1 WHERE pk_id = ANY($2::int[])`, [batch, [theirs, theirsTwin]]);
+  await q(`UPDATE emission SET upload_batch_id = $1 WHERE pk_id = ANY($2::bigint[])`, [batch, [theirs, theirsTwin]]);
   const other = await rawRow(A, "2025-07-15", "pending", { batch, created_by: 3155 });
   ok(await call("PUT", `/user/emissions/batch/${batch}/approve`, "manager"));
   assert.equal(await statusOf(other), "approved");

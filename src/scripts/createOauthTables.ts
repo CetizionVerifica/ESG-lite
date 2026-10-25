@@ -48,7 +48,7 @@ const STATEMENTS = [
      "created_at" TIMESTAMP NOT NULL DEFAULT now(),
      CONSTRAINT "PK_2f1a9780e196e933b062b845df2" PRIMARY KEY ("code_hash"))`,
   `CREATE TABLE IF NOT EXISTS "oauth_token" (
-     "token_id" SERIAL NOT NULL,
+     "token_id" BIGSERIAL NOT NULL,
      "token_hash" character varying(64) NOT NULL,
      "kind" character varying(8) NOT NULL,
      "grant_id" integer NOT NULL,

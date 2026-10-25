@@ -2,7 +2,6 @@ import type { Scope3Sub } from "../scope3/contracts/ghgCategory";
 import type { EmissionFx } from "../scope3/spend/types";
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
   Index,
   ManyToOne,
@@ -10,6 +9,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { PrimaryGeneratedBigintColumn } from "./bigintId";
 import { Category } from "./Category";
 import { Site } from "./Site";
 import { User } from "./User";
@@ -34,7 +34,7 @@ export enum EmissionStatus {
 @Index("IDX_emission_site_category_date", ["site", "category", "date_of_reporting", "pk_id"])
 @Entity()
 export class Emission {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   pk_id!: number;
 
   @Column("jsonb")
@@ -98,7 +98,7 @@ export class Emission {
   year_type!: "CY" | "FY" | null;
 
   @Index("IDX_emission_fera_linked_id")
-  @Column({ nullable: true })
+  @Column({ type: "bigint", nullable: true }) // #191: an emission.pk_id
   fera_linked_id!: number;
 
   // S3-7: the Category 3 sub-activity of a FERA twin (3a_upstream_fuels,

@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, Index, UpdateDateColumn } from "typeorm";
+import { PrimaryGeneratedBigintColumn } from "./bigintId";
 
 /**
  * DS-9 · one model call of the studio AI assistant (01-contracts §3
@@ -11,7 +12,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 @Index("IDX_report_ai_call_doc_created", ["doc_id", "created_at"])
 @Index("IDX_report_ai_call_company_created", ["company_id", "created_at"])
 export class StudioAiCall {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   id!: number;
 
   @Column({ type: "int" })

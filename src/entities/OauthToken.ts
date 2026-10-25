@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from "typeorm";
+import { Entity, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from "typeorm";
+import { PrimaryGeneratedBigintColumn } from "./bigintId";
 import { OauthGrant } from "./OauthGrant";
 
 export const OAUTH_TOKEN_KINDS = ["access", "refresh"] as const;
@@ -11,7 +12,7 @@ export type OauthTokenKind = (typeof OAUTH_TOKEN_KINDS)[number];
  */
 @Entity({ name: "oauth_token" })
 export class OauthToken {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   token_id!: number;
 
   @Index({ unique: true })

@@ -21,7 +21,7 @@ const ROWS = [
   [2, 1, "2009-02-15", 100, "approved"],
 ];
 const cleanup = async () => {
-  if (own.emissions.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [own.emissions]);
+  if (own.emissions.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [own.emissions]);
   if (own.production.length) await q(`DELETE FROM production_data WHERE production_id = ANY($1::int[])`, [own.production]);
   if (own.products.length) await q(`DELETE FROM product WHERE product_id = ANY($1::int[])`, [own.products]);
   own.emissions.length = 0;

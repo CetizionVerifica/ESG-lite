@@ -1,12 +1,12 @@
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
   Index,
 } from "typeorm";
+import { PrimaryGeneratedBigintColumn } from "./bigintId";
 import { User } from "./User";
 
 export interface NotificationMeta {
@@ -27,7 +27,7 @@ export interface NotificationMeta {
 @Index("notification_upload_batch_user_uq", { synchronize: false })
 @Entity()
 export class Notification {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   id!: number;
 
   @ManyToOne(() => User, { onDelete: "CASCADE" })
