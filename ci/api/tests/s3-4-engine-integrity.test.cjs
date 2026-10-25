@@ -44,15 +44,15 @@ test.before(async () => {
 
 test.after(async () => {
   if (created.length) {
-    await q(`UPDATE emission SET fera_linked_id = NULL WHERE pk_id = ANY($1::int[])`, [created]);
-    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::int[])`, [created]);
-    await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [created]);
+    await q(`UPDATE emission SET fera_linked_id = NULL WHERE pk_id = ANY($1::bigint[])`, [created]);
+    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::bigint[])`, [created]);
+    await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [created]);
   }
   const hist = (await q(`SELECT pk_id, fera_linked_id FROM emission WHERE site_id = ${SITE} AND extra_data->'import'->>'channel' = 'historical'`)).flatMap((r) => [r.pk_id, r.fera_linked_id].filter(Boolean));
   if (hist.length) {
-    await q(`UPDATE emission SET fera_linked_id = NULL WHERE pk_id = ANY($1::int[])`, [hist]);
-    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::int[])`, [hist]);
-    await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [hist]);
+    await q(`UPDATE emission SET fera_linked_id = NULL WHERE pk_id = ANY($1::bigint[])`, [hist]);
+    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::bigint[])`, [hist]);
+    await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [hist]);
   }
   await q(`DELETE FROM unit WHERE site_id = ${SITE} AND category_id = 1`);
   await q(`DELETE FROM emission_factors WHERE emission_factor_id IN (9941, 9942, 9943, 9944)`);

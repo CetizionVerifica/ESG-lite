@@ -1,16 +1,16 @@
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
 } from "typeorm";
+import { PrimaryGeneratedBigintColumn } from "./bigintId";
 import { User } from "./User";
 
 @Entity()
 export class AuditLog {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   id!: number;
 
   @Column()
@@ -18,7 +18,7 @@ export class AuditLog {
   // KPI-0: KPI modules write `kpi_value`, `kpi_setup`, `kpi_period_lock`, `kpi_target`, `kpi_library` (src/kpi/contracts/enums.ts).
   entity_type!: "emission" | "production_data" | "pcf_study" | "category_mapping" | "import_mapping_profile" | `scope3_${string}` | `kpi_${string}`;
 
-  @Column()
+  @Column({ type: "bigint" }) // #191: holds emission ids among others
   entity_id!: number;
 
   @Column()

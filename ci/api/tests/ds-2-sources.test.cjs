@@ -53,7 +53,7 @@ const reset = async () => {
     await setStudio(id, false);
     await setKpi(id, false);
   }
-  await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [EXTRA]);
+  await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [EXTRA]);
   await q(`DELETE FROM report_doc WHERE title = 'DS-2 test'`).catch(() => {});
   await q(`DELETE FROM kpi_value WHERE company_id IN (1, 2)`).catch(() => {});
   for (const t of ["company_kpi", "company_material_topic", "company_framework", "company_kpi_settings"]) await q(`DELETE FROM ${t} WHERE company_id IN (1, 2)`).catch(() => {});

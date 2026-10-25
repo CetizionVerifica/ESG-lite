@@ -45,8 +45,8 @@ async function targetIds(entity: Entity, source: Source, req: AuthRequest): Prom
   if (entity !== "emission" || !ids.length) return ids;
   // FERA twins move with their parent (both link directions).
   const twins: { id: number }[] = await AppDataSource.query(
-    `SELECT fera_linked_id AS id FROM emission WHERE pk_id = ANY($1::int[]) AND fera_linked_id IS NOT NULL
-     UNION SELECT pk_id AS id FROM emission WHERE fera_linked_id = ANY($1::int[])`,
+    `SELECT fera_linked_id AS id FROM emission WHERE pk_id = ANY($1::bigint[]) AND fera_linked_id IS NOT NULL
+     UNION SELECT pk_id AS id FROM emission WHERE fera_linked_id = ANY($1::bigint[])`,
     [ids]
   );
   return [...new Set([...ids, ...twins.map((t) => Number(t.id))])];
@@ -56,7 +56,7 @@ async function snapshot(entity: Entity, ids: number[]): Promise<Map<number, Snap
   if (!ids.length) return new Map();
   const t = TABLES[entity];
   const rows: Snapshot[] = await AppDataSource.query(
-    `SELECT ${t.key} AS id, status, ${t.amount}::text AS amount, ${t.creator} AS created_by, ${t.uploaded} AS uploaded FROM ${t.table} WHERE ${t.key} = ANY($1::int[])`,
+    `SELECT ${t.key} AS id, status, ${t.amount}::text AS amount, ${t.creator} AS created_by, ${t.uploaded} AS uploaded FROM ${t.table} WHERE ${t.key} = ANY($1::bigint[])`,
     [ids]
   );
   return new Map(rows.map((r) => [Number(r.id), r]));

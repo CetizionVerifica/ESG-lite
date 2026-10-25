@@ -239,7 +239,7 @@ export const factorsInLibrary = async (manager: EntityManager, rows: LibraryRow[
   // lower-cased names row by row against the whole table is ~12× slower on a large import.
   const found: Array<{ pk_id: number }> = await manager.query(
     `WITH k AS (SELECT pk_id, site_id, category_id, yr, lower(btrim(NULLIF(btrim(ec), ''))) AS ec
-                  FROM unnest($1::int[], $2::int[], $3::int[], $4::int[], $5::text[]) AS k(pk_id, site_id, category_id, yr, ec)),
+                  FROM unnest($1::bigint[], $2::int[], $3::int[], $4::int[], $5::text[]) AS k(pk_id, site_id, category_id, yr, ec)),
           f AS (SELECT DISTINCT site_id, category_id, year, lower(btrim(emission_category_name)) AS n, lower(btrim(global_category_name)) AS g
                   FROM emission_factors
                  WHERE (site_id, category_id, year) IN (SELECT DISTINCT site_id, category_id, yr FROM k))
@@ -341,7 +341,7 @@ export const refreshChecks = async (manager: EntityManager, rowIds: number[], pr
     const entries = [...computed.entries()];
     await manager.query(
       `UPDATE emission e SET checks = v.checks
-         FROM (SELECT unnest($1::int[]) AS pk_id, unnest($2::jsonb[]) AS checks) v
+         FROM (SELECT unnest($1::bigint[]) AS pk_id, unnest($2::jsonb[]) AS checks) v
         WHERE e.pk_id = v.pk_id`,
       [entries.map(([id]) => id), entries.map(([, c]) => JSON.stringify(c))],
     );

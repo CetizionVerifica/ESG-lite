@@ -29,7 +29,7 @@ const insert = async (rows) => {
   }
 };
 const cleanup = async () => {
-  if (own.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [own]);
+  if (own.length) await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [own]);
   own.length = 0;
   await setInsights(1, false);
   await setInsights(2, false);

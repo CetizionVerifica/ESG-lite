@@ -49,7 +49,7 @@ async function main() {
           // Partners of a FERA pair outside this batch get the pair's checks too.
           await AppDataSource.query(
             `UPDATE emission e SET checks = v.checks
-               FROM (SELECT unnest($1::int[]) AS pk_id, unnest($2::jsonb[]) AS checks) v
+               FROM (SELECT unnest($1::bigint[]) AS pk_id, unnest($2::jsonb[]) AS checks) v
               WHERE e.pk_id = v.pk_id AND e.status = 'pending'`,
             [entries.map(([id]) => id), entries.map(([, c]) => JSON.stringify(c))],
           );

@@ -15,7 +15,7 @@ async function main() {
   try {
     await AppDataSource.query(
       `CREATE TABLE IF NOT EXISTS mcp_tool_call (
-         id          SERIAL PRIMARY KEY,
+         id          BIGSERIAL PRIMARY KEY,
          grant_id    VARCHAR(64) NOT NULL,
          user_id     INTEGER     NOT NULL,
          company_id  INTEGER     NULL,

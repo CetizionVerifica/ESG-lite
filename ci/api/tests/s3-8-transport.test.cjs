@@ -58,8 +58,8 @@ test.before(async () => {
 
 test.after(async () => {
   if (created.length) {
-    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::int[])`, [created]);
-    await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [created]);
+    await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::bigint[])`, [created]);
+    await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [created]);
   }
   const configs = (await q(`SELECT pk_id FROM column_config WHERE category_id IN (${UP}, ${DOWN})`)).map((r) => r.pk_id);
   if (configs.length) {
@@ -199,7 +199,7 @@ test("a Category 9 row the company says it paid for warns TRANSPORT_PAID_BY_MISM
 test("a row that names no method records the one its unit belongs to; totals are the same (S3-8 default by unit)", async () => {
   // Rows saved above on the Category 4 form (fuel_based first): each unit's own method.
   const byRef = Object.fromEntries(
-    (await q(`SELECT activity_data->>'Shipment Ref' AS ref, method FROM emission WHERE pk_id = ANY($1::int[]) AND category_id = ${UP}`, [created])).map((r) => [r.ref, r.method]),
+    (await q(`SELECT activity_data->>'Shipment Ref' AS ref, method FROM emission WHERE pk_id = ANY($1::bigint[]) AND category_id = ${UP}`, [created])).map((r) => [r.ref, r.method]),
   );
   assert.equal(byRef.A, "fuel_based", "litre");
   assert.equal(byRef.B, "fuel_based", "kWh: fuel_based and site_specific both list it; the form's order decides");

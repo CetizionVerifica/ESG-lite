@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index } from "typeorm";
+import { Entity, Column, Index } from "typeorm";
+import { PrimaryGeneratedBigintColumn } from "./bigintId";
 
 /**
  * One row per MCP tool call (audit row MCP-15): who, which tool, which plan,
@@ -7,7 +8,7 @@ import { Entity, PrimaryGeneratedColumn, Column, Index } from "typeorm";
  */
 @Entity({ name: "mcp_tool_call" })
 export class McpToolCall {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   id!: number;
 
   @Index("IDX_mcp_tool_call_grant_id")

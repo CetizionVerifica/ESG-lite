@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
   Unique,
 } from "typeorm";
+import { PrimaryGeneratedBigintColumn } from "./bigintId";
 import { Company } from "./Company";
 import { User } from "./User";
 
@@ -96,7 +97,7 @@ export class ImportPlan {
 @Entity({ name: "import_plan_row" })
 @Unique(["plan_id", "row_ref"])
 export class ImportPlanRow {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   id!: number;
 
   @Index()
@@ -129,7 +130,7 @@ export class ImportPlanRow {
 @Entity({ name: "import_plan_match" })
 @Unique(["plan_id", "site_id", "category_id", "sheet_name"])
 export class ImportPlanMatch {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedBigintColumn() // #191
   id!: number;
 
   @Index()

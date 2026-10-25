@@ -46,7 +46,7 @@ async function main() {
     ).map((r: { pk_id: number }) => Number(r.pk_id));
     for (let i = 0; i < candidates.length; i += BATCH) {
       const after = candidates[Math.min(i + BATCH, candidates.length) - 1];
-      const rows: Row[] = await AppDataSource.query(`${SELECT_ROWS} WHERE e.pk_id = ANY($1::int[]) AND e.status = 'pending'`, [
+      const rows: Row[] = await AppDataSource.query(`${SELECT_ROWS} WHERE e.pk_id = ANY($1::bigint[]) AND e.status = 'pending'`, [
         candidates.slice(i, i + BATCH),
       ]);
       if (!rows.length) continue;
@@ -55,8 +55,8 @@ async function main() {
         // Pending FERA partners (either direction) decide with the row.
         const partners: Row[] = await AppDataSource.query(
           `${SELECT_ROWS}
-            WHERE e.status = 'pending' AND e.pk_id <> ALL($1::int[])
-              AND (e.pk_id IN (SELECT fera_linked_id FROM emission WHERE pk_id = ANY($1::int[])) OR e.fera_linked_id = ANY($1::int[]))`,
+            WHERE e.status = 'pending' AND e.pk_id <> ALL($1::bigint[])
+              AND (e.pk_id IN (SELECT fera_linked_id FROM emission WHERE pk_id = ANY($1::bigint[])) OR e.fera_linked_id = ANY($1::bigint[]))`,
           [ids],
         );
         const all = [...rows, ...partners].map((r) => ({ ...r, pk_id: Number(r.pk_id), site_id: Number(r.site_id), category_id: Number(r.category_id) }));
@@ -78,7 +78,7 @@ async function main() {
                 SET checks = jsonb_build_object('held', h.held, 'ready', jsonb_array_length(h.held) = 0)
                FROM (SELECT x.pk_id, COALESCE(jsonb_agg(v) FILTER (WHERE v <> '"FACTOR_FOUND"'), '[]'::jsonb) AS held
                        FROM emission x, jsonb_array_elements(x.checks -> 'held') v
-                      WHERE x.pk_id = ANY($1::int[])
+                      WHERE x.pk_id = ANY($1::bigint[])
                       GROUP BY x.pk_id) h
               WHERE e.pk_id = h.pk_id AND e.status = 'pending'
               RETURNING e.pk_id`,

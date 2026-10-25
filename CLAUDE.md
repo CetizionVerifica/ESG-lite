@@ -9,6 +9,7 @@
 ## Primary keys (issue #191)
 - New tables use `@PrimaryGeneratedBigintColumn()` from `src/entities/bigintId.ts` (`BIGSERIAL` in the `migrate:*` script) or a `uuid`, never `@PrimaryGeneratedColumn()`, which is a 32-bit integer. Columns that store those ids are `bigint`. Reference tables (company, site, user, category, unit, country, factors) and their foreign keys stay `integer`.
 - node-postgres returns bigint, bigint[] and `count(*)` as JS numbers (`src/config/pgTypes.ts`, installed by `data-source.ts`); TypeScript types stay `number`. A script or test with its own `pg` client calls `installPgTypeParsers()` too.
+- Widened ids (`emission.pk_id` and every column that stores one, `audit_log.id`/`entity_id`, `notification.id`, `mcp_tool_call.id`, `import_plan_row.id`, `import_plan_match.id`, `report_ai_call.id`, `oauth_token.token_id`) are `::bigint` / `::bigint[]` in raw SQL, never `::int[]`: an id past 2^31 doesn't fit, and `&&` / `@>` need `bigint[]` on both sides.
 
 ## End-to-end data workflow test — see ci/workflow/README.md
 - After finishing a lane (any module touching setup, entry, the engine, review or reports), run `bash ci/workflow/local.sh` with `production` merged in before asking for review; a red step blocks the PR. Put "Workflow test: N passed, M skipped" in the last PR body.

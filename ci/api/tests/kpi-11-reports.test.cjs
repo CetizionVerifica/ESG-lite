@@ -21,8 +21,8 @@ const wipe = async () => {
   await q(`DELETE FROM kpi_value WHERE company_id IN (1, 2)`);
   await q(`DELETE FROM kpi_target WHERE company_id IN (1, 2)`);
   await q(`DELETE FROM notification WHERE type LIKE 'kpi_%'`);
-  await q(`DELETE FROM audit_log WHERE entity_type IN ('kpi_value', 'emission') AND (entity_type = 'kpi_value' OR entity_id = ANY($1::int[]))`, [EMISSIONS]);
-  await q(`DELETE FROM emission WHERE pk_id = ANY($1::int[])`, [EMISSIONS]);
+  await q(`DELETE FROM audit_log WHERE entity_type IN ('kpi_value', 'emission') AND (entity_type = 'kpi_value' OR entity_id = ANY($1::bigint[]))`, [EMISSIONS]);
+  await q(`DELETE FROM emission WHERE pk_id = ANY($1::bigint[])`, [EMISSIONS]);
   await clearSetup();
 };
 const entered = async (who, item) => {
