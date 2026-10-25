@@ -15,16 +15,20 @@ import { createNotification } from "../services/notificationService";
 
 type Kind = "emission" | "production" | "product";
 
+// Emission ids are becoming bigint (#191, migrate:bigint-ids). && needs the same
+// element type on both sides, so both sides are cast: the same SQL works on the
+// integer columns and on the widened ones. It has to be deployed before the
+// widening runs, because the old `&& $1::int[]` fails on a bigint[] column.
 const SQL: Record<Kind, string> = {
   emission: `
     UPDATE pcf_study s SET stale = true
      WHERE s.stale = false
        AND s.status IN ('in_review', 'approved', 'published')
        AND (
-         EXISTS (SELECT 1 FROM pcf_result r WHERE r.pcf_study_id = s.pcf_study_id AND r.emission_ids_used && $1::int[])
+         EXISTS (SELECT 1 FROM pcf_result r WHERE r.pcf_study_id = s.pcf_study_id AND r.emission_ids_used::bigint[] && $1::bigint[])
          OR EXISTS (
            SELECT 1 FROM emission e JOIN category c ON c.category_id = e.category_id
-            WHERE e.pk_id = ANY($1::int[]) AND e.status = 'approved' AND e.site_id = s.site_id
+            WHERE e.pk_id = ANY($1::bigint[]) AND e.status = 'approved' AND e.site_id = s.site_id
               AND substring(c.scope from '[123]') IN ('1', '2')
               AND e.date_of_reporting <= s.reference_end
               AND (CASE WHEN e.reporting_period = 'yearly'
