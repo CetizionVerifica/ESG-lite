@@ -26,6 +26,8 @@ const { Client } = require("pg");
 const jwt = require("jsonwebtoken");
 
 const ROOT = path.resolve(__dirname, "../..");
+// #191: the server's own int8 parsers, so stored ids read here are numbers, as in the snapshot.
+require(path.join(ROOT, "dist/config/pgTypes.js")).installPgTypeParsers();
 const SNAPSHOT = path.join(__dirname, "snapshot.json");
 const PORT = Number(process.env.GOLDEN_PORT || 3999);
 const BASE = `http://127.0.0.1:${PORT}`;

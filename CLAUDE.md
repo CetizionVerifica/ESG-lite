@@ -6,6 +6,10 @@
 - Specs for this repo: `docs/pcf/foundation/E1-data-and-engine/CLAUDE.md` (PCF data model and engine) and `docs/redesign/00-entity-map.md` (entities, endpoints, backend items B1–B8).
 - The full plans live in ESG-lite_FE under `docs/redesign/` and `docs/pcf/`.
 
+## Primary keys (issue #191)
+- New tables use `@PrimaryGeneratedBigintColumn()` from `src/entities/bigintId.ts` (`BIGSERIAL` in the `migrate:*` script) or a `uuid`, never `@PrimaryGeneratedColumn()`, which is a 32-bit integer. Columns that store those ids are `bigint`. Reference tables (company, site, user, category, unit, country, factors) and their foreign keys stay `integer`.
+- node-postgres returns bigint, bigint[] and `count(*)` as JS numbers (`src/config/pgTypes.ts`, installed by `data-source.ts`); TypeScript types stay `number`. A script or test with its own `pg` client calls `installPgTypeParsers()` too.
+
 ## End-to-end data workflow test — see ci/workflow/README.md
 - After finishing a lane (any module touching setup, entry, the engine, review or reports), run `bash ci/workflow/local.sh` with `production` merged in before asking for review; a red step blocks the PR. Put "Workflow test: N passed, M skipped" in the last PR body.
 - The lane that builds a module replaces that module's skipped step ("waits on S3-n / SE-n") with real checks. Expected figures are worked out by hand in `ci/workflow/scenario.cjs`, never read back from the engine.
