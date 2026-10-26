@@ -153,7 +153,7 @@ export const getEmissionFactorById = async (req: Request, res: Response) => {
 
 export const createEmissionFactor = async (req: Request, res: Response) => {
   try {
-    const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name } = req.body;
+    const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name } = req.body;
 
     if (!site_id || !category_id || !year || factor_value === undefined) {
       return res.status(400).json({
@@ -209,6 +209,8 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
       denominator_unit: normalizeUnit(denominator_unit),
       source: source?.trim() || null,
       emission_category_name: emission_category_name?.trim() || null,
+      // The name entries match it by when it differs from its own: a T&D-loss row's activity (S3-7 3c twin).
+      global_category_name: global_category_name?.trim() || null,
       ...withNewFactorDefaults(meta.meta),
     });
 
@@ -238,7 +240,7 @@ export const createEmissionFactor = async (req: Request, res: Response) => {
 export const updateEmissionFactor = async (req: Request, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name } = req.body;
+    const { site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name } = req.body;
     const meta = parseFactorMeta(req.body);
     if (!meta.ok) return res.status(400).json({ message: meta.message, field: meta.field });
     if (denominator_unit !== undefined && unitMissing(denominator_unit)) {
@@ -253,6 +255,7 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
       denominator_unit === undefined &&
       source === undefined &&
       emission_category_name === undefined &&
+      global_category_name === undefined &&
       !Object.keys(meta.ok ? meta.meta : {}).length
     ) {
       return res.status(400).json({
@@ -325,7 +328,13 @@ export const updateEmissionFactor = async (req: Request, res: Response) => {
     if (factor_value !== undefined) emissionFactor.factor_value = factor_value;
     if (denominator_unit !== undefined) emissionFactor.denominator_unit = (normalizeUnit(denominator_unit) ?? null) as any;
     if (source !== undefined) emissionFactor.source = source?.trim() || null;
-    if (emission_category_name !== undefined) emissionFactor.emission_category_name = emission_category_name?.trim() || null;
+    if (emission_category_name !== undefined) {
+      const name = emission_category_name?.trim() || null;
+      // A global name that was just the factor's own name follows a rename; one set apart (a T&D-loss row's activity) stays.
+      if (global_category_name === undefined && emissionFactor.global_category_name === emissionFactor.emission_category_name) emissionFactor.global_category_name = name;
+      emissionFactor.emission_category_name = name;
+    }
+    if (global_category_name !== undefined) emissionFactor.global_category_name = global_category_name?.trim() || null;
     Object.assign(emissionFactor, meta.meta);
     // Only when this edit touches the type or price fields: backfilled spend factors have no price yet.
     const touchesPrice = ["factor_type", "price_base_year", "price_currency"].some((k) => k in meta.meta);
