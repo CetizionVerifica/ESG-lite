@@ -23,6 +23,8 @@ test.before(() =>
     );
     configId = cfg.rows[0].pk_id;
     for (const c of cols.rows) await db.query(`INSERT INTO column_config_columns (column_config_id, column_id) VALUES ($1, $2)`, [configId, c.pk_id]);
+    // The form's saved field order (quantity first), not the ids' order: the bundle and the copy keep it.
+    await db.query(`UPDATE column_config SET column_order = $2 WHERE pk_id = $1`, [configId, [cols.rows[1].pk_id, cols.rows[0].pk_id]]);
     await db.query(`INSERT INTO unit (unit_name, description, site_id, category_id) VALUES ('SC litre', 'Litres', 1, 1)`);
     const ef = await db.query(
       `INSERT INTO emission_factors (site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name) VALUES
@@ -80,7 +82,7 @@ test("the bundle carries setup by name and leaves history, people and licensed f
   assert.ok(a.categories.includes("Stationary Combustion"));
   const form = a.forms.find((f) => f.config_name === "SC Diesel form");
   assert.equal(form.category_name, "Stationary Combustion");
-  assert.deepEqual(form.columns, [{ column_name: "SC Fuel type", column_type: "select" }, { column_name: "SC Litres", column_type: "number" }]);
+  assert.deepEqual(form.columns, [{ column_name: "SC Litres", column_type: "number" }, { column_name: "SC Fuel type", column_type: "select" }]);
   assert.deepEqual(form.emission_category_mapping, { d: "Diesel" });
   assert.deepEqual(form.column_options, { "SC Fuel type": [{ id: "d", label: "Diesel" }] }); // keyed by column name, not pk_id
   assert.deepEqual(a.units, [{ category_name: "Stationary Combustion", unit_name: "SC litre", description: "Litres" }]);
@@ -160,8 +162,11 @@ test("copy onto a client: the main site is reused, a site is skipped, one factor
   assert.equal(r.sites[1].target.kind, "skip");
 
   await withDb(async (db) => {
-    const cfg = await db.query(`SELECT pk_id, column_options, emission_category_mapping FROM column_config WHERE site_id = 3 AND config_name = 'SC Diesel form'`);
+    const cfg = await db.query(`SELECT pk_id, column_options, emission_category_mapping, column_order FROM column_config WHERE site_id = 3 AND config_name = 'SC Diesel form'`);
     assert.equal(cfg.rows.length, 1);
+    const ids = await db.query(`SELECT pk_id, column_name FROM column_entity WHERE column_name IN ('SC Fuel type', 'SC Litres')`);
+    const idOf = Object.fromEntries(ids.rows.map((r) => [r.column_name, r.pk_id]));
+    assert.deepEqual(cfg.rows[0].column_order, [idOf["SC Litres"], idOf["SC Fuel type"]]); // the source form's field order
     assert.deepEqual(cfg.rows[0].emission_category_mapping, { d: "Diesel" });
     assert.equal(await count(db, `SELECT count(*) AS n FROM column_config_columns WHERE column_config_id = $1`, [cfg.rows[0].pk_id]), 2);
     const fuel = await db.query(`SELECT pk_id FROM column_entity WHERE column_name = 'SC Fuel type' AND column_type = 'select' ORDER BY pk_id LIMIT 1`);

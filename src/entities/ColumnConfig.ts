@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinColumn, JoinTable } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinColumn, JoinTable, AfterLoad } from "typeorm";
 import { ColumnEntity as DynamicColumn } from "./Column";
 import { Category } from "./Category";
 import { Site } from "./Site";
 import type { FieldSettings, FormCurrency, FormUnits, MethodByChoice, MethodOptions } from "../scope3/contracts/schemas";
+import { orderColumns } from "../forms/columnOrder";
 
 // Interface for dropdown option values
 export interface DropdownOptionValue {
@@ -157,6 +158,19 @@ export class ColumnConfig {
   /** Bumped when the form is published (SE-4). */
   @Column({ type: "int", default: 1 })
   version!: number;
+
+  /**
+   * The fields' order as column ids (migrate:form-field-order): the join table
+   * below has no position. Null on forms saved before it: the stored order.
+   */
+  @Column({ type: "int", array: true, nullable: true })
+  column_order?: number[] | null;
+
+  /** Every read of a form with its fields gets them in the saved order (src/forms/columnOrder.ts). */
+  @AfterLoad()
+  sortColumns() {
+    if (this.columns) this.columns = orderColumns(this.columns, this.column_order);
+  }
 
   @ManyToMany(() => DynamicColumn, (column: DynamicColumn) => column.columnConfigs)
   @JoinTable({

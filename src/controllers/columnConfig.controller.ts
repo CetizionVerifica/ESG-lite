@@ -15,6 +15,7 @@ import { ColumnEntity } from "../entities/Column";
 import { Emission } from "../entities/Emission";
 import { Unit } from "../entities/Unit";
 import { In } from "typeorm";
+import { orderFromIds, orderWithAdded, orderWithSwap } from "../forms/columnOrder";
 import { generateColumnConfigProposal } from "../services/columnConfigGenerator";
 import { getDefaultExtraFieldsByName } from "../utils/defaultExtraFields";
 import { parseFormSettingsInput } from "../forms/formConfig";
@@ -233,6 +234,8 @@ export const createColumnConfig = async (req: Request, res: Response) => {
       site: { site_id },
       category: { category_id },
       columns,
+      // The fields in the order sent (the join table keeps none).
+      column_order: columns.length ? orderFromIds(column_ids) : null,
       column_options: validatedColumnOptions,
       column_dependencies: validatedColumnDependencies,
       dependent_options: validatedDependentOptions,
@@ -372,8 +375,11 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
           });
         }
         columnConfig.columns = columns;
+        // The builder sends the fields in the order the Superadmin put them.
+        columnConfig.column_order = orderFromIds(column_ids);
       } else {
         columnConfig.columns = [];
+        columnConfig.column_order = null;
       }
     }
 
@@ -467,6 +473,8 @@ export const updateColumnConfig = async (req: Request, res: Response) => {
           columnConfig.columns = columnConfig.columns.map((c: ColumnEntity) =>
             c.pk_id === col.pk_id ? newCol! : c
           );
+          // The new field takes the old one's place.
+          columnConfig.column_order = orderWithSwap(columnConfig.column_order, col.pk_id, newCol.pk_id);
 
           // Also update column_options keys: old pk_id → new pk_id
           if (columnConfig.column_options) {
@@ -641,6 +649,8 @@ export const addColumnsToConfig = async (req: Request, res: Response) => {
     // Add new columns (avoid duplicates)
     const existingIds = columnConfig.columns.map((c) => c.pk_id);
     const newColumns = columnsToAdd.filter((c) => !existingIds.includes(c.pk_id));
+    // New fields go last; a form without an order gets one from the fields as read.
+    columnConfig.column_order = orderWithAdded(columnConfig.columns, newColumns);
     columnConfig.columns = [...columnConfig.columns, ...newColumns];
 
     await repo.save(columnConfig);
@@ -688,6 +698,7 @@ export const removeColumnsFromConfig = async (req: Request, res: Response) => {
     columnConfig.columns = columnConfig.columns.filter(
       (c) => !column_ids.includes(c.pk_id)
     );
+    if (columnConfig.column_order) columnConfig.column_order = orderFromIds(columnConfig.columns.map((c) => c.pk_id));
 
     await repo.save(columnConfig);
 
@@ -883,6 +894,8 @@ export const confirmAutoGenerateColumnConfig = async (req: Request, res: Respons
       site: { site_id },
       category: { category_id },
       columns: columnEntities,
+      // The proposal's order: the choices, then the quantity.
+      column_order: columnEntities.length ? orderFromIds(columnEntities.map((c) => c.pk_id)) : null,
       column_options: remappedColumnOptions,
       column_dependencies: column_dependencies || {},
       dependent_options: expandedDependentOptions || {},
