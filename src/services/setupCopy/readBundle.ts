@@ -68,9 +68,9 @@ export async function readBundle(companyId: number, manager?: EntityManager): Pr
       [siteIds],
     ),
   );
-  const formRows: ({ site_id: number; pk_id: number } & Omit<BundleForm, "columns">)[] = await m.query(
+  const formRows: ({ site_id: number; pk_id: number; column_order: number[] | null } & Omit<BundleForm, "columns">)[] = await m.query(
     `SELECT cc.site_id, cc.pk_id, c.category_name, cc.config_name, cc.column_options, cc.column_dependencies, cc.dependent_options,
-            cc.emission_category_mapping, cc.extra_fields, cc.calculation
+            cc.emission_category_mapping, cc.extra_fields, cc.calculation, cc.column_order
        FROM column_config cc JOIN category c ON c.category_id = cc.category_id
       WHERE cc.site_id = ANY($1) ORDER BY cc.pk_id`,
     [siteIds],
@@ -83,6 +83,10 @@ export async function readBundle(companyId: number, manager?: EntityManager): Pr
         [formRows.map((f) => n(f.pk_id))],
       )
     : [];
+  // A form's fields in its saved order (src/forms/columnOrder.ts); the bundle keeps that order.
+  const rankOf = new Map<number, Map<number, number>>(formRows.map((f) => [n(f.pk_id), new Map((f.column_order ?? []).map((id, i) => [n(id), i]))]));
+  const rank = (r: { column_config_id: number; column_id: number }) => rankOf.get(n(r.column_config_id))?.get(n(r.column_id)) ?? Number.MAX_SAFE_INTEGER;
+  columnRows.sort((a, b) => n(a.column_config_id) - n(b.column_config_id) || rank(a) - rank(b));
   const columnsOf = new Map<number, { column_name: string; column_type: string }[]>();
   const columnNameOf = new Map<number, Map<string, string>>(); // form id -> column pk_id (as stored in JSON keys) -> column name
   for (const r of columnRows) {

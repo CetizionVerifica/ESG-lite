@@ -382,8 +382,8 @@ async function copyForm(ctx: Ctx, f: BundleForm, siteId: number, categoryId: num
     if (missing.size) sr.warnings.push(`Form "${name}" multiplies columns it does not have: ${[...missing].join(", ")}.`);
   }
   const row = await m.query(
-    `INSERT INTO column_config (config_name, site_id, category_id, column_options, column_dependencies, dependent_options, emission_category_mapping, extra_fields, calculation)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING pk_id`,
+    `INSERT INTO column_config (config_name, site_id, category_id, column_options, column_dependencies, dependent_options, emission_category_mapping, extra_fields, calculation, column_order)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING pk_id`,
     [
       name,
       siteId,
@@ -394,6 +394,8 @@ async function copyForm(ctx: Ctx, f: BundleForm, siteId: number, categoryId: num
       JSON.stringify(f.emission_category_mapping ?? {}),
       JSON.stringify(Array.isArray(f.extra_fields) ? f.extra_fields : []),
       f.calculation === null || f.calculation === undefined ? null : JSON.stringify(f.calculation),
+      // The bundle lists the fields in the source form's order.
+      columnIds.length ? [...new Set(columnIds)] : null,
     ],
   );
   const configId = n(row[0].pk_id);
