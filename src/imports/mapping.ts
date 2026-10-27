@@ -100,8 +100,10 @@ export const MappingProposalSchema = z
     document_id: positiveInt,
     site_id: positiveInt,
     sheets: z.array(SheetProposalSchema).max(IMPORT_LIMITS.MAPPING_SHEETS_PER_WORKBOOK),
-    /** Telemetry only. */
-    model: z.object({ name: z.string().max(100), calls: z.number().int().nonnegative(), cached_profile_hits: z.number().int().nonnegative() }).optional(),
+    /** Telemetry only. `error`: why the model call gave no usable answer, as a code (`http_402`, an error type), present only on a failure. */
+    model: z
+      .object({ name: z.string().max(100), calls: z.number().int().nonnegative(), cached_profile_hits: z.number().int().nonnegative(), error: z.string().max(60).optional() })
+      .optional(),
   })
   .strip()
   .refine((p) => p.sheets.every((s) => s.site_id === p.site_id), { message: "every sheet must be for the proposal's site", path: ["sheets"] });

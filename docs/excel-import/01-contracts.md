@@ -12,7 +12,7 @@ Additive to `/mnt/project-files/mcp-import/01-contracts.md` (IM0, built in ESG-l
 MappingProposal {
   document_id: int
   sheets: SheetProposal[]
-  model: { name: string, calls: int, cached_profile_hits: int }   // telemetry only
+  model: { name: string, calls: int, cached_profile_hits: int, error?: string }   // telemetry only; error = failure code (http_402, error type), only when a call failed
 }
 SheetProposal {
   sheet_name: string
