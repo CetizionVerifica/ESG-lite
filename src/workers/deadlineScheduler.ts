@@ -94,6 +94,40 @@ const getManagersForSite = async (siteId: number) => {
   return managers;
 };
 
+type PendingUser = Awaited<ReturnType<typeof getUsersWithNoSubmissions>>[number];
+
+/** Every site a person still owes data for, by email, in the order found. */
+export const siteNamesByEmail = (pending: Pick<PendingUser, "email" | "siteName">[]): Map<string, string[]> => {
+  const sites = new Map<string, string[]>();
+  for (const u of pending) {
+    const list = sites.get(u.email) ?? [];
+    if (!list.includes(u.siteName)) list.push(u.siteName);
+    sites.set(u.email, list);
+  }
+  return sites;
+};
+
+/**
+ * One escalation per Manager, listing who hasn't filed at every site they
+ * manage. Sending one per site stopped at the first: the "already sent this
+ * month" check is per Manager, so their other sites were never mentioned.
+ */
+export const escalationsByManager = <M extends { user_id: number; email?: string | null }, U extends { siteId: number }>(
+  pending: U[],
+  managersBySite: Map<number, M[]>,
+): { manager: M; users: U[] }[] => {
+  const byManager = new Map<number, { manager: M; users: U[] }>();
+  for (const u of pending) {
+    for (const manager of managersBySite.get(u.siteId) ?? []) {
+      if (!manager.email) continue;
+      const entry = byManager.get(manager.user_id) ?? { manager, users: [] };
+      entry.users.push(u);
+      byManager.set(manager.user_id, entry);
+    }
+  }
+  return [...byManager.values()];
+};
+
 /**
  * Runs on the 10th of every month at 8:00 AM.
  * Sends reminder emails to users who haven't submitted data.
@@ -116,8 +150,9 @@ export const sendDeadlineReminders = async () => {
       return;
     }
 
-    // Deduplicate: send one email per unique user (not per user-site combo)
+    // Deduplicate: send one email per unique user (not per user-site combo), naming all their sites
     const sentEmails = new Set<string>();
+    const sitesOf = siteNamesByEmail(pendingUsers);
     let sentCount = 0;
 
     // Track sent reminders to prevent duplicates across hourly runs
@@ -140,8 +175,9 @@ export const sendDeadlineReminders = async () => {
       if (alreadySent > 0) continue;
 
       sentEmails.add(user.email);
+      const siteNames = (sitesOf.get(user.email) ?? [user.siteName]).join(", ");
 
-      console.log(`Queuing deadline reminder for: ${user.email} (${user.name}, site: ${user.siteName})`);
+      console.log(`Queuing deadline reminder for: ${user.email} (${user.name}, sites: ${siteNames})`);
 
       await sendToQueue({
         type: "DEADLINE_REMINDER",
@@ -150,7 +186,7 @@ export const sendDeadlineReminders = async () => {
         retryCount: 0,
         month: monthName,
         year,
-        siteName: user.siteName,
+        siteName: siteNames,
       });
 
       // In-app notification
@@ -158,7 +194,7 @@ export const sendDeadlineReminders = async () => {
         user.user_id,
         "DEADLINE_REMINDER",
         "Submission Reminder",
-        `You haven't submitted data for ${monthName} ${year} (${user.siteName})`,
+        `You haven't submitted data for ${monthName} ${year} (${siteNames})`,
         `/data-entry`
       );
 
@@ -194,67 +230,54 @@ export const sendEscalationEmails = async () => {
       return;
     }
 
-    // Group pending users by site
-    const usersBySite: Record<number, typeof pendingUsers> = {};
-    for (const user of pendingUsers) {
-      if (!usersBySite[user.siteId]) {
-        usersBySite[user.siteId] = [];
-      }
-      usersBySite[user.siteId].push(user);
+    // The Managers of each site that has someone pending
+    const managersBySite = new Map<number, User[]>();
+    for (const siteId of new Set(pendingUsers.map((u) => u.siteId))) {
+      const managers = await getManagersForSite(siteId);
+      if (managers.length === 0) console.log(`No manager found for site ${siteId}. Skipping escalation.`);
+      managersBySite.set(siteId, managers);
     }
 
-    // For each site, find managers and send escalation
-    for (const [siteIdStr, siteUsers] of Object.entries(usersBySite)) {
-      const siteId = parseInt(siteIdStr);
-      const managers = await getManagersForSite(siteId);
+    for (const { manager, users } of escalationsByManager(pendingUsers, managersBySite)) {
+      // Check if it's 8 AM in the manager's timezone
+      if (!isLocalHour(manager.timezone || null, 8)) continue;
 
-      if (managers.length === 0) {
-        console.log(`No manager found for site ${siteId}. Skipping escalation.`);
-        continue;
-      }
-
-      for (const manager of managers) {
-        if (!manager.email) continue;
-
-        // Check if it's 8 AM in the manager's timezone
-        if (!isLocalHour(manager.timezone || null, 8)) continue;
-
-        // Idempotency: skip if escalation already sent this month
-        const alreadySent = await notificationRepo.count({
-          where: {
-            user: { user_id: manager.user_id },
-            type: "DEADLINE_ESCALATION",
-            created_at: MoreThanOrEqual(new Date(now.getFullYear(), now.getMonth(), 1)),
-          },
-        });
-        if (alreadySent > 0) continue;
-
-        console.log(`Queuing escalation for manager: ${manager.email}`);
-
-        await sendToQueue({
+      // Idempotency: skip if escalation already sent this month
+      const alreadySent = await notificationRepo.count({
+        where: {
+          user: { user_id: manager.user_id },
           type: "DEADLINE_ESCALATION",
-          email: manager.email,
-          name: `${manager.name || ""} ${manager.last_name || ""}`.trim() || "Manager",
-          retryCount: 0,
-          month: monthName,
-          year,
-          pendingUsers: siteUsers.map((u) => ({
-            name: u.name,
-            email: u.email,
-            role: u.role,
-            siteName: u.siteName,
-          })),
-        });
+          created_at: MoreThanOrEqual(new Date(now.getFullYear(), now.getMonth(), 1)),
+        },
+      });
+      if (alreadySent > 0) continue;
 
-        // In-app notification for manager
-        await createNotification(
-          manager.user_id,
-          "DEADLINE_ESCALATION",
-          "Pending Submissions",
-          `${siteUsers.length} user(s) haven't submitted data for ${monthName} ${year}`,
-          `/data-manage`
-        );
-      }
+      console.log(`Queuing escalation for manager: ${manager.email}`);
+
+      await sendToQueue({
+        type: "DEADLINE_ESCALATION",
+        email: manager.email,
+        name: `${manager.name || ""} ${manager.last_name || ""}`.trim() || "Manager",
+        retryCount: 0,
+        month: monthName,
+        year,
+        pendingUsers: users.map((u) => ({
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          siteName: u.siteName,
+        })),
+      });
+
+      // In-app notification for manager
+      const people = new Set(users.map((u) => u.email)).size;
+      await createNotification(
+        manager.user_id,
+        "DEADLINE_ESCALATION",
+        "Pending Submissions",
+        `${people} user(s) haven't submitted data for ${monthName} ${year}`,
+        `/overview`
+      );
     }
 
     console.log(`Escalation emails queued for ${pendingUsers.length} pending user(s).`);

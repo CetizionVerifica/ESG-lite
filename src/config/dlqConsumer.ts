@@ -1,4 +1,5 @@
 import { getChannel } from "../config/rabbitmq";
+import { alertDeliveryFailed } from "../workers/emailConsumer";
 
 export const startDLQConsumer = async () => {
     const channel = getChannel();
@@ -6,13 +7,21 @@ export const startDLQConsumer = async () => {
  channel.consume("dlq_queue", async (msg: any) => {
     if (!msg) return;
 
-    const data = JSON.parse(msg.content.toString());
+    let data: any;
+    try {
+        data = JSON.parse(msg.content.toString());
+    } catch {
+        console.error("[Email] Dropped a dead-letter message that isn't JSON");
+        channel.ack(msg);
+        return;
+    }
 
     const MAX_DLQ_RETRIES = 3;
     const dlqRetryCount = data.dlqRetryCount || 0;
 
     if (dlqRetryCount >= MAX_DLQ_RETRIES) {
         console.log("🚫 DLQ retry limit reached for:", data.email);
+        await alertDeliveryFailed(data.email, "every retry failed");
         channel.ack(msg);
         return;
     }

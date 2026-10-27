@@ -10,6 +10,7 @@ import { User } from "../entities/User";
 import { UserRole } from "../types/type";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { sendToQueue } from "../queues/emailProducer";
+import { reviewSummaries } from "../services/reviewMail";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
 import { pcfDataChanged } from "../pcf/staleness";
@@ -762,19 +763,14 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
 
-    const totalCount = dataToApprove.length;
-    const productSummary: Record<string, number> = {};
     const creatorNames: string[] = [];
     for (const item of dataToApprove) {
-      const productName = (item.product as any)?.name || "N/A";
-      productSummary[productName] = (productSummary[productName] || 0) + 1;
       const creator = item.created_by;
       if (creator?.name) {
         const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
         if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
       }
     }
-    const categories = Object.entries(productSummary).map(([categoryName, count]) => ({ categoryName, count }));
 
     const actionInfo = {
       submitterName: creatorNames.join(", ") || "User",
@@ -784,22 +780,16 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
       managerRole: manager?.role || "",
     };
 
-    const creatorMap = new Map<number, User>();
-    for (const item of dataToApprove) {
-      const creator = item.created_by;
-      if (creator?.email && !creatorMap.has(creator.user_id)) {
-        creatorMap.set(creator.user_id, creator);
-      }
-    }
-
-    for (const creator of creatorMap.values()) {
+    // Each person hears about their own entries only, not the colleagues' rows reviewed with them.
+    const perPerson = reviewSummaries(dataToApprove, (item) => item.created_by, (item) => (item.product as any)?.name || "N/A");
+    for (const { creator, count, items } of perPerson) {
       await sendToQueue({
         type: "BULK_PRODUCTION_APPROVED",
         email: creator.email,
         name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount,
-        products: categories,
+        totalCount: count,
+        products: items,
         ...actionInfo,
       });
       const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
@@ -807,7 +797,7 @@ export const bulkApproveProductionData = async (req: AuthRequest, res: Response)
         creator.user_id,
         "BULK_PRODUCTION_APPROVED",
         "Production Data Approved",
-        `${totalCount} production data entries approved by ${mgrName}`,
+        `${count} production data entries approved by ${mgrName}`,
         `/production-data`,
         { reviewer: mgrName }
       );
@@ -863,19 +853,14 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
 
-    const totalCount = dataToReject.length;
-    const productSummary: Record<string, number> = {};
     const creatorNames: string[] = [];
     for (const item of dataToReject) {
-      const productName = (item.product as any)?.name || "N/A";
-      productSummary[productName] = (productSummary[productName] || 0) + 1;
       const creator = item.created_by;
       if (creator?.name) {
         const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
         if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
       }
     }
-    const categories = Object.entries(productSummary).map(([categoryName, count]) => ({ categoryName, count }));
 
     const actionInfo = {
       submitterName: creatorNames.join(", ") || "User",
@@ -885,22 +870,16 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
       managerRole: manager?.role || "",
     };
 
-    const creatorMap = new Map<number, User>();
-    for (const item of dataToReject) {
-      const creator = item.created_by;
-      if (creator?.email && !creatorMap.has(creator.user_id)) {
-        creatorMap.set(creator.user_id, creator);
-      }
-    }
-
-    for (const creator of creatorMap.values()) {
+    // Each person hears about their own entries only, not the colleagues' rows reviewed with them.
+    const perPerson = reviewSummaries(dataToReject, (item) => item.created_by, (item) => (item.product as any)?.name || "N/A");
+    for (const { creator, count, items } of perPerson) {
       await sendToQueue({
         type: "BULK_PRODUCTION_REJECTED",
         email: creator.email,
         name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount,
-        products: categories,
+        totalCount: count,
+        products: items,
         comment: comment.trim(),
         ...actionInfo,
       });
@@ -909,7 +888,7 @@ export const bulkRejectProductionData = async (req: AuthRequest, res: Response) 
         creator.user_id,
         "BULK_PRODUCTION_REJECTED",
         "Production Data Rejected",
-        `${totalCount} production data entries rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
+        `${count} production data entries rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
         `/production-data`,
         { reviewer: mgrName, reason: comment || null }
       );
