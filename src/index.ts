@@ -163,17 +163,13 @@ connectWithRetry()
         startStudioHistoryScheduler(); // DS-13: nightly version-history pruning (STUDIO_HISTORY_JOB=off turns it off)
         setTimeout(() => void recoverStudioJobs().catch((err) => console.warn("⚠️ Studio render jobs not recovered:", err?.message || "")), 5000).unref(); // DS-11
 
-        // Connect RabbitMQ in background (non-blocking)
-        connectRabbitMQ()
-            .then(async () => {
-                await startEmailConsumer();
-                await startDLQConsumer();
-                startDeadlineScheduler();
-                await startStudioRenderConsumer().catch((err) => console.warn("⚠️ Studio render worker not started:", err?.message || "")); // DS-11
-            })
-            .catch((err) => {
-                console.warn("⚠️ RabbitMQ not available — email notifications disabled.", err?.message || "");
-            });
+        // Connect RabbitMQ in the background; the consumers start again after every reconnect.
+        startDeadlineScheduler();
+        connectRabbitMQ(async () => {
+            await startEmailConsumer();
+            await startDLQConsumer();
+            await startStudioRenderConsumer().catch((err) => console.warn("⚠️ Studio render worker not started:", err?.message || "")); // DS-11
+        }).catch(() => undefined); // logged, and retried with backoff (config/rabbitmq.ts)
 
         // Set server timeouts
         server.keepAliveTimeout = 65000; // Slightly higher than ALB idle timeout
