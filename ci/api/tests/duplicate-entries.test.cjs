@@ -119,3 +119,26 @@ test("a Manager can still Replace a User's entry", async () => {
     await cleanUp();
   }
 });
+
+test("a save waits only a few seconds for another save, upload or import on the site and category", async () => {
+  try {
+    await withDb(async (db) => {
+      // Another writer holds site 1 / category 1 (the lock uploads and imports take).
+      await db.query("SELECT pg_advisory_lock(1, 1)");
+      try {
+        const started = Date.now();
+        const busy = await call("POST", "/user/emissions", "user", diesel(100));
+        assert.equal(busy.status, 409, JSON.stringify(busy.json));
+        assert.equal(busy.json.code, "ENTRY_BUSY");
+        assert.match(busy.json.message, /Try again/);
+        assert.ok(Date.now() - started < 15_000, "the wait is bounded");
+        assert.equal((await saved()).length, 0, "nothing written");
+      } finally {
+        await db.query("SELECT pg_advisory_unlock(1, 1)");
+      }
+    });
+    assert.equal((await call("POST", "/user/emissions", "user", diesel(100))).status, 201, "once it's free the save goes through");
+  } finally {
+    await cleanUp();
+  }
+});

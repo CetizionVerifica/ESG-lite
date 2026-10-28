@@ -41,7 +41,7 @@ import {
   type GhgFilters,
 } from "../reporting/ghg-data";
 import { pcfDataChanged } from "../pcf/staleness";
-import { kpiSourceChanged } from "../kpi/auto/hook"; // KPI-5: auto KPI values follow approved rows
+import { kpiHitsChanged, kpiSourceChanged, kpiSourceHits } from "../kpi/auto/hook"; // KPI-5: auto KPI values follow approved rows
 import { enrichFeraRows, foldedFeraTwinSql, pendingReviewCountSql } from "../utils/feraFold";
 import { addEntryQuantities } from "../services/entryQuantity";
 import { attentionSql, ATTENTION_BELOW } from "../utils/importAttention";
@@ -113,6 +113,13 @@ const DRAFT_VISIBLE_SQL = (e: string) => `(${e}.status::text <> 'draft' OR ${e}.
 
 const READY_SQL = (e: string) => `(${e}.status = 'pending' AND (${e}.checks ->> 'ready') = 'true')`;
 const HELD_SQL = (e: string) => `(${e}.status = 'pending' AND COALESCE(${e}.checks ->> 'ready', 'false') <> 'true')`;
+
+// How long a typed entry waits for the site + category lock that another save,
+// upload or import holds. The period-write lease is already held by then, and
+// imports take the two locks the other way round, so an unbounded wait could
+// stall every guarded write for the company; past this the entry is ENTRY_BUSY.
+const ENTRY_LOCK_TIMEOUT = "5s";
+const LOCK_NOT_AVAILABLE = "55P03";
 
 // Get emissions by site, category, and date (with optional pagination).
 // Optional sort=<EMISSION_SORTS key>&order=asc|desc and search=<text>; without
@@ -572,9 +579,12 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     // transaction holding the site + category lock bulk uploads and imports
     // take. Two people saving the same month at the same moment used to both
     // pass the check and both save; the second now waits for the first and
-    // gets the duplicate answer.
+    // gets the duplicate answer. The wait is bounded (ENTRY_LOCK_TIMEOUT).
     const outcome = await AppDataSource.transaction(async (tx) => {
+      await tx.query(`SET LOCAL lock_timeout = '${ENTRY_LOCK_TIMEOUT}'`);
       await tx.query(`SELECT pg_advisory_xact_lock($1, $2)`, [Number(site_id), Number(category_id)]);
+      // Only that lock is bounded; the rest of the transaction waits as before.
+      await tx.query(`SET LOCAL lock_timeout = DEFAULT`);
       const txRepo = tx.getRepository(Emission);
 
       const modeConflict = await findModeLockConflict(txRepo, {
@@ -618,7 +628,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
           ? visibleExisting[0]
           : null;
 
-      let replaced: { ids: number[]; files: Awaited<ReturnType<typeof documentFilesForEmissions>> } | null = null;
+      let replaced: { ids: number[]; files: Awaited<ReturnType<typeof documentFilesForEmissions>>; kpi: Awaited<ReturnType<typeof kpiSourceHits>> } | null = null;
       if (duplicate) {
         if (!replace && !keepBoth) return { kind: "duplicate" as const, duplicate };
         if (replace) {
@@ -637,7 +647,8 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
           for (const l of linkedBack) {
             if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
           }
-          await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
+          // KPI-5: read before the rows go, on this transaction; marked stale once it commits
+          const kpi = await kpiSourceHits("emission", idsToDelete, tx);
           // Delete related documents first; their stored files go once this commits
           const files = await documentFilesForEmissions(idsToDelete, tx);
           await tx
@@ -647,14 +658,21 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
             .where("emission_id IN (:...ids)", { ids: idsToDelete })
             .execute();
           await txRepo.delete(idsToDelete);
-          replaced = { ids: idsToDelete, files };
+          replaced = { ids: idsToDelete, files, kpi };
         }
       }
 
       const saved = await insertEntry(tx, userId, prepared.entry, null, null, { status });
       return { kind: "saved" as const, saved, replaced };
+    }).catch((err) => {
+      // The lock wait timed out: nothing was written, the person tries again.
+      if ((err as { code?: string })?.code === LOCK_NOT_AVAILABLE) return { kind: "busy" as const };
+      throw err;
     });
 
+    if (outcome.kind === "busy") {
+      return res.status(SCOPE3_ERRORS.ENTRY_BUSY.status).json({ code: "ENTRY_BUSY", message: SCOPE3_ERRORS.ENTRY_BUSY.message });
+    }
     if (outcome.kind === "mode_lock") {
       // Same wording as manager edits and imports (CY vs FY overlaps: their windows share up to nine months).
       return res.status(409).json({
@@ -680,6 +698,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
       });
     }
     if (outcome.replaced) {
+      await kpiHitsChanged(outcome.replaced.kpi);
       await removeDeletedDocumentFiles(outcome.replaced.files);
       await pcfDataChanged("emission", outcome.replaced.ids);
     }

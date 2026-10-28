@@ -31,6 +31,8 @@ export const SCOPE3_ERRORS = {
   FORM_CHECK_FAILED: { status: 400, message: "The form's settings don't fit its fields, choices or methods." },
   // Add data's duplicate answer: Replace deletes the saved entry, so a User replaces only their own entry that isn't approved.
   REPLACE_NOT_ALLOWED: { status: 403, message: "This entry can't be replaced: keep both or skip." },
+  // A typed entry waits a few seconds at most for another save, upload or import on the same site and category.
+  ENTRY_BUSY: { status: 409, message: "Someone else is saving data for this site and category right now. Try again in a moment." },
 } as const;
 
 export type Scope3ErrorCode = keyof typeof SCOPE3_ERRORS;
