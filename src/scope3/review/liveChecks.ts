@@ -40,6 +40,7 @@ interface SavedRow {
   site_id: number;
   status: string;
   created_by: number | null;
+  fera_linked_id: number | null;
   family: number[];
   has_evidence: boolean;
 }
@@ -64,7 +65,7 @@ async function checkAccess(manager: EntityManager, caller: Caller, rows: LiveChe
   const ids = [...new Set(rows.map((r) => r.id).filter((x): x is number => !!x))];
   const saved = new Map<number, SavedRow>();
   if (!ids.length) return saved;
-  const found: Array<Omit<SavedRow, "family"> & { fera_linked_id: number | null }> = await manager.query(
+  const found: Array<Omit<SavedRow, "family">> = await manager.query(
     `SELECT e.pk_id, e.site_id, e.status::text AS status, e.created_by, e.fera_linked_id,
             EXISTS (SELECT 1 FROM emission_document d WHERE d.emission_id = e.pk_id OR d.emission_id = e.fera_linked_id
                        OR d.emission_id IN (SELECT p.pk_id FROM emission p WHERE p.fera_linked_id = e.pk_id)) AS has_evidence
@@ -133,6 +134,8 @@ export async function liveChecks(manager: EntityManager, caller: Caller, rows: L
         ...quality.value,
         // SE-2: as the save would (a User's row takes the method the form decides).
         method_source: caller.role === UserRole.USER ? "contributor" : "caller",
+        // D6a: as the edit would (a row saved with a FERA twin keeps its WTT there).
+        keep_fera_twin: !!edit?.fera_linked_id,
       });
       if (prepared.ok) entry = prepared.entry;
       else issue = issueOf(prepared.issue.code, prepared.issue.message, prepared.issue.field);
