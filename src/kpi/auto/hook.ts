@@ -12,6 +12,7 @@
  * Never throws and never fails the caller's write. Under NODE_ENV=test the job
  * is off unless KPI_AUTO_REFRESH_DELAY_MS is set (tests refresh explicitly).
  */
+import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import type { YearType } from "../contracts/enums";
 import { reportingYearOf, isoDay } from "../values/period";
@@ -133,14 +134,21 @@ export type KpiHits = { kind: Kind; rows: number; hits: Hit[] };
  * The auto values the rows feed, read now: before a delete, while the rows
  * still exist, on the caller's transaction when it passes one. Hand them to
  * `kpiHitsChanged` once that transaction commits, so a write holding a lock
- * never waits for a second connection. Never throws.
+ * never waits for a second connection. Never throws, and never fails the
+ * caller's transaction: there the read runs in a savepoint.
  */
-export async function kpiSourceHits(kind: Kind, ids: Array<number | null | undefined>, m?: Querier): Promise<KpiHits> {
+export async function kpiSourceHits(kind: Kind, ids: Array<number | null | undefined>, tx?: EntityManager): Promise<KpiHits> {
   const clean = [...new Set(ids.filter((id): id is number => Number.isInteger(id)))];
   if (!clean.length) return { kind, rows: 0, hits: [] };
+  // Inside a transaction a failed statement aborts it, so a failed read rolls back only itself.
+  const inTx = Boolean(tx?.queryRunner?.isTransactionActive);
   try {
-    return { kind, rows: clean.length, hits: await affected(kind, clean, m) };
+    if (inTx) await tx!.query("SAVEPOINT kpi_source_hits");
+    const hits = await affected(kind, clean, tx);
+    if (inTx) await tx!.query("RELEASE SAVEPOINT kpi_source_hits");
+    return { kind, rows: clean.length, hits };
   } catch (err) {
+    if (inTx) await tx!.query("ROLLBACK TO SAVEPOINT kpi_source_hits").catch(() => undefined);
     console.error(`[kpi] auto values not marked stale (${kind} ${clean.length} rows):`, (err as Error)?.message);
     return { kind, rows: clean.length, hits: [] };
   }
