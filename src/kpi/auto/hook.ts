@@ -12,6 +12,7 @@
  * Never throws and never fails the caller's write. Under NODE_ENV=test the job
  * is off unless KPI_AUTO_REFRESH_DELAY_MS is set (tests refresh explicitly).
  */
+import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
 import type { YearType } from "../contracts/enums";
 import { reportingYearOf, isoDay } from "../values/period";
@@ -97,17 +98,19 @@ export function sourcesOf(scope: string | null, ghgCategory: number | null): str
   return ENERGY;
 }
 
-async function affected(kind: Kind, ids: number[]): Promise<Hit[]> {
+type Querier = { query: (sql: string, params?: unknown[]) => Promise<any> };
+
+async function affected(kind: Kind, ids: number[], m: Querier = AppDataSource): Promise<Hit[]> {
   const rows: Row[] =
     kind === "emission"
-      ? await AppDataSource.query(
+      ? await m.query(
           `SELECT s.company_id, e.site_id, e.date_of_reporting AS d_from, e.date_of_reporting AS d_to, COALESCE(ks.year_type, 'CY') AS year_type, cat.scope, cat.ghg_category
              FROM emission e JOIN category cat ON cat.category_id = e.category_id JOIN site s ON s.site_id = e.site_id JOIN company c ON c.company_id = s.company_id AND c.kpi_tracking_enabled
              LEFT JOIN company_kpi_settings ks ON ks.company_id = s.company_id
             WHERE e.pk_id = ANY($1::bigint[])`,
           [ids],
         )
-      : await AppDataSource.query(
+      : await m.query(
           `SELECT s.company_id, p.site_id, p.start_date AS d_from, p.end_date AS d_to, COALESCE(ks.year_type, 'CY') AS year_type, NULL AS scope, NULL AS ghg_category
              FROM production_data p JOIN site s ON s.site_id = p.site_id JOIN company c ON c.company_id = s.company_id AND c.kpi_tracking_enabled
              LEFT JOIN company_kpi_settings ks ON ks.company_id = s.company_id
@@ -121,11 +124,40 @@ async function affected(kind: Kind, ids: number[]): Promise<Hit[]> {
 
 /** Marks the affected auto values stale and schedules their refresh. Never throws. */
 export async function kpiSourceChanged(kind: Kind, ids: Array<number | null | undefined>): Promise<void> {
+  await kpiHitsChanged(await kpiSourceHits(kind, ids));
+}
+
+/** The auto values a set of changed rows feeds (`rows`: how many rows, for the log line). */
+export type KpiHits = { kind: Kind; rows: number; hits: Hit[] };
+
+/**
+ * The auto values the rows feed, read now: before a delete, while the rows
+ * still exist, on the caller's transaction when it passes one. Hand them to
+ * `kpiHitsChanged` once that transaction commits, so a write holding a lock
+ * never waits for a second connection. Never throws, and never fails the
+ * caller's transaction: there the read runs in a savepoint.
+ */
+export async function kpiSourceHits(kind: Kind, ids: Array<number | null | undefined>, tx?: EntityManager): Promise<KpiHits> {
   const clean = [...new Set(ids.filter((id): id is number => Number.isInteger(id)))];
-  if (!clean.length) return;
+  if (!clean.length) return { kind, rows: 0, hits: [] };
+  // Inside a transaction a failed statement aborts it, so a failed read rolls back only itself.
+  const inTx = Boolean(tx?.queryRunner?.isTransactionActive);
   try {
-    const hits = await affected(kind, clean);
-    if (!hits.length) return;
+    if (inTx) await tx!.query("SAVEPOINT kpi_source_hits");
+    const hits = await affected(kind, clean, tx);
+    if (inTx) await tx!.query("RELEASE SAVEPOINT kpi_source_hits");
+    return { kind, rows: clean.length, hits };
+  } catch (err) {
+    if (inTx) await tx!.query("ROLLBACK TO SAVEPOINT kpi_source_hits").catch(() => undefined);
+    console.error(`[kpi] auto values not marked stale (${kind} ${clean.length} rows):`, (err as Error)?.message);
+    return { kind, rows: clean.length, hits: [] };
+  }
+}
+
+/** Marks the hits' auto values stale and schedules their refresh. Never throws. */
+export async function kpiHitsChanged({ kind, rows, hits }: KpiHits): Promise<void> {
+  if (!hits.length) return;
+  try {
     const now = new Date().toISOString();
     // One UPDATE per (company, site, sources) over the span of dates, not one per row: a bulk
     // approve of thousands of rows stays a handful of queries. A value inside the span that no
@@ -160,6 +192,6 @@ export async function kpiSourceChanged(kind: Kind, ids: Array<number | null | un
     const j = job();
     if (j) for (const [companyId, years] of byCompany) j.schedule(companyId, [...years]);
   } catch (err) {
-    console.error(`[kpi] auto values not marked stale (${kind} ${clean.length} rows):`, (err as Error)?.message);
+    console.error(`[kpi] auto values not marked stale (${kind} ${rows} rows):`, (err as Error)?.message);
   }
 }

@@ -11,7 +11,7 @@ const { ADAPTERS, missingAdapters } = require(path.resolve("dist/kpi/auto/adapte
 const { ghgFilters } = require(path.resolve("dist/kpi/auto/ghg.js"));
 const { rowGj, isEnergyRow, isRenewable, fuelOf } = require(path.resolve("dist/kpi/auto/energy.js"));
 const { disposalOf } = require(path.resolve("dist/kpi/auto/waste.js"));
-const { createDebouncer, sourcesOf } = require(path.resolve("dist/kpi/auto/hook.js"));
+const { createDebouncer, sourcesOf, kpiSourceHits } = require(path.resolve("dist/kpi/auto/hook.js"));
 const { periodsFor } = require(path.resolve("dist/kpi/values/period.js"));
 const { AUTO_SOURCE_KEYS } = require(path.resolve("dist/kpi/contracts/enums.js"));
 
@@ -118,6 +118,26 @@ test("debounced job: one run per company after the last change, with every year 
   assert.deepEqual(runs, [[1, [2025, 2026]], [2, [2026]]]);
   assert.equal(d.pending().size, 0);
   assert.equal(timers.filter((t) => t.cleared).length, 1, "the first timer of company 1 was replaced");
+});
+
+test("reading a write's KPI rows on its transaction: a failed read rolls back only itself", async () => {
+  const sent = [];
+  const tx = {
+    queryRunner: { isTransactionActive: true },
+    query: async (sql) => {
+      sent.push(sql.trim().split(/\s+/).slice(0, 3).join(" "));
+      if (sql.includes("FROM emission e")) throw new Error("canceling statement due to statement timeout");
+      return [];
+    },
+  };
+  const error = console.error;
+  console.error = () => {};
+  try {
+    assert.deepEqual(await kpiSourceHits("emission", [5, 5, null], tx), { kind: "emission", rows: 1, hits: [] });
+  } finally {
+    console.error = error;
+  }
+  assert.deepEqual(sent, ["SAVEPOINT kpi_source_hits", "SELECT s.company_id, e.site_id,", "ROLLBACK TO SAVEPOINT"]);
 });
 
 test("ncv.json densities: each one checked against DESNZ 2025 'Fuel properties' (figures copied by hand from the table)", () => {

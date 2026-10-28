@@ -65,6 +65,11 @@ test("a rejection reason with < and & arrives as typed, line breaks kept", () =>
   assert.ok(!m.html.includes("<b>"));
 });
 
+test("a reason that arrives as a number still renders", () => {
+  const m = t.bulkRejectedTemplate("A", 1, [{ categoryName: "Cat", count: 1 }], 123);
+  assert.ok(m.html.includes(">123</p>"));
+});
+
 test("category and product names in a bulk email are escaped", () => {
   const m = t.bulkApprovedTemplate("A", 1, [{ categoryName: "Heat <steam>", count: 1 }]);
   assert.ok(m.html.includes("Heat &lt;steam&gt;"));

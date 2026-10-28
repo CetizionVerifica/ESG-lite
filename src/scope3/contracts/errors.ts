@@ -29,6 +29,10 @@ export const SCOPE3_ERRORS = {
   // Simple data entry SE-2 (ESG-lite_FE docs/simple-entry): the form fixes the unit and is checked before use.
   UNIT_NOT_ALLOWED: { status: 400, message: "This form only takes another unit." },
   FORM_CHECK_FAILED: { status: 400, message: "The form's settings don't fit its fields, choices or methods." },
+  // Add data's duplicate answer: Replace deletes the saved entry, so a User replaces only their own entry that isn't approved.
+  REPLACE_NOT_ALLOWED: { status: 403, message: "This entry can't be replaced: keep both or skip." },
+  // A typed entry waits a few seconds at most for another save, upload or import on the same site and category.
+  ENTRY_BUSY: { status: 409, message: "Data for this site and category is being saved right now, for example an upload or import. Try again in a minute." },
 } as const;
 
 export type Scope3ErrorCode = keyof typeof SCOPE3_ERRORS;
