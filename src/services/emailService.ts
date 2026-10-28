@@ -68,8 +68,8 @@ export const sendPasswordResetEmail = async (
           <h1>Password Reset Request</h1>
         </div>
         <div class="content">
-          <p>Hello${userName ? ` ${userName}` : ""},</p>
-          <p>We received a request to reset your password for your Emission Tracker account.</p>
+          <p>Hello${userName ? ` ${userName.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)}` : ""},</p>
+          <p>We received a request to reset your password for your ESGLite account.</p>
           <p>Click the button below to reset your password:</p>
           <p style="text-align: center;">
             <a href="${resetUrl}" class="button" style="color: white;">Reset Password</a>
@@ -83,7 +83,7 @@ export const sendPasswordResetEmail = async (
           </div>
         </div>
         <div class="footer">
-          <p>This email was sent by Emission Tracker</p>
+          <p>This email was sent by ESGLite</p>
           <p>Please do not reply to this email</p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export const sendPasswordResetEmail = async (
 
     await sendEmail({
         to: email,
-        subject: "Password Reset Request - Emission Tracker",
+        subject: "Reset your ESGLite password",
         html,
     });
 };

@@ -23,6 +23,7 @@ import { NO_FORM_SETTINGS, editKeepsMethod, type MethodSource } from "../forms/f
 import axios from "axios";
 import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
+import { reviewSummaries } from "../services/reviewMail";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
 import { validatePeriodFields, findModeLockConflict, futurePeriodError } from "../services/reportingPeriod";
@@ -1233,19 +1234,14 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
     const manager = await userRepo.findOne({ where: { user_id: userId } });
 
     // Build summary for email content
-    const totalCount = emissionsToApprove.length;
-    const categorySummary: Record<string, number> = {};
     const creatorNames: string[] = [];
     for (const emission of emissionsToApprove) {
-      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
-      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
       const creator = emission.created_by;
       if (creator?.name) {
         const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
         if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
       }
     }
-    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
 
     const actionInfo = {
       submitterName: creatorNames.join(", ") || "User",
@@ -1255,23 +1251,16 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
       managerRole: manager?.role || "",
     };
 
-    // Send email to each unique creator
-    const creatorMap = new Map<number, User>();
-    for (const emission of emissionsToApprove) {
-      const creator = emission.created_by;
-      if (creator?.email && !creatorMap.has(creator.user_id)) {
-        creatorMap.set(creator.user_id, creator);
-      }
-    }
-
-    for (const creator of creatorMap.values()) {
+    // Each person hears about their own entries only, not the colleagues' rows reviewed with them.
+    const perPerson = reviewSummaries(emissionsToApprove, (e) => e.created_by, (e) => (e.category as any)?.category_name || "Uncategorized");
+    for (const { creator, count, items } of perPerson) {
       await sendToQueue({
         type: "BULK_APPROVED",
         email: creator.email,
         name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount,
-        categories,
+        totalCount: count,
+        categories: items,
         ...actionInfo,
       });
       const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
@@ -1279,7 +1268,7 @@ export const approveEmissionsByBatch = async (req: AuthRequest, res: Response) =
         creator.user_id,
         "BULK_APPROVED",
         "Emissions Approved",
-        `${totalCount} emission(s) approved by ${mgrName}`,
+        `${count} emission(s) approved by ${mgrName}`,
         `/my-emissions`,
         { reviewer: mgrName }
       );
@@ -1363,19 +1352,14 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
 
-    const totalCount = emissionsToReject.length;
-    const categorySummary: Record<string, number> = {};
     const creatorNames: string[] = [];
     for (const emission of emissionsToReject) {
-      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
-      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
       const creator = emission.created_by;
       if (creator?.name) {
         const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
         if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
       }
     }
-    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
 
     const actionInfo = {
       submitterName: creatorNames.join(", ") || "User",
@@ -1385,23 +1369,16 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
       managerRole: manager?.role || "",
     };
 
-    // Send email to each unique creator
-    const creatorMap = new Map<number, User>();
-    for (const emission of emissionsToReject) {
-      const creator = emission.created_by;
-      if (creator?.email && !creatorMap.has(creator.user_id)) {
-        creatorMap.set(creator.user_id, creator);
-      }
-    }
-
-    for (const creator of creatorMap.values()) {
+    // Each person hears about their own entries only, not the colleagues' rows reviewed with them.
+    const perPerson = reviewSummaries(emissionsToReject, (e) => e.created_by, (e) => (e.category as any)?.category_name || "Uncategorized");
+    for (const { creator, count, items } of perPerson) {
       await sendToQueue({
         type: "BULK_REJECTED",
         email: creator.email,
         name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount,
-        categories,
+        totalCount: count,
+        categories: items,
         comment: comment || "",
         ...actionInfo,
       });
@@ -1410,7 +1387,7 @@ export const rejectEmissionsByBatch = async (req: AuthRequest, res: Response) =>
         creator.user_id,
         "BULK_REJECTED",
         "Emissions Rejected",
-        `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
+        `${count} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
         `/my-emissions`,
         { reviewer: mgrName, reason: comment || null }
       );
@@ -1933,19 +1910,14 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
 
-    const totalCount = emissionsToApprove.length;
-    const categorySummary: Record<string, number> = {};
     const creatorNames: string[] = [];
     for (const emission of emissionsToApprove) {
-      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
-      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
       const creator = emission.created_by;
       if (creator?.name) {
         const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
         if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
       }
     }
-    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
 
     const actionInfo = {
       submitterName: creatorNames.join(", ") || "User",
@@ -1955,22 +1927,16 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
       managerRole: manager?.role || "",
     };
 
-    const creatorMap = new Map<number, User>();
-    for (const emission of emissionsToApprove) {
-      const creator = emission.created_by;
-      if (creator?.email && !creatorMap.has(creator.user_id)) {
-        creatorMap.set(creator.user_id, creator);
-      }
-    }
-
-    for (const creator of creatorMap.values()) {
+    // Each person hears about their own entries only, not the colleagues' rows reviewed with them.
+    const perPerson = reviewSummaries(emissionsToApprove, (e) => e.created_by, (e) => (e.category as any)?.category_name || "Uncategorized");
+    for (const { creator, count, items } of perPerson) {
       await sendToQueue({
         type: "BULK_APPROVED",
         email: creator.email,
         name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount,
-        categories,
+        totalCount: count,
+        categories: items,
         ...actionInfo,
       });
       const mgrName = `${manager?.name || ""} ${manager?.last_name || ""}`.trim() || "Manager";
@@ -1978,7 +1944,7 @@ export const bulkApproveEmissions = async (req: AuthRequest, res: Response) => {
         creator.user_id,
         "BULK_APPROVED",
         "Emissions Approved",
-        `${totalCount} emission(s) approved by ${mgrName}`,
+        `${count} emission(s) approved by ${mgrName}`,
         `/my-emissions`,
         { reviewer: mgrName }
       );
@@ -2075,19 +2041,14 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
     const userRepo = AppDataSource.getRepository(User);
     const manager = await userRepo.findOne({ where: { user_id: userId } });
 
-    const totalCount = emissionsToReject.length;
-    const categorySummary: Record<string, number> = {};
     const creatorNames: string[] = [];
     for (const emission of emissionsToReject) {
-      const categoryName = (emission.category as any)?.category_name || "Uncategorized";
-      categorySummary[categoryName] = (categorySummary[categoryName] || 0) + 1;
       const creator = emission.created_by;
       if (creator?.name) {
         const fullName = `${creator.name || ""} ${creator.last_name || ""}`.trim();
         if (!creatorNames.includes(fullName)) creatorNames.push(fullName);
       }
     }
-    const categories = Object.entries(categorySummary).map(([categoryName, count]) => ({ categoryName, count }));
 
     const actionInfo = {
       submitterName: creatorNames.join(", ") || "User",
@@ -2097,22 +2058,16 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
       managerRole: manager?.role || "",
     };
 
-    const creatorMap = new Map<number, User>();
-    for (const emission of emissionsToReject) {
-      const creator = emission.created_by;
-      if (creator?.email && !creatorMap.has(creator.user_id)) {
-        creatorMap.set(creator.user_id, creator);
-      }
-    }
-
-    for (const creator of creatorMap.values()) {
+    // Each person hears about their own entries only, not the colleagues' rows reviewed with them.
+    const perPerson = reviewSummaries(emissionsToReject, (e) => e.created_by, (e) => (e.category as any)?.category_name || "Uncategorized");
+    for (const { creator, count, items } of perPerson) {
       await sendToQueue({
         type: "BULK_REJECTED",
         email: creator.email,
         name: `${creator.name || ""} ${creator.last_name || ""}`.trim() || "User",
         retryCount: 0,
-        totalCount,
-        categories,
+        totalCount: count,
+        categories: items,
         comment,
         ...actionInfo,
       });
@@ -2121,7 +2076,7 @@ export const bulkRejectEmissions = async (req: AuthRequest, res: Response) => {
         creator.user_id,
         "BULK_REJECTED",
         "Emissions Rejected",
-        `${totalCount} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
+        `${count} emission(s) rejected by ${mgrName}${comment ? `. Reason: ${comment}` : ""}`,
         `/my-emissions`,
         { reviewer: mgrName, reason: comment || null }
       );

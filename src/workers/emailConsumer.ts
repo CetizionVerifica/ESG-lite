@@ -26,6 +26,31 @@ const isRateLimitError = (error: any): boolean => {
   return msg.includes("too many requests") || msg.includes("429") || msg.includes("rate limit");
 };
 
+/**
+ * Brevo refused the email itself (400: e.g. an address it won't send to).
+ * Sending it again gives the same answer, so it isn't retried.
+ */
+export const isPermanentError = (error: any): boolean => /^Brevo 400\b/.test(error?.message || "");
+
+/**
+ * Tells the admin once that an email will not be delivered: when Brevo refused
+ * it, or when the dead-letter queue gives up after its last round of retries
+ * (not after each round). Without ADMIN_EMAIL the server log says so instead.
+ */
+export const alertDeliveryFailed = async (email: string, reason: string): Promise<void> => {
+  const admin = process.env.ADMIN_EMAIL?.trim();
+  if (!admin) {
+    console.warn(`[Email] Not delivered to ${email} (${reason}); ADMIN_EMAIL is not set, so nobody was told.`);
+    return;
+  }
+  const fail = failureTemplate(email);
+  try {
+    await sendEmailForApprove({ to: admin, subject: fail.subject, html: fail.html });
+  } catch {
+    console.error("Failed to notify admin");
+  }
+};
+
 /** Small delay to avoid hammering Brevo */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -47,7 +72,14 @@ export const startEmailConsumer = async () => {
   channel.consume("email_queue", async (msg: any) => {
     if (!msg) return;
 
-    const data = JSON.parse(msg.content.toString());
+    let data: any;
+    try {
+      data = JSON.parse(msg.content.toString());
+    } catch {
+      console.error("[Email] Dropped a queue message that isn't JSON");
+      channel.ack(msg);
+      return;
+    }
 
     try {
       // Check user email preferences before sending
@@ -130,7 +162,11 @@ export const startEmailConsumer = async () => {
       const errMsg = error?.message || error;
       console.error("Brevo error:", errMsg);
 
-      if ((data.retryCount || 0) < MAX_RETRIES) {
+      if (isPermanentError(error)) {
+        console.log(`Brevo refused the email; not retrying: ${data.email} (${data.type})`);
+        await alertDeliveryFailed(data.email, errMsg);
+        channel.ack(msg);
+      } else if ((data.retryCount || 0) < MAX_RETRIES) {
         const retryData = {
           ...data,
           retryCount: (data.retryCount || 0) + 1,
@@ -154,6 +190,7 @@ export const startEmailConsumer = async () => {
 
         channel.ack(msg);
       } else {
+        // The dead-letter queue tries again later and tells the admin when it gives up.
         console.log("Max retries reached -> DLQ");
 
         channel.sendToQueue(
@@ -161,18 +198,6 @@ export const startEmailConsumer = async () => {
           Buffer.from(JSON.stringify(data)),
           { persistent: true }
         );
-
-        const fail = failureTemplate(data.email);
-
-        try {
-          await sendEmailForApprove({
-            to: process.env.ADMIN_EMAIL || "info@carbonlens.com",
-            subject: fail.subject,
-            html: fail.html,
-          });
-        } catch (err) {
-          console.error("Failed to notify admin");
-        }
 
         channel.ack(msg);
       }

@@ -1,13 +1,18 @@
 import { EmailJobCategorySummary } from "../types/email";
 
 // ============================================================================
-// ESG Pro - Clean Email Templates
+// ESGLite - Clean Email Templates
 // ============================================================================
 
 const frontendUrl = () => (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
 
+/** When the email was written. The server's clock is UTC, so say so: an unlabelled time read as local was hours off. */
 const ts = () =>
-  new Date().toLocaleString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  `${new Date().toLocaleString("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })} UTC`;
+
+/** Names, comments and site or category names are typed by people: escape them before they go into HTML. */
+const escapeHtml = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 // ── Layout ──────────────────────────────────────────────────────────────────
 
@@ -30,7 +35,7 @@ const layout = (body: string, accent = "#2563eb") => `<!DOCTYPE html>
     <!-- Header -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr><td style="padding:32px 40px 0 40px;">
-        <p style="margin:0;font-size:17px;font-weight:700;color:#18181b;">ESG Pro</p>
+        <p style="margin:0;font-size:17px;font-weight:700;color:#18181b;">ESGLite</p>
       </td></tr>
       <tr><td style="padding:16px 0 0 0;height:2px;"><div style="height:2px;background-color:${accent};"></div></td></tr>
     </table>
@@ -50,7 +55,7 @@ const layout = (body: string, accent = "#2563eb") => `<!DOCTYPE html>
       <tr>
         <td style="font-size:11px;color:#a1a1aa;line-height:1.4;">
           ${ts()}<br/>
-          This is an automated notification from ESG Pro.
+          This is an automated notification from ESGLite.
         </td>
       </tr>
     </table>
@@ -65,7 +70,7 @@ const layout = (body: string, accent = "#2563eb") => `<!DOCTYPE html>
 // ── Components ──────────────────────────────────────────────────────────────
 
 const hi = (name: string) =>
-  `<p style="margin:0 0 24px 0;font-size:15px;color:#27272a;line-height:1.5;">Hi <strong>${name}</strong>,</p>`;
+  `<p style="margin:0 0 24px 0;font-size:15px;color:#27272a;line-height:1.5;">Hi <strong>${escapeHtml(name)}</strong>,</p>`;
 
 const p = (s: string) =>
   `<p style="margin:0 0 24px 0;font-size:14px;color:#52525b;line-height:1.7;">${s}</p>`;
@@ -77,12 +82,13 @@ const statusBar = (label: string, color: string, bg: string) =>
     </td></tr>
   </table>`;
 
+/** Label and value rows; the values are plain text. */
 const details = (rows: [string, string][]) => {
   if (rows.length === 0) return "";
   const r = rows.map(([k, v], i) =>
     `<tr>
       <td style="padding:12px 16px;font-size:12px;color:#71717a;font-weight:600;vertical-align:top;width:35%;${i < rows.length - 1 ? "border-bottom:1px solid #f4f4f5;" : ""}">${k}</td>
-      <td style="padding:12px 16px;font-size:14px;color:#27272a;vertical-align:top;${i < rows.length - 1 ? "border-bottom:1px solid #f4f4f5;" : ""}">${v}</td>
+      <td style="padding:12px 16px;font-size:14px;color:#27272a;vertical-align:top;${i < rows.length - 1 ? "border-bottom:1px solid #f4f4f5;" : ""}">${escapeHtml(v)}</td>
     </tr>`).join("");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fafafa;border:1px solid #e4e4e7;border-radius:6px;margin-bottom:28px;overflow:hidden;">${r}</table>`;
 };
@@ -91,12 +97,12 @@ const rejectionBox = (comment: string) =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
     <tr><td style="padding:16px 20px;background-color:#fef2f2;border-radius:6px;">
       <p style="margin:0 0 8px 0;font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px;">Reason for Rejection</p>
-      <p style="margin:0;font-size:14px;color:#7f1d1d;line-height:1.6;">${comment}</p>
+      <p style="margin:0;font-size:14px;color:#7f1d1d;line-height:1.6;">${escapeHtml(comment).replace(/\n/g, "<br/>")}</p>
     </td></tr>
   </table>`;
 
 const actionBy = (label: string, name: string) =>
-  `<p style="margin:0 0 8px 0;font-size:13px;color:#71717a;line-height:1.5;">${label}: <strong style="color:#27272a;">${name}</strong></p>`;
+  `<p style="margin:0 0 8px 0;font-size:13px;color:#71717a;line-height:1.5;">${label}: <strong style="color:#27272a;">${escapeHtml(name)}</strong></p>`;
 
 const cta = (label: string, link: string) =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;">
@@ -110,7 +116,7 @@ const cta = (label: string, link: string) =>
 const sign = () =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;">
     <tr><td style="border-top:1px solid #f0f0f3;padding-top:24px;">
-      <p style="margin:0;font-size:14px;color:#52525b;line-height:1.5;">Best regards,<br/><strong style="color:#27272a;">ESG Pro Team</strong></p>
+      <p style="margin:0;font-size:14px;color:#52525b;line-height:1.5;">Best regards,<br/><strong style="color:#27272a;">ESGLite Team</strong></p>
     </td></tr>
   </table>`;
 
@@ -119,7 +125,7 @@ const gap = () => `<div style="height:20px;"></div>`;
 const catTable = (items: EmailJobCategorySummary[], header: string, color: string) => {
   const rows = items.map((item, i) =>
     `<tr>
-      <td style="padding:10px 16px;font-size:14px;color:#27272a;${i < items.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${item.categoryName}</td>
+      <td style="padding:10px 16px;font-size:14px;color:#27272a;${i < items.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${escapeHtml(item.categoryName)}</td>
       <td style="padding:10px 16px;font-size:14px;color:#27272a;text-align:center;font-weight:700;${i < items.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${item.count}</td>
     </tr>`).join("");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;margin-bottom:28px;">
@@ -138,7 +144,7 @@ type AI = { submitterName?: string; submitterEmail?: string; managerName?: strin
 // ============================================================================
 
 export const successTemplate = (name: string, categoryName?: string, siteName?: string, ai?: AI) => ({
-  subject: "Your emission data was approved — ESG Pro",
+  subject: "Your emission data was approved — ESGLite",
   html: layout([
     hi(name),
     p("Your emission data has been reviewed and <strong>approved</strong>. It is now part of your organization's official emission records."),
@@ -154,7 +160,7 @@ export const successTemplate = (name: string, categoryName?: string, siteName?: 
 });
 
 export const rejectTemplate = (name: string, categoryName?: string, siteName?: string, comment?: string, ai?: AI) => ({
-  subject: "Your emission data was rejected — ESG Pro",
+  subject: "Your emission data was rejected — ESGLite",
   html: layout([
     hi(name),
     p("Your emission data has been reviewed and <strong>rejected</strong>. Please review the feedback below and resubmit with the necessary corrections."),
@@ -171,7 +177,7 @@ export const rejectTemplate = (name: string, categoryName?: string, siteName?: s
 });
 
 export const bulkApprovedTemplate = (name: string, count: number, categories: EmailJobCategorySummary[], ai?: AI) => ({
-  subject: `${count} emission entries approved — ESG Pro`,
+  subject: `${count} emission entries approved — ESGLite`,
   html: layout([
     hi(name),
     p(`<strong>${count}</strong> of your emission entries have been <strong>approved</strong>.`),
@@ -184,7 +190,7 @@ export const bulkApprovedTemplate = (name: string, count: number, categories: Em
 });
 
 export const bulkRejectedTemplate = (name: string, count: number, categories: EmailJobCategorySummary[], comment?: string, ai?: AI) => ({
-  subject: `${count} emission entries rejected — ESG Pro`,
+  subject: `${count} emission entries rejected — ESGLite`,
   html: layout([
     hi(name),
     p(`<strong>${count}</strong> of your emission entries have been <strong>rejected</strong>.`),
@@ -202,7 +208,7 @@ export const bulkRejectedTemplate = (name: string, count: number, categories: Em
 // ============================================================================
 
 export const productionApprovedTemplate = (name: string, productName?: string, siteName?: string, ai?: AI) => ({
-  subject: "Your production data was approved — ESG Pro",
+  subject: "Your production data was approved — ESGLite",
   html: layout([
     hi(name),
     p("Your production data has been reviewed and <strong>approved</strong>."),
@@ -217,7 +223,7 @@ export const productionApprovedTemplate = (name: string, productName?: string, s
 });
 
 export const productionRejectedTemplate = (name: string, productName?: string, siteName?: string, comment?: string, ai?: AI) => ({
-  subject: "Your production data was rejected — ESG Pro",
+  subject: "Your production data was rejected — ESGLite",
   html: layout([
     hi(name),
     p("Your production data has been reviewed and <strong>rejected</strong>. Please review and resubmit."),
@@ -233,7 +239,7 @@ export const productionRejectedTemplate = (name: string, productName?: string, s
 });
 
 export const bulkProductionApprovedTemplate = (name: string, count: number, products: EmailJobCategorySummary[], ai?: AI) => ({
-  subject: `${count} production entries approved — ESG Pro`,
+  subject: `${count} production entries approved — ESGLite`,
   html: layout([
     hi(name),
     p(`<strong>${count}</strong> production data entries have been <strong>approved</strong>.`),
@@ -245,7 +251,7 @@ export const bulkProductionApprovedTemplate = (name: string, count: number, prod
 });
 
 export const bulkProductionRejectedTemplate = (name: string, count: number, products: EmailJobCategorySummary[], comment?: string, ai?: AI) => ({
-  subject: `${count} production entries rejected — ESG Pro`,
+  subject: `${count} production entries rejected — ESGLite`,
   html: layout([
     hi(name),
     p(`<strong>${count}</strong> production data entries have been <strong>rejected</strong>.`),
@@ -262,7 +268,7 @@ export const bulkProductionRejectedTemplate = (name: string, count: number, prod
 // ============================================================================
 
 export const deadlineReminderTemplate = (name: string, month: string, year: number, siteName?: string) => ({
-  subject: `Reminder: Submit your data for ${month} ${year} — ESG Pro`,
+  subject: `Reminder: Submit your data for ${month} ${year} — ESGLite`,
   html: layout([
     hi(name),
     p(`You haven't submitted your emission data for <strong>${month} ${year}</strong> yet. Please submit before the deadline.`),
@@ -272,7 +278,7 @@ export const deadlineReminderTemplate = (name: string, month: string, year: numb
       ...(siteName ? [["Site", siteName] as [string, string]] : []),
       ["Deadline", "10th of every month"],
     ]),
-    cta("Submit Your Data", "/data-entry"),
+    cta("Submit Your Data", "/data/new"),
     sign(),
   ].join(""), "#d97706"),
 });
@@ -280,15 +286,17 @@ export const deadlineReminderTemplate = (name: string, month: string, year: numb
 export const escalationTemplate = (name: string, month: string, year: number, users: { name: string; email: string; role: string; siteName: string }[]) => {
   const rows = users.map((u, i) =>
     `<tr>
-      <td style="padding:10px 16px;font-size:14px;color:#27272a;${i < users.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${u.name}</td>
-      <td style="padding:10px 16px;font-size:13px;color:#52525b;${i < users.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${u.email}</td>
-      <td style="padding:10px 16px;font-size:13px;color:#52525b;${i < users.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${u.siteName}</td>
+      <td style="padding:10px 16px;font-size:14px;color:#27272a;${i < users.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${escapeHtml(u.name)}</td>
+      <td style="padding:10px 16px;font-size:13px;color:#52525b;${i < users.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${escapeHtml(u.email)}</td>
+      <td style="padding:10px 16px;font-size:13px;color:#52525b;${i < users.length - 1 ? "border-bottom:1px solid #f0f0f3;" : ""}background-color:${i % 2 === 0 ? "#ffffff" : "#fafafa"};">${escapeHtml(u.siteName)}</td>
     </tr>`).join("");
+  // A person missing two sites is one person (one row per site below).
+  const people = new Set(users.map((u) => u.email)).size;
   return {
-    subject: `${users.length} users haven't submitted data for ${month} ${year} — ESG Pro`,
+    subject: `${people} ${people === 1 ? "user hasn't" : "users haven't"} submitted data for ${month} ${year} — ESGLite`,
     html: layout([
       hi(name),
-      p(`<strong>${users.length}</strong> user(s) have not submitted their emission data for <strong>${month} ${year}</strong>.`),
+      p(`<strong>${people}</strong> user(s) have not submitted their emission data for <strong>${month} ${year}</strong>.`),
       statusBar("Escalation", "#d97706", "#fffbeb"),
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;margin-bottom:28px;">
         <tr>
@@ -296,7 +304,7 @@ export const escalationTemplate = (name: string, month: string, year: number, us
           <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#ffffff;background-color:#b45309;text-transform:uppercase;letter-spacing:0.5px;">Email</th>
           <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#ffffff;background-color:#b45309;text-transform:uppercase;letter-spacing:0.5px;">Site</th>
         </tr>${rows}</table>`,
-      cta("View Dashboard", "/data-manage"),
+      cta("View submission status", "/overview"),
       sign(),
     ].join(""), "#d97706"),
   };
@@ -307,10 +315,10 @@ export const escalationTemplate = (name: string, month: string, year: number, us
 // ============================================================================
 
 export const failureTemplate = (email: string) => ({
-  subject: "Email delivery failed — ESG Pro",
+  subject: "Email delivery failed — ESGLite",
   html: layout([
     hi("Admin"),
-    p(`An email to <strong>${email}</strong> has permanently failed after all retry attempts.`),
+    p(`An email to <strong>${escapeHtml(email)}</strong> has permanently failed after all retry attempts.`),
     statusBar("Delivery Failed", "#dc2626", "#fef2f2"),
     details([["Recipient", email], ["Status", "All retries exhausted"]]),
     p("Please check RabbitMQ and Brevo logs for details."),
@@ -318,19 +326,15 @@ export const failureTemplate = (email: string) => ({
   ].join(""), "#dc2626"),
 });
 
-/** Site names are user-entered text: escape them before they go into HTML. */
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-
 /** IM4: a committed import batch is waiting for the manager's review. Counts only, no row data. */
 export const uploadPendingTemplate = (name: string, rows: number, tco2e: number, siteNames: string[], period: string, deepLink?: string) => {
-  const sites = escapeHtml(siteNames.join(", "));
-  const when = escapeHtml(period);
+  const sites = siteNames.join(", ");
+  const when = period;
   return {
-    subject: "Entries waiting for your review — ESG Pro",
+    subject: "Entries waiting for your review — ESGLite",
     html: layout([
-      hi(escapeHtml(name)),
-      p(`<strong>${rows}</strong> ${rows === 1 ? "entry is" : "entries are"} waiting for your review${sites ? ` for <strong>${sites}</strong>` : ""}${when ? ` (${when})` : ""}.`),
+      hi(name),
+      p(`<strong>${rows}</strong> ${rows === 1 ? "entry is" : "entries are"} waiting for your review${sites ? ` for <strong>${escapeHtml(sites)}</strong>` : ""}${when ? ` (${escapeHtml(when)})` : ""}.`),
       statusBar("Waiting for review", "#2563eb", "#eff6ff"),
       details([
         ["Entries", String(rows)],
