@@ -10,9 +10,9 @@ const frontendUrl = () => (process.env.FRONTEND_URL || "http://localhost:5173").
 const ts = () =>
   `${new Date().toLocaleString("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })} UTC`;
 
-/** Names, comments and site or category names are typed by people: escape them before they go into HTML. */
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+/** Names, comments and site or category names are typed by people: escape them before they go into HTML. A queued job's value may not be a string (a number sent as a reason), so it is made one. */
+const escapeHtml = (s: unknown): string =>
+  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 // ── Layout ──────────────────────────────────────────────────────────────────
 
