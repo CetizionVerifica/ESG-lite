@@ -99,7 +99,7 @@ test("every §7 error has a status and a message; warnings never carry a status"
     "NOT_DRAFT", "EXTRAPOLATION_BASIS_INVALID", "PERIOD_INCOMPLETE", "BASE_YEAR_NO_DATA", "RECALCULATION_REASON_REQUIRED",
     "REVIEW_WORKFLOW_OFF",
     // Simple data entry SE-2.
-    "UNIT_NOT_ALLOWED", "FORM_CHECK_FAILED",
+    "UNIT_NOT_ALLOWED", "FORM_CHECK_FAILED", "REPLACE_NOT_ALLOWED",
   ];
   assert.deepEqual([...errors.SCOPE3_ERROR_CODES].sort(), [...expected].sort());
   for (const code of expected) {

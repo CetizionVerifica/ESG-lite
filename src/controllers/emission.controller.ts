@@ -24,6 +24,8 @@ import axios from "axios";
 import { aiServiceHeaders, routeServiceTimeoutMs } from "../utils/aiServiceHeaders";
 import { sendToQueue } from "../queues/emailProducer";
 import { reviewSummaries } from "../services/reviewMail";
+import { duplicateOwner, duplicateView, replaceRefusal } from "../services/duplicateEntry";
+import { SCOPE3_ERRORS } from "../scope3/contracts/errors";
 import { log } from "../utils/logger";
 import { createNotification } from "../services/notificationService";
 import { validatePeriodFields, findModeLockConflict, futurePeriodError } from "../services/reportingPeriod";
@@ -526,101 +528,17 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     if (notStarted) {
       return res.status(400).json({ message: notStarted });
     }
-    const modeConflict = await findModeLockConflict(repo, {
-      site_id,
-      category_id,
-      reporting_period: effectivePeriod,
-      year_type: effectivePeriod === "yearly" ? year_type : null,
-      date_of_reporting: new Date(date_of_reporting),
-    });
-    if (modeConflict) {
-      // Same wording as manager edits and imports (CY vs FY overlaps: their windows share up to nine months).
-      return res.status(409).json({
-        message: modeLockMessage(modeConflict, effectivePeriod),
-        mode_lock: true,
-        conflict: modeConflict,
-      });
-    }
-
     // Multi-field categories (e.g. Use of Sold Products) carry a calculation
     // spec on their column config; it changes the duplicate identity below and
     // replaces the one-value heuristic in the calculation block.
     const calcSpec = await getCalculationSpec(columnConfigRepo, site_id, category_id);
 
-    // Check for duplicate emission (same site + category + date + emission_category).
-    // Monthly rows only: every row of a yearly batch shares the period-end date,
-    // so date-based dedup would wrongly reject a second purchase of the same
-    // subcategory within the year.
-    const existingEmissions =
-      effectivePeriod === "yearly"
-        ? []
-        : await repo.find({
-            where: {
-              site: { site_id },
-              category: { category_id },
-              date_of_reporting: new Date(date_of_reporting),
-            },
-            relations: ["site", "category", "created_by"],
-          });
-    // S3-15 part 2: someone else's Draft doesn't exist for the caller (never matched, never replaced).
-    const visibleExisting = existingEmissions.filter((e) => e.status !== EmissionStatus.DRAFT || Number(e.created_by?.user_id) === Number(userId));
-
-    // If emission_category is provided, match on it too; otherwise match any entry
-    // for that date. For spec categories the emission_category is the country/fuel/
-    // gas — two different products in the same country are NOT duplicates, so the
-    // spec's identity columns (e.g. Product Name) must match as well.
-    const duplicate = activity_data.emission_category
-      ? visibleExisting.find(
-          (e) =>
-            e.activity_data?.emission_category === activity_data.emission_category &&
-            (!calcSpec || specIdentityMatches(calcSpec, activity_data, e.activity_data))
-        )
-      : visibleExisting.length > 0
-        ? visibleExisting[0]
-        : null;
-
-    if (duplicate) {
-      const replace = req.query.replace === "true";
-      // Keep both (F-06): a second bill for the same activity and month (another coal delivery) is saved as
-      // its own entry with its own evidence. The review check NO_DUPLICATE still holds it for the reviewer.
-      const keepBoth = req.query.keep_both === "true";
-      if (replace && keepBoth) {
-        return res.status(400).json({ message: "Choose either replace or keep_both, not both." });
-      }
-      if (!replace && !keepBoth) {
-        return res.status(409).json({
-          message: "Duplicate emission entry already exists for this site, category, date, and emission subcategory.",
-          existing_emission: duplicate,
-          duplicate: true,
-        });
-      }
-      if (replace) {
-        // Replace mode: delete the existing entry (and its FERA links) before creating new one
-        const idsToDelete = [duplicate.pk_id];
-        if (duplicate.fera_linked_id) {
-          idsToDelete.push(duplicate.fera_linked_id);
-        }
-        // Every emission that links back to this one (reverse FERA link; a
-        // Scope 2 row may have a T&D-loss twin too, S3-7)
-        const linkedBack = await repo.find({
-          where: { fera_linked_id: duplicate.pk_id },
-        });
-        for (const l of linkedBack) {
-          if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
-        }
-        // Delete related documents first, then their stored files
-        const replacedFiles = await documentFilesForEmissions(idsToDelete);
-        const docRepo = AppDataSource.getRepository(EmissionDocument);
-        await docRepo
-          .createQueryBuilder()
-          .delete()
-          .where("emission_id IN (:...ids)", { ids: idsToDelete })
-          .execute();
-        await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
-        await repo.delete(idsToDelete);
-        await removeDeletedDocumentFiles(replacedFiles);
-        await pcfDataChanged("emission", idsToDelete);
-      }
+    const replace = req.query.replace === "true";
+    // Keep both (F-06): a second bill for the same activity and month (another coal delivery) is saved as
+    // its own entry with its own evidence. The review check NO_DUPLICATE still holds it for the reviewer.
+    const keepBoth = req.query.keep_both === "true";
+    if (replace && keepBoth) {
+      return res.status(400).json({ message: "Choose either replace or keep_both, not both." });
     }
 
     // Factor, total and FERA twin come from the emission write service (IM1),
@@ -649,7 +567,123 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
     }
     // S3-15 part 2: a User's entry is a Draft while the client's review workflow v2 is on.
     const status = await statusForTypedEntry(AppDataSource.manager, req.user?.role, Number(site_id));
-    const { emission, fera: feraEmission, tdLoss } = await AppDataSource.transaction((tx) => insertEntry(tx, userId, prepared.entry, null, null, { status }));
+
+    // The mode lock, the duplicate check, a Replace and the insert run in one
+    // transaction holding the site + category lock bulk uploads and imports
+    // take. Two people saving the same month at the same moment used to both
+    // pass the check and both save; the second now waits for the first and
+    // gets the duplicate answer.
+    const outcome = await AppDataSource.transaction(async (tx) => {
+      await tx.query(`SELECT pg_advisory_xact_lock($1, $2)`, [Number(site_id), Number(category_id)]);
+      const txRepo = tx.getRepository(Emission);
+
+      const modeConflict = await findModeLockConflict(txRepo, {
+        site_id,
+        category_id,
+        reporting_period: effectivePeriod,
+        year_type: effectivePeriod === "yearly" ? year_type : null,
+        date_of_reporting: new Date(date_of_reporting),
+      });
+      if (modeConflict) return { kind: "mode_lock" as const, conflict: modeConflict };
+
+      // Check for duplicate emission (same site + category + date + emission_category).
+      // Monthly rows only: every row of a yearly batch shares the period-end date,
+      // so date-based dedup would wrongly reject a second purchase of the same
+      // subcategory within the year.
+      const existingEmissions =
+        effectivePeriod === "yearly"
+          ? []
+          : await txRepo.find({
+              where: {
+                site: { site_id },
+                category: { category_id },
+                date_of_reporting: new Date(date_of_reporting),
+              },
+              relations: ["site", "category", "created_by"],
+            });
+      // S3-15 part 2: someone else's Draft doesn't exist for the caller (never matched, never replaced).
+      const visibleExisting = existingEmissions.filter((e) => e.status !== EmissionStatus.DRAFT || Number(e.created_by?.user_id) === Number(userId));
+
+      // If emission_category is provided, match on it too; otherwise match any entry
+      // for that date. For spec categories the emission_category is the country/fuel/
+      // gas — two different products in the same country are NOT duplicates, so the
+      // spec's identity columns (e.g. Product Name) must match as well.
+      const duplicate = activity_data.emission_category
+        ? visibleExisting.find(
+            (e) =>
+              e.activity_data?.emission_category === activity_data.emission_category &&
+              (!calcSpec || specIdentityMatches(calcSpec, activity_data, e.activity_data))
+          )
+        : visibleExisting.length > 0
+          ? visibleExisting[0]
+          : null;
+
+      let replaced: { ids: number[]; files: Awaited<ReturnType<typeof documentFilesForEmissions>> } | null = null;
+      if (duplicate) {
+        if (!replace && !keepBoth) return { kind: "duplicate" as const, duplicate };
+        if (replace) {
+          const refusal = replaceRefusal(duplicate, userId, req.user?.role);
+          if (refusal) return { kind: "replace_refused" as const, duplicate, message: refusal };
+          // Replace mode: delete the existing entry (and its FERA links) before creating new one
+          const idsToDelete = [duplicate.pk_id];
+          if (duplicate.fera_linked_id) {
+            idsToDelete.push(duplicate.fera_linked_id);
+          }
+          // Every emission that links back to this one (reverse FERA link; a
+          // Scope 2 row may have a T&D-loss twin too, S3-7)
+          const linkedBack = await txRepo.find({
+            where: { fera_linked_id: duplicate.pk_id },
+          });
+          for (const l of linkedBack) {
+            if (!idsToDelete.includes(l.pk_id)) idsToDelete.push(l.pk_id);
+          }
+          await kpiSourceChanged("emission", idsToDelete); // KPI-5: before the rows go
+          // Delete related documents first; their stored files go once this commits
+          const files = await documentFilesForEmissions(idsToDelete, tx);
+          await tx
+            .getRepository(EmissionDocument)
+            .createQueryBuilder()
+            .delete()
+            .where("emission_id IN (:...ids)", { ids: idsToDelete })
+            .execute();
+          await txRepo.delete(idsToDelete);
+          replaced = { ids: idsToDelete, files };
+        }
+      }
+
+      const saved = await insertEntry(tx, userId, prepared.entry, null, null, { status });
+      return { kind: "saved" as const, saved, replaced };
+    });
+
+    if (outcome.kind === "mode_lock") {
+      // Same wording as manager edits and imports (CY vs FY overlaps: their windows share up to nine months).
+      return res.status(409).json({
+        message: modeLockMessage(outcome.conflict, effectivePeriod),
+        mode_lock: true,
+        conflict: outcome.conflict,
+      });
+    }
+    if (outcome.kind === "duplicate") {
+      return res.status(409).json({
+        message: "Duplicate emission entry already exists for this site, category, date, and emission subcategory.",
+        existing_emission: duplicateView(outcome.duplicate),
+        duplicate: true,
+        ...duplicateOwner(outcome.duplicate, userId, req.user?.role),
+      });
+    }
+    if (outcome.kind === "replace_refused") {
+      return res.status(SCOPE3_ERRORS.REPLACE_NOT_ALLOWED.status).json({
+        code: "REPLACE_NOT_ALLOWED",
+        message: outcome.message,
+        existing_emission: duplicateView(outcome.duplicate),
+        ...duplicateOwner(outcome.duplicate, userId, req.user?.role),
+      });
+    }
+    if (outcome.replaced) {
+      await removeDeletedDocumentFiles(outcome.replaced.files);
+      await pcfDataChanged("emission", outcome.replaced.ids);
+    }
+    const { emission, fera: feraEmission, tdLoss } = outcome.saved;
 
     const savedEmission = await repo.findOne({
       where: { pk_id: emission.pk_id },
