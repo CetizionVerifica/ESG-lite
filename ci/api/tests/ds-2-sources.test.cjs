@@ -262,6 +262,9 @@ test("the sustainability kind needs KPI tracking (DS_KIND_OFF); KPI bindings rea
   assert.equal(water.compare.change_abs, 300);
   assert.equal(water.compare.change_pct, 25);
   assert.equal(headline.value, 15, "Scope 1 + Scope 2 (location-based)");
+  // #209: a KPI in tonnes of CO₂e (canonical "tCO2e") shows 3 decimals; other units keep auto.
+  assert.equal(headline.display, "15.000");
+  assert.equal(water.display, "1,500");
   assert.deepEqual(bySite.series[0].values, [{ key: "1", value: 1000 }, { key: "2", value: 500 }]);
 
   const notSelected = await resolve("manager", { ...body([kb(["WATER_WITHDRAWAL"]), kb(["AIR_NOX"])]), kind: "sustainability" });

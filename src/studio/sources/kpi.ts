@@ -161,7 +161,7 @@ export async function resolveKpi(L: KpiLoader, ctx: ResolveContext, b: KpiBindin
 
   const out: ResolvedBinding = {
     source: "kpi",
-    display: value !== null ? formatNumber(value, format) : cur.text ?? "Not reported",
+    display: value !== null ? formatNumber(value, format, unit) : cur.text ?? "Not reported", // #209: a tCO2e KPI shows 3 decimals
     value,
     unit,
     approvedAt,

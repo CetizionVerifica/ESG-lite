@@ -103,3 +103,8 @@ Any GHG or KPI binding in `01-contracts` §2 resolves to approved values that ma
 - `doc.ts` `resolveDocForRender` = `resolveDoc` + those rows in the same context; `jobs/inputs.ts` `renderInputs` uses it, so preview.html, version previews, proof, print, PNG, thumbnail and final all print the rows. A final's `data_snapshot` keeps `flow` and `scope3`. `dataHash` is unchanged (values + inputs only).
 - `POST /resolve` takes optional `flows: [{id, flowType}]` and then returns `flow` / `scope3` by id (other flow types ignored; part of the cache key). Without `flows` the response is unchanged. The FE editor doesn't send it yet (FE follow-up).
 - Tests: `ci/unit/ds-fx-flow-tables.test.cjs`, `ci/api/tests/ds-fx-flow-tables.test.cjs`.
+
+## #209 follow-up: tCO₂e at 3 decimals (2026-10-29)
+- `format.ts` `formatNumber(value, format, unit)`: on `auto`, a unit the renderer's `isTonnesCo2e` (`src/reporting/studio/render/format.ts`) reads as tonnes of CO₂e prints exactly 3 decimals. That covers "tCO₂e" (the GHG source), "tCO2e" (the KPI canonical unit) and the other spellings. A format someone picked still wins, and every other unit keeps `auto`. `TONNES_UNIT` is still exported.
+- `kpi.ts` passes the binding's unit (`b.unit ?? first KPI's canonical unit`) to `formatNumber`, so a tCO₂e KPI's `display` has 3 decimals ("15.000"), the same as the GHG source. A water figure stays "1,500". Only `display` moved; `value` and the series did not.
+- The seed golden `ci/golden/ds/seed/sustainability-editorial.json` moved by format only: "2,980" became "2,980.000" and "8,650" became "8,650.000". Tests: `ci/unit/ds-209-tonnes.test.cjs` and `ci/api/tests/ds-2-sources.test.cjs` (`headline.display`, `water.display`).
