@@ -248,7 +248,7 @@ test("hybrid by mass: facility Scope 1+2 allocated by what was bought, plus the 
   const e = res.json.emission;
   // 500 t × 1,000 kg / 100,000 kg = 5,000 kg; 1,930 × 1.2 = 2,316; 500 × 0.1 = 50.
   assert.equal(e.total_kgco2e, "7366.0000");
-  assert.equal(Number(e.total_emission), 7.37);
+  assert.equal(Number(e.total_emission), 7.366); // #209: 3 dp
   const comps = e.emission_factor_snapshot.components;
   assert.deepEqual(comps.map((c) => c.kind), ["supplier_scope12", "material", "transport"]);
   assert.equal(comps[0].allocation_key, "mass");
@@ -320,7 +320,7 @@ test("coverage: the share of Cat 1/2 tCO₂e from supplier data and the top supp
   const c = all.json;
   // Supplier-specific 17.2 t (edited), hybrid 7.366 + 0.005 + 10 t, average 1 t (and anything else in Cat 1).
   assert.equal(c.supplier_specific_tco2e, 17.2);
-  assert.equal(c.hybrid_tco2e, 17.37);
+  assert.equal(c.hybrid_tco2e, 17.371);
   assert.ok(c.cat12_tco2e >= 35.57);
   assert.ok(c.coverage_pct > 90 && c.coverage_pct < 100, String(c.coverage_pct));
   assert.equal(c.top_suppliers[0].name, `${TAG} Ingot Works`);

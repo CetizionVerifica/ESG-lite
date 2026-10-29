@@ -9,11 +9,12 @@ import type { EmissionFactor } from "../../../entities/EmissionFactor";
 import { pickActivityValue } from "../../activityValue";
 import { getConversionFactor, unitsMatchExact } from "../units";
 import type { CategoryContext, ComputeResult, FactorRow } from "../compute";
+import { roundTonnes } from "../round";
 import type { Gas } from "../../../scope3/contracts/factor";
 
 /** tCO₂e for a value in the factor's unit, rounded as the controller did. */
 export const totalFor = (activityValue: number, factor: EmissionFactor): number =>
-  Math.round(((activityValue * factor.factor_value) / 1000) * 100) / 100;
+  roundTonnes((activityValue * factor.factor_value) / 1000);
 
 /**
  * kgCO₂e at 4 dp for `emission.total_kgco2e` (S3-4, D5): the same product as
@@ -95,7 +96,7 @@ export const applyFactor = (activityValue: number, unit: string, factor: Emissio
       activityValue,
       activity_unit: unit,
       conversion: conversionFactor,
-      total: Math.round(((convertedValue * factor.factor_value) / 1000) * 100) / 100,
+      total: roundTonnes((convertedValue * factor.factor_value) / 1000),
       total_kgco2e: kgFor(convertedValue, factor),
       ...gasesFor(convertedValue, factor),
     },

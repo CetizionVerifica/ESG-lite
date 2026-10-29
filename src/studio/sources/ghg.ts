@@ -395,7 +395,7 @@ export async function resolveGhg(L: GhgLoader, ctx: ResolveContext, b: GhgBindin
   const cov = await L.coverage(current, sites);
   const out: ResolvedBinding = {
     source: "ghg",
-    display: main.display ?? (main.unavailable ? "Not reported" : formatNumber(main.value, format)),
+    display: main.display ?? (main.unavailable ? "Not reported" : formatNumber(main.value, format, main.unit ?? unit)),
     value: main.value,
     unit: main.unit ?? unit,
     approvedAt: cov.approved_at,

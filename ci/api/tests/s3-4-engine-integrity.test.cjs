@@ -77,10 +77,10 @@ test("totals carry total_kgco2e at 4 dp beside the 2 dp tCO2e; the FERA twin too
   const r = await createEntry({ date_of_reporting: "2025-03-15", activity_data: { emission_category: "Diesel", activity_value: "1" } });
   assert.equal(r.status, 201, JSON.stringify(r.json));
   const [row] = await q(`SELECT total_emission, total_kgco2e FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]);
-  assert.deepEqual([Number(row.total_emission), row.total_kgco2e], [0, "2.6800"]);
+  assert.deepEqual([Number(row.total_emission), row.total_kgco2e], [0.003, "2.6800"]); // 2.68 kg = 0.003 t at 3 dp (#209)
   assert.ok(r.json.fera_emission, "the site's FERA category gives a twin");
   const [twin] = await q(`SELECT total_emission, total_kgco2e FROM emission WHERE pk_id = $1`, [r.json.fera_emission.pk_id]);
-  assert.deepEqual([Number(twin.total_emission), twin.total_kgco2e], [0, "0.6100"]);
+  assert.deepEqual([Number(twin.total_emission), twin.total_kgco2e], [0.001, "0.6100"]); // 0.61 kg = 0.001 t at 3 dp (#209)
   assert.deepEqual(r.json.warnings, []);
 });
 
@@ -113,7 +113,7 @@ test("an entry without a unit is in the form's unit only when the form has a sin
   const single = await createEntry({ ...noUnit, date_of_reporting: "2025-05-15" });
   assert.equal(single.status, 201, JSON.stringify(single.json));
   assert.equal(single.json.emission.activity_data_unit, "litre");
-  assert.equal(Number(single.json.emission.total_emission), 0.27); // 100 x 2.68 kg
+  assert.equal(Number(single.json.emission.total_emission), 0.268); // 100 x 2.68 kg
 });
 
 test("typed entries say when an older factor year was used and when no FERA factor exists for the year", async () => {
@@ -138,7 +138,7 @@ test("edits go through the engine: kgCO2e, warnings and the FERA twin follow the
   let [row] = await q(`SELECT total_emission, total_kgco2e, emission_factor_snapshot->>'emission_factor_id' AS f FROM emission WHERE pk_id = $1`, [id]);
   assert.deepEqual([Number(row.total_emission), row.total_kgco2e, row.f], [1.34, "1340.0000", "9941"]);
   let [twin] = await q(`SELECT total_emission, total_kgco2e FROM emission WHERE pk_id = $1`, [twinId]);
-  assert.deepEqual([Number(twin.total_emission), twin.total_kgco2e], [0.31, "305.0000"]);
+  assert.deepEqual([Number(twin.total_emission), twin.total_kgco2e], [0.305, "305.0000"]);
 
   // A manager moves it to 2023: the factor year follows the date; no 2022 FERA factor,
   // so the twin keeps its numbers and goes back to review with the reason.
@@ -146,7 +146,7 @@ test("edits go through the engine: kgCO2e, warnings and the FERA twin follow the
   assert.equal(manager.status, 200, JSON.stringify(manager.json));
   assert.deepEqual(manager.json.warnings.map((w) => w.code), ["FACTOR_FALLBACK_YEAR", "FERA_FACTOR_MISSING"]);
   [twin] = await q(`SELECT total_emission, status, review_comment FROM emission WHERE pk_id = $1`, [twinId]);
-  assert.equal(Number(twin.total_emission), 0.31);
+  assert.equal(Number(twin.total_emission), 0.305);
   assert.equal(twin.status, "pending");
   assert.match(twin.review_comment, /Not recalculated: there is no 2022 FERA factor for "Diesel"/);
   [row] = await q(`SELECT total_emission, total_kgco2e FROM emission WHERE pk_id = $1`, [id]);
@@ -215,7 +215,7 @@ test("a historical row gives the same total as the same row typed", async () => 
   const [hist] = await q(`SELECT total_emission, total_kgco2e FROM emission WHERE site_id = ${SITE} AND category_id = 1 AND extra_data->'import'->>'channel' = 'historical'`);
   const [mine] = await q(`SELECT total_emission, total_kgco2e FROM emission WHERE pk_id = $1`, [typed.json.emission.pk_id]);
   assert.deepEqual([Number(hist.total_emission), hist.total_kgco2e], [Number(mine.total_emission), mine.total_kgco2e]);
-  assert.equal(Number(hist.total_emission), 3.31); // 1234 x 2.68 kg, not the sheet's 999
+  assert.equal(Number(hist.total_emission), 3.307); // 1234 x 2.68 kg, not the sheet's 999
 });
 
 test("a historical row with blank or 0 activity is skipped, never priced from spend or the sheet's factor", async () => {

@@ -115,7 +115,7 @@ test("the suggested reason is the one behind the largest share; the signature tr
 test("kg are summed, then rounded once (D5); 16 category rows with Unmapped last", () => {
   const t = categoryTotals({ a: [1, 4, FP, null, 1], b: [1, 4, FP, null, 1], c: [null, 4, FP, null, 1] });
   assert.equal(t.categories.length, 16);
-  assert.equal(t.categories[0].tco2e, 0.01);
+  assert.equal(t.categories[0].tco2e, 0.008); // 4 + 4 kg, rounded once at 3 dp (#209)
   assert.equal(t.categories[15].n, null);
-  assert.equal(t.total_tco2e, 0.01);
+  assert.equal(t.total_tco2e, 0.012); // 12 kg
 });

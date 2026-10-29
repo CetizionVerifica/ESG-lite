@@ -89,7 +89,7 @@ async function inputsFor(companyId: number, year: number, yearType: YearType) {
   }));
 }
 
-const t = (kg: number | null): number | null => (kg === null ? null : Math.round(kg / 10) / 100);
+const t = (kg: number | null): number | null => (kg === null ? null : Math.round(kg) / 1000); // kg → tCO₂e at 3 dp (#209)
 
 /**
  * The company's sites the caller can access, with the GHG category numbers
@@ -195,7 +195,7 @@ export async function getScreening(companyId: number, query: unknown, caller: { 
     };
   });
 
-  const sum = (f: (x: (typeof categories)[number]) => number | null) => Math.round(categories.reduce((s, x) => s + (f(x) ?? 0), 0) * 100) / 100;
+  const sum = (f: (x: (typeof categories)[number]) => number | null) => Math.round(categories.reduce((s, x) => s + (f(x) ?? 0), 0) * 1000) / 1000; // #209
   return {
     company_id: companyId,
     year,

@@ -80,7 +80,7 @@ test("survey 7.1 as a Manager: one plan, a row per mode, the engine gives 3,072 
     for (const k of ["total", "total_emission", "total_tco2e"]) assert.equal(k in row.input, false);
   }
   const t = Object.fromEntries(rows.map((x) => [x.input.activity_name, x.result.total_tco2e]));
-  assert.deepEqual(t, { "Rail [passenger.km]": 0.86, "Car, unknown fuel [vehicle.km]": 2.21 });
+  assert.deepEqual(t, { "Rail [passenger.km]": 0.864, "Car, unknown fuel [vehicle.km]": 2.208 }); // #209: 3 dp
   // Nothing is saved until the plan is committed.
   const before = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE category_id = $1`, [CAT7]));
   assert.equal(before.rows[0].n, 0);
@@ -97,7 +97,7 @@ test("survey 7.1 as a Manager: one plan, a row per mode, the engine gives 3,072 
   });
   assert.equal(commit.status, 200, JSON.stringify(commit.json));
   const saved = await withDb((db) => db.query(`SELECT total_emission, extra_data, activity_data, proxy, dq FROM emission WHERE category_id = $1 ORDER BY total_emission`, [CAT7]));
-  assert.deepEqual(saved.rows.map((x) => Number(x.total_emission)), [0.86, 2.21]);
+  assert.deepEqual(saved.rows.map((x) => Number(x.total_emission)), [0.864, 2.208]);
   for (const x of saved.rows) {
     assert.deepEqual(x.extra_data.survey, { basis: "sample", respondents: 3, total_employees: 3, coverage_pct: 100 });
     assert.equal(x.activity_data["@method"], "distance_based");
@@ -326,5 +326,5 @@ test("Category 6 rows: vehicle.km by occupancy, divide by 0 → FIELD_REQUIRED, 
   assert.equal(by.zero.issues[0].code, "FIELD_REQUIRED");
   assert.match(by.zero.issues[0].message, /Travellers per vehicle/);
   assert.equal(by.legacy.state, "ready", JSON.stringify(by.legacy.issues));
-  assert.equal(by.legacy.result.total_tco2e, 1.23); // 12,345 × 0.1 kg
+  assert.equal(by.legacy.result.total_tco2e, 1.235); // 12,345 × 0.1 kg = 1,234.5 kg, 3 dp
 });

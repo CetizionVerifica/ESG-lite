@@ -317,8 +317,8 @@ export async function computeGhgTables(filters: GhgFilters) {
     return Array.from(map.values()).map((x) => ({
       scope: x.scope,
       category: x.category,
-      bySite: x.bySite.map((b) => ({ ...b, value: Number(b.value.toFixed(2)) })),
-      total: Number(x.total.toFixed(2)),
+      bySite: x.bySite.map((b) => ({ ...b, value: Number(b.value.toFixed(3)) })), // #209: tCO₂e to 3 dp
+      total: Number(x.total.toFixed(3)),
     }));
   };
 
@@ -510,7 +510,7 @@ export async function computeGhgDetails(filters: GhgFilters) {
     item.compare = {
       consumption: Number(r.consumption.toFixed(2)),
       unit: r.unit,
-      emissions: Number(r.emissions.toFixed(2)),
+      emissions: Number(r.emissions.toFixed(3)),
     };
   }
 
@@ -532,7 +532,7 @@ export async function computeGhgDetails(filters: GhgFilters) {
     item.selected = {
       consumption: Number(r.consumption.toFixed(2)),
       unit: r.unit,
-      emissions: Number(r.emissions.toFixed(2)),
+      emissions: Number(r.emissions.toFixed(3)),
     };
     if (!item.compare.unit) item.compare.unit = r.unit;
   }
@@ -636,7 +636,7 @@ export async function computeGhgByFuelType(filters: GhgFilters): Promise<FuelTyp
   }
   return Array.from(merged.values()).map((r) => ({
     ...r,
-    emissions: Number(r.emissions.toFixed(2)),
+    emissions: Number(r.emissions.toFixed(3)),
   }));
 }
 

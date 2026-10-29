@@ -36,7 +36,7 @@ test("one notification per recipient, never the uploader, with the batch link an
   const n = out[0];
   assert.equal(n.type, "UPLOAD_PENDING");
   assert.equal(n.title, "Entries waiting for your review");
-  assert.equal(n.message, "Asha uploaded 312 entries for Plant 2, Plant 3 (Mar–Jun 2026). 41.2 tCO₂e waiting for review");
+  assert.equal(n.message, "Asha uploaded 312 entries for Plant 2, Plant 3 (Mar–Jun 2026). 41.230 tCO₂e waiting for review");
   assert.equal(n.link, "/data/approvals?view=batches&batch=b-1");
   assert.deepEqual(n.meta, { upload_batch_id: "b-1", rows: 312, tco2e: 41.23, site_ids: [1, 2], months: event().months, channel: "mcp" });
   assert.deepEqual(n.email, { email: "m2@example.invalid", name: "M2" });
@@ -57,7 +57,7 @@ test("email is skipped when the preference is off or there is no address; the be
 
 test("singular wording and a batch id that needs escaping", () => {
   const out = buildUploadNotifications(event({ rows: 1, tco2e: 0.05, months: [] }), [mgr(2)], "Asha", []);
-  assert.equal(out[0].message, "Asha uploaded 1 entry for your sites. 0.1 tCO₂e waiting for review");
+  assert.equal(out[0].message, "Asha uploaded 1 entry for your sites. 0.050 tCO₂e waiting for review");
   assert.equal(batchLink("a b&c"), "/data/approvals?view=batches&batch=a%20b%26c");
 });
 

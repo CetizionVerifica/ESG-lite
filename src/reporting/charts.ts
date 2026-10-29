@@ -20,7 +20,7 @@ const GRID_LINE = "#EAECF0";
 
 // Options are JSON-serialized into the page, so label formatters cannot be
 // functions — instead each datum carries its own pre-formatted label string.
-const nfmt = (n: number) => Math.round(n).toLocaleString("en-US");
+const nfmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); // #209
 const share = (v: number, total: number) => (total > 0 ? `${((v / total) * 100).toFixed(1)}%` : "—");
 
 export function buildChartOption(block: ChartBlock, theme: Theme): unknown {

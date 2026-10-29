@@ -9,6 +9,9 @@
  *   pct0     a share as "12%"     pct1        "12.3%" (the value is already a percentage)
  *   compact  "1.2K", "3.4M"       indian      Indian grouping ("12,34,567")
  * Negative numbers use a true minus sign (U+2212). Null is "—".
+ *
+ * #209: a tCO₂e figure (`unit` "tCO₂e") on `auto` shows exactly 3 decimals, as
+ * every emission figure in the app does; a format someone picked still wins.
  */
 import type { NumberFormat } from "../contracts";
 
@@ -18,12 +21,17 @@ export const EMPTY = "—";
 const grouped = (n: number, min: number, max: number, locale = "en-US") =>
   n.toLocaleString(locale, { minimumFractionDigits: min, maximumFractionDigits: max });
 
-export function formatNumber(value: number | null | undefined, format: NumberFormat = "auto"): string {
+export const TONNES_UNIT = "tCO₂e";
+
+export function formatNumber(value: number | null | undefined, format: NumberFormat = "auto", unit?: string | null): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return EMPTY;
   const neg = value < 0;
   const abs = Math.abs(value);
   let text: string;
-  switch (format) {
+  switch (format === "auto" && unit === TONNES_UNIT ? "tonnes" : format) {
+    case "tonnes":
+      text = grouped(abs, 3, 3);
+      break;
     case "int":
       text = grouped(abs, 0, 0);
       break;
@@ -61,8 +69,8 @@ export function formatChangePct(value: number | null | undefined, format: Number
 }
 
 /** A change in the binding's unit with its sign: "+120", "−4.5". */
-export function formatChangeAbs(value: number | null | undefined, format: NumberFormat = "auto"): string {
+export function formatChangeAbs(value: number | null | undefined, format: NumberFormat = "auto", unit?: string | null): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return EMPTY;
-  const body = formatNumber(Math.abs(value), format);
+  const body = formatNumber(Math.abs(value), format, unit);
   return value === 0 || !/[1-9]/.test(body) ? body : `${value > 0 ? "+" : MINUS}${body}`;
 }

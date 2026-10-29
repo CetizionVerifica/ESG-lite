@@ -2362,7 +2362,7 @@ export const getEdeReport = async(req:Request, res:Response) =>{
     });
      const siteDonut = bySite.map((s) => ({
       name: s.siteName,
-      value: Number(s.total.toFixed(2)),
+      value: Number(s.total.toFixed(3)), // #209
       pct: s.pctOfTotal,
     }));
     const monthlyBySiteRaw = await base.clone()
@@ -3412,7 +3412,7 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
         }),
       );
     }
-    const round = (n: number) => Math.round(n * 100) / 100;
+    const round = (n: number) => Math.round(n * 1000) / 1000; // #209: tCO₂e to 3 dp
     return res.json({
       factor: { emission_factor_id: factorId, site_id: factor.site.site_id, category_id: factor.category.category_id, name: factor.emission_category_name, year: factor.year, value: Number(factor.factor_value), unit: factor.denominator_unit },
       recalculated: write,

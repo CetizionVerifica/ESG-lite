@@ -199,13 +199,13 @@ test("manager edit takes the quantity, not a select's option id (configured sele
     });
     assert.equal(r.status, 200);
     const [row] = await q("SELECT total_emission FROM emission WHERE pk_id=3");
-    assert.equal(Number(row.total_emission), 4.77); // 9.17 t × 520 kg/t ÷ 1000, not 6 × 520
+    assert.equal(Number(row.total_emission), 4.768); // 9.17 t × 520 kg/t ÷ 1000 at 3 dp (#209), not 6 × 520
 
     // A date-only edit into another year picks that year's factor.
     await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (904, 'ETP Sludge - Landfill', 600, 'ton', 2025, 1, 3)");
     const moved = await call("PUT", "/user/emissions/manager-edit/3", "manager", { date_of_reporting: "2026-03-15", reason: "Wrong year" });
     assert.equal(moved.status, 200);
-    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=3"))[0].total_emission), 5.5); // 9.17 × 600 ÷ 1000
+    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=3"))[0].total_emission), 5.502); // 9.17 × 600 ÷ 1000, 3 dp
 
     // No factor for the new category in any year: refuse rather than keep the old total.
     const noFactor = await call("PUT", "/user/emissions/manager-edit/3", "manager", {
@@ -213,7 +213,7 @@ test("manager edit takes the quantity, not a select's option id (configured sele
       reason: "Try a category without factors",
     });
     assert.equal(noFactor.status, 400);
-    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=3"))[0].total_emission), 5.5);
+    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=3"))[0].total_emission), 5.502);
   } finally {
     const [b] = before;
     await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4, date_of_reporting=$5 WHERE pk_id=3",
@@ -463,7 +463,7 @@ test("a contributor's update with an empty, zero or negative amount is refused a
     assert.equal(kept.activity_data.activity_value, 100);
     const ok = await call("PUT", "/user/emissions/990", "user", { activity_data: { activity_value: 200, emission_category: "Diesel" } });
     assert.equal(ok.status, 200, JSON.stringify(ok.json));
-    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id = 990"))[0].total_emission), 0.54);
+    assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id = 990"))[0].total_emission), 0.536);
   } finally {
     await q("DELETE FROM emission WHERE pk_id = 990");
     await q("DELETE FROM emission_factors WHERE emission_factor_id = 901");

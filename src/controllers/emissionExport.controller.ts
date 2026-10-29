@@ -212,8 +212,8 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
     const totalsRow = new Array(headers.length).fill("");
     totalsRow[0] = "";
     totalsRow[1] = "TOTAL";
-    totalsRow[emissionColIdx] = Math.round(totalEmission * 100) / 100;
-    if (totalFera > 0) totalsRow[feraColIdx] = Math.round(totalFera * 100) / 100;
+    totalsRow[emissionColIdx] = Math.round(totalEmission * 1000) / 1000; // #209
+    if (totalFera > 0) totalsRow[feraColIdx] = Math.round(totalFera * 1000) / 1000;
     totalsRow[headers.indexOf("Status")] = `${emissions.length} entries`;
 
     // Combine all

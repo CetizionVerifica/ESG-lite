@@ -124,7 +124,7 @@ export const listSuppliers = async (companyId: number, opts: { year: number; yea
       country: r.country,
       email: r.email,
       rows_this_year: r.rows,
-      tco2e: Math.round(Number(r.kg) / 10) / 100,
+      tco2e: Math.round(Number(r.kg)) / 1000, // #209: 3 dp
       has_factor: r.factor_count > 0,
       factor_count: r.factor_count,
       has_facility_data: r.facility_count > 0,
@@ -589,7 +589,7 @@ export const coverage = async (
       LIMIT 20`,
     params,
   );
-  const t = (kgValue: number) => Math.round(Number(kgValue) / 10) / 100;
+  const t = (kgValue: number) => Math.round(Number(kgValue)) / 1000; // #209: kg → tCO₂e at 3 dp
   const all = Number(totals.all_kg);
   const covered = Number(totals.supplier_kg) + Number(totals.hybrid_kg);
   return {
