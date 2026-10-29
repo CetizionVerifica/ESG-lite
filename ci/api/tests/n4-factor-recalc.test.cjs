@@ -9,6 +9,8 @@ const FACTOR = 9401;
 const NAME = "CI N4 Grid";
 const SMALL = 9402; // #209: a correction of a few kg
 const SMALL_NAME = "CI N4 Small";
+const LEGACY = 9403; // #209: a row whose kg was back-filled from its 2-dp total
+const LEGACY_NAME = "CI N4 Legacy";
 const created = [];
 
 const add = async (date, mwh, name = NAME) => {
@@ -26,12 +28,14 @@ test.before(async () => {
            VALUES (${FACTOR}, 1, 1, 2024, 0.7100, 'MWh', 'CI CEA', '${NAME}', '${NAME}')`);
   await q(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name)
            VALUES (${SMALL}, 1, 1, 2024, 233.0000, 'MWh', 'CI CEA', '${SMALL_NAME}', '${SMALL_NAME}')`);
+  await q(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name)
+           VALUES (${LEGACY}, 1, 1, 2024, 1230.4000, 'MWh', 'CI CEA', '${LEGACY_NAME}', '${LEGACY_NAME}')`);
 });
 
 test.after(async () => {
   await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1)`, [created]);
   await q(`DELETE FROM emission WHERE pk_id = ANY($1)`, [created]);
-  await q(`DELETE FROM emission_factors WHERE emission_factor_id IN (${FACTOR}, ${SMALL})`);
+  await q(`DELETE FROM emission_factors WHERE emission_factor_id IN (${FACTOR}, ${SMALL}, ${LEGACY})`);
 });
 
 test("a corrected factor's entries are counted, then recalculated with statuses kept", async () => {
@@ -125,6 +129,31 @@ test("#209: a correction under 0.5 kg a row, which leaves the 3-dp tonnes where 
   const again = await call("GET", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
   assert.equal(again.json.changed, 0);
   assert.equal(again.json.unchanged, 2);
+});
+
+test("#209: a row that already has the factor's figures is left alone, whatever its stored kg; a real correction still reaches it", async () => {
+  const row = await add("2025-07-31", 1, LEGACY_NAME); // 1 MWh × 1230.4 kg/MWh = 1.230 t
+  // Stored the way a row saved before kg totals looks after the back-fill: 2-dp tonnes, kg worked out from them.
+  await q(`UPDATE emission SET total_emission = 1.23, total_kgco2e = 1230.0000 WHERE pk_id = $1`, [row]);
+  const stored = async () => (await q(`SELECT total_emission, total_kgco2e, emission_factor_snapshot->>'factor_value' AS fv FROM emission WHERE pk_id = $1`, [row]))[0];
+
+  const same = await call("GET", `/admin/emission-factors/${LEGACY}/recalculate`, "superadmin");
+  assert.equal(same.status, 200, JSON.stringify(same.json));
+  assert.equal(same.json.uses_factor, 1);
+  assert.equal(same.json.changed, 0, "the factor didn't change for this row");
+  assert.equal(same.json.unchanged, 1);
+  const kept = await call("POST", `/admin/emission-factors/${LEGACY}/recalculate`, "superadmin");
+  assert.equal(kept.json.changed, 0);
+  assert.equal(Number((await stored()).total_kgco2e), 1230, "nothing written");
+  assert.equal((await q(`SELECT 1 FROM audit_log WHERE entity_type = 'emission' AND action = 'factor_recalculation' AND entity_id = $1`, [row])).length, 0);
+
+  await q(`UPDATE emission_factors SET factor_value = 1231 WHERE emission_factor_id = ${LEGACY}`);
+  const done = await call("POST", `/admin/emission-factors/${LEGACY}/recalculate`, "superadmin");
+  assert.equal(done.json.changed, 1);
+  const after = await stored();
+  assert.equal(Number(after.total_emission), 1.231);
+  assert.equal(Number(after.total_kgco2e), 1231);
+  assert.equal(Number(after.fv), 1231);
 });
 
 test("only the Superadmin recalculates; an unknown factor is a 404", async () => {
