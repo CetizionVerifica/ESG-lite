@@ -202,3 +202,4 @@ Entities: `src/entities/Kpi*.ts`. Migrations: `src/scripts/migrateKpi<Thing>.ts`
   - `ci/unit/kpi-seed.test.cjs` (#209)
   - `ci/unit/kpi-209-tonnes-decimals.test.cjs`
   - `ci/api/tests/kpi-209-tonnes-decimals.test.cjs`: library and company rows, edited and unedited; runs twice; checks that a re-seed keeps the result.
+- #209 review: target words (`targets/service.ts` `targetLabel`, sent as `label` by `/kpi/targets`, the dashboard and `/kpi/esg`) print a tCO2e KPI's figure with `TONNES_DP` decimals and thousands separators (`targetFigure`): "1,000.000 tCO2e by 2030", "Keep at 1,234.500 tCO2e to 2030". There is no shared server-side KPI number formatter, so other units keep the stored number ("1000 kL by 2030"); percentage targets are unchanged. Test: `ci/unit/kpi-targets.test.cjs`.
