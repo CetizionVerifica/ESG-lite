@@ -65,7 +65,7 @@ test("a corrected factor's entries are counted, then recalculated with statuses 
   assert.ok(after.every((r) => Number(r.fv) === 710), "the snapshot records the corrected value");
   const audit = await q(`SELECT entity_id, changed_fields, reason FROM audit_log WHERE entity_type = 'emission' AND action = 'factor_recalculation' AND entity_id = ANY($1) ORDER BY entity_id`, [[march, april]]);
   assert.equal(audit.length, 2);
-  assert.deepEqual(audit[1].changed_fields, { total_emission: { old: 0.142, new: 142 } });
+  assert.deepEqual(audit[1].changed_fields, { total_emission: { old: 0.142, new: 142 }, total_kgco2e: { old: 142, new: 142000 } });
   assert.match(audit[0].reason, /CI N4 Grid, 2024/);
 
   const again = await call("POST", `/admin/emission-factors/${FACTOR}/recalculate`, "superadmin");
@@ -95,11 +95,36 @@ test("#209: a correction that moves a row by under 5 kg is recalculated (totals 
   assert.equal(Number(after.total_kgco2e), 236);
   assert.equal(Number(after.fv), 236);
   const audit = await q(`SELECT changed_fields FROM audit_log WHERE entity_type = 'emission' AND action = 'factor_recalculation' AND entity_id = $1`, [row]);
-  assert.deepEqual(audit.map((a) => a.changed_fields), [{ total_emission: { old: 0.233, new: 0.236 } }]);
+  assert.deepEqual(audit.map((a) => a.changed_fields), [{ total_emission: { old: 0.233, new: 0.236 }, total_kgco2e: { old: 233, new: 236 } }]);
 
   const again = await call("GET", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
   assert.equal(again.json.changed, 0);
   assert.equal(again.json.unchanged, 1);
+});
+
+test("#209: a correction under 0.5 kg a row, which leaves the 3-dp tonnes where they were, still updates the kg and the snapshot", async () => {
+  const row = await add("2025-06-30", 1, SMALL_NAME); // 1 MWh × 236 kg/MWh (the value the test above left) = 0.236 t
+  const stored = async () => (await q(`SELECT total_emission, total_kgco2e, emission_factor_snapshot->>'factor_value' AS fv FROM emission WHERE pk_id = $1`, [row]))[0];
+  assert.equal(Number((await stored()).total_kgco2e), 236);
+
+  await q(`UPDATE emission_factors SET factor_value = 236.4 WHERE emission_factor_id = ${SMALL}`); // 0.4 kg more: still 0.236 t
+  const preview = await call("GET", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
+  assert.equal(preview.status, 200, JSON.stringify(preview.json));
+  assert.equal(preview.json.changed, 2, "both rows of the factor: the kg moves although the tonnes don't");
+  assert.equal(preview.json.unchanged, 0);
+
+  const done = await call("POST", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
+  assert.equal(done.json.changed, 2);
+  const after = await stored();
+  assert.equal(Number(after.total_emission), 0.236);
+  assert.equal(Number(after.total_kgco2e), 236.4);
+  assert.equal(Number(after.fv), 236.4);
+  const audit = await q(`SELECT changed_fields FROM audit_log WHERE entity_type = 'emission' AND action = 'factor_recalculation' AND entity_id = $1`, [row]);
+  assert.deepEqual(audit.map((a) => a.changed_fields), [{ total_emission: { old: 0.236, new: 0.236 }, total_kgco2e: { old: 236, new: 236.4 } }]);
+
+  const again = await call("GET", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
+  assert.equal(again.json.changed, 0);
+  assert.equal(again.json.unchanged, 2);
 });
 
 test("only the Superadmin recalculates; an unknown factor is a 404", async () => {

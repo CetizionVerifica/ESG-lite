@@ -3379,8 +3379,12 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
       summary.uses_factor++;
       const oldTotal = Number(row.total_emission) || 0;
       const newTotal = Number(prepared.entry.computed?.total ?? 0);
-      // #209: compared at 3 dp, as totals are stored, so a correction of a few kg is recalculated too.
-      if (roundTonnes(newTotal) === roundTonnes(oldTotal)) {
+      const oldKg = row.total_kgco2e == null ? null : Number(row.total_kgco2e);
+      const newKg = prepared.entry.computed?.total_kgco2e == null ? null : Number(prepared.entry.computed.total_kgco2e);
+      // #209: compared on kg at 4 dp, as stored (WTT part included), so any correction is recalculated, even one that
+      // leaves the 3-dp tonnes where they were; a row stored before kg totals is compared on its tonnes at 3 dp.
+      const unchanged = oldKg != null && newKg != null ? oldKg.toFixed(4) === newKg.toFixed(4) : roundTonnes(newTotal) === roundTonnes(oldTotal);
+      if (unchanged) {
         summary.unchanged++;
         continue;
       }
@@ -3408,7 +3412,7 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
           entity_type: "emission",
           entity_id: row.pk_id,
           action: "factor_recalculation",
-          changed_fields: { total_emission: { old: oldTotal, new: newTotal } },
+          changed_fields: { total_emission: { old: oldTotal, new: newTotal }, total_kgco2e: { old: oldKg, new: newKg } },
           reason: `Emission factor ${factorId} (${factor.emission_category_name}, ${factor.year}) was corrected: recalculated with ${factor.factor_value} per ${factor.denominator_unit}.`,
           changed_by: changedBy || undefined,
         }),
