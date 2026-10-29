@@ -932,6 +932,8 @@ async function recalculateEntry(
     storedFx: emission.fx,
     // SE-2: the kept method is named as an importer would; else a User's edit takes the method the form decides.
     method_source: kept ? "caller" : methodSource,
+    // D6a: a Category 4, 6, 7 or 9 row saved with a FERA twin keeps its WTT there.
+    keep_fera_twin: !!emission.fera_linked_id,
     ...(supplierRow
       ? {
           method: emission.method,

@@ -16,6 +16,9 @@
  * changes the total of a twin that exists today (ci/golden).
  *
  * S3-0 moved `feraTwinFor` here from compute.ts; compute.ts re-exports it.
+ *
+ * D6a: a Category 4, 6, 7 or 9 row makes no twin; the WTT factor the twin
+ * would have used is added to the row's own total (`wttPartFor`, below).
  */
 import type { EmissionFactor } from "../../../entities/EmissionFactor";
 import { pickActivityValue } from "../../activityValue";
@@ -175,17 +178,47 @@ export const ghgCategoryOfContext = (ctx: CategoryContext): number | null => {
 };
 
 /**
- * WTT_ALREADY_IN_FACTOR (D6): a Cat 4 or 9 row whose life-cycle factor
- * already sums in well-to-tank. The row's total is kept as it is; the
- * warning says the WTT part may also be counted in Category 3. Never blocks.
+ * D6a · WTT in the row. Scope 3 transport and travel (Categories 4, 6, 7
+ * and 9) use life-cycle factors (GHG Protocol Scope 3 Technical Guidance,
+ * pp. 14 and 51), so the well-to-tank part of the carrier's or traveller's
+ * fuel is added to the row's own total. Category 3 holds the upstream of the
+ * reporting company's own fuels and energy only, so these rows get no FERA
+ * twin. The WTT factor is the one the twin would have used: the FERA factor
+ * of the same name (or global name) for the target year.
+ */
+export const WTT_IN_ROW_CATEGORIES = [4, 6, 7, 9] as const;
+
+export const wttInRow = (ctx: CategoryContext): boolean => (WTT_IN_ROW_CATEGORIES as readonly number[]).includes(ghgCategoryOfContext(ctx) ?? 0);
+
+/** The WTT part a row's total includes (D6a), kept in its factor snapshot as `wtt`. */
+export interface WttPart {
+  factor: EmissionFactor;
+  /** kgCO₂e at 4 dp. */
+  total_kgco2e: string;
+}
+
+/** The WTT part of a Category 4, 6, 7 or 9 row: the FERA twin it would have had. Null when there is none. */
+export const wttPartFor = (ctx: CategoryContext, emissionCategory: string, activity_data: Record<string, any>, activity_unit: string | null | undefined, targetYear: number): WttPart | null => {
+  const twin = feraTwinFor(ctx, emissionCategory, activity_data, activity_unit, targetYear);
+  return twin ? { factor: twin.factor, total_kgco2e: twin.total_kgco2e } : null;
+};
+
+/** The row's total with its WTT part added: kgCO₂e summed at 4 dp, tCO₂e at 2 dp from that sum. */
+export const withWtt = <C extends { total: number; total_kgco2e?: string }>(computed: C, part: WttPart): C => {
+  const kg = Number(computed.total_kgco2e ?? computed.total * 1000) + Number(part.total_kgco2e);
+  return { ...computed, total: Math.round((kg / 1000) * 100) / 100, total_kgco2e: kg.toFixed(4) };
+};
+
+/**
+ * WTT_ALREADY_IN_FACTOR: a Category 4, 6, 7 or 9 row whose life-cycle factor
+ * already sums in well-to-tank, so no WTT part is added (D6a). The total is
+ * the factor's own. Never blocks.
  */
 export const wttDoubleCountWarning = (ctx: CategoryContext, factor: EmissionFactor | null): EngineIssue | null => {
-  if (!factor) return null;
-  const ghg = ghgCategoryOfContext(ctx);
-  if (ghg !== 4 && ghg !== 9) return null;
+  if (!factor || !wttInRow(ctx)) return null;
   if (factorType(factor) !== "life_cycle" || !factor.includes_wtt) return null;
   return {
     code: "WTT_ALREADY_IN_FACTOR",
-    message: `The factor "${factor.emission_category_name}" already includes well-to-tank (WTT) emissions, which may also be counted in Category 3. The total is kept as it is; upload new freight factors as life_cycle without WTT plus a separate wtt factor.`,
+    message: `The factor "${factor.emission_category_name}" already includes well-to-tank (WTT) emissions, so no WTT was added to the total.`,
   };
 };

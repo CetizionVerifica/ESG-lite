@@ -3,7 +3,9 @@
 // T&D-loss twin only when a td_loss factor exists, the twins approve,
 // reject, delete and follow edits with their parent, a Cat 4 row on a
 // WTT-inclusive factor is flagged WTT_ALREADY_IN_FACTOR without changing its
-// total, and migrate:scope3-fera-sub backfills old twins (run twice).
+// total, a Cat 4 row on a factor without WTT takes the FERA WTT factor in its
+// own total and gets no twin (D6a), and migrate:scope3-fera-sub backfills old
+// twins (run twice).
 //
 // Figures are Example 3.1 of the GHG Protocol guidance (Australia): grid
 // 0.8 kgCO₂e/kWh (Scope 2), upstream 0.12 kgCO₂e/kWh (3b), T&D loss rate
@@ -22,7 +24,7 @@ const { planRows, insertRows } = require(path.resolve("dist/services/emissionWri
 const SITE = 3;
 const FREIGHT = 120; // a Scope 3 Category 4 category, added below
 const CTX = { user_id: 4, role: "User", company_id: 2, allowed_site_ids: [SITE], allowed_category_ids_by_site: {} };
-const FACTORS = [931, 932, 933, 934, 935, 936, 937, 938, 939, 940, 941, 942];
+const FACTORS = [931, 932, 933, 934, 935, 936, 937, 938, 939, 940, 941, 942, 943];
 
 const typed = (category_id, date, unit, emission_category, activity_value) =>
   call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id, date_of_reporting: date, activity_data_unit: unit, activity_data: { emission_category, activity_value: String(activity_value) } });
@@ -52,7 +54,8 @@ test.before(async () => {
       (939, ${SITE}, ${FREIGHT}, 2024, 0.09, 'tonne.km', 'DEFRA freighting goods', 'HGV S3-7 split', 'HGV S3-7 split', 'life_cycle', false),
       (940, ${SITE}, 5, 2023, 0.05, 'kwh', 'CI', 'Grid AU T&D losses', 'Grid AU', 'td_loss', false),
       (941, ${SITE}, 2, 2024, 0.7, 'kwh', 'CI', 'Grid IN', 'Grid IN', 'combustion', false),
-      (942, ${SITE}, 5, 2024, 0.07, 'kwh', 'CI', 'Grid IN T&D losses', 'Grid IN', 'td_loss', false)`);
+      (942, ${SITE}, 5, 2024, 0.07, 'kwh', 'CI', 'Grid IN T&D losses', 'Grid IN', 'td_loss', false),
+      (943, ${SITE}, 5, 2024, 0.02, 'tonne.km', 'DEFRA WTT- delivery vehs & freight', 'HGV S3-7 split', 'HGV S3-7 split', 'wtt', false)`);
   });
   await AppDataSource.initialize();
 });
@@ -286,6 +289,58 @@ test("a Cat 4 row on a WTT-inclusive factor is flagged and keeps its total", asy
   assert.equal(res.status, 201, JSON.stringify(res.json));
   assert.deepEqual(res.json.warnings.map((w) => w.code), ["WTT_ALREADY_IN_FACTOR"]);
   assert.equal(res.json.emission.emission_factor_snapshot.includes_wtt, true);
+});
+
+// D6a (GHG Protocol Scope 3 Technical Guidance pp. 14, 51): 1,000 tonne.km × (0.09 + 0.02 WTT) = 110 kg.
+test("D6a: a Cat 4 row takes the WTT factor in its own total and gets no Category 3 twin", async () => {
+  const row = { row_ref: "Haul!B4", site_id: SITE, category_id: FREIGHT, period: { kind: "monthly", date: "2025-08-15" }, activity_name: "HGV S3-7 split", activity_value: 1000, activity_unit: "tonne.km" };
+  const [planned] = await planRows(CTX, [row], { planMatches: [] });
+  assert.equal(planned.state, "ready", JSON.stringify(planned.issues));
+  assert.equal(planned.result.total_tco2e, 0.11, "an import gives the same total");
+  assert.equal(planned.result.fera, undefined, "and plans no twin");
+
+  const res = await call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id: FREIGHT, date_of_reporting: "2025-11-15", activity_data_unit: "tonne.km", activity_data: { emission_category: "HGV S3-7 split", activity_value: "1000" } });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  assert.deepEqual(res.json.warnings, []);
+  const id = res.json.emission.pk_id;
+  const [saved] = await withDb(async (db) =>
+    (await db.query(`SELECT total_emission::float8 AS total, total_kgco2e::text AS kg, fera_linked_id, emission_factor_snapshot AS snap FROM emission WHERE pk_id = $1`, [id])).rows,
+  );
+  assert.deepEqual([saved.total, saved.kg, saved.fera_linked_id], [0.11, "110.0000", null]);
+  assert.equal(Number(saved.snap.factor_value), 0.09, "the row's own factor stays the snapshot's factor");
+  assert.deepEqual([Number(saved.snap.wtt.factor_value), saved.snap.wtt.factor_type, saved.snap.wtt.kgco2e, saved.snap.wtt.emission_factor_id], [0.02, "wtt", "20.0000", 943]);
+  assert.deepEqual(await twinsOf(id), []);
+});
+
+test("D6a: no WTT factor for the year adds no WTT part, and says so", async () => {
+  // 2026 entries read 2025 factors; the FERA table only has 2024.
+  const res = await call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id: FREIGHT, date_of_reporting: "2026-03-15", activity_data_unit: "tonne.km", activity_data: { emission_category: "HGV S3-7 split", activity_value: "1000" } });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  const missing = res.json.warnings.find((w) => w.code === "FERA_FACTOR_MISSING");
+  assert.match(missing?.message ?? "", /^No well-to-tank \(WTT\) part was added to the total: there is no 2025 FERA factor for "HGV S3-7 split"\.$/);
+  assert.equal(Number(res.json.emission.total_emission), 0.09);
+  assert.deepEqual(await twinsOf(res.json.emission.pk_id), []);
+});
+
+test("D6a: an edit of a Cat 4 row saved with a FERA twin keeps the twin (old rows are left as they are)", async () => {
+  const res = await call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id: FREIGHT, date_of_reporting: "2025-12-15", activity_data_unit: "tonne.km", activity_data: { emission_category: "HGV S3-7 split", activity_value: "1000" } });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  const id = res.json.emission.pk_id;
+  // The row as it was saved before D6a: 90 kg in the row, 20 kg in a Category 3 twin.
+  await withDb(async (db) => {
+    const [twin] = (await db.query(
+      `INSERT INTO emission (activity_data, total_emission, total_kgco2e, unit, date_of_reporting, status, site_id, category_id, fera_linked_id, scope3_sub, emission_factor_snapshot)
+       SELECT activity_data, 0.02, 20, unit, date_of_reporting, status, site_id, 5, pk_id, '3a_upstream_fuels', '{"emission_factor_id": 943, "factor_value": "0.02", "factor_type": "wtt"}'::jsonb
+         FROM emission WHERE pk_id = $1 RETURNING pk_id`,
+      [id],
+    )).rows;
+    await db.query(`UPDATE emission SET total_emission = 0.09, total_kgco2e = 90, fera_linked_id = $2, emission_factor_snapshot = emission_factor_snapshot - 'wtt' WHERE pk_id = $1`, [id, twin.pk_id]);
+  });
+  const edit = await call("PUT", `/user/emissions/${id}`, "otherUser", { activity_data: { emission_category: "HGV S3-7 split", activity_value: "2000" }, activity_data_unit: "tonne.km" });
+  assert.equal(edit.status, 200, JSON.stringify(edit.json));
+  const [parent] = await withDb(async (db) => (await db.query(`SELECT total_emission::float8 AS total, emission_factor_snapshot ? 'wtt' AS has_wtt FROM emission WHERE pk_id = $1`, [id])).rows);
+  assert.deepEqual([parent.total, parent.has_wtt], [0.18, false], "2,000 × 0.09 kg in the row");
+  assert.deepEqual((await twinsOf(id)).map((t) => [t.scope3_sub, t.total]), [["3a_upstream_fuels", 0.04]], "2,000 × 0.02 kg stays in the twin");
 });
 
 test("the WTT flag reads the category's ghg_category, not only its name", async () => {
