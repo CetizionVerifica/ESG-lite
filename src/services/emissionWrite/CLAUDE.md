@@ -58,7 +58,7 @@ MCP-09, MCP-10, MCP-11, MCP-22 (golden).
 ### Rules
 1. **Same path for every channel.** Typed entries, bulk upload, smart import, Claude/MCP and (after S3-4) the historical import go through `planRows → prepareEntry → insertRows`.
 2. **The snapshot is the audit trail.** Every new row stores the full `FactorSnapshot` (§6), `method`, `dq`, `data_type`. A spend row also stores `fx`, and a supplier row stores `supplier_id` and the `supplier_factor` id in the snapshot.
-3. **Totals:** `total_emission` stays tCO₂e at 2 dp. `total_kgco2e` is written beside it at 4 dp (D5). Never round before multiplying.
+3. **Totals:** `total_emission` is tCO₂e at 3 dp (`roundTonnes` in `round.ts`, #209 / D14). `total_kgco2e` is written beside it at 4 dp (D5). Never round before multiplying.
 4. **Warnings never block** (`01-contracts.md` §7). Errors block the row only, never the whole batch, except for the existing all-or-nothing import plan rules.
 5. **FE mirror:** when a method changes, update `ESG-lite_FE/src/lib/emissions/emissionCalc.ts` in the FE PR of the same module, so the preview matches. The FE never sends a total (`CLIENT_TOTAL_IGNORED` stays).
 6. **Edits:** `updateEmission`, `managerUpdateEmission` and the FERA recalculation move onto `computeRow` in S3-4, so edits get methods and DQ too.

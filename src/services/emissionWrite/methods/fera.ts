@@ -214,12 +214,12 @@ export const wttPartFor = (ctx: CategoryContext, emissionCategory: string, activ
 };
 
 /**
- * The row's total with its WTT part added: kgCO₂e summed at 4 dp, tCO₂e at 2 dp from that sum.
+ * The row's total with its WTT part added: kgCO₂e summed at 4 dp, tCO₂e rounded from that sum like every total (roundTonnes, #209).
  * The WTT factor's gases and biogenic CO₂ are added too, so per-gas totals keep what the twin held.
  */
 export const withWtt = <C extends { total: number; total_kgco2e?: string; gas_kg?: Partial<Record<Gas, number>>; biogenic_kg?: string }>(computed: C, part: WttPart): C => {
   const kg = Number(computed.total_kgco2e ?? computed.total * 1000) + Number(part.total_kgco2e);
-  const out: C = { ...computed, total: Math.round((kg / 1000) * 100) / 100, total_kgco2e: kg.toFixed(4) };
+  const out: C = { ...computed, total: roundTonnes(kg / 1000), total_kgco2e: kg.toFixed(4) };
   if (part.gas_kg) {
     const gases: Partial<Record<Gas, number>> = { ...(computed.gas_kg ?? {}) };
     for (const [gas, v] of Object.entries(part.gas_kg) as [Gas, number][]) gases[gas] = Math.round(((gases[gas] ?? 0) + v) * 10000) / 10000;

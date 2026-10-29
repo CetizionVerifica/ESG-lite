@@ -21,7 +21,7 @@ import { roundTonnes } from "../round";
 import * as activity from "./activity";
 import * as specMethod from "./spec";
 
-/** kg → stored tCO₂e (2 dp) and kgCO₂e (4 dp). */
+/** kg → stored tCO₂e (3 dp, roundTonnes) and kgCO₂e (4 dp). */
 const totals = (kg: number) => ({ total: roundTonnes(kg / 1000), total_kgco2e: (Math.round(kg * 10000) / 10000).toFixed(4) });
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 6 });

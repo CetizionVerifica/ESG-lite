@@ -26,7 +26,7 @@ import { pickActivityValue } from "../../activityValue";
 /** (100 − c) ÷ c: what the known share must be multiplied by to give the missing share. */
 export const coverageScale = (coveragePct: number): number => (100 - coveragePct) / coveragePct;
 
-/** kg → stored tCO₂e (2 dp) and kgCO₂e (4 dp). */
+/** kg → stored tCO₂e (3 dp, roundTonnes) and kgCO₂e (4 dp). */
 const totals = (kg: number) => ({ total: roundTonnes(kg / 1000), total_kgco2e: (Math.round(kg * 10000) / 10000).toFixed(4) });
 
 export const compute = (ctx: CategoryContext, row: FactorRow): ComputeResult => {

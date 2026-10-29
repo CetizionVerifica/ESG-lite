@@ -151,21 +151,21 @@ test("D6a: WTT goes in the row for Categories 4, 6, 7 and 9 only", () => {
   assert.equal(named("Anything", "Scope 3", { ghg_category: 6 }), true, "S3-1's ghg_category wins");
 });
 
-test("D6a: a DESNZ flight of 1,000 passenger.km: 0.22928 + 0.0335 WTT = 262.78 kg, 0.26 t", () => {
+test("D6a: a DESNZ flight of 1,000 passenger.km: 0.22928 + 0.0335 WTT = 262.78 kg, 0.263 t", () => {
   const name = "Flights - Domestic, to/from UK, Average passenger, With RF [passenger.km]";
   const c = ctx("Scope 3", [factor(name, 0.0335, "passenger.km", "wtt")], { category_name: "Business Travel" });
   const part = wttPartFor(c, name, { quantity: 1000 }, "passenger.km", 2024);
   assert.equal(part.total_kgco2e, "33.5000");
   assert.equal(part.factor.factor_type, "wtt");
-  const row = withWtt({ total: 0.23, total_kgco2e: "229.2800", activityValue: 1000 }, part);
-  assert.deepEqual([row.total, row.total_kgco2e, row.activityValue], [0.26, "262.7800", 1000]);
+  const row = withWtt({ total: 0.229, total_kgco2e: "229.2800", activityValue: 1000 }, part);
+  assert.deepEqual([row.total, row.total_kgco2e, row.activityValue], [0.263, "262.7800", 1000]);
   assert.equal(wttPartFor(c, name, { quantity: 1000 }, "passenger.km", 2023), null, "the twin's rule: the target year's factor only");
   assert.equal(wttPartFor(c, "Hotel stay - UK [Room per night]", { quantity: 3 }, "Room per night", 2024), null, "no WTT factor of that name");
 });
 
 test("D6a: kg are summed before the tonnes are rounded", () => {
-  // 4.9960 + 0.0045 kg = 5.0005 kg → 0.01 t (each part alone would round to 0.00 t and 0.00 t).
-  assert.deepEqual(withWtt({ total: 0, total_kgco2e: "4.9960" }, { total_kgco2e: "0.0045", factor: {} }), { total: 0.01, total_kgco2e: "5.0005" });
+  // 0.4990 + 0.0020 kg = 0.5010 kg → 0.001 t at 3 dp (#209); each part alone would round to 0.000 t.
+  assert.deepEqual(withWtt({ total: 0, total_kgco2e: "0.4990" }, { total_kgco2e: "0.0020", factor: {} }), { total: 0.001, total_kgco2e: "0.5010" });
 });
 
 test("D6a: the WTT factor's gases and biogenic CO₂ go in the row, as its twin held them", () => {
