@@ -177,10 +177,10 @@ export const rejectTemplate = (name: string, categoryName?: string, siteName?: s
 });
 
 export const bulkApprovedTemplate = (name: string, count: number, categories: EmailJobCategorySummary[], ai?: AI) => ({
-  subject: `${count} emission entries approved — ESGLite`,
+  subject: `${count} emission ${count === 1 ? "entry" : "entries"} approved — ESGLite`,
   html: layout([
     hi(name),
-    p(`<strong>${count}</strong> of your emission entries have been <strong>approved</strong>.`),
+    p(`<strong>${count}</strong> of your emission entries ${count === 1 ? "has" : "have"} been <strong>approved</strong>.`),
     statusBar("Approved", "#15803d", "#f0fdf4"),
     categories.length > 0 ? catTable(categories, "Category", "#16a34a") : "",
     ai?.managerName ? actionBy("Approved by", ai.managerName) : "",
@@ -190,10 +190,10 @@ export const bulkApprovedTemplate = (name: string, count: number, categories: Em
 });
 
 export const bulkRejectedTemplate = (name: string, count: number, categories: EmailJobCategorySummary[], comment?: string, ai?: AI) => ({
-  subject: `${count} emission entries rejected — ESGLite`,
+  subject: `${count} emission ${count === 1 ? "entry" : "entries"} rejected — ESGLite`,
   html: layout([
     hi(name),
-    p(`<strong>${count}</strong> of your emission entries have been <strong>rejected</strong>.`),
+    p(`<strong>${count}</strong> of your emission entries ${count === 1 ? "has" : "have"} been <strong>rejected</strong>.`),
     statusBar("Rejected", "#dc2626", "#fef2f2"),
     categories.length > 0 ? catTable(categories, "Category", "#dc2626") : "",
     comment ? rejectionBox(comment) : "",
@@ -239,10 +239,10 @@ export const productionRejectedTemplate = (name: string, productName?: string, s
 });
 
 export const bulkProductionApprovedTemplate = (name: string, count: number, products: EmailJobCategorySummary[], ai?: AI) => ({
-  subject: `${count} production entries approved — ESGLite`,
+  subject: `${count} production ${count === 1 ? "entry" : "entries"} approved — ESGLite`,
   html: layout([
     hi(name),
-    p(`<strong>${count}</strong> production data entries have been <strong>approved</strong>.`),
+    p(`<strong>${count}</strong> production data ${count === 1 ? "entry has" : "entries have"} been <strong>approved</strong>.`),
     statusBar("Approved", "#15803d", "#f0fdf4"),
     products.length > 0 ? catTable(products, "Product", "#16a34a") : "",
     ai?.managerName ? actionBy("Approved by", ai.managerName) : "",
@@ -251,10 +251,10 @@ export const bulkProductionApprovedTemplate = (name: string, count: number, prod
 });
 
 export const bulkProductionRejectedTemplate = (name: string, count: number, products: EmailJobCategorySummary[], comment?: string, ai?: AI) => ({
-  subject: `${count} production entries rejected — ESGLite`,
+  subject: `${count} production ${count === 1 ? "entry" : "entries"} rejected — ESGLite`,
   html: layout([
     hi(name),
-    p(`<strong>${count}</strong> production data entries have been <strong>rejected</strong>.`),
+    p(`<strong>${count}</strong> production data ${count === 1 ? "entry has" : "entries have"} been <strong>rejected</strong>.`),
     statusBar("Rejected", "#dc2626", "#fef2f2"),
     products.length > 0 ? catTable(products, "Product", "#dc2626") : "",
     comment ? rejectionBox(comment) : "",
