@@ -199,3 +199,48 @@ test("DS-2 sources/format.ts: the KPI canonical tCO2e is tonnes too; a picked fo
   assert.equal(SRC.formatNumber(1234.567, "int", "tCO2e"), "1,235");
   assert.equal(SRC.formatNumber(1234.567, "2dp", "tCO2e"), "1,234.57");
 });
+
+// #209 review: `display` (sources/format.ts, Intl) and the renderer's own labels and cells
+// (render/format.ts) must print the same tCO₂e text. Intl rounds half away from zero on the
+// number's shortest decimal form (String(v)); the renderer has to do the same, not
+// Math.round on the float (33102.0885 × 1000 = 33102088.4999… would give .088).
+test("rounding parity: the renderer prints every half-way tCO₂e value as sources/format.ts does", () => {
+  let seed = 209;
+  const rnd = (n) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed % n;
+  };
+  const values = [33102.0885, 262682.8415, 1.0005, 0.0005, 9.9995, 999999.9995, 2.5e-4, 1e21, 1.2345678901234567e25, 1.5e-7, 5e-4, 4.9999e-4];
+  for (const mag of [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e9, 1e12]) {
+    for (let i = 0; i < 400; i++) {
+      const int = rnd(mag);
+      const dec = String(rnd(1000)).padStart(3, "0");
+      values.push(Number(`${int}.${dec}5`), Number(`${int}.${dec}4999`), Number(`${int}.${dec}50001`), Number(`${int}.${dec}`));
+    }
+  }
+  let mismatches = [];
+  for (const v of values) {
+    for (const x of [v, -v]) {
+      for (const u of ["tCO₂e", "tCO2e"]) {
+        const want = SRC.formatNumber(x, "auto", u);
+        const got = RF.formatNumber(x, "auto", u);
+        if (want !== got) mismatches.push(`${x} ${u}: sources ${want} renderer ${got}`);
+      }
+    }
+  }
+  assert.ok(values.length > 16000, String(values.length));
+  assert.deepEqual(mismatches.slice(0, 10), [], `${mismatches.length} of ${values.length * 4} differ`);
+  // The cases from the review, and exponent forms.
+  assert.equal(RF.formatNumber(33102.0885, "auto", "tCO₂e"), "33,102.089");
+  assert.equal(RF.formatNumber(262682.8415, "auto", "tCO₂e"), "262,682.842");
+  assert.equal(RF.formatNumber(1e21, "auto", "tCO₂e"), "1,000,000,000,000,000,000,000.000");
+  assert.equal(RF.formatNumber(1.5e-7, "auto", "tCO₂e"), "0.000");
+  assert.equal(RF.formatNumber(-1.5e-7, "auto", "tCO₂e"), "0.000", "a value that rounds to zero has no sign");
+  assert.equal(RF.formatNumber(-0.0005, "auto", "tCO₂e"), "−0.001");
+  assert.equal(RF.formatNumber(999.9995, "auto", "tCO₂e"), "1,000.000", "a carry into the integer part");
+  // The other formats round the same way (1.005 is 1.00499999999999989… as a float).
+  assert.equal(RF.formatNumber(1.005, "2dp"), "1.01");
+  assert.equal(RF.formatNumber(1.005, "2dp"), SRC.formatNumber(1.005, "2dp"));
+  assert.equal(RF.formatNumber(0.5, "int"), "1");
+  assert.equal(RF.formatNumber(2.5e21, "int"), "2,500,000,000,000,000,000,000");
+});

@@ -39,15 +39,51 @@ const group = (intPart: string, indian: boolean): string => {
   return `${rest},${last3}`;
 };
 
-/** Fixed decimals with grouping; half away from zero. */
+/** "0999" + 1 → "1000"; "" + 1 → "1". */
+const increment = (digits: string): string => {
+  const d = digits.split("");
+  for (let i = d.length - 1; i >= 0; i--) {
+    if (d[i] !== "9") {
+      d[i] = String(Number(d[i]) + 1);
+      return d.join("");
+    }
+    d[i] = "0";
+  }
+  return `1${d.join("")}`;
+};
+
+/**
+ * `abs` (finite, ≥ 0) rounded to `dp` decimals, half away from zero, on its
+ * shortest decimal form (what `String(abs)` prints), as Intl rounds the
+ * `display` figures in ESG-lite src/studio/sources/format.ts (#209 review):
+ * 33102.0885 → "33102.089", where Math.round(33102.0885 × 1000) on the float
+ * (33102088.4999…) would give .088. Exponent forms ("1e+21", "1.5e-7") are
+ * expanded first. Returns the integer and fraction digits.
+ */
+const roundDecimal = (abs: number, dp: number): [string, string] => {
+  const [mantissa, exp] = String(abs).split("e");
+  const [ip, fp = ""] = mantissa.split(".");
+  let digits = ip + fp;
+  // Digits before the decimal point.
+  let point = ip.length + (exp ? Number(exp) : 0);
+  if (point < 0) {
+    digits = "0".repeat(-point) + digits;
+    point = 0;
+  }
+  digits = digits.padEnd(point + dp + 1, "0");
+  const kept = digits.slice(0, point + dp);
+  const r = digits.charCodeAt(point + dp) >= 53 /* "5" */ ? increment(kept) : kept;
+  const intPart = r.slice(0, r.length - dp).replace(/^0+(?=\d)/, "") || "0";
+  return [intPart, r.slice(r.length - dp)];
+};
+
+/** Fixed decimals with grouping; half away from zero on the decimal form (`roundDecimal`). */
 export const fixed = (v: number, dp: number, indian = false): string => {
   if (!Number.isFinite(v)) return "–";
-  const neg = v < 0;
-  const p = Math.pow(10, dp);
-  const r = Math.round(Math.abs(v) * p) / p;
-  const [i, f] = r.toFixed(dp).split(".");
-  const s = group(i, indian) + (f ? `.${f}` : "");
-  return neg && r !== 0 ? `−${s}` : s;
+  const [i, f] = roundDecimal(Math.abs(v), dp);
+  const s = group(i, indian) + (dp > 0 ? `.${f}` : "");
+  // A value that rounds to zero shows no sign.
+  return v < 0 && /[1-9]/.test(i + f) ? `−${s}` : s;
 };
 
 const compact = (v: number): string => {
