@@ -84,14 +84,14 @@ test("plan match wins over mapping, mapping over the factor name", () => {
 
 test("totals use the typed-entry expression and rounding", () => {
   assert.equal(totalFor(1000, index.factors[0]), 2680);
-  assert.equal(totalFor(1.25, index.find("Grid Electricity", 2024).factor), 0.89); // 1.25 × 708 / 1000 = 0.885 → 0.89
-  assert.equal(totalFor(0.001, index.find("Grid Electricity", 2024).factor), 0); // tiny totals round to 0 but stay rows
+  assert.equal(totalFor(1.25, index.find("Grid Electricity", 2024).factor), 0.885); // 1.25 × 708 / 1000 = 0.885, kept at 3 dp (#209)
+  assert.equal(totalFor(0.0005, index.find("Grid Electricity", 2024).factor), 0); // tiny totals (0.000354 t) round to 0 but stay rows
   const direct = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", activity_value: "1000" }, "litre");
   assert.deepEqual(direct, { ok: true, computed: { activityValue: 1000, activity_unit: "litre", total: 2680, total_kgco2e: "2680000.0000" } });
   const converted = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", quantity: "500" }, "gallon");
   assert.equal(converted.ok, true);
   assert.equal(converted.computed.conversion, 3.78541);
-  assert.equal(converted.computed.total, Math.round(((500 * 3.78541 * 2680) / 1000) * 100) / 100);
+  assert.equal(converted.computed.total, Math.round(((500 * 3.78541 * 2680) / 1000) * 1000) / 1000);
   const bad = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", activity_value: "10" }, "kg");
   assert.equal(bad.ok, false);
   assert.equal(bad.issue.code, "UNIT_NOT_CONVERTIBLE");
@@ -101,20 +101,20 @@ test("totals use the typed-entry expression and rounding", () => {
   assert.deepEqual(zero, { ok: true, computed: { activityValue: 0, activity_unit: "litre", total: 0, total_kgco2e: "0.0000" } });
 });
 
-test("S3-4: total_kgco2e keeps 4 dp where the tCO2e total rounds to 0.01 t (D5)", () => {
+test("S3-4: total_kgco2e keeps 4 dp where the tCO2e total rounds to 0.001 t (D5, #209)", () => {
   const grid = index.find("Grid Electricity", 2024).factor; // 708 kg/kWh
-  const tiny = computeTotal(ctx(), grid, { emission_category: "Grid Electricity", activity_value: "0.001" }, "kwh");
-  assert.equal(tiny.computed.total, 0); // 0.000708 t rounds away, as before
-  assert.equal(tiny.computed.total_kgco2e, "0.7080"); // the kg column keeps it
+  const tiny = computeTotal(ctx(), grid, { emission_category: "Grid Electricity", activity_value: "0.0005" }, "kwh");
+  assert.equal(tiny.computed.total, 0); // 0.000354 t rounds away at 3 dp
+  assert.equal(tiny.computed.total_kgco2e, "0.3540"); // the kg column keeps it
   const half = computeTotal(ctx(), grid, { emission_category: "Grid Electricity", activity_value: "1.25" }, "kwh");
-  assert.deepEqual([half.computed.total, half.computed.total_kgco2e], [0.89, "885.0000"]); // never rounded before multiplying
+  assert.deepEqual([half.computed.total, half.computed.total_kgco2e], [0.885, "885.0000"]); // never rounded before multiplying
   const converted = computeTotal(ctx(), index.factors[0], { emission_category: "Diesel", quantity: "500" }, "gallon");
   assert.equal(converted.computed.total_kgco2e, (Math.round(500 * 3.78541 * 2680 * 10000) / 10000).toFixed(4));
   const fera = feraTwinFor(
     ctx({ fera: { category_id: 9, factors: new FactorIndex([factor(20, "Diesel", 2024, 610.5, "litre")]) } }),
     "Diesel", { emission_category: "Diesel", activity_value: "3" }, "litre", 2024,
   );
-  assert.deepEqual([fera.total, fera.total_kgco2e], [1.83, "1831.5000"]);
+  assert.deepEqual([fera.total, fera.total_kgco2e], [1.832, "1831.5000"]);
 });
 
 test("spec categories multiply their fields and report missing or invalid fields", () => {
@@ -149,7 +149,7 @@ test("the FERA twin needs an exact factor for the year and a convertible unit", 
   assert.deepEqual([twin.category_id, twin.factor.emission_factor_id, twin.activityValue, twin.total], [5, 20, 1000, 500]);
   assert.equal(feraTwinFor(c, "Diesel", { emission_category: "Diesel", activity_value: "1000" }, "litre", 2022), null, "no looser year fallback for the twin");
   assert.equal(feraTwinFor(c, "Diesel", { emission_category: "Diesel", activity_value: "1000" }, "kg", 2024), null, "no conversion → no twin");
-  assert.equal(feraTwinFor(c, "Diesel", { emission_category: "Diesel", activity_value: "10" }, "gallon", 2024).total, Math.round(((10 * 3.78541 * 500) / 1000) * 100) / 100);
+  assert.equal(feraTwinFor(c, "Diesel", { emission_category: "Diesel", activity_value: "10" }, "gallon", 2024).total, Math.round(((10 * 3.78541 * 500) / 1000) * 1000) / 1000);
   assert.equal(feraTwinFor(ctx(), "Diesel", { activity_value: "1" }, "litre", 2024), null, "site without FERA");
 });
 

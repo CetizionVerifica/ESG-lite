@@ -23,7 +23,7 @@ import type { Block, Report } from "./types";
 import { baseYearSummary } from "../scope3/baseYear/service"; // S3-14
 import { computeScope3, consolidationLabel, hasScope3, gwpText, scope3Blocks, type Scope3BaseYearSummary, type Scope3Report } from "./ghg-scope3";
 
-const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); // #209: tCO₂e to 3 dp
 const fmt1 = (n: number) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 });
 const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : "—");
 

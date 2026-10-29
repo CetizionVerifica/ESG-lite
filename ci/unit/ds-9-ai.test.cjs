@@ -278,7 +278,9 @@ test("openrouter: ai-narrative sends the same request through src/lib/openrouter
     assert.equal(body.temperature, 0.7);
     assert.equal(body.messages.length, 1);
     assert.match(body.messages[0].content, /^You are an ESG\/GHG analyst writing a professional, board-facing Carbon Accounting Report for CI Steel Co, reporting year 2025\./);
-    assert.match(body.messages[0].content, /- Total: 1,235\n- Scope 1: 1,000\n- Scope 2: 234\n/);
+    assert.match(body.messages[0].content, /- Total: 1,234\.500\n- Scope 1: 1,000\.400\n- Scope 2: 234\.100\n/); // #209: tCO₂e at 3 dp
+    assert.match(body.messages[0].content, /- Sites: Plant=1,234\.500\n- Categories\/fuels: Diesel=1,000\.400\n/);
+    assert.match(body.messages[0].content, /Write numbers exactly as given \(thousands separators, tCO2e figures with three decimals\)\.$/);
     assert.equal(calls[0].init.signal, undefined, "no time limit added to the GHG narrative call");
     // Failure paths are unchanged: not ok → null; no key → null without a call.
     global.fetch = async () => ({ ok: false, json: async () => ({}) });

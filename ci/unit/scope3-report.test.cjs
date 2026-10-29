@@ -56,11 +56,11 @@ test("16 rows: categories 1–15 in order, then Unmapped", () => {
 });
 
 test("kg are summed, then rounded to tCO₂e once (D5)", () => {
-  // Three rows of 0.004 t each: summing rounded tonnes would give 0, kg-then-round gives 0.01.
-  const groups = [g({ kg: 4 }), g({ kg: 4, method: "spend_based" }), g({ kg: 4, n: 6, category_id: 3 })];
+  // Three rows of 0.0004 t each: summing rounded tonnes would give 0, kg-then-round gives 0.001 (3 dp, #209).
+  const groups = [g({ kg: 0.4 }), g({ kg: 0.4, method: "spend_based" }), g({ kg: 0.4, n: 6, category_id: 3 })];
   const { rows, total_tco2e } = buildScope3Rows(groups, boundary, [], { biogenic: false });
-  assert.equal(rows[0].tco2e, 0.01);
-  assert.equal(total_tco2e, 0.01);
+  assert.equal(rows[0].tco2e, 0.001);
+  assert.equal(total_tco2e, 0.001);
   assert.equal(rows[5].tco2e, 0);
   assert.equal(rows[0].share_pct, 66.7);
 });
@@ -127,7 +127,7 @@ test("biogenic CO₂ is null (Not tracked) until the column exists, then summed 
   assert.equal(buildScope3Rows([g({ kg: 10 })], boundary, [], { biogenic: false }).rows[0].biogenic_tco2e, null);
   const r = buildScope3Rows([g({ kg: 10000, biogenic_kg: 1500 }), g({ kg: 1, biogenic_kg: null })], boundary, [], { biogenic: true }).rows[0];
   assert.equal(r.biogenic_tco2e, 1.5);
-  assert.equal(r.tco2e, 10); // biogenic is not added to the total
+  assert.equal(r.tco2e, 10.001); // 10,001 kg; biogenic is not added to the total
 });
 
 test("PDF pages: by category with the ch. 11 footnote, exclusions with reasons, methodology, data quality, base year", () => {
@@ -206,7 +206,7 @@ test("radiative forcing and proxy basis are disclosed per category (Standard L42
 test("a category marked excluded that still has emissions says so; Scope 1/2-only reports get no Scope 3 pages", () => {
   const built = buildScope3Rows([g({ n: 9, kg: 2000 })], boundary, [], { biogenic: false });
   const report = { company_id: 1, consolidation_approach: "operational_control", period: { label: "CY2025", year: 2025, year_type: "CY" }, total_tco2e: built.total_tco2e, gwp_sets: [], tracked: { method: false }, rows: built.rows };
-  assert.match(JSON.stringify(scope3Blocks(report, null, "")), /Excluded, but 2 tCO₂e reported/);
+  assert.match(JSON.stringify(scope3Blocks(report, null, "")), /Excluded, but 2\.000 tCO₂e reported/);
   assert.equal(hasScope3(report), true);
   const empty = buildScope3Rows([], boundary, [], { biogenic: false });
   assert.equal(hasScope3({ ...report, total_tco2e: 0, rows: empty.rows }), false);

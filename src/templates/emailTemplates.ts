@@ -338,7 +338,7 @@ export const uploadPendingTemplate = (name: string, rows: number, tco2e: number,
       statusBar("Waiting for review", "#2563eb", "#eff6ff"),
       details([
         ["Entries", String(rows)],
-        ["Total", `${tco2e.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} tCO₂e`],
+        ["Total", `${tco2e.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} tCO₂e`], // #209
         ...(sites ? [["Sites", sites] as [string, string]] : []),
         ...(when ? [["Period", when] as [string, string]] : []),
       ]),

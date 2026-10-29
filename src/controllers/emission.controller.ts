@@ -13,6 +13,7 @@ import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, e
 import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { roundTonnes } from "../services/emissionWrite/round";
 import { lockedSiteMonths, siteMonthOf } from "../scope3/review/periodLock";
 import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
@@ -2362,7 +2363,7 @@ export const getEdeReport = async(req:Request, res:Response) =>{
     });
      const siteDonut = bySite.map((s) => ({
       name: s.siteName,
-      value: Number(s.total.toFixed(2)),
+      value: Number(s.total.toFixed(3)), // #209
       pct: s.pctOfTotal,
     }));
     const monthlyBySiteRaw = await base.clone()
@@ -3361,6 +3362,14 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
     const rows = [...own, ...viaWtt];
     const usesFactor = (factorOf: { emission_factor_id?: unknown } | null | undefined, wttOf: { emission_factor_id?: unknown } | null | undefined) =>
       Number(factorOf?.emission_factor_id) === factorId || Number(wttOf?.emission_factor_id) === factorId;
+    // #209: whether the figures a row recorded for this factor (own or WTT part) differ from the factor's now; null when the
+    // row's snapshot doesn't record this factor. A row whose recorded figures still match keeps its total, as before.
+    const now = factorSnapshot(factor) as Record<string, any>;
+    const figures = (f: Record<string, any>) => [Number(f.factor_value), f.denominator_unit, Boolean(f.includes_wtt), ...["co2_kg", "ch4_kg", "n2o_kg", "other_kgco2e", "biogenic_co2_kg"].map((k) => (f.gases?.[k] == null ? null : Number(f.gases[k])))];
+    const factorMovedFor = (snapshot: Record<string, any> | null | undefined): boolean | null => {
+      const recorded = [snapshot, snapshot?.wtt].find((f) => f && Number(f.emission_factor_id) === factorId);
+      return recorded ? JSON.stringify(figures(recorded)) !== JSON.stringify(figures(now)) : null;
+    };
     const locked = new Set(
       (await lockedSiteMonths(AppDataSource.manager, rows.map((r) => siteMonthOf(r.site.site_id, ymd(r.date_of_reporting))))).map((s) => `${s.year}-${s.month}`),
     );
@@ -3378,7 +3387,16 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
       summary.uses_factor++;
       const oldTotal = Number(row.total_emission) || 0;
       const newTotal = Number(prepared.entry.computed?.total ?? 0);
-      if (Math.abs(newTotal - oldTotal) < 0.005) {
+      const oldKg = row.total_kgco2e == null ? null : Number(row.total_kgco2e);
+      const newKg = prepared.entry.computed?.total_kgco2e == null ? null : Number(prepared.entry.computed.total_kgco2e);
+      // #209: compared on kg at 4 dp, as stored (WTT part included), so any correction is recalculated, even one that
+      // leaves the 3-dp tonnes where they were; a row stored before kg totals is compared on its tonnes at 3 dp. A row
+      // whose snapshot shows it already has this factor's current figures is left alone (an older engine's or a
+      // back-filled kg is not a correction).
+      const unchanged =
+        factorMovedFor(row.emission_factor_snapshot as Record<string, any> | null) === false ||
+        (oldKg != null && newKg != null ? oldKg.toFixed(4) === newKg.toFixed(4) : roundTonnes(newTotal) === roundTonnes(oldTotal));
+      if (unchanged) {
         summary.unchanged++;
         continue;
       }
@@ -3406,13 +3424,13 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
           entity_type: "emission",
           entity_id: row.pk_id,
           action: "factor_recalculation",
-          changed_fields: { total_emission: { old: oldTotal, new: newTotal } },
+          changed_fields: { total_emission: { old: oldTotal, new: newTotal }, total_kgco2e: { old: oldKg, new: newKg } },
           reason: `Emission factor ${factorId} (${factor.emission_category_name}, ${factor.year}) was corrected: recalculated with ${factor.factor_value} per ${factor.denominator_unit}.`,
           changed_by: changedBy || undefined,
         }),
       );
     }
-    const round = (n: number) => Math.round(n * 100) / 100;
+    const round = (n: number) => Math.round(n * 1000) / 1000; // #209: tCO₂e to 3 dp
     return res.json({
       factor: { emission_factor_id: factorId, site_id: factor.site.site_id, category_id: factor.category.category_id, name: factor.emission_category_name, year: factor.year, value: Number(factor.factor_value), unit: factor.denominator_unit },
       recalculated: write,

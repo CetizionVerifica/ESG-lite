@@ -99,10 +99,10 @@ const VALUE_CHAIN_METHODS = new Set<string>([
 
 export const UNMAPPED_NAME = "Unmapped";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
+const round3 = (n: number) => Math.round(n * 1000) / 1000; // #209: tCO₂e to 3 dp
 const round1 = (n: number) => Math.round(n * 10) / 10;
 /** kgCO₂e → tCO₂e, rounded once at the end (D5). */
-export const kgToT = (kg: number) => round2(kg / 1000);
+export const kgToT = (kg: number) => round3(kg / 1000);
 const share = (part: number, whole: number) => (whole > 0 ? round1((part / whole) * 100) : 0);
 
 const isMethod = (v: unknown): v is Method => typeof v === "string" && (METHOD_KEYS as readonly string[]).includes(v);
@@ -402,7 +402,7 @@ export interface Scope3BaseYearSummary {
 /** Air travel radiative forcing, as the methodology table discloses it (Standard L4218). */
 export const RF_TEXT = { with: "flights with radiative forcing", without: "flights without radiative forcing", mixed: "flights with and without radiative forcing" } as const;
 
-const fmtT = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 0 : 2 });
+const fmtT = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); // #209
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 const label = (r: Scope3ReportRow) => (r.n === null ? UNMAPPED_NAME : `${r.n} · ${r.name}`);
 

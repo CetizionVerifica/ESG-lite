@@ -125,14 +125,14 @@ test("each new unit key computes through the engine on a typed entry", async () 
     (${SITE}, ${UP}, 2025, 0.5, 'teu.day', 'CI', 'Warehouse - Container storage [teu.day]', 'Warehouse - Container storage [teu.day]'),
     (${SITE}, ${UP}, 2025, 0.2408, 'tonne.km', 'CI', 'Road - HGV (all diesel) - All rigids [tonne.km]', 'Road - HGV (all diesel) - All rigids [tonne.km]')`);
   const cases = [
-    // [activity_data, unit, expected tCO2e (2 dp)]
-    [{ "Fuel used (litres)": "1000", "Your share of the load (%)": "100", emission_category: "Fuel - Diesel (average biofuel blend) [litre]", "Shipment Ref": "A" }, "litre", 3.18], // seeded DEFRA 2025 life cycle 3.1818
-    [{ "Energy used (kWh)": "10000", "Your share (%)": "25", emission_category: "Electricity - Grid [kWh]", "Shipment Ref": "B" }, "kWh", 1.78],
-    [{ "Refrigerant leaked (kg)": "2", "Your share (%)": "50", emission_category: "Refrigerant - R410A [kg]", "Shipment Ref": "C" }, "kg", 2.26], // AR6 2256
+    // [activity_data, unit, expected tCO2e (3 dp, #209)]
+    [{ "Fuel used (litres)": "1000", "Your share of the load (%)": "100", emission_category: "Fuel - Diesel (average biofuel blend) [litre]", "Shipment Ref": "A" }, "litre", 3.182], // seeded DEFRA 2025 life cycle 3.1818
+    [{ "Energy used (kWh)": "10000", "Your share (%)": "25", emission_category: "Electricity - Grid [kWh]", "Shipment Ref": "B" }, "kWh", 1.775],
+    [{ "Refrigerant leaked (kg)": "2", "Your share (%)": "50", emission_category: "Refrigerant - R410A [kg]", "Shipment Ref": "C" }, "kg", 2.256], // AR6 2256
     [{ "Volume stored": "4000", "Days stored": "2", emission_category: "Warehouse - Ambient storage [m3.day]", "Shipment Ref": "D" }, "m³.day", 0.08],
     [{ "Volume stored": "1000", "Days stored": "30", emission_category: "Warehouse - Ambient storage [pallet.day]", "Shipment Ref": "E" }, "pallet day", 0.6],
     [{ "Volume stored": "2", "Days stored": "10", emission_category: "Warehouse - Container storage [teu.day]", "Shipment Ref": "F" }, "teu.day", 0.01],
-    [{ "Weight (tonne)": "10", "Distance travelled": "500", emission_category: "Road - HGV (all diesel) - All rigids [tonne.km]", "Shipment Ref": "G" }, "tonne.km", 1.2],
+    [{ "Weight (tonne)": "10", "Distance travelled": "500", emission_category: "Road - HGV (all diesel) - All rigids [tonne.km]", "Shipment Ref": "G" }, "tonne.km", 1.204],
   ];
   for (const [data, unit, expected] of cases) {
     const r = await createEntry(data, unit);
@@ -150,7 +150,7 @@ test("a share over 100 % is refused; a pre-S3-8 tonne.km row holding only the di
   const legacy = await createEntry({ "Distance travelled": "5000", emission_category: "Road - HGV (all diesel) - All rigids [tonne.km]", "Shipment Ref": "I" }, "tonne.km");
   assert.equal(legacy.status, 201, JSON.stringify(legacy.json));
   const [row] = await q(`SELECT total_emission FROM emission WHERE pk_id = $1`, [legacy.json.emission.pk_id]);
-  assert.equal(Number(row.total_emission), 1.2);
+  assert.equal(Number(row.total_emission), 1.204);
 });
 
 test("a standard form a Superadmin edited is left alone on the next start; their methods stay", async () => {
@@ -173,7 +173,7 @@ test("an estimated distance is saved as is_estimate and warns ESTIMATED_DISTANCE
   assert.deepEqual(est.json.warnings.map((w) => w.code), ["ESTIMATED_DISTANCE"]);
   const [row] = await q(`SELECT is_estimate, total_emission FROM emission WHERE pk_id = $1`, [est.json.emission.pk_id]);
   assert.equal(row.is_estimate, true);
-  assert.equal(Number(row.total_emission), 1.2, "the warning never changes the total");
+  assert.equal(Number(row.total_emission), 1.204, "the warning never changes the total");
   const measured = await createEntry(data("EST-2"), "tonne.km");
   assert.equal(measured.status, 201);
   assert.deepEqual(measured.json.warnings ?? [], []);
@@ -225,7 +225,7 @@ test("a row that names no method records the one its unit belongs to; totals are
   assert.equal(r.status, 201, JSON.stringify(r.json));
   const [row] = await q(`SELECT method, total_emission FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]);
   assert.equal(row.method, "fuel_based");
-  assert.equal(Number(row.total_emission), 0.8, "500 L × 50 % × 3.18183 kg/L = 795 kg");
+  assert.equal(Number(row.total_emission), 0.795, "500 L × 50 % × 3.18183 kg/L = 795 kg");
   const named = await createEntry({ ...fuel, "Shipment Ref": "DN-FUEL-2" }, "litre", { category_id: DOWN, method: "fuel_based" });
   assert.equal(named.status, 201);
   assert.equal((await q(`SELECT method FROM emission WHERE pk_id = $1`, [named.json.emission.pk_id]))[0].method, "fuel_based", "a method the row names wins");
@@ -246,6 +246,6 @@ test("D6: the seeded DEFRA fuel factors are flagged as including WTT; fuel rows 
   const r = await createEntry({ "Fuel used (litres)": "1000", "Your share of the load (%)": "100", emission_category: "Fuel - Diesel (average biofuel blend) [litre]", "Shipment Ref": "WTT-1" }, "litre");
   assert.equal(r.status, 201, JSON.stringify(r.json));
   assert.deepEqual(r.json.warnings.map((w) => w.code), ["WTT_ALREADY_IN_FACTOR"]);
-  assert.equal(Number((await q(`SELECT total_emission FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]))[0].total_emission), 3.18, "the total is kept");
+  assert.equal(Number((await q(`SELECT total_emission FROM emission WHERE pk_id = $1`, [r.json.emission.pk_id]))[0].total_emission), 3.182, "the total is kept");
 });
 

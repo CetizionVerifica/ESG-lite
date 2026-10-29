@@ -72,7 +72,7 @@ test("local golden case: INR 1,000,000 on 3 Sep 2026, deflated 2026 → 2022, st
   const res = await typed("2026-09-30", { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "1000000", currency: "INR" }, { invoice_date: "2026-09-03" });
   assert.equal(res.status, 201, JSON.stringify(res.json));
   const kg = kgFor(1000000, 0.42);
-  assert.equal(Number(res.json.emission.total_emission), Math.round((kg / 1000) * 100) / 100);
+  assert.equal(Number(res.json.emission.total_emission), Math.round((kg / 1000) * 1000) / 1000);
   assert.deepEqual(res.json.warnings ?? [], []);
   const row = await rowOf(res.json.emission.pk_id);
   assert.equal(row.activity_data_unit, "INR");
@@ -100,7 +100,7 @@ test("S3-3 on spend rows: method spend_based, the engine's data quality and data
     assert.equal(q.dq.source, "auto");
     assert.equal(q.dq.technology, 3, "a spend factor describes the purchase least");
     assert.equal(q.dq.reliability, 3, "spend is the least reliable method");
-    assert.equal(q.total, Math.round((kgFor(2000, 0.42) / 1000) * 100) / 100, "S3-3 never moves the S3-5 total");
+    assert.equal(q.total, Math.round((kgFor(2000, 0.42) / 1000) * 1000) / 1000, "S3-3 never moves the S3-5 total");
   }
   // A quantity in a currency unit with no method (bulk and Claude rows) is a spend row too, and recorded as one.
   // A month that has started: a new entry for a future month is refused (F-10).
@@ -174,7 +174,7 @@ test("recalculating with the stored fx gives the same total, whatever the table 
   assert.equal(same.entry.computed.total_kgco2e, first.entry.computed.total_kgco2e);
 });
 
-const round2 = (kg) => Math.round((kg / 1000) * 100) / 100;
+const round2 = (kg) => Math.round((kg / 1000) * 1000) / 1000; // kg → t at 3 dp (#209); the name is kept
 
 test("editing a spend row (user and manager) recalculates through the engine and reuses its stored rate", async () => {
   const data = { emission_category: "Steel mills S3-5", "@method": "spend_based", spent_value: "1000000", currency: "INR" };
@@ -217,7 +217,7 @@ test("bulk and Claude rows: an amount in a currency unit is a spend row, stored 
   const planned = await planRows(CTX, rows, { planMatches: [] });
   assert.equal(planned[0].state, "ready", JSON.stringify(planned[0].issues));
   const kg = (2000000 / RATE_AUG) * (IDX_2022 / IDX_2026) * 0.42;
-  assert.equal(planned[0].result.total_tco2e, Math.round((kg / 1000) * 100) / 100);
+  assert.equal(planned[0].result.total_tco2e, Math.round((kg / 1000) * 1000) / 1000);
   const batch = { upload_batch_id: "s3-5-ci-batch", channel: "api", source_name: "CI", company_id: 2 };
   const out = await AppDataSource.transaction((tx) => insertRows(tx, CTX, planned, batch));
   assert.equal(out.inserted, 1);
@@ -365,7 +365,7 @@ test("DEFLATOR_FALLBACK_YEAR: a spend year with no index yet uses the latest ear
     assert.equal(res.status, 201, JSON.stringify(res.json));
     assert.deepEqual(res.json.warnings.map((w) => w.code), ["DEFLATOR_FALLBACK_YEAR"]);
     const kg = (1000000 / RATE) * (IDX_2022 / IDX_2025) * 0.42;
-    assert.equal(Number(res.json.emission.total_emission), Math.round((kg / 1000) * 100) / 100);
+    assert.equal(Number(res.json.emission.total_emission), Math.round((kg / 1000) * 1000) / 1000);
     const row = await rowOf(res.json.emission.pk_id);
     assert.deepEqual(row.snap.deflator, { country: "US", base_year: 2022, spend_year: 2026, base_index: IDX_2022, spend_index: IDX_2025, source: "CI", index_year: 2025 });
 
@@ -374,7 +374,7 @@ test("DEFLATOR_FALLBACK_YEAR: a spend year with no index yet uses the latest ear
     const planned = await planRows(CTX, rows, { planMatches: [] });
     assert.equal(planned[0].state, "ready", JSON.stringify(planned[0].issues));
     assert.ok(planned[0].issues.some((i) => i.code === "DEFLATOR_FALLBACK_YEAR" && i.severity === "warning"), JSON.stringify(planned[0].issues));
-    assert.equal(planned[0].result.total_tco2e, Math.round((((2000000 / RATE) * (IDX_2022 / IDX_2025) * 0.42) / 1000) * 100) / 100);
+    assert.equal(planned[0].result.total_tco2e, Math.round((((2000000 / RATE) * (IDX_2022 / IDX_2025) * 0.42) / 1000) * 1000) / 1000);
   } finally {
     await withDb(async (db) => {
       await db.query(`DELETE FROM price_deflator WHERE country = 'US' AND year = 2025 AND source = 'CI'`);

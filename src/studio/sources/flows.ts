@@ -103,7 +103,7 @@ export function scope3Rows(r: Scope3Report, inputs: ReportInputs, format: Number
         n,
         name: row.name,
         status: "reported",
-        display: formatNumber(row.tco2e, format),
+        display: formatNumber(row.tco2e, format, "tCO₂e"), // #209
         method: r.tracked.method ? methodMixText(row) : "Not recorded",
         dq,
         reason: excl ? `Excluded in the report details, but approved data is reported.` : (row.method_note ?? ""),

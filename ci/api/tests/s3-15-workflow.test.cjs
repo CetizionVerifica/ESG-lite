@@ -150,7 +150,7 @@ test("switch on: a User's typed entry is a Draft with its twin; a Manager's entr
   ok(r, 201);
   draft = r.json.emission.pk_id;
   assert.equal(r.json.emission.status, "draft");
-  assert.equal(Number(r.json.emission.total_emission), 0.27, "100 l × 2.68 kg = 268 kg");
+  assert.equal(Number(r.json.emission.total_emission), 0.268, "100 l × 2.68 kg = 268 kg");
   const twin = await twinOf(draft);
   assert.equal(twin.status, "draft", "a FERA twin shares its parent's status");
   assert.equal((await q(`SELECT checks FROM emission WHERE pk_id = $1`, [draft]))[0].checks, null, "drafts carry no stored checks");
@@ -351,7 +351,7 @@ test("history: the activity's last months from pending and approved rows", async
   const r = await call("GET", `/user/emissions/${draft}/history?months=3`, "user");
   ok(r);
   assert.deepEqual(r.json.months.map((m) => m.month), ["2025-03", "2025-04", "2025-05"]);
-  assert.equal(r.json.months[1].total_tco2e, 0.03, "April: 10 l × 2.68 kg = 26.8 kg");
+  assert.equal(r.json.months[1].total_tco2e, 0.027, "April: 10 l × 2.68 kg = 26.8 kg");
   assert.equal(r.json.months[2].total_tco2e, 0, "May's row is a Draft again");
   assert.equal(r.json.unit, "tCO2e");
   assert.equal((await call("GET", `/user/emissions/${draft}/history?months=99`, "user")).status, 400);

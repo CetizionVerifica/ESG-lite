@@ -148,7 +148,8 @@ test("PUT inputs saves, upserts and audits; GET estimates spend × USEEIO and he
   assert.equal(c6.basis, "spend");
   assert.equal(c6.inputs[0].sector.code, "481000");
   const c7 = g.json.categories.find((c) => c.n === 7);
-  assert.equal(c7.estimate_tco2e, Math.round(12 * 15 * 2 * 230 * 0.16725 / 10) / 100, "12 employees × 15 km × 2 × 230 days × DEFRA average car");
+  // kg → t at 3 dp (#209)
+  assert.equal(c7.estimate_tco2e, Math.round(12 * 15 * 2 * 230 * 0.16725) / 1000, "12 employees × 15 km × 2 × 230 days × DEFRA average car");
   assert.equal(c7.basis, "headcount");
   const c10 = g.json.categories.find((c) => c.n === 10);
   assert.equal(c10.estimate_tco2e, null);
@@ -165,7 +166,7 @@ test("CY and FY inputs are separate: FY 2011 keeps its own headcount, CY (the de
   const stored = await withDb((db) => db.query(`SELECT year_type, amount::float8 AS amount FROM scope3_screening_input WHERE company_id = 1 AND year = $1 AND ghg_category = 7 ORDER BY year_type`, [YEAR]));
   assert.deepEqual(stored.rows, [{ year_type: "CY", amount: 12 }, { year_type: "FY", amount: 40 }]);
 
-  const commute = (n) => Math.round((n * 15 * 2 * 230 * 0.16725) / 10) / 100;
+  const commute = (n) => Math.round(n * 15 * 2 * 230 * 0.16725) / 1000; // #209: 3 dp
   const gFy = await call("GET", `/scope3/screening?year=${YEAR}&year_type=FY`, "admin");
   assert.equal(gFy.status, 200, JSON.stringify(gFy.json));
   assert.equal(gFy.json.categories.find((c) => c.n === 7).estimate_tco2e, commute(40));

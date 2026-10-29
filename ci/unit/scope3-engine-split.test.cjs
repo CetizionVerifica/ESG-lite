@@ -28,7 +28,7 @@ test("every method file exports compute(ctx, row)", () => {
 test("rows without a method compute as before: computeTotal = computeRow = activity", () => {
   const expected = activity.compute(ctx(), row());
   assert.equal(expected.ok, true);
-  assert.equal(expected.computed.total, Math.round(((500 * 3.78541 * 2680) / 1000) * 100) / 100);
+  assert.equal(expected.computed.total, Math.round(((500 * 3.78541 * 2680) / 1000) * 1000) / 1000);
   assert.deepEqual(engine.computeRow(ctx(), row()), expected);
   assert.deepEqual(engine.computeTotal(ctx(), diesel, { emission_category: "Diesel", quantity: "500" }, "gallon"), expected);
   // S3-4 fills total_kgco2e (kg at 4 dp from the unrounded product); the other Scope 3 fields stay unset.
