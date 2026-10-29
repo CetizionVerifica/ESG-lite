@@ -7,7 +7,7 @@ import { formatNumber, sharedUnit } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, valueGridX, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, SMALL, emptyChart, fitBarEnds, insideX, isYearKey, keysOf, legend, rect, seriesColor, svgOpen, text, valueAt, type ChartInput } from "./svg";
+import { FONT, SMALL, emptyChart, fitBarEnds, fitLabelRow, isYearKey, keysOf, legend, rect, seriesColor, svgOpen, text, valueAt, type ChartInput } from "./svg";
 
 function draw(input: ChartInput, stacked: boolean): string {
   const { value, w, h, theme, options } = input;
@@ -64,9 +64,21 @@ function draw(input: ChartInput, stacked: boolean): string {
   } else {
     const x0 = axisWidth(scale);
     const pw = w - x0;
-    const ph = h - legendH - FONT * 1.8 - (options.showValues !== false ? FONT * 1.2 : 0);
-    const y0 = options.showValues !== false ? FONT * 1.2 : 0;
     const band = pw / keys.length;
+    const labelled = options.showValues !== false && (stacked || !multi);
+    // #209 review: totals over neighbouring bars may not meet; a row that doesn't fit staggers (taking a line from the plot) or steps down a size.
+    const fit = fitLabelRow(
+      (extra) => {
+        if (!labelled) return [];
+        const y0e = FONT * 1.2 + extra;
+        const phe = h - legendH - FONT * 1.8 - FONT * 1.2 - extra;
+        return keys.map((k, ki) => ({ x: x0 + band * (ki + 0.5), y: y0e + phe - scale.t(totals[ki]) * phe - SMALL * 0.5, text: valueText(totals[ki]), bold: k === latest }));
+      },
+      w,
+      h,
+    );
+    const ph = h - legendH - FONT * 1.8 - (options.showValues !== false ? FONT * 1.2 + fit.extraTop : 0);
+    const y0 = options.showValues !== false ? FONT * 1.2 + fit.extraTop : 0;
     body += valueGridY(scale, x0, y0, pw, ph, theme);
     keys.forEach((k, ki) => {
       const x = x0 + band * ki;
@@ -79,7 +91,8 @@ function draw(input: ChartInput, stacked: boolean): string {
           body += rect(x + band * 0.18, top, band * 0.64, bottom - top, colorFor(si, k));
           acc += stacked ? v : 0;
         });
-        if (options.showValues !== false) body += text(insideX(x + band / 2, valueText(totals[ki]), w), y0 + ph - scale.t(totals[ki]) * ph - SMALL * 0.5, valueText(totals[ki]), theme.colors.ink, { size: SMALL, anchor: "middle", weight: k === latest ? 700 : undefined });
+        const at = fit.labels[ki];
+        if (options.showValues !== false && at) body += text(at.x, at.y, valueText(totals[ki]), theme.colors.ink, { size: fit.size, anchor: "middle", weight: k === latest ? 700 : undefined });
       } else {
         const sub = (band * 0.7) / series.length;
         series.forEach((s, si) => {

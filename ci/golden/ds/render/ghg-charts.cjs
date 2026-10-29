@@ -10,6 +10,8 @@
 //
 //   build(R)        → { renderHash, elements: {id: html}, modes: {mode: {sha256, bytes}} }
 //   fixtureJson(R)  → { doc, data } for the FE mirror test
+//   doc(format)     → the page laid out on another format, A4 frames scaled (as the DS-1
+//                     fixture does; ci/unit/ds-209-layout.test.cjs); the goldens are A4
 const crypto = require("crypto");
 const path = require("path");
 
@@ -35,8 +37,21 @@ const B = {
 let z = 0;
 const chart = (id, frame, binding, kind, extra = {}) => ({ id, type: "chart", frame: { rotation: 0, ...frame }, z: z++, source: "user", props: { binding, kind, options: {}, ...extra } });
 
-function doc() {
+const { SIZES } = require("./fixture.cjs");
+const scaled = (format) => {
+  const [w, h] = SIZES[format];
+  return (f) => ({ ...f, x: (f.x * w) / 210, y: (f.y * h) / 297, w: (f.w * w) / 210, h: (f.h * h) / 297 });
+};
+
+function doc(format = "a4") {
   z = 0;
+  const d = docA4();
+  if (format === "a4") return d;
+  const sc = scaled(format);
+  return { ...d, format, pages: d.pages.map((p) => ({ ...p, elements: p.elements.map((e) => ({ ...e, frame: sc(e.frame) })) })) };
+}
+
+function docA4() {
   return {
     schemaVersion: 2, kind: "ghg", purpose: "report", format: "a4",
     meta: { title: "Seed Co GHG inventory 2025", year: 2025, yearType: "CY", sites: "all", frameworks: ["GHGP"], language: "en" },

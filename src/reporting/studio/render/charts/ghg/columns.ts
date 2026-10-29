@@ -16,7 +16,7 @@ import type { RenderSeries } from "../../types";
 import { esc, n3 } from "../../util";
 import { axisWidth, valueGridY } from "../axis";
 import { linearScale } from "../scale";
-import { FONT, SMALL, emptyChart, insideX, keysOf, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
+import { FONT, SMALL, emptyChart, fitLabelRow, keysOf, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
 import { biggest, currentSeries, headline, partColor, partsOf, shortKey, wrapLegend } from "./common";
 
 export const GAS_UNIT_NOTE = "Tonnes of each gas, not CO₂e.";
@@ -36,15 +36,32 @@ export function gasSplitChart(input: ChartInput): string {
   const scale = linearScale(Math.min(0, ...all), Math.max(...all), 4);
   const x0 = axisWidth(scale);
   const pw = w - x0;
-  const top = head.h + FONT * 1.2;
   const noteH = SMALL * 1.6;
-  const ph = h - top - FONT * 1.8 - leg.h - noteH;
   const band = pw / ps.length;
   const labelled = biggest(ps, 3);
+  const sub = (band * 0.7) / years.length;
+  // #209 review: gas parts are tonnes of each gas (the series' unit), not tCO₂e. The current year is the last series.
+  const labelOf = (v: number) => formatNumber(v, "auto", seriesUnit(cur, value.unit));
+  const shown = ps.map((p, ki) => ({ p, ki })).filter(({ ki }) => options.showValues !== false && labelled.has(ki));
+  // #209 review: labels over neighbouring gases may not meet (svg.ts fitLabelRow).
+  const fit = fitLabelRow(
+    (extra) => {
+      const te = head.h + FONT * 1.2 + extra;
+      const phe = h - te - FONT * 1.8 - leg.h - noteH;
+      return shown.map(({ p, ki }) => {
+        const v = valueAt(cur, p.key) ?? 0;
+        return { x: x0 + band * ki + band * 0.15 + sub * (years.length - 1) + sub * 0.45, y: te + phe - scale.t(Math.max(0, v)) * phe - SMALL * 0.5, text: labelOf(v), priority: v };
+      });
+    },
+    w,
+    h,
+    head.h,
+  );
+  const top = head.h + FONT * 1.2 + fit.extraTop;
+  const ph = h - top - FONT * 1.8 - leg.h - noteH;
   let body = head.svg + valueGridY(scale, x0, top, pw, ph, theme);
   ps.forEach((p, ki) => {
     const x = x0 + band * ki;
-    const sub = (band * 0.7) / years.length;
     years.forEach((s, si) => {
       const v = valueAt(s, p.key) ?? 0;
       const isCur = si === years.length - 1;
@@ -52,11 +69,9 @@ export function gasSplitChart(input: ChartInput): string {
       const t = top + ph - scale.t(Math.max(0, v)) * ph;
       const b = top + ph - scale.t(Math.min(0, v)) * ph;
       body += rect(x + band * 0.15 + sub * si, t, sub * 0.9, b - t, color, ` data-part="${esc(p.key)}" data-year="${esc(s.label)}"`);
-      if (isCur && options.showValues !== false && labelled.has(ki)) {
-        // #209 review: gas parts are tonnes of each gas (the series' unit), not tCO₂e.
-        const label = formatNumber(v, "auto", seriesUnit(s, value.unit));
-        body += text(insideX(x + band * 0.15 + sub * si + sub * 0.45, label, w), t - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
-      }
+      const li = isCur ? shown.findIndex((e) => e.ki === ki) : -1;
+      const at = li >= 0 ? fit.labels[li] : null;
+      if (at) body += text(at.x, at.y, labelOf(v), theme.colors.ink, { size: fit.size, anchor: "middle" });
     });
     body += text(x + band / 2, top + ph + FONT * 1.2, p.key, theme.colors.ink, { size: SMALL, anchor: "middle" });
   });
@@ -77,13 +92,26 @@ export function monthlyStackChart(input: ChartInput): string {
   const scale = linearScale(0, Math.max(...totals), 4);
   const x0 = axisWidth(scale);
   const pw = w - x0;
-  const top = head.h + FONT * 1.2;
-  const ph = h - top - FONT * 1.8 - leg.h;
   const band = pw / keys.length;
   let peak = 0;
   totals.forEach((t, i) => {
     if (t > totals[peak]) peak = i;
   });
+  const peakLabel = formatNumber(totals[peak], "auto", sharedUnit(stacks, value.unit));
+  // #209 review: the peak label stays inside the chart, bold-aware (svg.ts fitLabelRow).
+  const fit = fitLabelRow(
+    (extra) => {
+      if (options.showValues === false || !(totals[peak] > 0)) return [];
+      const te = head.h + FONT * 1.2 + extra;
+      const phe = h - te - FONT * 1.8 - leg.h;
+      return [{ x: x0 + band * (peak + 0.5), y: te + phe - scale.t(totals[peak]) * phe - SMALL * 0.5, text: peakLabel, bold: true }];
+    },
+    w,
+    h,
+    head.h,
+  );
+  const top = head.h + FONT * 1.2 + fit.extraTop;
+  const ph = h - top - FONT * 1.8 - leg.h;
   let body = head.svg + valueGridY(scale, x0, top, pw, ph, theme);
   keys.forEach((k, ki) => {
     const x = x0 + band * ki;
@@ -95,10 +123,8 @@ export function monthlyStackChart(input: ChartInput): string {
       body += rect(x + band * 0.16, t, band * 0.68, b - t, colors[si], ` data-part="${esc(s.label)}" data-key="${esc(k)}"`);
       acc += v;
     });
-    if (ki === peak && options.showValues !== false && totals[ki] > 0) {
-      const label = formatNumber(totals[ki], "auto", sharedUnit(stacks, value.unit));
-      body += text(insideX(x + band / 2, label, w), top + ph - scale.t(totals[ki]) * ph - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: 700 });
-    }
+    const at = ki === peak ? fit.labels[0] : null;
+    if (at) body += text(at.x, at.y, peakLabel, theme.colors.ink, { size: fit.size, anchor: "middle", weight: 700 });
     body += text(x + band / 2, top + ph + FONT * 1.2, shortKey(k), theme.colors.muted, { size: SMALL, anchor: "middle" });
   });
   body += `<g transform="translate(0 ${n3(h - leg.h)})">${leg.svg}</g>`;

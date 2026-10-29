@@ -8,7 +8,7 @@ import { formatNumber, seriesUnit } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, SMALL, emptyChart, insideX, rect, svgOpen, text, type ChartInput } from "./svg";
+import { FONT, SMALL, emptyChart, fitLabelRow, rect, svgOpen, text, type ChartInput } from "./svg";
 
 export function waterfallChart(input: ChartInput): string {
   const { value, w, h, theme } = input;
@@ -28,9 +28,20 @@ export function waterfallChart(input: ChartInput): string {
   const scale = linearScale(Math.min(0, ...steps.map((s) => Math.min(s.from, s.to))), Math.max(...steps.map((s) => Math.max(s.from, s.to))));
   const x0 = axisWidth(scale);
   const pw = w - x0;
-  const top = FONT * 1.2;
-  const ph = h - top - FONT * 1.8;
   const band = pw / steps.length;
+  const labels = steps.map((s) => (s.kind === "abs" ? formatNumber(s.to, "auto", unit) : `${s.to - s.from >= 0 ? "+" : "−"}${formatNumber(Math.abs(s.to - s.from), "auto", unit)}`));
+  // #209 review: neighbouring step labels may not meet (svg.ts fitLabelRow); the start and end totals are kept first.
+  const fit = fitLabelRow(
+    (extra) => {
+      const te = FONT * 1.2 + extra;
+      const phe = h - te - FONT * 1.8;
+      return steps.map((s, i) => ({ x: x0 + band * (i + 0.5), y: te + phe - scale.t(Math.max(s.from, s.to)) * phe - SMALL * 0.5, text: labels[i], priority: s.kind === "abs" ? 1 : 0 }));
+    },
+    w,
+    h,
+  );
+  const top = FONT * 1.2 + fit.extraTop;
+  const ph = h - top - FONT * 1.8;
   let body = valueGridY(scale, x0, top, pw, ph, theme);
   steps.forEach((s, i) => {
     const y1 = top + ph - scale.t(Math.max(s.from, s.to)) * ph;
@@ -38,8 +49,8 @@ export function waterfallChart(input: ChartInput): string {
     // Emissions: a rise is bad, a fall is good.
     const fill = s.kind === "abs" ? theme.colors.primary : s.kind === "up" ? theme.colors.bad : theme.colors.good;
     body += rect(x0 + band * i + band * 0.15, y1, band * 0.7, y2 - y1, fill, ` data-step="${s.kind}" data-from="${n3(s.from)}" data-to="${n3(s.to)}"`);
-    const label = s.kind === "abs" ? formatNumber(s.to, "auto", unit) : `${s.to - s.from >= 0 ? "+" : "−"}${formatNumber(Math.abs(s.to - s.from), "auto", unit)}`;
-    body += text(insideX(x0 + band * (i + 0.5), label, w), y1 - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
+    const at = fit.labels[i];
+    if (at) body += text(at.x, at.y, labels[i], theme.colors.ink, { size: fit.size, anchor: "middle" });
   });
   body += bandLabels(steps.map((s) => s.key), x0, band, top + ph + FONT * 1.2, theme);
   return `${svgOpen(w, h, input.label)}${body}</svg>`;

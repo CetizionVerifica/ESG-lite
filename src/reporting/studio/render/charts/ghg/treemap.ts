@@ -98,10 +98,13 @@ export function treemapChart(input: ChartInput): string {
         const v = formatNumber(t.value, "auto", unit);
         const share = pct(t.value / sum);
         const room = t.w - SMALL;
-        // A value too long for "value · share" on one line (a 3-decimal tCO₂e figure, #209) puts the share on a line of its own when the tile is tall enough.
-        if (labelWidth(`${v} · ${share}`) > room && t.h >= SMALL * 5.1) {
-          body += text(t.x + SMALL * 0.5, y + SMALL * 2.6, v, ink, { size: SMALL }) + text(t.x + SMALL * 0.5, y + SMALL * 3.9, share, ink, { size: SMALL });
-        } else body += text(t.x + SMALL * 0.5, y + SMALL * 2.6, `${v} · ${share}`, ink, { size: SMALL });
+        const fits = (s: string) => labelWidth(s) <= room;
+        // A value too long for "value · share" on one line (a 3-decimal tCO₂e figure, #209) puts the share on a line of its own when the tile is
+        // tall enough, else prints the value alone, else no value line (#209 review: never a line measured as too wide for its tile).
+        const lines = fits(`${v} · ${share}`) ? [`${v} · ${share}`] : t.h >= SMALL * 5.1 && fits(v) && fits(share) ? [v, share] : fits(v) ? [v] : [];
+        lines.forEach((line, li) => {
+          body += text(t.x + SMALL * 0.5, y + SMALL * (2.6 + 1.3 * li), line, ink, { size: SMALL });
+        });
       }
     }
   });
