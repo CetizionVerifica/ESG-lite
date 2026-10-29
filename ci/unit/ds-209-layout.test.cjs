@@ -5,7 +5,8 @@
 //     (ghg-charts.cjs), rendered on every page format: no two value labels of a chart have
 //     boxes that meet, and none crosses the chart's SVG bounds;
 //   - fitLabelRow: as drawn when nothing meets, staggered, a size smaller, then left out;
-//   - treemap: no value line wider than its tile (value · share, two lines, value alone, none).
+//   - treemap: no value line wider than its tile (value · share, two lines, value alone, none);
+//   - scope_split: the legend and the Scope 2 basis note stay apart and inside the chart.
 //   npm run build && node --test ci/unit/ds-209-layout.test.cjs
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -172,4 +173,32 @@ test("treemap: no value line is wider than its tile", () => {
   assert.deepEqual(tm(room("1,290.000"), S * 5.2), ["1,290.000", "100%"]);
   assert.deepEqual(tm(room("1,290.000"), S * 4), ["1,290.000"]);
   assert.deepEqual(tm(room("1,290.00"), S * 5.2), []);
+});
+
+test("scope_split: the legend and the basis note never meet and stay inside the chart, on every format", () => {
+  let n = 0;
+  for (const r of RENDERS) {
+    for (const c of charts(r.html).filter((x) => x.kind === "scope_split")) {
+      // Legend lines and the note, in the muted ink, as alphabetic-baseline text: their vertical extent.
+      const rows = c.texts.filter((t) => t.fill === r.muted).map((t) => ({ t, y0: t.y - SVG.LABEL_ASCENT * t.size, y1: t.y + SVG.LABEL_DESCENT * t.size }));
+      const note = rows.find((x) => x.t.s.startsWith("Scope 2: location-based"));
+      for (const x of rows) {
+        n++;
+        assert.ok(x.y0 >= -EPS && x.y1 <= c.h + EPS, `${r.name} ${c.id}: "${x.t.s}" leaves the chart (${x.y0.toFixed(2)}..${x.y1.toFixed(2)} of ${c.h})`);
+        assert.ok(x.t.s.length * x.t.size * 0.55 <= c.w + x.t.size * 3, `${r.name} ${c.id}: "${x.t.s}" is far wider than the chart`);
+      }
+      if (note) for (const x of rows) if (x !== note) assert.ok(x.y1 <= note.y0 || x.y0 >= note.y1, `${r.name} ${c.id}: "${x.t.s}" meets the basis note`);
+      // The bar variant's legend sits under the bar, the note under the legend.
+      const bar = c.rects.filter((x) => x.part);
+      if (/data-variant="bar"/.test(c.body) && bar.length) for (const x of rows) assert.ok(x.y0 >= bar[0].y + bar[0].h - EPS, `${r.name} ${c.id}: "${x.t.s}" over the bar`);
+    }
+  }
+  assert.ok(n > 20, String(n));
+  // A short frame: the bar gives up height, then the note goes, and the legend still fits.
+  const v = { display: "12,480.000", value: 12480, unit: "tCO₂e", series: [{ label: "2025", values: [{ key: "Scope 1", value: 3410 }, { key: "Scope 2", value: 5800 }, { key: "Scope 3", value: 3270 }] }] };
+  for (const [w, h] of [[200, 70], [200, 52], [400, 40]]) {
+    const svg = R.chartRenderer("scope_split")({ value: v, w, h, theme: R.buildTheme({}), options: {}, label: "s" });
+    const ys = [...svg.matchAll(/<text[^>]*y="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>([^<]*)<\/text>/g)].map((m) => [Number(m[1]), Number(m[2]), m[3]]);
+    for (const [y, size, s] of ys) assert.ok(y + SVG.LABEL_DESCENT * size <= h + EPS, `${w}×${h}: "${s}" at ${y}`);
+  }
 });

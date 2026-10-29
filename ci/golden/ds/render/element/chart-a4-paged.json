@@ -86,10 +86,10 @@
       "sha256": "587fa046c67c79115bcbba57ba59240c1213489876f214d8dd68fb52a33f215d"
     },
     {
-      "bytes": 2136,
+      "bytes": 2103,
       "frame": "80,268,50,24,0",
       "id": "p-charts.ghgkind",
-      "sha256": "ba08b301790ea7760f9ffb5fbec6bb597f4b265eb00c3ddea7166b42d1669d10"
+      "sha256": "34b23d0b10f6b6ec1cce37874c9ad9e3ea404655802216d926f352b797780495"
     }
   ],
   "format": "a4",

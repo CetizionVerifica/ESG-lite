@@ -8,10 +8,12 @@
  */
 import { formatNumber, seriesUnit } from "../../format";
 import { esc, n3 } from "../../util";
-import { FONT, SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "../svg";
+import { FONT, LABEL_ASCENT, SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "../svg";
 import { biggest, currentSeries, headline, partColor, partsOf, pct, total, wrapLegend } from "./common";
 
 export const SCOPE2_BASIS_NOTE = "Scope 2: location-based. Market-based isn't recorded.";
+/** The note's short form, when the full one is wider than the chart. */
+export const SCOPE2_BASIS_NOTE_SHORT = "Scope 2: location-based.";
 
 export function scopeSplitChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
@@ -23,6 +25,8 @@ export function scopeSplitChart(input: ChartInput): string {
   const labelled = biggest(ps, 3);
   const note = options.basisNote !== false;
   const legendItems = ps.map((p, i) => ({ label: `${p.key} ${formatNumber(p.value, "auto", seriesUnit(cur, value.unit))}`, color: colors[i] }));
+  // The basis note, short when the full one is wider than the chart (#209 review).
+  const noteText = note ? (SCOPE2_BASIS_NOTE.length * SMALL * 0.55 <= w ? SCOPE2_BASIS_NOTE : SCOPE2_BASIS_NOTE_SHORT) : "";
   let body = "";
 
   if (options.variant === "donut") {
@@ -53,24 +57,39 @@ export function scopeSplitChart(input: ChartInput): string {
     if (value.display) body += text(cx, cy, value.display, theme.colors.ink, { anchor: "middle", baseline: "middle", weight: 700, size: FONT * 1.4 });
     if (value.unit) body += text(cx, cy + FONT * 1.4, value.unit, theme.colors.muted, { anchor: "middle", baseline: "middle", size: SMALL });
     body += `<g transform="translate(0 ${n3(plotH)})">${leg.svg}</g>`;
-    if (note) body += text(0, h - SMALL * 0.4, SCOPE2_BASIS_NOTE, theme.colors.muted, { size: SMALL });
+    if (note) body += text(0, h - SMALL * 0.4, noteText, theme.colors.muted, { size: SMALL });
     return `${svgOpen(w, h, input.label)}<g data-ghg-chart="scope_split" data-variant="donut">${body}</g></svg>`;
   }
 
-  // 100 % bar.
+  // 100 % bar. #209 review: the legend's real height (3-decimal values wrap it onto more lines) is reserved before the note. When
+  // they don't fit under the bar, in order: the bar gives up height (its share labels go when it is thinner than they are), the
+  // note goes, the legend keeps the names without the values, then the legend goes. Nothing overlaps or leaves the chart.
   const head = headline(value, theme);
   const barY = head.h + SMALL * 0.4;
-  const barH = Math.min(FONT * 3, Math.max(FONT * 1.5, (h - head.h) * 0.35));
+  // The note's baseline sits 1.2 lines under the legend, or higher up to the chart's bottom, but never closer to the legend's last
+  // line (its text ends 0.69 SMALL above the legend's height) than a gap and the note's ascent.
+  const noteMinGap = -0.69 * SMALL + 0.15 * SMALL + LABEL_ASCENT * SMALL;
+  const noteH = noteMinGap + SMALL * 0.4;
+  const MIN_BAR = SMALL * 0.5;
+  const want = Math.min(FONT * 3, Math.max(FONT * 1.5, (h - head.h) * 0.35));
+  const nameItems = legendItems.map((it, i) => ({ ...it, label: ps[i].key }));
+  const legends = options.showLegend === false ? [[]] : [legendItems, nameItems, []];
+  const room = (items: typeof legendItems, withNote: boolean) => h - barY - SMALL * 0.6 - (items.length ? wrapLegend(items, w, 0, theme).h : 0) - (withNote ? noteH : 0);
+  const plans = legends.flatMap((items) => [...(note ? [{ items, withNote: true }] : []), { items, withNote: false }]);
+  const plan = plans.find((pl) => room(pl.items, pl.withNote) >= MIN_BAR) ?? plans[plans.length - 1];
+  const showNote = plan.withNote;
+  const barH = Math.max(MIN_BAR, Math.min(want, room(plan.items, showNote)));
+  const sharesFit = barH >= SMALL * 1.1;
   let x = 0;
   ps.forEach((p, i) => {
     const pw = (p.value / sum) * w;
     body += rect(x, barY, pw, barH, colors[i], ` stroke="${theme.colors.paper}" stroke-width="1" data-part="${esc(p.key)}"`);
     const share = p.value / sum;
-    if (labelled.has(i) && share >= 0.08) body += text(x + pw / 2, barY + barH / 2, pct(share), "#FFFFFF", { size: SMALL, anchor: "middle", baseline: "middle", weight: 700 });
+    if (sharesFit && labelled.has(i) && share >= 0.08) body += text(x + pw / 2, barY + barH / 2, pct(share), "#FFFFFF", { size: SMALL, anchor: "middle", baseline: "middle", weight: 700 });
     x += pw;
   });
-  const leg = options.showLegend === false ? { svg: "", h: 0 } : wrapLegend(legendItems, w, barY + barH + SMALL * 0.6, theme);
+  const leg = plan.items.length ? wrapLegend(plan.items, w, barY + barH + SMALL * 0.6, theme) : { svg: "", h: 0 };
   body += head.svg + leg.svg;
-  if (note) body += text(0, Math.min(h - SMALL * 0.4, barY + barH + SMALL * 0.6 + leg.h + SMALL * 1.2), SCOPE2_BASIS_NOTE, theme.colors.muted, { size: SMALL });
+  if (showNote) body += text(0, Math.min(h - SMALL * 0.4, barY + barH + SMALL * 0.6 + leg.h + SMALL * 1.2), noteText, theme.colors.muted, { size: SMALL });
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="scope_split" data-variant="bar">${body}</g></svg>`;
 }
