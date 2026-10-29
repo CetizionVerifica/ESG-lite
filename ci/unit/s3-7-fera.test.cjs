@@ -1,5 +1,6 @@
 // S3-7 engine unit tests: the Category 3 sub-activity of each FERA twin, the
-// T&D-loss twin, FACTOR_TYPE_MISMATCH and WTT_ALREADY_IN_FACTOR. No
+// T&D-loss twin, FACTOR_TYPE_MISMATCH, WTT_ALREADY_IN_FACTOR and D6a (WTT
+// in the row of a Category 4, 6, 7 or 9 entry). No
 // database. The Cat 3 golden cases (ex-3.x in ci/golden/scope3/cases.json)
 // check the sums; this file checks the same Example 3.1 figures (guidance
 // L2577-2660) through the FERA twins themselves. Runs against dist/:
@@ -10,7 +11,7 @@ const path = require("path");
 
 const { FactorIndex } = require(path.resolve("dist/services/emissionWrite/resolve.js"));
 const { feraTwinFor } = require(path.resolve("dist/services/emissionWrite/compute.js"));
-const { feraSubFor, tdLossTwinFor, feraFactorTypeWarning, wttDoubleCountWarning, ghgCategoryOfContext } = require(path.resolve("dist/services/emissionWrite/methods/fera.js"));
+const { feraSubFor, tdLossTwinFor, feraFactorTypeWarning, wttDoubleCountWarning, ghgCategoryOfContext, wttInRow, wttPartFor, withWtt } = require(path.resolve("dist/services/emissionWrite/methods/fera.js"));
 
 let nextId = 1;
 const factor = (name, value, unit, factor_type, extra = {}) => ({
@@ -118,16 +119,66 @@ test("FACTOR_TYPE_MISMATCH on a FERA factor typed other than wtt or td_loss; unt
   assert.equal(feraFactorTypeWarning(null), null);
 });
 
-test("WTT_ALREADY_IN_FACTOR only for Cat 4/9 rows on a life-cycle factor that sums in WTT", () => {
+test("WTT_ALREADY_IN_FACTOR for Cat 4, 6, 7 and 9 rows on a life-cycle factor that sums in WTT (D6a: no WTT is added)", () => {
   const freight = (name) => ctx("Scope 3", [], { category_name: name });
   const summed = factor("HGV", 0.11, "tonne.km", "life_cycle", { includes_wtt: true });
   assert.equal(ghgCategoryOfContext(freight("Upstream Transportation and Distribution")), 4);
   assert.equal(ghgCategoryOfContext(freight("Downstream transportation and distribution")), 9);
-  assert.equal(wttDoubleCountWarning(freight("Upstream Transportation and Distribution"), summed).code, "WTT_ALREADY_IN_FACTOR");
-  assert.equal(wttDoubleCountWarning(freight("Downstream transportation and distribution"), summed).code, "WTT_ALREADY_IN_FACTOR");
-  assert.equal(wttDoubleCountWarning(freight("Business Travel"), summed), null, "Cat 6 is not flagged");
+  for (const name of ["Upstream Transportation and Distribution", "Downstream transportation and distribution", "Business Travel", "Employee Commuting"]) {
+    const w = wttDoubleCountWarning(freight(name), summed);
+    assert.equal(w.code, "WTT_ALREADY_IN_FACTOR", name);
+    assert.match(w.message, /so no WTT was added/);
+  }
   assert.equal(wttDoubleCountWarning(freight("Upstream Transportation and Distribution"), { ...summed, includes_wtt: false }), null);
   assert.equal(wttDoubleCountWarning(freight("Upstream Transportation and Distribution"), { ...summed, factor_type: "eeio_spend" }), null);
+  assert.equal(wttDoubleCountWarning(freight("Upstream leased assets"), summed), null, "Cat 8 is not a transport category");
   assert.equal(wttDoubleCountWarning(ctx("Scope 1", [], { category_name: "Upstream transport fuel" }), summed), null, "only Scope 3 categories are read by name");
   assert.equal(wttDoubleCountWarning(ctx("Scope 3", [], { category_name: "Anything", ghg_category: 9 }), summed).code, "WTT_ALREADY_IN_FACTOR", "S3-1's ghg_category wins");
+});
+
+// D6a, GHG Protocol Scope 3 Technical Guidance pp. 14 and 51: Scope 3 transport and travel use
+// life-cycle factors (combustion + WTT), so the WTT part goes in the row, not in Category 3.
+test("D6a: WTT goes in the row for Categories 4, 6, 7 and 9 only", () => {
+  const named = (category_name, scope = "Scope 3", extra = {}) => wttInRow(ctx(scope, [], { category_name, ...extra }));
+  assert.equal(named("Upstream Transportation and Distribution"), true);
+  assert.equal(named("Business Travel"), true);
+  assert.equal(named("Employee Commuting"), true);
+  assert.equal(named("Downstream transportation and distribution"), true);
+  assert.equal(named("Purchased Goods and Services"), false);
+  assert.equal(named("Upstream leased assets"), false);
+  assert.equal(named("FERA", "Scope 3", { ghg_category: 3 }), false, "Category 3 itself");
+  assert.equal(named("Mobile Combustion", "Scope 1"), false, "a company's own fuel keeps its Category 3 twin");
+  assert.equal(named("Anything", "Scope 3", { ghg_category: 6 }), true, "S3-1's ghg_category wins");
+});
+
+test("D6a: a DESNZ flight of 1,000 passenger.km: 0.22928 + 0.0335 WTT = 262.78 kg, 0.26 t", () => {
+  const name = "Flights - Domestic, to/from UK, Average passenger, With RF [passenger.km]";
+  const c = ctx("Scope 3", [factor(name, 0.0335, "passenger.km", "wtt")], { category_name: "Business Travel" });
+  const part = wttPartFor(c, name, { quantity: 1000 }, "passenger.km", 2024);
+  assert.equal(part.total_kgco2e, "33.5000");
+  assert.equal(part.factor.factor_type, "wtt");
+  const row = withWtt({ total: 0.23, total_kgco2e: "229.2800", activityValue: 1000 }, part);
+  assert.deepEqual([row.total, row.total_kgco2e, row.activityValue], [0.26, "262.7800", 1000]);
+  assert.equal(wttPartFor(c, name, { quantity: 1000 }, "passenger.km", 2023), null, "the twin's rule: the target year's factor only");
+  assert.equal(wttPartFor(c, "Hotel stay - UK [Room per night]", { quantity: 3 }, "Room per night", 2024), null, "no WTT factor of that name");
+});
+
+test("D6a: kg are summed before the tonnes are rounded", () => {
+  // 4.9960 + 0.0045 kg = 5.0005 kg → 0.01 t (each part alone would round to 0.00 t and 0.00 t).
+  assert.deepEqual(withWtt({ total: 0, total_kgco2e: "4.9960" }, { total_kgco2e: "0.0045", factor: {} }), { total: 0.01, total_kgco2e: "5.0005" });
+});
+
+test("D6a: the WTT factor's gases and biogenic CO₂ go in the row, as its twin held them", () => {
+  // 1,000 tonne.km on a WTT factor of 0.02 kgCO₂e with gas parts 0.019 CO₂, 0.0002 CH4 and 0.001 biogenic CO₂ per tonne.km.
+  const name = "HGV gases";
+  const c = ctx("Scope 3", [factor(name, 0.02, "tonne.km", "wtt", { co2_kg: "0.019", ch4_kg: "0.0002", biogenic_co2_kg: "0.001" })], { category_name: "Upstream Transportation and Distribution" });
+  const part = wttPartFor(c, name, { quantity: 1000 }, "tonne.km", 2024);
+  assert.deepEqual([part.gas_kg, part.biogenic_kg], [{ CO2: 19, CH4: 0.2 }, "1.0000"]);
+  const row = withWtt({ total: 0.09, total_kgco2e: "90.0000", gas_kg: { CO2: 88, N2O: 0.5 }, biogenic_kg: "2.5000" }, part);
+  assert.deepEqual([row.total, row.total_kgco2e, row.gas_kg, row.biogenic_kg], [0.11, "110.0000", { CO2: 107, CH4: 0.2, N2O: 0.5 }, "3.5000"]);
+  // A row factor with no gas parts ("not tracked") keeps none of its own; the WTT's gases are still counted, as the twin's were.
+  assert.deepEqual(withWtt({ total: 0.09, total_kgco2e: "90.0000" }, part).gas_kg, { CO2: 19, CH4: 0.2 });
+  // A WTT factor with no gas parts leaves the row's gases as they are.
+  const plain = wttPartFor(ctx("Scope 3", [factor(name, 0.02, "tonne.km", "wtt")], { category_name: "Business Travel" }), name, { quantity: 1000 }, "tonne.km", 2024);
+  assert.deepEqual(withWtt({ total: 0.09, total_kgco2e: "90.0000", gas_kg: { CO2: 88 } }, plain), { total: 0.11, total_kgco2e: "110.0000", gas_kg: { CO2: 88 } });
 });

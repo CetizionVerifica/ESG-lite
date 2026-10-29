@@ -932,6 +932,8 @@ async function recalculateEntry(
     storedFx: emission.fx,
     // SE-2: the kept method is named as an importer would; else a User's edit takes the method the form decides.
     method_source: kept ? "caller" : methodSource,
+    // D6a: a Category 4, 6, 7 or 9 row saved with a FERA twin keeps its WTT there.
+    keep_fera_twin: !!emission.fera_linked_id,
     ...(supplierRow
       ? {
           method: emission.method,
@@ -3330,7 +3332,8 @@ export const getPeriodTotal = async (req: Request, res: Response) => {
  * value is corrected, the entries calculated with it keep their old totals until someone edits
  * them. GET counts what a recalculation would change; POST recalculates them with the engine, as
  * an edit does (FERA and T&D twins follow, review checks refresh). Candidates are the factor's
- * site and category; a row counts when the engine picks this factor for it now. Statuses stay
+ * site and category, and (D6a) the site's rows whose total holds this factor as its WTT part; a
+ * row counts when the engine picks this factor for it now, as its own or as its WTT. Statuses stay
  * (an approved row stays approved, with a "factor_recalculation" audit entry giving old and new
  * totals); rows in a locked month are left and counted.
  */
@@ -3342,11 +3345,22 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
     const factor = await AppDataSource.getRepository(EmissionFactor).findOne({ where: { emission_factor_id: factorId }, relations: ["site", "category"] });
     if (!factor?.site || !factor.category) return res.status(404).json({ message: "Emission factor not found" });
 
-    const rows = await repo.find({
+    const own = await repo.find({
       where: { site: { site_id: factor.site.site_id }, category: { category_id: factor.category.category_id } },
       relations: ["site", "category", "created_by"],
       order: { pk_id: "ASC" },
     });
+    // D6a: a Category 4, 6, 7 or 9 row keeps a FERA wtt factor's part in its own total (snapshot.wtt), not in a twin of the FERA category.
+    const wttIds: number[] = (
+      await AppDataSource.query(
+        `SELECT pk_id FROM emission WHERE site_id = $1 AND category_id <> $2 AND emission_factor_snapshot -> 'wtt' ->> 'emission_factor_id' = $3 ORDER BY pk_id`,
+        [factor.site.site_id, factor.category.category_id, String(factorId)],
+      )
+    ).map((r: { pk_id: number }) => Number(r.pk_id));
+    const viaWtt = wttIds.length ? await repo.find({ where: { pk_id: In(wttIds) }, relations: ["site", "category", "created_by"], order: { pk_id: "ASC" } }) : [];
+    const rows = [...own, ...viaWtt];
+    const usesFactor = (factorOf: { emission_factor_id?: unknown } | null | undefined, wttOf: { emission_factor_id?: unknown } | null | undefined) =>
+      Number(factorOf?.emission_factor_id) === factorId || Number(wttOf?.emission_factor_id) === factorId;
     const locked = new Set(
       (await lockedSiteMonths(AppDataSource.manager, rows.map((r) => siteMonthOf(r.site.site_id, ymd(r.date_of_reporting))))).map((s) => `${s.year}-${s.month}`),
     );
@@ -3357,10 +3371,10 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
       summary.checked++;
       const prepared = await recalculateEntry(row, row.activity_data, row.extra_data, undefined, "caller", row.activity_data);
       if (!prepared.ok) {
-        if (Number((row.emission_factor_snapshot as any)?.emission_factor_id) === factorId) summary.failed++;
+        if (usesFactor(row.emission_factor_snapshot, (row.emission_factor_snapshot as any)?.wtt)) summary.failed++;
         continue;
       }
-      if (prepared.entry.factor?.emission_factor_id !== factorId) continue;
+      if (!usesFactor(prepared.entry.factor, prepared.entry.wtt?.factor)) continue;
       summary.uses_factor++;
       const oldTotal = Number(row.total_emission) || 0;
       const newTotal = Number(prepared.entry.computed?.total ?? 0);
