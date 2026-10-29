@@ -56,9 +56,12 @@ export const requestLoginOtp = async (req: Request, res: Response) => {
     }
 
     const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+    // The expiry is set and checked on the database clock (now()), so a server whose
+    // time zone differs from the database's (`timestamp` has no zone) can't make a
+    // fresh code look expired.
     await AppDataSource.query(
-      `UPDATE "user" SET login_otp_hash = $1, login_otp_expires = $2, login_otp_attempts = 0 WHERE user_id = $3`,
-      [hashCode(user.user_id, code), new Date(Date.now() + OTP_VALID_MINUTES * 60 * 1000), user.user_id],
+      `UPDATE "user" SET login_otp_hash = $1, login_otp_expires = now() + make_interval(mins => $2), login_otp_attempts = 0 WHERE user_id = $3`,
+      [hashCode(user.user_id, code), OTP_VALID_MINUTES, user.user_id],
     );
 
     try {
