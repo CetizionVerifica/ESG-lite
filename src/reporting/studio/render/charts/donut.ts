@@ -48,7 +48,7 @@ export function donutChart(input: ChartInput): string {
     }
     a0 = a1;
   }
-  body += text(cx, cy, value.display || formatNumber(total), theme.colors.ink, { anchor: "middle", baseline: "middle", weight: 700, size: FONT * 1.4 });
+  body += text(cx, cy, value.display || formatNumber(total, "auto", value.unit), theme.colors.ink, { anchor: "middle", baseline: "middle", weight: 700, size: FONT * 1.4 });
   if (value.unit) body += text(cx, cy + FONT * 1.4, value.unit, theme.colors.muted, { anchor: "middle", baseline: "middle", size: SMALL });
   body += legend(ps, w, h - SMALL * 0.3, theme);
   return `${svgOpen(w, h, input.label)}${body}</svg>`;

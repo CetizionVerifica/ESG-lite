@@ -8,10 +8,10 @@
       "sha256": "0000029ea705c299c6998b6e86d61e13c81e5d42f5ccc983211c5286910f43e9"
     },
     {
-      "bytes": 2705,
+      "bytes": 2721,
       "frame": "77.524,107.475,59.905,49.495,0",
       "id": "p-summary.bars",
-      "sha256": "e0042420918876aef5a405ec3d4b97489e565d457539639e14d60b7c639b293c"
+      "sha256": "248c4487088b905a671397bd229183cac2a96e5264c89d55da6a28a7ce0f5bda"
     },
     {
       "bytes": 882,
@@ -20,16 +20,16 @@
       "sha256": "8e459a7361d90edb4a61ba86525133ea7248235bbbcea7a6a8fd025e5ac3c48b"
     },
     {
-      "bytes": 3245,
+      "bytes": 3257,
       "frame": "10.571,10.606,59.905,42.424,0",
       "id": "p-charts.stacked",
-      "sha256": "34f184a81babd79c6f6266919dfa5d60f8b0ad71e76b0d5364e8a6848c8b16c6"
+      "sha256": "b75190ad8e021cf1c1727adf6e9d3c3d449c2b286db2725f085ac21d68a16e6d"
     },
     {
-      "bytes": 3016,
+      "bytes": 3033,
       "frame": "77.524,10.606,59.905,42.424,0",
       "id": "p-charts.hbar",
-      "sha256": "2e4404ce9f88a81f7389a35fd6ca702ede7b9a7da28fbd4ab83d70391932fbec"
+      "sha256": "984a751c27f63cf06e012e3389f5bbfb533169b299b6bd3e6bc48570f467380b"
     },
     {
       "bytes": 3117,
@@ -56,10 +56,10 @@
       "sha256": "7e5700e79fb7dce2445a0aff663c076090a90efb20fbf8e2925b6ac5ba3357b8"
     },
     {
-      "bytes": 3041,
+      "bytes": 3061,
       "frame": "10.571,98.99,59.905,42.424,0",
       "id": "p-charts.water",
-      "sha256": "8a8fc12f654dc429658a3fc4971ccf504f9f0e228d390fcd3a69c540426ecaa1"
+      "sha256": "5e75e15153427b9c967261ff9407fdcc6638f537e752aaedec47aeb0f788525e"
     },
     {
       "bytes": 2572,
@@ -68,10 +68,10 @@
       "sha256": "d44ec926578d8213be96b211d32b6bf3b795294a8ae5ac927a7114c524e05993"
     },
     {
-      "bytes": 3138,
+      "bytes": 3150,
       "frame": "10.571,144.949,59.905,42.424,0",
       "id": "p-charts.target",
-      "sha256": "0fa62c1496e1732d6833402af408998204b62cb4333131748524d867631f8968"
+      "sha256": "844558f02bb3d96340bfdd0dde6a19c09679b5083dd50f39f618c2f72fca6354"
     },
     {
       "bytes": 1968,
@@ -86,10 +86,10 @@
       "sha256": "39042abf905991cdcb890b7f3d7250ea0eb47a07f90189a3d149b5a0a87aa32d"
     },
     {
-      "bytes": 2156,
+      "bytes": 2168,
       "frame": "56.381,189.495,35.238,16.97,0",
       "id": "p-charts.ghgkind",
-      "sha256": "3a5c4a886e8a9e4a5670cb41b3f5c8260a18ff5a1ed727cfe7b98d7887d686d3"
+      "sha256": "dfe0ed7931480511ebd9d7e09df7bc985db9807bff1f156568379fedca02fab4"
     }
   ],
   "format": "a5",

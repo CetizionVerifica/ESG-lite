@@ -5,6 +5,9 @@
  * DS-8: `colWidths` (% of the frame) on any table; `merges` on static tables
  * only; on a bound table `columns` picks which of the source's columns show
  * (by header, the first column always kept).
+ * #209: series cells are in the bound value's unit, so a tCO₂e table prints
+ * them with 3 decimals (format.ts); static, custom and source-formatted
+ * tables have no unit and keep `auto`.
  */
 import { dataMarks, lookup, notReported, unavailableReason } from "../data";
 import { formatNumber } from "../format";
@@ -15,15 +18,20 @@ import type { ElementRenderer } from "./types";
 
 type Cell = string | number | null;
 
-export const tableFromValue = (v: RenderValue): { columns: string[]; rows: Cell[][] } => {
-  if (v.table) return v.table;
+/**
+ * A bound value as a table. `unit` is the unit of the number cells: the
+ * value's own for series cells (#209); null for the source's `table`, whose
+ * cells arrive formatted.
+ */
+export const tableFromValue = (v: RenderValue): { columns: string[]; rows: Cell[][]; unit: string | null } => {
+  if (v.table) return { columns: v.table.columns, rows: v.table.rows, unit: null };
   const series = v.series ?? [];
   const keys: string[] = [];
   for (const s of series) for (const p of s.values) if (!keys.includes(p.key)) keys.push(p.key);
-  return { columns: ["", ...keys], rows: series.map((s) => [s.label, ...keys.map((k) => s.values.find((p) => p.key === k)?.value ?? null)]) };
+  return { columns: ["", ...keys], rows: series.map((s) => [s.label, ...keys.map((k) => s.values.find((p) => p.key === k)?.value ?? null)]), unit: v.unit ?? null };
 };
 
-const cell = (c: Cell): string => (c === null || c === undefined ? "–" : typeof c === "number" ? formatNumber(c) : esc(c));
+const cell = (c: Cell, unit: string | null = null): string => (c === null || c === undefined ? "–" : typeof c === "number" ? formatNumber(c, "auto", unit) : esc(c));
 
 export interface TableLayout {
   colWidths?: number[];
@@ -45,7 +53,8 @@ function mergeMap(rows: Cell[][], cols: number, merges: TableLayout["merges"]): 
   return { hidden, span };
 }
 
-export function tableHtml(columns: string[], rows: Cell[][], style: string, totalRow: boolean, layout: TableLayout = {}): string {
+/** `unit`: the unit of the number cells (a bound table's value unit), or null. */
+export function tableHtml(columns: string[], rows: Cell[][], style: string, totalRow: boolean, layout: TableLayout = {}, unit: string | null = null): string {
   const numeric = columns.map((_, i) => i > 0 && rows.length > 0 && rows.every((r) => typeof r[i] === "number" || r[i] === null || r[i] === undefined));
   const widths = (layout.colWidths ?? []).slice(0, columns.length);
   const fixed = widths.length > 0 && widths.every((w) => Number.isFinite(w) && w > 0);
@@ -61,7 +70,7 @@ export function tableHtml(columns: string[], rows: Cell[][], style: string, tota
             const sp = span.get(`${ri}:${i}`);
             const cls = [i && (typeof c === "number" || c === null) ? "num" : "", sp ? "ds-merged" : ""].filter(Boolean).join(" ");
             const attrs = `${cls ? ` class="${cls}"` : ""}${sp && sp.rs > 1 ? ` rowspan="${sp.rs}"` : ""}${sp && sp.cs > 1 ? ` colspan="${sp.cs}"` : ""}`;
-            return `<td${attrs}>${cell(c)}</td>`;
+            return `<td${attrs}>${cell(c, unit)}</td>`;
           })
           .join("")}</tr>`,
     )
@@ -86,6 +95,7 @@ export const tableElement: ElementRenderer<"table"> = (el, ctx) => {
   const v = lookup(ctx.data, b);
   const reason = unavailableReason(v);
   if (reason || !v) return { html: `<div class="ds-table-nr">${notReported(reason ?? "NOT_RESOLVED")}</div>`, attrs: dataMarks(b, v) };
-  const t = pickColumns(tableFromValue(v), p.columns);
-  return { html: tableHtml(t.columns, t.rows, p.style, !!p.totalRow, widths), attrs: dataMarks(b, v) };
+  const src = tableFromValue(v);
+  const t = pickColumns(src, p.columns);
+  return { html: tableHtml(t.columns, t.rows, p.style, !!p.totalRow, widths, src.unit), attrs: dataMarks(b, v) };
 };

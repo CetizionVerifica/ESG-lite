@@ -13,7 +13,7 @@ import { formatNumber } from "../../format";
 import { esc, n3 } from "../../util";
 import { axisWidth, bandLabels, valueGridY } from "../axis";
 import { linearScale } from "../scale";
-import { FONT, SMALL, emptyChart, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
+import { FONT, SMALL, emptyChart, insideX, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
 import { clip, partsOf, total, type Part } from "./common";
 
 type Step = { key: string; from: number; to: number; kind: "abs" | "up" | "down" };
@@ -81,8 +81,8 @@ export function baseYearWaterfallChart(input: ChartInput): string {
     }
     if (options.showValues !== false) {
       const d = s.to - s.from;
-      const label = s.kind === "abs" ? formatNumber(s.to) : `${d >= 0 ? "+" : "−"}${formatNumber(Math.abs(d))}`;
-      body += text(x0 + band * (i + 0.5), y1 - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: s.kind === "abs" ? 700 : undefined });
+      const label = s.kind === "abs" ? formatNumber(s.to, "auto", value.unit) : `${d >= 0 ? "+" : "−"}${formatNumber(Math.abs(d), "auto", value.unit)}`;
+      body += text(insideX(x0 + band * (i + 0.5), label, w), y1 - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: s.kind === "abs" ? 700 : undefined });
     }
   });
   body += bandLabels(steps.map((s) => s.key), x0, band, top + ph + FONT * 1.2, theme);
@@ -113,7 +113,10 @@ export function intensityLineChart(input: ChartInput): string {
     const [x, y] = xy(p.key, p.value);
     const last = i === pts.length - 1;
     body += `<circle cx="${n3(x)}" cy="${n3(y)}" r="${last ? 3 : 2.2}" fill="${last ? theme.colors.accent : color}" data-key="${esc(p.key)}"/>`;
-    if (options.showValues !== false && (i === 0 || last)) body += text(x, y - SMALL * 0.9, formatNumber(p.value), theme.colors.ink, { size: SMALL, anchor: "middle", weight: last ? 700 : undefined });
+    if (options.showValues !== false && (i === 0 || last)) {
+      const label = formatNumber(p.value, "auto", value.unit);
+      body += text(insideX(x, label, w), y - SMALL * 0.9, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: last ? 700 : undefined });
+    }
   });
   body += bandLabels(keys, x0, band, top + ph + FONT * 1.2, theme);
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="intensity_line" data-points="${pts.length}">${body}</g></svg>`;

@@ -228,6 +228,8 @@ export interface RenderValue {
 /** A row of a flow table (indexes, factor table, data tables). */
 export interface FlowRow {
   cells: (string | number | null)[];
+  /** #209: the unit of the row's number cells ("tCO₂e", "kWh"…); tCO₂e cells print with 3 decimals. None: `auto`. */
+  unit?: string | null;
   /** An element or page id the row points at; the paged renderer prints its page number. */
   ref?: string;
   /** e.g. BRSR Core ◆ */

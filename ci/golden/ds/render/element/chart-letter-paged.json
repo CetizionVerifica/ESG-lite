@@ -8,10 +8,10 @@
       "sha256": "9d89fb32a0ab14a6f2071828d4abcf7faecfdd8c38263523ba595d53d4b09bb7"
     },
     {
-      "bytes": 2716,
+      "bytes": 2732,
       "frame": "113.09,142.993,87.388,65.852,0",
       "id": "p-summary.bars",
-      "sha256": "b4176fff3cd7fbfeb0f797440bfd666fe2faf5b5ba29520a7cee5af3613e5d5d"
+      "sha256": "953336e2d326c714b9529bfd34b5c36936590d5dc8d6f51358f1f1081d5621bd"
     },
     {
       "bytes": 883,
@@ -20,16 +20,16 @@
       "sha256": "ff558e90e10faad87402108e9ed5b2453f3c84ad3f6e1fc9b3b8d4be6a3eba81"
     },
     {
-      "bytes": 3250,
+      "bytes": 3262,
       "frame": "15.421,14.111,87.388,56.444,0",
       "id": "p-charts.stacked",
-      "sha256": "7c6d293144dc2f20a4a1dead6cd8eb25ba87aae4ce19fce0619ca31e8a3bfa1d"
+      "sha256": "97a9818c5054bdc23dae94d8bc9aa01a64364ca1d3ed6dd5037ae9b6e1d9f2cc"
     },
     {
-      "bytes": 3032,
+      "bytes": 3051,
       "frame": "113.09,14.111,87.388,56.444,0",
       "id": "p-charts.hbar",
-      "sha256": "a62154df7e13618f0782698191a2169618be516d7f6062801ff7a7c51e503485"
+      "sha256": "1594c8ef2f50889dae7edf2c7c06c92bd9585df4116ff8a6d9d3ee9c59971e2c"
     },
     {
       "bytes": 3126,
@@ -56,10 +56,10 @@
       "sha256": "2d419a40ad534c00bc29feb0b7f7236f3b2070127816a5f0a76bfb174bde2f31"
     },
     {
-      "bytes": 3066,
+      "bytes": 3086,
       "frame": "15.421,131.704,87.388,56.444,0",
       "id": "p-charts.water",
-      "sha256": "110fe956bbf249020b7d64c717145c3df9396c7bad77caccfe5947ed119aa877"
+      "sha256": "08f851926173157314cad6bfdb86c6f975464abf151aae9e09a368456791d834"
     },
     {
       "bytes": 2603,
@@ -68,10 +68,10 @@
       "sha256": "d5e33ae5388511eb90e0cdc258c8a2c57ddb77dd326b222303c775a5ae30d000"
     },
     {
-      "bytes": 3130,
+      "bytes": 3142,
       "frame": "15.421,192.852,87.388,56.444,0",
       "id": "p-charts.target",
-      "sha256": "02059828b0fb0a95463e37a9c6330dd4770e94624f02975927eab5c6c81b48bb"
+      "sha256": "a3975b087496e6d57314f1525f8c9811defd9943a147c1891d4a48e599edb9c7"
     },
     {
       "bytes": 1978,
@@ -86,10 +86,10 @@
       "sha256": "04f971125a6d624b9d697f0401f6cd19e3ea8b3afdf6a89e6f311f2f6f8eee6f"
     },
     {
-      "bytes": 2165,
+      "bytes": 2179,
       "frame": "82.248,252.119,51.405,22.578,0",
       "id": "p-charts.ghgkind",
-      "sha256": "785b62f0cb877bbcb877c6d3bbfc42a93e24e42377b65289f695ffe8e8f4cf69"
+      "sha256": "d4604784aa75c1b860f6d55a75cd9846a9dd5e51284b40e160eec50ca09a35d4"
     }
   ],
   "format": "letter",

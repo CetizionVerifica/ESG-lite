@@ -51,6 +51,37 @@ export const text = (x: number, y: number, s: string, fill: string, opts: { size
 export const rect = (x: number, y: number, w: number, h: number, fill: string, extra = ""): string =>
   `<rect x="${n3(x)}" y="${n3(y)}" width="${n3(Math.max(0, w))}" height="${n3(Math.max(0, h))}" fill="${fill}"${extra}/>`;
 
+/**
+ * A value label's width in viewBox units, on the wide side: digits and other
+ * characters 0.6 em, separators (". , · space") 0.3 em, "%" 0.9 em.
+ */
+export const labelWidth = (s: string, size = SMALL): number => {
+  let em = 0;
+  for (const c of s) em += /[.,·\s]/.test(c) ? 0.3 : c === "%" ? 0.9 : 0.6;
+  return em * size;
+};
+
+/**
+ * x for a label centred on `x` that keeps it inside the chart's 0..w: a long
+ * value over the first or last band (a 3-decimal tCO₂e figure, #209) would
+ * otherwise be cut at the SVG edge. A label that fits stays where it was.
+ */
+export const insideX = (x: number, s: string, w: number, size = SMALL): number => {
+  const half = labelWidth(s, size) / 2;
+  return half * 2 >= w ? w / 2 : Math.min(Math.max(x, half), w - half);
+};
+
+/**
+ * The plot width that keeps value labels drawn after horizontal bar ends
+ * (at x0 + t·pw + gap, t the bar's end on the scale) inside the chart: `pw`
+ * itself when they fit, else just narrow enough, never below 60 % of `pw`.
+ */
+export const fitBarEnds = (pw: number, x0: number, w: number, ends: { t: number; label: string }[], gap = SMALL * 0.4): number => {
+  let fit = pw;
+  for (const e of ends) if (e.t > 0) fit = Math.min(fit, (w - x0 - gap - labelWidth(e.label)) / e.t);
+  return Math.max(pw * 0.6, fit);
+};
+
 /** Category keys in first-seen order across every series. */
 export const keysOf = (series: RenderSeries[]): string[] => {
   const seen: string[] = [];

@@ -10,7 +10,7 @@ import { formatNumber } from "../../format";
 import { esc, n3 } from "../../util";
 import { valueGridX } from "../axis";
 import { linearScale } from "../scale";
-import { SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "../svg";
+import { SMALL, emptyChart, fitBarEnds, rect, svgOpen, text, type ChartInput } from "../svg";
 import { biggest, clip, currentSeries, headline, partColor, partsOf, priorSeries, ranked, wrapLegend } from "./common";
 import { mix } from "../../theme";
 
@@ -37,7 +37,10 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
   const labelChars = Math.max(6, Math.floor((w * 0.34) / (SMALL * 0.55)));
   const labelW = Math.min(w * 0.36, Math.max(...ps.map((p) => Math.min(p.key.length, labelChars))) * SMALL * 0.55 + SMALL);
   const x0 = labelW;
-  const pw = w - x0 - (showValues ? SMALL * 4.5 : SMALL);
+  // Value labels sit after the bar end; a long one (a 3-decimal tCO₂e figure, #209) narrows the plot so it isn't cut.
+  const valueText = (v: number) => formatNumber(v, "auto", value.unit);
+  const pw0 = w - x0 - (showValues ? SMALL * 4.5 : SMALL);
+  const pw = showValues ? fitBarEnds(pw0, x0, w, ps.filter((_, i) => labelled.has(i)).map((p) => ({ t: scale.t(Math.max(0, p.value)), label: valueText(p.value) }))) : pw0;
   const top = head.h;
   const ph = h - top - leg.h - SMALL * 2;
   const band = ph / ps.length;
@@ -56,7 +59,7 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
       const pb = x0 + scale.t(Math.max(0, pv)) * pw;
       body += rect(pa, y + band * 0.14 + mainH + band * 0.04, pb - pa, band * 0.18, legendItems[1].color, ` data-prior="${esc(prior.label)}"`);
     }
-    if (showValues && labelled.has(i)) body += text(b + SMALL * 0.4, y + band * 0.14 + mainH / 2, formatNumber(p.value), theme.colors.ink, { size: SMALL, baseline: "middle", weight: i === 0 ? 700 : undefined });
+    if (showValues && labelled.has(i)) body += text(b + SMALL * 0.4, y + band * 0.14 + mainH / 2, valueText(p.value), theme.colors.ink, { size: SMALL, baseline: "middle", weight: i === 0 ? 700 : undefined });
   });
   body += `<g transform="translate(0 ${n3(h - leg.h)})">${leg.svg}</g>`;
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="${kind}" data-bars="${ps.length}">${body}</g></svg>`;

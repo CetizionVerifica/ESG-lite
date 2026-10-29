@@ -8,7 +8,7 @@
 import { formatNumber } from "../../format";
 import { contrastRatio, mix } from "../../theme";
 import { esc, n3 } from "../../util";
-import { FONT, SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "../svg";
+import { FONT, SMALL, emptyChart, labelWidth, rect, svgOpen, text, type ChartInput } from "../svg";
 import { clip, currentSeries, headline, partsOf, pct, ranked, total, type Part } from "./common";
 
 export interface Tile extends Part {
@@ -92,7 +92,15 @@ export function treemapChart(input: ChartInput): string {
     const chars = Math.floor((t.w - SMALL) / (SMALL * 0.55));
     if (t.h >= SMALL * 2.4 && chars >= 4) {
       body += text(t.x + SMALL * 0.5, y + SMALL * 1.3, clip(t.key, chars), ink, { size: SMALL, weight: 700 });
-      if (t.h >= SMALL * 3.8 && options.showValues !== false) body += text(t.x + SMALL * 0.5, y + SMALL * 2.6, `${formatNumber(t.value)} · ${pct(t.value / sum)}`, ink, { size: SMALL });
+      if (t.h >= SMALL * 3.8 && options.showValues !== false) {
+        const v = formatNumber(t.value, "auto", value.unit);
+        const share = pct(t.value / sum);
+        const room = t.w - SMALL;
+        // A value too long for "value · share" on one line (a 3-decimal tCO₂e figure, #209) puts the share on a line of its own when the tile is tall enough.
+        if (labelWidth(`${v} · ${share}`) > room && t.h >= SMALL * 5.1) {
+          body += text(t.x + SMALL * 0.5, y + SMALL * 2.6, v, ink, { size: SMALL }) + text(t.x + SMALL * 0.5, y + SMALL * 3.9, share, ink, { size: SMALL });
+        } else body += text(t.x + SMALL * 0.5, y + SMALL * 2.6, `${v} · ${share}`, ink, { size: SMALL });
+      }
     }
   });
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="treemap" data-tiles="${tiles.length}" style="font-size:${n3(FONT)}px">${body}</g></svg>`;

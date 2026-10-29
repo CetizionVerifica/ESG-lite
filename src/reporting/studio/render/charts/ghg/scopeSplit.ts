@@ -21,7 +21,7 @@ export function scopeSplitChart(input: ChartInput): string {
   const colors = ps.map((p, i) => partColor(input, p.key, i));
   const labelled = biggest(ps, 3);
   const note = options.basisNote !== false;
-  const legendItems = ps.map((p, i) => ({ label: `${p.key} ${formatNumber(p.value)}`, color: colors[i] }));
+  const legendItems = ps.map((p, i) => ({ label: `${p.key} ${formatNumber(p.value, "auto", value.unit)}`, color: colors[i] }));
   let body = "";
 
   if (options.variant === "donut") {

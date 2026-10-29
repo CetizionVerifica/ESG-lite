@@ -8,7 +8,7 @@ import { formatNumber } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "./svg";
+import { FONT, SMALL, emptyChart, insideX, rect, svgOpen, text, type ChartInput } from "./svg";
 
 export function waterfallChart(input: ChartInput): string {
   const { value, w, h, theme } = input;
@@ -37,8 +37,8 @@ export function waterfallChart(input: ChartInput): string {
     // Emissions: a rise is bad, a fall is good.
     const fill = s.kind === "abs" ? theme.colors.primary : s.kind === "up" ? theme.colors.bad : theme.colors.good;
     body += rect(x0 + band * i + band * 0.15, y1, band * 0.7, y2 - y1, fill, ` data-step="${s.kind}" data-from="${n3(s.from)}" data-to="${n3(s.to)}"`);
-    const label = s.kind === "abs" ? formatNumber(s.to) : `${s.to - s.from >= 0 ? "+" : "−"}${formatNumber(Math.abs(s.to - s.from))}`;
-    body += text(x0 + band * (i + 0.5), y1 - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
+    const label = s.kind === "abs" ? formatNumber(s.to, "auto", value.unit) : `${s.to - s.from >= 0 ? "+" : "−"}${formatNumber(Math.abs(s.to - s.from), "auto", value.unit)}`;
+    body += text(insideX(x0 + band * (i + 0.5), label, w), y1 - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
   });
   body += bandLabels(steps.map((s) => s.key), x0, band, top + ph + FONT * 1.2, theme);
   return `${svgOpen(w, h, input.label)}${body}</svg>`;

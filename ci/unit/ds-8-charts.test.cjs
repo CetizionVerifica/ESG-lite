@@ -54,10 +54,10 @@ test("goldens: each GHG chart's HTML and the page in every mode match ghg-snapsh
 test("labelling: totals come from display; only the three biggest parts carry a value", () => {
   const cats = el("g.category_bars");
   assert.match(cats, />Total 3,270 tCO₂e</);
-  // 9 bars, 3 value labels (1,290, 620, 410), sorted largest first, "Other" last.
+  // 9 bars, 3 value labels (1,290, 620, 410: tCO₂e, so 3 decimals, #209), sorted largest first, "Other" last.
   assert.equal(count(cats, /data-part="/g), 9);
-  for (const n of ["1,290", "620", "410"]) assert.match(cats, new RegExp(`>${n}<`));
-  for (const n of ["300", "210", "180"]) assert.doesNotMatch(cats, new RegExp(`>${n}<`));
+  for (const n of ["1,290.000", "620.000", "410.000"]) assert.match(cats, new RegExp(`>${n}<`));
+  for (const n of ["300", "210", "180"]) assert.doesNotMatch(cats, new RegExp(`>${n}(\\.000)?<`));
   const parts = [...cats.matchAll(/data-part="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(parts[0], "1 · Purchased goods and services");
   assert.equal(parts[parts.length - 1], "Other");
@@ -88,8 +88,8 @@ test("monthly_stack: months stacked by scope, only the peak month labelled", () 
   const m = el("g.monthly_stack");
   assert.match(m, /data-stacks="3" data-keys="12"/);
   assert.equal(count(m, /data-key="2025-/g), 36);
-  // Peak: January 310+520+300 = 1,130.
-  assert.match(m, />1,130</);
+  // Peak: January 310+520+300 = 1,130 (tCO₂e: 3 decimals, #209).
+  assert.match(m, />1,130\.000</);
   assert.equal(count(m, /font-weight="700"/g), 2, "the total line and the peak only");
   for (const mon of ["Jan", "Jul", "Dec"]) assert.match(m, new RegExp(`>${mon}<`));
   const q = el("g.monthly_plain");
@@ -106,13 +106,13 @@ test("base-year bridge: base → Δ by scope → current; the compare and by-yea
   assert.equal(steps[3].to, steps[4].to, "the drivers land on the current total");
   assert.equal(steps[0].to, 13900);
   const w = el("g.base_year_waterfall");
-  assert.match(w, />−490</);
-  assert.match(w, />13,900</);
+  assert.match(w, />−490\.000</);
+  assert.match(w, />13,900\.000</);
   assert.match(w, /data-steps="5"/);
   const c = el("g.bridge_compare");
   assert.match(c, /data-steps="3"/);
   assert.match(c, /data-key="2022"/);
-  assert.match(c, />−1,420</);
+  assert.match(c, />−1,420\.000</);
   const y = R.bridgeSteps({ display: "", value: null, unit: null, series: [{ label: "Total", values: [{ key: "2024", value: 10 }, { key: "2025", value: 12 }] }] });
   assert.deepEqual(y.map((s) => [s.key, s.from, s.to]), [["2024", 0, 10], ["Change", 10, 12], ["2025", 0, 12]]);
   assert.equal(R.bridgeSteps({ display: "", value: null, unit: null, series: [] }), null);
@@ -141,7 +141,7 @@ test("treemap: squarified tiles fill the box in proportion, without overlap", ()
   assert.deepEqual(R.squarify([{ key: "a", value: 0 }], 10, 10), []);
   const tm = el("g.treemap");
   assert.match(tm, /data-tiles="9"/);
-  assert.match(tm, />1,290 · 39%</);
+  assert.match(tm, />1,290\.000 · 39%</);
   assert.doesNotMatch(el("g.treemap_brand"), /· \d+%/, "showValues off hides the values");
 });
 
@@ -263,7 +263,7 @@ test("tables: column widths, merged cells on static tables, columns picked from 
   const bd = html.slice(html.indexOf('data-el-id="t.bound"'));
   // Rows are the years, columns the breakdown (scopes); only Scope 2 is picked.
   assert.match(bd, /<th><\/th><th class="num">Scope 2<\/th><\/tr>/);
-  assert.match(bd, /<tr><td>2023<\/td><td class="num">6,100<\/td><\/tr>/);
+  assert.match(bd, /<tr><td>2023<\/td><td class="num">6,100\.000<\/td><\/tr>/, "series cells in the value's unit: tCO₂e at 3 decimals (#209)");
   assert.doesNotMatch(bd, /Scope 3/);
   assert.deepEqual(R.pickColumns({ columns: ["", "a", "b"], rows: [["x", 1, 2]] }, ["b"]), { columns: ["", "b"], rows: [["x", 2]] });
   assert.deepEqual(R.pickColumns({ columns: ["", "a"], rows: [["x", 1]] }, ["zz"]), { columns: ["", "a"], rows: [["x", 1]] }, "unknown names keep the table");

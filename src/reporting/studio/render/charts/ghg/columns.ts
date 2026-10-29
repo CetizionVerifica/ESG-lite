@@ -16,7 +16,7 @@ import type { RenderSeries } from "../../types";
 import { esc, n3 } from "../../util";
 import { axisWidth, valueGridY } from "../axis";
 import { linearScale } from "../scale";
-import { FONT, SMALL, emptyChart, keysOf, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
+import { FONT, SMALL, emptyChart, insideX, keysOf, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
 import { biggest, currentSeries, headline, partColor, partsOf, shortKey, wrapLegend } from "./common";
 
 export const GAS_UNIT_NOTE = "Tonnes of each gas, not CO₂e.";
@@ -52,7 +52,10 @@ export function gasSplitChart(input: ChartInput): string {
       const t = top + ph - scale.t(Math.max(0, v)) * ph;
       const b = top + ph - scale.t(Math.min(0, v)) * ph;
       body += rect(x + band * 0.15 + sub * si, t, sub * 0.9, b - t, color, ` data-part="${esc(p.key)}" data-year="${esc(s.label)}"`);
-      if (isCur && options.showValues !== false && labelled.has(ki)) body += text(x + band * 0.15 + sub * si + sub * 0.45, t - SMALL * 0.5, formatNumber(v), theme.colors.ink, { size: SMALL, anchor: "middle" });
+      if (isCur && options.showValues !== false && labelled.has(ki)) {
+        const label = formatNumber(v, "auto", value.unit);
+        body += text(insideX(x + band * 0.15 + sub * si + sub * 0.45, label, w), t - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
+      }
     });
     body += text(x + band / 2, top + ph + FONT * 1.2, p.key, theme.colors.ink, { size: SMALL, anchor: "middle" });
   });
@@ -91,7 +94,10 @@ export function monthlyStackChart(input: ChartInput): string {
       body += rect(x + band * 0.16, t, band * 0.68, b - t, colors[si], ` data-part="${esc(s.label)}" data-key="${esc(k)}"`);
       acc += v;
     });
-    if (ki === peak && options.showValues !== false && totals[ki] > 0) body += text(x + band / 2, top + ph - scale.t(totals[ki]) * ph - SMALL * 0.5, formatNumber(totals[ki]), theme.colors.ink, { size: SMALL, anchor: "middle", weight: 700 });
+    if (ki === peak && options.showValues !== false && totals[ki] > 0) {
+      const label = formatNumber(totals[ki], "auto", value.unit);
+      body += text(insideX(x + band / 2, label, w), top + ph - scale.t(totals[ki]) * ph - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: 700 });
+    }
     body += text(x + band / 2, top + ph + FONT * 1.2, shortKey(k), theme.colors.muted, { size: SMALL, anchor: "middle" });
   });
   body += `<g transform="translate(0 ${n3(h - leg.h)})">${leg.svg}</g>`;

@@ -6,7 +6,7 @@ import { formatNumber } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "./svg";
+import { FONT, SMALL, emptyChart, insideX, rect, svgOpen, text, type ChartInput } from "./svg";
 
 export function targetBarsChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
@@ -25,7 +25,8 @@ export function targetBarsChart(input: ChartInput): string {
     if (p.value === null) return;
     const y = top + ph - scale.t(p.value) * ph;
     body += rect(x0 + band * i + band * 0.2, y, band * 0.6, top + ph - y, i === pts.length - 1 ? theme.colors.primary : theme.colors.prior);
-    body += text(x0 + band * (i + 0.5), y - SMALL * 0.5, formatNumber(p.value), theme.colors.ink, { size: SMALL, anchor: "middle" });
+    const label = formatNumber(p.value, "auto", value.unit);
+    body += text(insideX(x0 + band * (i + 0.5), label, w), y - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
   });
   if (options.showTarget !== false && typeof target?.baseline === "number") {
     const y = top + ph - scale.t(target.baseline) * ph;

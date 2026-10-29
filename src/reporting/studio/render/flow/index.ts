@@ -6,7 +6,8 @@
  *   ghg_factor_table, scope3_categories.
  * Tables repeat their header on every page (html.ts) and never split a row.
  * Rows and figures come from RenderData (DS-2 / DS-4 fill them); a section
- * with no rows shows "Not reported" with a reason.
+ * with no rows shows "Not reported" with a reason. A number cell prints in
+ * its row's unit (`FlowRow.unit`; #209: tCO₂e with 3 decimals).
  */
 import type { RenderContext } from "../context";
 import { notReported } from "../data";
@@ -24,7 +25,8 @@ const INDEX_TITLES: Record<string, string> = {
   iso_index: "ISO 14064-1 reporting index",
 };
 
-const cell = (c: string | number | null): string => (c === null || c === undefined ? "–" : typeof c === "number" ? formatNumber(c) : esc(c));
+/** A flow table cell; a number prints in its row's unit's format (#209: tCO₂e with 3 decimals). */
+const cell = (c: string | number | null, unit: string | null = null): string => (c === null || c === undefined ? "–" : typeof c === "number" ? formatNumber(c, "auto", unit) : esc(c));
 
 /** A page reference: the target's page number (target-counter in paged modes). */
 const pageRef = (ref: string | undefined): string => (ref ? `<a class="ds-ref" href="#${esc(ref)}"></a>` : "");
@@ -35,7 +37,7 @@ export function flowTableHtml(t: FlowTable, cls = ""): string {
   const rows = t.rows
     .map((r: FlowRow) => {
       if (r.group) return `<tr class="ds-group"><th colspan="${t.columns.length + (hasRef ? 1 : 0)}">${cell(r.cells[0] ?? "")}</th></tr>`;
-      const cells = r.cells.map((c, i) => `<td${i > 0 && (typeof c === "number" || c === null) ? ' class="num"' : ""}>${i === 0 && r.mark ? `<span class="ds-mark">${esc(r.mark)}</span> ` : ""}${cell(c)}</td>`).join("");
+      const cells = r.cells.map((c, i) => `<td${i > 0 && (typeof c === "number" || c === null) ? ' class="num"' : ""}>${i === 0 && r.mark ? `<span class="ds-mark">${esc(r.mark)}</span> ` : ""}${cell(c, r.unit ?? null)}</td>`).join("");
       return `<tr>${cells}${hasRef ? `<td class="num">${pageRef(r.ref)}</td>` : ""}</tr>`;
     })
     .join("");
