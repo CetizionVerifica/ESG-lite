@@ -244,3 +244,115 @@ test("rounding parity: the renderer prints every half-way tCO₂e value as sourc
   assert.equal(RF.formatNumber(0.5, "int"), "1");
   assert.equal(RF.formatNumber(2.5e21, "int"), "2,500,000,000,000,000,000,000");
 });
+
+// #209 review: each series carries its own unit. A KPI binding mixes KPIs in different canonical
+// units (one series per KPI; value.unit is the first KPI's), and a GHG gas breakdown sends tonnes
+// of each gas while value.unit is tCO₂e. Labels, legends, table cells and stacked totals print
+// by the series' unit, falling back to value.unit only when the series has none.
+const NUMS = require(path.resolve("dist/studio/checks/numbers.js"));
+const sv = (label, unit, pairs) => ({ ...ser(label, pairs), ...(unit === undefined ? {} : { unit }) });
+const ghgS = sv("GHG Scope 1 + 2", "tCO2e", [["2024", 3220], ["2025", 2980]]);
+const waterS = sv("Water withdrawn", "kL", [["2024", 45500], ["2025", 41200]]);
+const shareS = sv("Share of renewable energy", "%", [["2024", 26.5], ["2025", 38]]);
+const chartOf = (kind, v, options = {}) => R.chartRenderer(kind)({ value: { display: "", source: "kpi", ...v }, w: 400, h: 220, theme: R.buildTheme({}), options, label: kind });
+const svgTexts = (svg) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+const rowsOf = (h) => [...h.matchAll(/<tr[^>]*>(.*?)<\/tr>/g)].map((m) => [...m[1].matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((c) => c[1])).filter((r) => r.length);
+
+test("per-series units: seriesUnit and sharedUnit", () => {
+  assert.equal(RF.seriesUnit({ unit: "kL" }, "tCO2e"), "kL", "the series' own unit wins");
+  assert.equal(RF.seriesUnit({}, "tCO2e"), "tCO2e", "absent: the bound value's unit");
+  assert.equal(RF.seriesUnit({ unit: null }, "tCO2e"), null, "null: no unit");
+  assert.equal(RF.seriesUnit(null, "kWh"), "kWh");
+  assert.equal(RF.sharedUnit([ghgS, sv("Scope 3", "tCO₂e", [])], "kL"), "tCO2e", "tonnes in either spelling sum as tonnes");
+  assert.equal(RF.sharedUnit([waterS, sv("b", "kL", [])], "tCO2e"), "kL");
+  assert.equal(RF.sharedUnit([ghgS, waterS], "tCO2e"), null, "a sum across units has none");
+  assert.equal(RF.sharedUnit([ghgS, sv("gas", "t", [])], "tCO2e"), null, "tonnes of a gas are not tonnes of CO₂e");
+  assert.equal(RF.sharedUnit([sv("x", undefined, []), sv("y", undefined, [])], "tCO₂e"), "tCO₂e");
+  assert.equal(RF.sharedUnit([], "tCO₂e"), "tCO₂e");
+});
+
+test("per-series units: a mixed KPI table formats each row in its own unit, whichever KPI is first", () => {
+  for (const [series, unit] of [[[ghgS, waterS, shareS], "tCO2e"], [[waterS, ghgS, shareS], "kL"], [[shareS, waterS, ghgS], "%"]]) {
+    const t = TABLE.tableFromValue({ display: "", value: 0, unit, series });
+    assert.deepEqual(t.units, series.map((s) => s.unit));
+    assert.equal(t.unit, null, "the rows share no unit");
+    const rows = Object.fromEntries(rowsOf(TABLE.tableHtml(t.columns, t.rows, "lined", false, {}, t.units)).map((r) => [r[0], r.slice(1)]));
+    assert.deepEqual(rows["GHG Scope 1 + 2"], ["3,220.000", "2,980.000"], `first: ${series[0].label}`);
+    assert.deepEqual(rows["Water withdrawn"], ["45,500", "41,200"], `first: ${series[0].label}`);
+    assert.deepEqual(rows["Share of renewable energy"], ["26.5", "38"], `first: ${series[0].label}`);
+  }
+  // Rendered through the table element too (bound value lookup, picked columns keep row units).
+  const kb = { source: "kpi", kpis: ["WATER_WITHDRAWAL", "GHG_SCOPE1_2"], years: { last: 2 }, sites: "all" };
+  const page = { id: "p", kind: "freeform", name: "x", background: {}, elements: [el("t.mixed", "table", { x: 10, y: 10, w: 120, h: 30 }, { binding: kb, style: "lined", totalRow: false, columns: ["2025"] })] };
+  const out = R.renderSheet(page, { ...doc, kind: "sustainability", pages: [page] }, R.renderData([kb], [], { values: [{ display: "41,200", value: 41200, unit: "kL", source: "kpi", series: [waterS, ghgS] }] }), { mode: "sheet" }).html;
+  assert.deepEqual(rowsOf(out), [["Water withdrawn", "41,200"], ["GHG Scope 1 + 2", "2,980.000"]]);
+  // A series without its own unit still takes the bound value's (DS-1 single-KPI bindings).
+  assert.deepEqual(TABLE.tableFromValue({ unit: "tCO₂e", series: two }).units, ["tCO₂e"]);
+});
+
+test("per-series units: chart labels follow the series; a stacked total only when every part is tonnes", () => {
+  // One series in kL under a binding whose unit says tCO2e: the series wins.
+  const one = svgTexts(chartOf("bar", { value: 41200, unit: "tCO2e", series: [waterS] }));
+  assert.ok(one.includes("41,200") && one.includes("45,500"), one.join(" | "));
+  assert.ok(!one.some((t) => /\.\d{3}$/.test(t)), one.join(" | "));
+  // Stacked: tonnes + tonnes (two spellings) → 3 decimals; tonnes + kL → auto.
+  const tonnes = svgTexts(chartOf("stacked_bar", { value: 0, unit: "kL", series: [ghgS, sv("Scope 3", "tCO₂e", [["2024", 100], ["2025", 120.5]])] }));
+  assert.ok(tonnes.includes("3,320.000") && tonnes.includes("3,100.500"), tonnes.join(" | "));
+  const mixed = svgTexts(chartOf("stacked_bar", { value: 0, unit: "tCO2e", series: [ghgS, waterS] }));
+  assert.ok(mixed.includes("48,720") && mixed.includes("44,180"), mixed.join(" | "));
+  assert.ok(!mixed.some((t) => /\.\d{3}$/.test(t)), mixed.join(" | "));
+  // Waterfall and target bars read their (first) series' unit.
+  const wf = svgTexts(chartOf("waterfall", { value: 0, unit: "tCO2e", series: [sv("Water", "kL", [["2024", 45500], ["Saved", -4300], ["2025", 41200]])] }));
+  assert.ok(wf.includes("45,500") && wf.includes("−4,300") && wf.includes("41,200"), wf.join(" | "));
+  const tb = svgTexts(chartOf("target_bars", { value: 41200, unit: "tCO2e", series: [waterS], target: { baseline: 50000, value: 30000, year: 2030 } }));
+  assert.ok(tb.includes("41,200") && !tb.some((t) => /\.\d{3}$/.test(t)), tb.join(" | "));
+  // And a tonnes series under a kL value prints 3 decimals.
+  const t2 = svgTexts(chartOf("target_bars", { value: 2980, unit: "kL", series: [ghgS] }));
+  assert.ok(t2.includes("2,980.000"), t2.join(" | "));
+  // Donut fallback total (no display): the parts' shared unit.
+  const dn = svgTexts(chartOf("donut", { value: null, unit: "tCO₂e", series: [sv("2025", "t", [["CO₂", 8350], ["CH₄", 19.8]])] }));
+  assert.ok(dn.includes("8,370"), dn.join(" | "));
+  const dt = svgTexts(chartOf("donut", { value: null, unit: "kL", series: [sv("2025", "tCO2e", [["Scope 1", 3410], ["Scope 2", 5800.25]])] }));
+  assert.ok(dt.includes("9,210.250"), dt.join(" | "));
+});
+
+test("per-series units: a GHG gas breakdown is tonnes of each gas: labels, legend and table keep auto", () => {
+  const gas = { value: 12480, unit: "tCO₂e", source: "ghg", display: "12,480.000", series: [sv("2024", "t", [["CO₂", 8600], ["CH₄", 21.4], ["N₂O", 3.1]]), sv("2025", "t", [["CO₂", 8350], ["CH₄", 19.8], ["N₂O", 2.9]])] };
+  const g = svgTexts(chartOf("gas_split", gas));
+  for (const s of ["8,350", "19.8", "2.9"]) assert.ok(g.includes(s), `${s} in ${g.join(" | ")}`);
+  assert.ok(!g.some((t) => /^[\d,]+\.\d{3}$/.test(t)), g.join(" | "));
+  assert.ok(g.includes("Total emissions 12,480.000 tCO₂e"), "the headline is the server's tCO₂e display");
+  const t = TABLE.tableFromValue(gas);
+  assert.deepEqual(rowsOf(TABLE.tableHtml(t.columns, t.rows, "lined", false, {}, t.units)), [["2024", "8,600", "21.4", "3.1"], ["2025", "8,350", "19.8", "2.9"]]);
+  // Without the series unit (an older resolve) the binding's tCO₂e applies, as before.
+  const old = svgTexts(chartOf("gas_split", { ...gas, series: gas.series.map(({ unit, ...s }) => s) }));
+  assert.ok(old.includes("19.800"), old.join(" | "));
+  // Ranked bars, treemap, scope legend and the intensity line read the current series' unit too.
+  const cats = { value: 3270, unit: "tCO₂e", display: "3,270.000", series: [sv("2025", "kL", [["A", 1290], ["B", 620]])] };
+  assert.ok(svgTexts(chartOf("category_bars", cats)).includes("1,290"));
+  assert.ok(svgTexts(chartOf("scope_split", { ...cats, series: [sv("2025", "kL", [["Scope 1", 3410], ["Scope 2", 5800]])] })).includes("Scope 1 3,410"));
+  assert.ok(svgTexts(chartOf("treemap", { ...cats, display: "" }, {})).some((x) => x.startsWith("1,290 ·")));
+  assert.ok(svgTexts(chartOf("intensity_line", { value: 2, unit: "kL", series: [sv("x", "tCO2e", [["2024", 1], ["2025", 2]])] })).includes("2.000"));
+  // The base-year bridge: the unit both years share.
+  const br = svgTexts(chartOf("base_year_waterfall", { value: 2980, unit: "kL", series: [sv("2022", "tCO2e", [["Scope 1", 3900]]), sv("2025", "tCO2e", [["Scope 1", 2980]])] }));
+  assert.ok(br.includes("3,900.000") && br.includes("−920.000"), br.join(" | "));
+});
+
+test("per-series units: number-check candidates take a series' own unit", () => {
+  const binding = { source: "kpi", kpis: ["GHG_SCOPE1_2", "WATER_WITHDRAWAL"], years: { last: 2 }, sites: "all" };
+  const r = { source: "kpi", display: "2,980.000", value: 2980, unit: "tCO2e", series: [ghgS, waterS] };
+  const c = NUMS.numberCandidates({ doc: { meta: { frameworks: [] } }, ix: { bindings: [{ idx: 0, binding }], tokens: [] }, resolved: { values: [r], tokens: [] }, inputs: {} });
+  const unitOf = (v) => c.filter((x) => x.value === v && x.ref?.kind === "binding" && x.unit !== "%").map((x) => x.unit);
+  assert.deepEqual(unitOf(41200), ["kL"]);
+  assert.deepEqual(unitOf(3220), ["tCO2e"]);
+});
+
+test("per-series units: a series' unit is not data, so stored data hashes stay valid", () => {
+  const H = require(path.resolve("dist/studio/sources/hash.js"));
+  const base = { source: "kpi", display: "2,980.000", value: 2980, unit: "tCO2e", series: [ser("GHG", [["2025", 2980]]), ser("Water", [["2025", 41200]])] };
+  const withUnits = { ...base, series: [{ ...base.series[0], unit: "tCO2e" }, { ...base.series[1], unit: "kL" }] };
+  const args = (v) => ({ year: 2025, yearType: "CY", siteIds: [1], values: [v], inputs: {} });
+  assert.equal(H.dataHash(args(withUnits)), H.dataHash(args(base)));
+  assert.equal(H.elementHash([withUnits]), H.elementHash([base]));
+  assert.notEqual(H.dataHash(args({ ...withUnits, series: [withUnits.series[0]] })), H.dataHash(args(base)), "the series' values still count");
+});

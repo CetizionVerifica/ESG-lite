@@ -35,6 +35,8 @@ import { exclusionFor } from "./inputs";
 import type { Comparison, ResolveContext, ResolvedBinding, Series, UnavailableReason } from "./types";
 
 export const TCO2E = "tCO₂e";
+/** #209 review: the unit of a `gas` breakdown's parts: tonnes of each gas (CO₂, CH₄, N₂O), not tCO₂e. */
+export const GAS_TONNES = "t";
 
 /** The /reports/ghg filters for a year and sites (report.controller.ts parseGhgRequest, yearly). */
 export const ghgFilters = (year: number, yearType: YearType, siteIds: number[], compareYear?: number): GhgFilters => ({
@@ -408,7 +410,8 @@ export async function resolveGhg(L: GhgLoader, ctx: ResolveContext, b: GhgBindin
     const perYear = [];
     for (const y of years) perYear.push({ year: y, points: await breakdownPoints(L, ctx, b, y, sites) });
     const topped = applyTop(perYear, current, b.top);
-    out.series = topped.map((s) => ({ label: String(s.year), values: s.points }));
+    // #209 review: gas parts are tonnes of each gas, so they say so; other parts are in the metric's unit.
+    out.series = topped.map((s) => ({ label: String(s.year), values: s.points, ...(b.breakdown === "gas" ? { unit: GAS_TONNES } : {}) }));
     out.total = main.value;
     // DS-8: months (quarters) of the current year stacked by scope, for monthly_stack.
     if ((b.breakdown === "month" || b.breakdown === "quarter") && SCOPE_OF[b.metric]) out.stacks = await scopeStacks(L, ctx, b, current, sites);

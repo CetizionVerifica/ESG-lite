@@ -82,6 +82,9 @@ test("labelling: totals come from display; only the three biggest parts carry a 
   // Gas figures are tonnes of each gas, said under the chart.
   assert.match(el("g.gas_split"), /Tonnes of each gas, not CO₂e\./);
   assert.equal(count(el("g.gas_split"), /data-year="2024"/g), 3);
+  // #209 review: so their labels follow the series' unit ("t", each gas), not the binding's tCO₂e.
+  for (const n of ["8,350", "19.8", "2.9"]) assert.match(el("g.gas_split"), new RegExp(`>${n}<`));
+  assert.doesNotMatch(el("g.gas_split"), />[\d,]+\.\d{3}</);
 });
 
 test("monthly_stack: months stacked by scope, only the peak month labelled", () => {

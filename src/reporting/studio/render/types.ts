@@ -195,6 +195,11 @@ export interface RenderDoc {
 export interface RenderSeries {
   label: string;
   values: { key: string; value: number | null }[];
+  /**
+   * #209 review: the unit of this series' values (a KPI binding mixes units; gas parts are
+   * tonnes of each gas). Absent: the bound value's `unit`. Null: no unit (`auto`).
+   */
+  unit?: string | null;
 }
 
 export interface RenderValue {

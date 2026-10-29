@@ -5,7 +5,7 @@
  * the total line comes from the server's display.
  * Binding: ghg · breakdown scope3_category (or source_category, fuel, site).
  */
-import { formatNumber } from "../../format";
+import { formatNumber, seriesUnit } from "../../format";
 import { contrastRatio, mix } from "../../theme";
 import { esc, n3 } from "../../util";
 import { FONT, SMALL, emptyChart, labelWidth, rect, svgOpen, text, type ChartInput } from "../svg";
@@ -77,7 +77,9 @@ export function squarify(parts: Part[], w: number, h: number): Tile[] {
 
 export function treemapChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
-  const ps = ranked(partsOf(currentSeries(value)).filter((p) => p.value > 0));
+  const cur = currentSeries(value);
+  const unit = seriesUnit(cur, value.unit); // #209 review: the series' own unit
+  const ps = ranked(partsOf(cur).filter((p) => p.value > 0));
   const sum = total(ps);
   if (!ps.length || sum <= 0) return emptyChart(w, h, "No data", theme);
   const head = headline(value, theme);
@@ -93,7 +95,7 @@ export function treemapChart(input: ChartInput): string {
     if (t.h >= SMALL * 2.4 && chars >= 4) {
       body += text(t.x + SMALL * 0.5, y + SMALL * 1.3, clip(t.key, chars), ink, { size: SMALL, weight: 700 });
       if (t.h >= SMALL * 3.8 && options.showValues !== false) {
-        const v = formatNumber(t.value, "auto", value.unit);
+        const v = formatNumber(t.value, "auto", unit);
         const share = pct(t.value / sum);
         const room = t.w - SMALL;
         // A value too long for "value · share" on one line (a 3-decimal tCO₂e figure, #209) puts the share on a line of its own when the tile is tall enough.

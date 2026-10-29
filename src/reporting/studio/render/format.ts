@@ -11,7 +11,7 @@
  * intensities, counts, custom data with no unit) keeps `auto`. Axis ticks
  * keep `auto` (they are scale marks, not figures).
  */
-import type { NumberFormat } from "./types";
+import type { NumberFormat, RenderSeries } from "./types";
 
 /** Decimals of a tCO₂e figure: ESG-lite src/services/emissionWrite/round.ts TONNES_DP (#209). */
 export const TONNES_DP = 3;
@@ -29,6 +29,25 @@ export const isTonnesCo2e = (unit: string | null | undefined): boolean => {
     .replace(/[₀-₉]/g, (c) => String(c.charCodeAt(0) - 0x2080))
     .replace(/[\s-]+/g, "");
   return /^(t|tonnes?|metrictonnes?)co2e(q)?$/.test(u);
+};
+
+/**
+ * #209 review: the unit of a series' values: its own `unit` when the source sent one (a KPI
+ * binding mixes KPIs in different units; a GHG gas breakdown is tonnes of each gas), else the
+ * bound value's unit. An explicit null means no unit.
+ */
+export const seriesUnit = (s: Pick<RenderSeries, "unit"> | null | undefined, valueUnit: string | null | undefined): string | null =>
+  s && s.unit !== undefined ? s.unit : (valueUnit ?? null);
+
+/**
+ * The unit of a figure summed over several series (a stacked total, a donut's total): the
+ * series' shared unit, tonnes of CO₂e when every one is (whatever the spelling), else null
+ * (`auto`), so a sum across units never prints as tCO₂e. No series: the bound value's unit.
+ */
+export const sharedUnit = (series: Pick<RenderSeries, "unit">[], valueUnit: string | null | undefined): string | null => {
+  if (!series.length) return valueUnit ?? null;
+  const units = series.map((s) => seriesUnit(s, valueUnit));
+  return units.every((u) => u === units[0]) || units.every(isTonnesCo2e) ? units[0] : null;
 };
 
 const group = (intPart: string, indian: boolean): string => {

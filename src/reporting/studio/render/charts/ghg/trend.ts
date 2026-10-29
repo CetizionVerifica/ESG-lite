@@ -9,7 +9,7 @@
  *                        points labelled and the unit above.
  *                        Binding: ghg · metric intensity_* · years last n.
  */
-import { formatNumber } from "../../format";
+import { formatNumber, seriesUnit, sharedUnit } from "../../format";
 import { esc, n3 } from "../../util";
 import { axisWidth, bandLabels, valueGridY } from "../axis";
 import { linearScale } from "../scale";
@@ -58,9 +58,22 @@ export function bridgeSteps(value: ChartInput["value"]): Step[] | null {
   return null;
 }
 
+/**
+ * #209 review: the unit of the bridge's figures, read from the same data as `bridgeSteps`: by
+ * scope, the unit both years' series share; compare, the bound value's; by year, the series'.
+ */
+export function bridgeUnit(value: ChartInput["value"]): string | null {
+  const series = value.series ?? [];
+  if (series.length >= 2) return sharedUnit([series[0], series[series.length - 1]], value.unit);
+  const c = value.compare;
+  if (c && c.value !== null && c.value !== undefined && value.value !== null) return value.unit ?? null;
+  return seriesUnit(series[0], value.unit);
+}
+
 export function baseYearWaterfallChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
   const steps = bridgeSteps(value);
+  const unit = bridgeUnit(value);
   if (!steps) return emptyChart(w, h, "Needs the base year and the current year", theme);
   const scale = linearScale(Math.min(0, ...steps.map((s) => Math.min(s.from, s.to))), Math.max(...steps.map((s) => Math.max(s.from, s.to))), 4);
   const x0 = axisWidth(scale);
@@ -81,7 +94,7 @@ export function baseYearWaterfallChart(input: ChartInput): string {
     }
     if (options.showValues !== false) {
       const d = s.to - s.from;
-      const label = s.kind === "abs" ? formatNumber(s.to, "auto", value.unit) : `${d >= 0 ? "+" : "−"}${formatNumber(Math.abs(d), "auto", value.unit)}`;
+      const label = s.kind === "abs" ? formatNumber(s.to, "auto", unit) : `${d >= 0 ? "+" : "−"}${formatNumber(Math.abs(d), "auto", unit)}`;
       body += text(insideX(x0 + band * (i + 0.5), label, w), y1 - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: s.kind === "abs" ? 700 : undefined });
     }
   });
@@ -114,7 +127,7 @@ export function intensityLineChart(input: ChartInput): string {
     const last = i === pts.length - 1;
     body += `<circle cx="${n3(x)}" cy="${n3(y)}" r="${last ? 3 : 2.2}" fill="${last ? theme.colors.accent : color}" data-key="${esc(p.key)}"/>`;
     if (options.showValues !== false && (i === 0 || last)) {
-      const label = formatNumber(p.value, "auto", value.unit);
+      const label = formatNumber(p.value, "auto", seriesUnit(s, value.unit));
       body += text(insideX(x, label, w), y - SMALL * 0.9, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: last ? 700 : undefined });
     }
   });

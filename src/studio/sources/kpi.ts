@@ -18,6 +18,9 @@
  * `value` is the first KPI's figure for the current year; `series` has one
  * series per KPI over the years, or with `breakdown` one series per year:
  * 'site' → per site, anything else → the KPI's breakdown parts (sum KPIs).
+ * `unit` is the binding's unit or the first KPI's canonical unit; each series
+ * carries its own `unit` (#209 review: KPIs in one binding can differ, e.g.
+ * tCO2e, kL and %), so the renderer formats each in its own unit.
  */
 import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../../config/data-source";
@@ -170,15 +173,16 @@ export async function resolveKpi(L: KpiLoader, ctx: ResolveContext, b: KpiBindin
     ...(value === null && cur.text === null ? { unavailable: { reason: "NO_DATA" as const } } : {}),
   };
 
+  // #209 review: every series carries its unit; with several KPIs each is in its own (or the binding's).
   if (b.breakdown === "site") {
-    out.series = years.map((y) => ({ label: String(y), values: sites.map((s) => ({ key: String(s), value: conv(first, fig(first, y, s).value) })) }));
+    out.series = years.map((y) => ({ label: String(y), values: sites.map((s) => ({ key: String(s), value: conv(first, fig(first, y, s).value) })), unit }));
   } else if (b.breakdown) {
     out.series = years.map((y) => {
       const parts = fig(first, y).breakdown ?? {};
-      return { label: String(y), values: Object.keys(parts).sort().map((k) => ({ key: k, value: conv(first, parts[k]) })) };
+      return { label: String(y), values: Object.keys(parts).sort().map((k) => ({ key: k, value: conv(first, parts[k]) })), unit };
     });
   } else {
-    out.series = codes.map((c) => ({ label: c.name, values: years.map((y) => ({ key: String(y), value: conv(c, fig(c, y).value) })) }));
+    out.series = codes.map((c) => ({ label: c.name, values: years.map((y) => ({ key: String(y), value: conv(c, fig(c, y).value) })), unit: b.unit ?? c.unit }));
   }
   if (b.breakdown || codes.length > 1) out.total = value;
 

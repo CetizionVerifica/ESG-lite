@@ -3,7 +3,7 @@
  * Prior years are grey and the latest is highlighted (greyPrior); bars start
  * at zero; `horizontal` lays categories down the side.
  */
-import { formatNumber } from "../format";
+import { formatNumber, sharedUnit } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, valueGridX, valueGridY } from "./axis";
 import { linearScale } from "./scale";
@@ -21,7 +21,9 @@ function draw(input: ChartInput, stacked: boolean): string {
   const scale = stacked ? linearScale(Math.min(...negs), Math.max(...totals)) : linearScale(Math.min(...all), Math.max(...all));
   const legendH = multi ? SMALL * 2 : 0;
   const latest = keys[keys.length - 1];
-  const valueText = (v: number) => formatNumber(v, "auto", value.unit);
+  // #209 review: a label is one series' value or a stacked total; it prints in the series' unit, a total only in the unit every summed series shares.
+  const labelUnit = sharedUnit(series, value.unit);
+  const valueText = (v: number) => formatNumber(v, "auto", labelUnit);
   const colorFor = (si: number, key: string): string => {
     if (!multi && options.greyPrior !== false && isYearKey(key) && keys.length > 1 && key !== latest) return theme.colors.prior;
     return seriesColor(theme, series[si].label, si);

@@ -6,7 +6,7 @@
  * location-based" (market-based isn't recorded, D7).
  * Binding: ghg · metric total · breakdown scope.
  */
-import { formatNumber } from "../../format";
+import { formatNumber, seriesUnit } from "../../format";
 import { esc, n3 } from "../../util";
 import { FONT, SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "../svg";
 import { biggest, currentSeries, headline, partColor, partsOf, pct, total, wrapLegend } from "./common";
@@ -15,13 +15,14 @@ export const SCOPE2_BASIS_NOTE = "Scope 2: location-based. Market-based isn't re
 
 export function scopeSplitChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
-  const ps = partsOf(currentSeries(value)).filter((p) => p.value > 0);
+  const cur = currentSeries(value);
+  const ps = partsOf(cur).filter((p) => p.value > 0);
   const sum = total(ps);
   if (!ps.length || sum <= 0) return emptyChart(w, h, "No data", theme);
   const colors = ps.map((p, i) => partColor(input, p.key, i));
   const labelled = biggest(ps, 3);
   const note = options.basisNote !== false;
-  const legendItems = ps.map((p, i) => ({ label: `${p.key} ${formatNumber(p.value, "auto", value.unit)}`, color: colors[i] }));
+  const legendItems = ps.map((p, i) => ({ label: `${p.key} ${formatNumber(p.value, "auto", seriesUnit(cur, value.unit))}`, color: colors[i] }));
   let body = "";
 
   if (options.variant === "donut") {

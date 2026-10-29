@@ -2,7 +2,7 @@
  * DS-1 · `target_bars`: one bar per year (first series), a dashed baseline and
  * a target marker with its year, from `value.target`.
  */
-import { formatNumber } from "../format";
+import { formatNumber, seriesUnit } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, valueGridY } from "./axis";
 import { linearScale } from "./scale";
@@ -11,6 +11,7 @@ import { FONT, SMALL, emptyChart, insideX, rect, svgOpen, text, type ChartInput 
 export function targetBarsChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
   const pts = value.series?.[0]?.values ?? [];
+  const unit = seriesUnit(value.series?.[0], value.unit); // #209 review: the series' own unit
   const target = value.target ?? null;
   if (!pts.length) return emptyChart(w, h, "No data", theme);
   const marks = [target?.baseline, target?.value].filter((v): v is number => typeof v === "number");
@@ -25,7 +26,7 @@ export function targetBarsChart(input: ChartInput): string {
     if (p.value === null) return;
     const y = top + ph - scale.t(p.value) * ph;
     body += rect(x0 + band * i + band * 0.2, y, band * 0.6, top + ph - y, i === pts.length - 1 ? theme.colors.primary : theme.colors.prior);
-    const label = formatNumber(p.value, "auto", value.unit);
+    const label = formatNumber(p.value, "auto", unit);
     body += text(insideX(x0 + band * (i + 0.5), label, w), y - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
   });
   if (options.showTarget !== false && typeof target?.baseline === "number") {

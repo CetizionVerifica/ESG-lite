@@ -10,7 +10,7 @@
  *                  peak month carries a value label.
  *                  Binding: ghg · metric total (or one scope) · breakdown month | quarter.
  */
-import { formatNumber } from "../../format";
+import { formatNumber, seriesUnit, sharedUnit } from "../../format";
 import { mix } from "../../theme";
 import type { RenderSeries } from "../../types";
 import { esc, n3 } from "../../util";
@@ -53,7 +53,8 @@ export function gasSplitChart(input: ChartInput): string {
       const b = top + ph - scale.t(Math.min(0, v)) * ph;
       body += rect(x + band * 0.15 + sub * si, t, sub * 0.9, b - t, color, ` data-part="${esc(p.key)}" data-year="${esc(s.label)}"`);
       if (isCur && options.showValues !== false && labelled.has(ki)) {
-        const label = formatNumber(v, "auto", value.unit);
+        // #209 review: gas parts are tonnes of each gas (the series' unit), not tCO₂e.
+        const label = formatNumber(v, "auto", seriesUnit(s, value.unit));
         body += text(insideX(x + band * 0.15 + sub * si + sub * 0.45, label, w), t - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle" });
       }
     });
@@ -95,7 +96,7 @@ export function monthlyStackChart(input: ChartInput): string {
       acc += v;
     });
     if (ki === peak && options.showValues !== false && totals[ki] > 0) {
-      const label = formatNumber(totals[ki], "auto", value.unit);
+      const label = formatNumber(totals[ki], "auto", sharedUnit(stacks, value.unit));
       body += text(insideX(x + band / 2, label, w), top + ph - scale.t(totals[ki]) * ph - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: 700 });
     }
     body += text(x + band / 2, top + ph + FONT * 1.2, shortKey(k), theme.colors.muted, { size: SMALL, anchor: "middle" });
