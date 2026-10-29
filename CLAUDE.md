@@ -70,3 +70,10 @@
 - New figures (index, LMDI drivers, flow widths, rule values) are computed only in `src/insights/derive/`. Approved data only; every panel returns `pending_not_in`.
 - Insight cards come from deterministic rules in `src/insights/rules/`. AI may reword a card (IN-9) with `{{v:key}}` tokens only — never numbers, never new claims. Log every call in `insight_ai_call`.
 - Don't change Overview, Targets, `/kpi/dashboard`, `/kpi/esg`, the GHG report or KPI-11 behaviour for Insights. New tables ship as idempotent `migrate:in-*` scripts. Every new endpoint gets tenant-isolation, role, site-scope and switch-off tests.
+
+## Help assistant ("Ask ESGLite") — see docs/assistant/
+- Switch: `company.assistant_enabled` (default off, Superadmin only, audited). `POST /assistant/chat` answers 403 `AS_OFF` while off; `GET /assistant/status` always answers. Superadmins can always use it.
+- AS-1 answers only from `src/assistant/kb/*.md` and reads no client data. Users' articles never mention factors, methods, FERA/Category 3, WTT or data quality.
+- The assistant never approves, rejects, edits, deletes or saves, and never computes a number. Log every model call in `assistant_call` (no question or answer text).
+- Questions, earlier turns and page/form details are fenced as untrusted data. Answers are JSON, sources only from the articles offered, links only to app paths.
+- New articles need a question in `kb/evals.json`; `ci/unit/as-1-assistant.test.cjs` checks the search finds them.

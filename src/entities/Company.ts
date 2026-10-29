@@ -111,6 +111,12 @@ export class Company {
   @Column({ default: false })
   insights_enabled!: boolean;
 
+  // AS-1: the help assistant (docs/assistant/). Off by default: with it off
+  // POST /assistant/chat answers AS_OFF. Superadmin toggles it through
+  // PUT /admin/companies/:id (migrate:as-1-assistant).
+  @Column({ default: false })
+  assistant_enabled!: boolean;
+
   // DS-13: review settings for Design Studio (migrate:ds-13-collab). With
   // report_require_review on, a final needs an approval for the current rev
   // (Managers set it); brand_controls limits colours and fonts to the brand
