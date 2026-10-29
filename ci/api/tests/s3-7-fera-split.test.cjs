@@ -370,3 +370,28 @@ test("migrate:scope3-fera-sub backfills old twins, and a second run changes noth
   const parents = await withDb(async (db) => (await db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE scope3_sub IS NOT NULL AND category_id <> 5`)).rows[0].n);
   assert.equal(parents, 0, "only FERA rows get a sub-activity");
 });
+
+// N4 with D6a: the WTT factor lives in the FERA category, but its part sits in the Cat 4 row's own total.
+test("D6a: correcting the WTT factor recalculates the Cat 4 rows whose totals include it", async () => {
+  const res = await call("POST", "/user/emissions", "otherUser", { site_id: SITE, category_id: FREIGHT, date_of_reporting: "2025-07-15", activity_data_unit: "tonne.km", activity_data: { emission_category: "HGV S3-7 split", activity_value: "1000" } });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  const id = res.json.emission.pk_id;
+  assert.equal(Number(res.json.emission.total_emission), 0.11);
+  try {
+    await withDb((db) => db.query(`UPDATE emission_factors SET factor_value = 0.03 WHERE emission_factor_id = 943`));
+    const preview = await call("GET", "/admin/emission-factors/943/recalculate", "superadmin");
+    assert.equal(preview.status, 200, JSON.stringify(preview.json));
+    const mine = preview.json.changes.find((c) => Number(c.pk_id) === Number(id));
+    assert.deepEqual([mine?.old_total, mine?.new_total], [0.11, 0.12], "1,000 tonne.km × (0.09 + 0.03 WTT) = 120 kg");
+    const done = await call("POST", "/admin/emission-factors/943/recalculate", "superadmin");
+    assert.equal(done.status, 200, JSON.stringify(done.json));
+    const [saved] = await withDb(async (db) =>
+      (await db.query(`SELECT total_emission::float8 AS total, total_kgco2e::text AS kg, fera_linked_id, emission_factor_snapshot AS snap FROM emission WHERE pk_id = $1`, [id])).rows,
+    );
+    assert.deepEqual([saved.total, saved.kg, saved.fera_linked_id], [0.12, "120.0000", null]);
+    assert.deepEqual([Number(saved.snap.factor_value), Number(saved.snap.wtt.factor_value), saved.snap.wtt.kgco2e], [0.09, 0.03, "30.0000"], "the row's own factor stays; the WTT part moves");
+    assert.deepEqual(await twinsOf(id), [], "and it still has no twin");
+  } finally {
+    await withDb((db) => db.query(`UPDATE emission_factors SET factor_value = 0.02 WHERE emission_factor_id = 943`));
+  }
+});

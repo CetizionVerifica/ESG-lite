@@ -167,3 +167,18 @@ test("D6a: kg are summed before the tonnes are rounded", () => {
   // 4.9960 + 0.0045 kg = 5.0005 kg → 0.01 t (each part alone would round to 0.00 t and 0.00 t).
   assert.deepEqual(withWtt({ total: 0, total_kgco2e: "4.9960" }, { total_kgco2e: "0.0045", factor: {} }), { total: 0.01, total_kgco2e: "5.0005" });
 });
+
+test("D6a: the WTT factor's gases and biogenic CO₂ go in the row, as its twin held them", () => {
+  // 1,000 tonne.km on a WTT factor of 0.02 kgCO₂e with gas parts 0.019 CO₂, 0.0002 CH4 and 0.001 biogenic CO₂ per tonne.km.
+  const name = "HGV gases";
+  const c = ctx("Scope 3", [factor(name, 0.02, "tonne.km", "wtt", { co2_kg: "0.019", ch4_kg: "0.0002", biogenic_co2_kg: "0.001" })], { category_name: "Upstream Transportation and Distribution" });
+  const part = wttPartFor(c, name, { quantity: 1000 }, "tonne.km", 2024);
+  assert.deepEqual([part.gas_kg, part.biogenic_kg], [{ CO2: 19, CH4: 0.2 }, "1.0000"]);
+  const row = withWtt({ total: 0.09, total_kgco2e: "90.0000", gas_kg: { CO2: 88, N2O: 0.5 }, biogenic_kg: "2.5000" }, part);
+  assert.deepEqual([row.total, row.total_kgco2e, row.gas_kg, row.biogenic_kg], [0.11, "110.0000", { CO2: 107, CH4: 0.2, N2O: 0.5 }, "3.5000"]);
+  // A row factor with no gas parts ("not tracked") keeps none of its own; the WTT's gases are still counted, as the twin's were.
+  assert.deepEqual(withWtt({ total: 0.09, total_kgco2e: "90.0000" }, part).gas_kg, { CO2: 19, CH4: 0.2 });
+  // A WTT factor with no gas parts leaves the row's gases as they are.
+  const plain = wttPartFor(ctx("Scope 3", [factor(name, 0.02, "tonne.km", "wtt")], { category_name: "Business Travel" }), name, { quantity: 1000 }, "tonne.km", 2024);
+  assert.deepEqual(withWtt({ total: 0.09, total_kgco2e: "90.0000", gas_kg: { CO2: 88 } }, plain), { total: 0.11, total_kgco2e: "110.0000", gas_kg: { CO2: 88 } });
+});

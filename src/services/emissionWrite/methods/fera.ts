@@ -195,18 +195,37 @@ export interface WttPart {
   factor: EmissionFactor;
   /** kgCO₂e at 4 dp. */
   total_kgco2e: string;
+  /** kg of each gas and of biogenic CO₂ from the WTT factor's gas parts, as its twin stored them; unset when it has none. */
+  gas_kg?: Partial<Record<Gas, number>>;
+  biogenic_kg?: string;
 }
 
 /** The WTT part of a Category 4, 6, 7 or 9 row: the FERA twin it would have had. Null when there is none. */
 export const wttPartFor = (ctx: CategoryContext, emissionCategory: string, activity_data: Record<string, any>, activity_unit: string | null | undefined, targetYear: number): WttPart | null => {
   const twin = feraTwinFor(ctx, emissionCategory, activity_data, activity_unit, targetYear);
-  return twin ? { factor: twin.factor, total_kgco2e: twin.total_kgco2e } : null;
+  if (!twin) return null;
+  return {
+    factor: twin.factor,
+    total_kgco2e: twin.total_kgco2e,
+    ...(twin.gas_kg ? { gas_kg: twin.gas_kg } : {}),
+    ...(twin.biogenic_kg !== undefined ? { biogenic_kg: twin.biogenic_kg } : {}),
+  };
 };
 
-/** The row's total with its WTT part added: kgCO₂e summed at 4 dp, tCO₂e at 2 dp from that sum. */
-export const withWtt = <C extends { total: number; total_kgco2e?: string }>(computed: C, part: WttPart): C => {
+/**
+ * The row's total with its WTT part added: kgCO₂e summed at 4 dp, tCO₂e at 2 dp from that sum.
+ * The WTT factor's gases and biogenic CO₂ are added too, so per-gas totals keep what the twin held.
+ */
+export const withWtt = <C extends { total: number; total_kgco2e?: string; gas_kg?: Partial<Record<Gas, number>>; biogenic_kg?: string }>(computed: C, part: WttPart): C => {
   const kg = Number(computed.total_kgco2e ?? computed.total * 1000) + Number(part.total_kgco2e);
-  return { ...computed, total: Math.round((kg / 1000) * 100) / 100, total_kgco2e: kg.toFixed(4) };
+  const out: C = { ...computed, total: Math.round((kg / 1000) * 100) / 100, total_kgco2e: kg.toFixed(4) };
+  if (part.gas_kg) {
+    const gases: Partial<Record<Gas, number>> = { ...(computed.gas_kg ?? {}) };
+    for (const [gas, v] of Object.entries(part.gas_kg) as [Gas, number][]) gases[gas] = Math.round(((gases[gas] ?? 0) + v) * 10000) / 10000;
+    out.gas_kg = gases;
+  }
+  if (part.biogenic_kg !== undefined) out.biogenic_kg = (Number(computed.biogenic_kg ?? 0) + Number(part.biogenic_kg)).toFixed(4);
+  return out;
 };
 
 /**
