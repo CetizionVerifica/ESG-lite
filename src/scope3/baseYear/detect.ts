@@ -85,11 +85,16 @@ export interface Comparison {
   changes: BaseYearChange[];
   /** Same set of changes → same signature (a dismissed proposal is not raised again). */
   signature: string;
+  /** The signature as worked out before #209 (tCO₂e deltas at 2 dp), which a proposal dismissed then still holds. */
+  legacy_signature: string;
 }
 
+const round4 = (n: number) => Math.round(n * 10000) / 10000;
 const round3 = (n: number) => Math.round(n * 1000) / 1000; // #209: tCO₂e to 3 dp
+const round2 = (n: number) => Math.round(n * 100) / 100;
 const round1 = (n: number) => Math.round(n * 10) / 10;
 export const kgToT = (kg: number) => round3(kg / 1000);
+const hash = (x: unknown) => createHash("sha1").update(JSON.stringify(x)).digest("hex").slice(0, 16);
 
 /** 15 categories in order, then Unmapped (n null): kg summed per category, then rounded. */
 export function categoryTotals(rows: Record<string, RowPrint>): { total_kg: number; total_tco2e: number; categories: CategoryTotal[] } {
@@ -103,6 +108,16 @@ export function categoryTotals(rows: Record<string, RowPrint>): { total_kg: numb
   for (let n = 1; n <= 15; n++) categories.push({ n, tco2e: kgToT(kg.get(n) ?? 0) });
   categories.push({ n: null, tco2e: kgToT(kg.get(null) ?? 0) });
   return { total_kg: total, total_tco2e: kgToT(total), categories };
+}
+
+/**
+ * #209: the snapshot with its tCO₂e totals worked out again from its rows' kg, at today's precision.
+ * A snapshot frozen before #209 stores them at 2 dp; the stored snapshot is never rewritten.
+ */
+export function retotalled(s: BaseYearSnapshot): BaseYearSnapshot {
+  if (!s?.rows) return s;
+  const { total_tco2e, categories } = categoryTotals(s.rows);
+  return { ...s, total_tco2e, categories };
 }
 
 /** kg-weighted dq.overall of rows that have one; null when none do. */
@@ -192,9 +207,11 @@ export function detectChanges(snapshot: BaseYearSnapshot, current: FrozenState, 
     if (Number(n) === 11 && (now[1] ?? null) !== (note ?? null)) add("methodology", "cat11_assumption", 11, null, 0, 0);
   }
 
-  const changes: BaseYearChange[] = [...acc.values()]
-    .map((c) => ({ reason: c.reason, kind: c.kind, n: c.n, site_id: c.site_id, rows: c.rows, delta_tco2e: kgToT(c.kg) }))
-    .sort((a, b) => Math.abs(b.delta_tco2e) - Math.abs(a.delta_tco2e) || (a.n ?? 99) - (b.n ?? 99) || (a.site_id ?? 0) - (b.site_id ?? 0) || a.kind.localeCompare(b.kind));
+  const listChanges = (toT: (kg: number) => number): BaseYearChange[] =>
+    [...acc.values()]
+      .map((c) => ({ reason: c.reason, kind: c.kind, n: c.n, site_id: c.site_id, rows: c.rows, delta_tco2e: toT(c.kg) }))
+      .sort((a, b) => Math.abs(b.delta_tco2e) - Math.abs(a.delta_tco2e) || (a.n ?? 99) - (b.n ?? 99) || (a.site_id ?? 0) - (b.site_id ?? 0) || a.kind.localeCompare(b.kind));
+  const changes = listChanges(kgToT);
 
   // The reason with the largest absolute share; ties go by REASON_ORDER.
   const byReason = new Map<RecalcReason, number>();
@@ -205,17 +222,19 @@ export function detectChanges(snapshot: BaseYearSnapshot, current: FrozenState, 
     if (reason === null || byReason.get(r)! > byReason.get(reason)!) reason = r;
   }
 
+  const frozen = retotalled(snapshot);
   const after = categoryTotals(current.rows);
   const deltaKg = after.total_kg - snapshot.total_kg;
   const thresholdKg = (Math.abs(snapshot.total_kg) * significancePct) / 100;
   const significant = deltaKg !== 0 && Math.abs(deltaKg) >= thresholdKg;
-  const signature = createHash("sha1")
-    .update(JSON.stringify(changes.map((c) => [c.reason, c.kind, c.n, c.site_id, c.rows, c.delta_tco2e])))
-    .digest("hex")
-    .slice(0, 16);
+  // kg at 4 dp in key order, so the signature doesn't follow the precision tCO₂e is shown at (#209).
+  const signature = hash(
+    [...acc.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, c]) => [c.reason, c.kind, c.n, c.site_id, c.rows, round4(c.kg)]),
+  );
+  const legacy_signature = hash(listChanges((kg) => round2(kg / 1000)).map((c) => [c.reason, c.kind, c.n, c.site_id, c.rows, c.delta_tco2e]));
 
   return {
-    before: { total_tco2e: snapshot.total_tco2e, categories: snapshot.categories },
+    before: { total_tco2e: frozen.total_tco2e, categories: frozen.categories },
     after: { total_tco2e: after.total_tco2e, categories: after.categories },
     delta_tco2e: kgToT(deltaKg),
     delta_pct: snapshot.total_kg ? round1((deltaKg / snapshot.total_kg) * 100) : null,
@@ -224,6 +243,7 @@ export function detectChanges(snapshot: BaseYearSnapshot, current: FrozenState, 
     reason,
     changes,
     signature,
+    legacy_signature,
   };
 }
 

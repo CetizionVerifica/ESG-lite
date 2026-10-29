@@ -5,7 +5,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 
-const { detectChanges, categoryTotals, largestCategory } = require(path.resolve("dist/scope3/baseYear/detect.js"));
+const { createHash } = require("crypto");
+const { detectChanges, categoryTotals, largestCategory, retotalled } = require(path.resolve("dist/scope3/baseYear/detect.js"));
 
 const FP = "spend_based|DEFRA|2025|AR6|12|0.5";
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -118,4 +119,65 @@ test("kg are summed, then rounded once (D5); 16 category rows with Unmapped last
   assert.equal(t.categories[0].tco2e, 0.008); // 4 + 4 kg, rounded once at 3 dp (#209)
   assert.equal(t.categories[15].n, null);
   assert.equal(t.total_tco2e, 0.012); // 12 kg
+});
+
+// #209: a base year frozen before tCO₂e went to 3 dp stores its totals at 2 dp, and a proposal
+// dismissed then holds a signature of 2-dp deltas. Neither is rewritten.
+// Category 1 120,000 kg, Category 4 34,567.8 kg (34.57 at 2 dp), Category 6 8,123.4 kg (8.12).
+const OLD = (() => {
+  const s = freeze({ 1: [1, 120_000, FP, 3, 1], 2: [4, 34_567.8, FP, 3, 1], 3: [6, 8_123.4, FP, 3, 2] });
+  const stored = { 1: 120, 4: 34.57, 6: 8.12 };
+  return { ...s, total_tco2e: 162.69, categories: s.categories.map((c) => ({ n: c.n, tco2e: stored[c.n] ?? 0 })) };
+})();
+const tOf = (list, n) => list.find((c) => c.n === n).tco2e;
+
+test("#209: a snapshot frozen at 2 dp is read at 3 dp from its rows' kg; the stored one is untouched", () => {
+  const r = retotalled(OLD);
+  assert.equal(r.total_tco2e, 162.691);
+  assert.deepEqual(r.categories, categoryTotals(OLD.rows).categories);
+  assert.deepEqual([1, 4, 6].map((n) => tOf(r.categories, n)), [120, 34.568, 8.123]);
+  assert.equal(r.total_kg, OLD.total_kg);
+  assert.equal(r.version, 1);
+  assert.equal(OLD.total_tco2e, 162.69);
+  assert.equal(tOf(OLD.categories, 4), 34.57);
+  // Without rows there is nothing to work from: the stored totals stay.
+  assert.equal(retotalled({ ...OLD, rows: undefined }).total_tco2e, 162.69);
+});
+
+test("#209: a 2-dp snapshot against 3-dp rows: no phantom change, and the footer equals the headline", () => {
+  const c = detectChanges(OLD, now((s) => (s.rows = { ...clone(OLD.rows), 1: [1, 131_234.4, FP, 3, 1] })), 5);
+  assert.equal(c.delta_tco2e, 11.234);
+  assert.equal(c.before.total_tco2e, 162.691);
+  // Only Category 1 changed: every other category is the same before and after.
+  for (const b of c.before.categories) if (b.n !== 1) assert.equal(tOf(c.after.categories, b.n), b.tco2e, `Category ${b.n}`);
+  // The before/after table's footer (Σ of the per-category changes) equals the headline.
+  const footer = Math.round(c.after.categories.reduce((a, x) => a + x.tco2e - tOf(c.before.categories, x.n), 0) * 1000) / 1000;
+  assert.equal(footer, c.delta_tco2e);
+  assert.equal(Math.round((c.after.total_tco2e - c.before.total_tco2e) * 1000) / 1000, 11.235); // totals rounded apart, as on screen before
+});
+
+/** The signature exactly as production worked it out before #209: deltas at 2 dp, in the changes' order. */
+const sig2dp = (changes) => createHash("sha1").update(JSON.stringify(changes)).digest("hex").slice(0, 16);
+
+test("#209: the signature follows kg, not the precision tCO₂e is shown at", () => {
+  // 1,234.40 and 1,234.45 kg are both 1.234 t, but not the same change.
+  const a = detectChanges(BASE, now((s) => (s.rows[1][1] += 1_234.4)), 5);
+  const b = detectChanges(BASE, now((s) => (s.rows[1][1] += 1_234.45)), 5);
+  assert.equal(a.changes[0].delta_tco2e, b.changes[0].delta_tco2e);
+  assert.notEqual(a.signature, b.signature);
+  assert.equal(a.signature, detectChanges(BASE, now((s) => (s.rows[1][1] += 1_234.4)), 5).signature);
+  assert.notEqual(a.signature, a.legacy_signature);
+});
+
+test("#209: legacy_signature is the 2-dp signature a proposal dismissed before #209 holds", () => {
+  // One edited row, +1,234.5 kg: 1.23 t at 2 dp, 1.235 t at 3 dp (values from the production build).
+  const one = detectChanges(BASE, now((s) => (s.rows[1][1] += 1_234.5)), 5);
+  assert.equal(one.changes[0].delta_tco2e, 1.235);
+  assert.equal(one.legacy_signature, sig2dp([["error", "edited", 1, 1, 1, 1.23]]));
+  assert.equal(one.legacy_signature, "f2081c0552fac0eb");
+  // Two changes that tie at 2 dp keep production's order (Category 1 first), though 3 dp puts Category 4 first.
+  const two = detectChanges(BASE, now((s) => { s.rows[1][1] += 1_226; s.rows[2][1] += 1_234; }), 5);
+  assert.deepEqual(two.changes.map((x) => [x.n, x.delta_tco2e]), [[4, 1.234], [1, 1.226]]);
+  assert.equal(two.legacy_signature, sig2dp([["error", "edited", 1, 1, 1, 1.23], ["error", "edited", 4, 1, 1, 1.23]]));
+  assert.equal(two.legacy_signature, "41974acfb1619a3e");
 });

@@ -102,6 +102,18 @@ test("snapshotHtml: data text is escaped everywhere; figures formatted; footer s
   assert.match(scripted, /window\.__ready=true/);
 });
 
+test("snapshotHtml: tCO₂e figures print at 3 dp (#209); percentages and counts don't", () => {
+  const pathway = { base_year: 2021, target_year: 2030, annual_rate_pct: 4.2, years: [2021, 2022], pathway: [2790, 2672.82], actual: { s1: [1200.4, 1100.25], s2: [800, null], s3: [789.6, 700.125] }, levers: [], gap_band: [], events: [] };
+  const out = html.snapshotHtml(input({ pathway }), { withScripts: false });
+  assert.match(out, /2,670\.000 <small>tCO₂e<\/small>/);
+  assert.match(out, /<tr><td>2021<\/td><td class="n">2,790\.000<\/td><td class="n">1,200\.400<\/td><td class="n">800\.000<\/td><td class="n">789\.600<\/td><\/tr>/);
+  assert.match(out, /<tr><td>2022<\/td><td class="n">2,672\.820<\/td><td class="n">1,100\.250<\/td><td class="n">—<\/td><td class="n">700\.125<\/td><\/tr>/);
+  assert.match(out, /Pathway to 2030 \(4\.2 % a year\)/);
+  assert.match(out, /41 <small>% of electricity<\/small>/);
+  assert.equal(html.fmtT(1234.5678), "1,234.568");
+  assert.equal(html.fmtT(null), "—");
+});
+
 test("cardSentence: print copy for every rule, params escaped", () => {
   for (const rule of RULE_IDS) {
     const params = Object.fromEntries(RULES[rule].params.map((k) => [k, k === "category" ? EVIL : 3]));

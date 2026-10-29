@@ -7,11 +7,13 @@ const { call, withDb } = require("../helpers.cjs");
 const q = async (sql, params) => (await withDb((db) => db.query(sql, params))).rows;
 const FACTOR = 9401;
 const NAME = "CI N4 Grid";
+const SMALL = 9402; // #209: a correction of a few kg
+const SMALL_NAME = "CI N4 Small";
 const created = [];
 
-const add = async (date, mwh) => {
+const add = async (date, mwh, name = NAME) => {
   const res = await call("POST", "/user/emissions", "user", {
-    site_id: 1, category_id: 1, date_of_reporting: date, activity_data_unit: "MWh", activity_data: { emission_category: NAME, activity_value: String(mwh) },
+    site_id: 1, category_id: 1, date_of_reporting: date, activity_data_unit: "MWh", activity_data: { emission_category: name, activity_value: String(mwh) },
   });
   assert.equal(res.status, 201, JSON.stringify(res.json));
   created.push(res.json.emission.pk_id);
@@ -22,12 +24,14 @@ test.before(async () => {
   // Stored the way the bug left it: 0.71 per MWh where the engine expects kg (710 kg/MWh).
   await q(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name)
            VALUES (${FACTOR}, 1, 1, 2024, 0.7100, 'MWh', 'CI CEA', '${NAME}', '${NAME}')`);
+  await q(`INSERT INTO emission_factors (emission_factor_id, site_id, category_id, year, factor_value, denominator_unit, source, emission_category_name, global_category_name)
+           VALUES (${SMALL}, 1, 1, 2024, 233.0000, 'MWh', 'CI CEA', '${SMALL_NAME}', '${SMALL_NAME}')`);
 });
 
 test.after(async () => {
   await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1)`, [created]);
   await q(`DELETE FROM emission WHERE pk_id = ANY($1)`, [created]);
-  await q(`DELETE FROM emission_factors WHERE emission_factor_id = ${FACTOR}`);
+  await q(`DELETE FROM emission_factors WHERE emission_factor_id IN (${FACTOR}, ${SMALL})`);
 });
 
 test("a corrected factor's entries are counted, then recalculated with statuses kept", async () => {
@@ -67,6 +71,35 @@ test("a corrected factor's entries are counted, then recalculated with statuses 
   const again = await call("POST", `/admin/emission-factors/${FACTOR}/recalculate`, "superadmin");
   assert.equal(again.json.changed, 0);
   assert.equal(again.json.unchanged, 2, "a second run changes nothing");
+});
+
+test("#209: a correction that moves a row by under 5 kg is recalculated (totals are 3 dp)", async () => {
+  const row = await add("2025-05-31", 1, SMALL_NAME); // 1 MWh × 233 kg/MWh = 0.233 t
+  const stored = async () => (await q(`SELECT total_emission, total_kgco2e, emission_factor_snapshot->>'factor_value' AS fv FROM emission WHERE pk_id = $1`, [row]))[0];
+  assert.equal(Number((await stored()).total_emission), 0.233);
+
+  await q(`UPDATE emission_factors SET factor_value = 236 WHERE emission_factor_id = ${SMALL}`); // 3 kg more: 0.236 t
+  const preview = await call("GET", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
+  assert.equal(preview.status, 200, JSON.stringify(preview.json));
+  assert.equal(preview.json.uses_factor, 1);
+  assert.equal(preview.json.changed, 1);
+  assert.equal(preview.json.unchanged, 0);
+  assert.equal(preview.json.before_tco2e, 0.233);
+  assert.equal(preview.json.after_tco2e, 0.236);
+
+  const done = await call("POST", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
+  assert.equal(done.status, 200, JSON.stringify(done.json));
+  assert.equal(done.json.changed, 1);
+  const after = await stored();
+  assert.equal(Number(after.total_emission), 0.236);
+  assert.equal(Number(after.total_kgco2e), 236);
+  assert.equal(Number(after.fv), 236);
+  const audit = await q(`SELECT changed_fields FROM audit_log WHERE entity_type = 'emission' AND action = 'factor_recalculation' AND entity_id = $1`, [row]);
+  assert.deepEqual(audit.map((a) => a.changed_fields), [{ total_emission: { old: 0.233, new: 0.236 } }]);
+
+  const again = await call("GET", `/admin/emission-factors/${SMALL}/recalculate`, "superadmin");
+  assert.equal(again.json.changed, 0);
+  assert.equal(again.json.unchanged, 1);
 });
 
 test("only the Superadmin recalculates; an unknown factor is a 404", async () => {

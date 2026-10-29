@@ -41,8 +41,8 @@ export async function writeNarrative(d: NarrativeInput): Promise<Narrative | nul
   const model = process.env.OPENROUTER_MODEL || "google/gemini-3-flash-preview";
 
   // Every figure is pre-rounded/formatted so the model can never echo raw
-  // floats like "44545.924442624" into the report prose.
-  const nf = (n: number) => Math.round(n).toLocaleString("en-US");
+  // floats like "44545.924442624" into the report prose; 3 dp like the report's tables (#209).
+  const nf = (n: number) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
   const prompt =
     `You are an ESG/GHG analyst writing a professional, board-facing Carbon Accounting Report for ` +
     `${d.companyName}, reporting year ${d.year}. Use ONLY the figures below — never invent or change a number; ` +
@@ -60,7 +60,7 @@ export async function writeNarrative(d: NarrativeInput): Promise<Narrative | nul
     `"coverageNote":"...","recommendations":["rec1","rec2","rec3","rec4"]}\n` +
     `summary = 3 concise executive-summary paragraphs. Each *Note = 1-2 sentences analysing that dimension. ` +
     `recommendations = 4 specific, actionable next steps. Professional, concise, no fabricated numbers. ` +
-    `Write numbers exactly as given (thousands separators, no decimals).`;
+    `Write numbers exactly as given (thousands separators, tCO2e figures with three decimals).`;
 
   try {
     // DS-9: the request is sent by the shared helper (src/lib/openrouter.ts), byte-identical.

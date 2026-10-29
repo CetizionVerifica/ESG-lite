@@ -13,6 +13,7 @@ import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, e
 import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
+import { roundTonnes } from "../services/emissionWrite/round";
 import { lockedSiteMonths, siteMonthOf } from "../scope3/review/periodLock";
 import { feraFamilyIds } from "../services/emissionWrite/feraFamily";
 import * as XLSX from "xlsx";
@@ -3378,7 +3379,8 @@ export const recalculateFactorEntries = async (req: AuthRequest, res: Response) 
       summary.uses_factor++;
       const oldTotal = Number(row.total_emission) || 0;
       const newTotal = Number(prepared.entry.computed?.total ?? 0);
-      if (Math.abs(newTotal - oldTotal) < 0.005) {
+      // #209: compared at 3 dp, as totals are stored, so a correction of a few kg is recalculated too.
+      if (roundTonnes(newTotal) === roundTonnes(oldTotal)) {
         summary.unchanged++;
         continue;
       }
