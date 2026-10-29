@@ -115,3 +115,12 @@ test("formula references: allowed characters, unknown codes and cycles", () => {
   assert.ok(formulaProblems(new Map([["A", "B / X"]]), known).some((p) => /Unknown KPI X/.test(p.problem)));
   assert.ok(formulaProblems(new Map([["A", "B * 2"], ["B", "A / 2"]]), known).some((p) => /loops back/.test(p.problem)));
 });
+
+test("#209: every KPI in tonnes of CO₂e shows 3 decimals, as every tCO₂e figure does; intensities keep theirs", () => {
+  const { normaliseUnit } = require(path.resolve("dist/kpi/values/units.js"));
+  const { TONNES_DP } = require(path.resolve("dist/services/emissionWrite/round.js"));
+  const tonnes = seed.definitions.filter((d) => normaliseUnit(d.canonical_unit) === "tco2e");
+  assert.deepEqual(tonnes.map((d) => d.code).sort(), ["GHG_SCOPE1", "GHG_SCOPE2_LB", "GHG_SCOPE2_MB", "GHG_SCOPE3"]);
+  for (const d of tonnes) assert.equal(d.decimals, TONNES_DP, d.code);
+  assert.equal(seed.definitions.find((d) => d.code === "GHG_INTENSITY_REVENUE").decimals, 4, "tCO2e per INR crore is an intensity");
+});

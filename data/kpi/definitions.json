@@ -19,7 +19,7 @@
     "auto_source": "ghg_scope1",
     "formula": null,
     "breakdowns": null,
-    "decimals": 2
+    "decimals": 3
   },
   {
     "code": "GHG_SCOPE2_LB",
@@ -41,7 +41,7 @@
     "auto_source": "ghg_scope2_location",
     "formula": null,
     "breakdowns": null,
-    "decimals": 2
+    "decimals": 3
   },
   {
     "code": "GHG_SCOPE2_MB",
@@ -63,7 +63,7 @@
     "auto_source": "ghg_scope2_market",
     "formula": null,
     "breakdowns": null,
-    "decimals": 2
+    "decimals": 3
   },
   {
     "code": "GHG_SCOPE3",
@@ -85,7 +85,7 @@
     "auto_source": "ghg_scope3_total",
     "formula": null,
     "breakdowns": null,
-    "decimals": 2
+    "decimals": 3
   },
   {
     "code": "GHG_INTENSITY_REVENUE",
