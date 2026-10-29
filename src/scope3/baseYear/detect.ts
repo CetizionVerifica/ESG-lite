@@ -87,9 +87,9 @@ export interface Comparison {
   signature: string;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
+const round3 = (n: number) => Math.round(n * 1000) / 1000; // #209: tCO₂e to 3 dp
 const round1 = (n: number) => Math.round(n * 10) / 10;
-export const kgToT = (kg: number) => round2(kg / 1000);
+export const kgToT = (kg: number) => round3(kg / 1000);
 
 /** 15 categories in order, then Unmapped (n null): kg summed per category, then rounded. */
 export function categoryTotals(rows: Record<string, RowPrint>): { total_kg: number; total_tco2e: number; categories: CategoryTotal[] } {

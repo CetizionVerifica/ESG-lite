@@ -170,7 +170,7 @@ function expectedScope3Kg() {
   }
   return kg;
 }
-const r2 = (n) => Math.round(n * 100) / 100;
+const r2 = (n) => Math.round(n * 1000) / 1000; // tCO₂e compared at 3 dp (#209)
 
 check("C7 the GHG report's Scope 3 table: each of the 15 categories carries its approved kg", async () => {
   const kg = expectedScope3Kg();

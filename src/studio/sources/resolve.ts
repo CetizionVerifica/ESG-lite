@@ -138,14 +138,14 @@ export function resolveToken(r: ResolvedBinding, token: DataToken): ResolvedBind
   if (measure === "value" && year !== undefined && year !== "current" && r.series?.length === 1) {
     const key = year === "prior" ? String(Number(r.series[0].values[r.series[0].values.length - 1]?.key) - 1) : year === "base" ? String(r.compare?.year ?? "") : String(year);
     const p = r.series[0].values.find((v) => v.key === key);
-    return { ...base, value: p?.value ?? null, display: formatNumber(p?.value ?? null, fmt) };
+    return { ...base, value: p?.value ?? null, display: formatNumber(p?.value ?? null, fmt, r.unit) };
   }
   switch (measure) {
     case "value":
-      return { ...base, display: r.value === null ? r.display : formatNumber(r.value, fmt) };
+      return { ...base, display: r.value === null ? r.display : formatNumber(r.value, fmt, r.unit) };
     case "change_abs": {
       const v = r.compare?.change_abs ?? null;
-      return { ...base, value: v, display: v === null ? EMPTY : formatChangeAbs(v, fmt) };
+      return { ...base, value: v, display: v === null ? EMPTY : formatChangeAbs(v, fmt, r.unit) };
     }
     case "change_pct": {
       const v = r.compare?.change_pct ?? null;
@@ -162,11 +162,11 @@ export function resolveToken(r: ResolvedBinding, token: DataToken): ResolvedBind
     }
     case "target": {
       const v = r.target?.target_value ?? null;
-      return { ...base, value: v, display: formatNumber(v, fmt) };
+      return { ...base, value: v, display: formatNumber(v, fmt, r.unit) };
     }
     case "baseline": {
       const v = r.target?.baseline_value ?? r.compare?.value ?? null;
-      return { ...base, value: v, display: formatNumber(v, fmt) };
+      return { ...base, value: v, display: formatNumber(v, fmt, r.unit) };
     }
   }
   return base;

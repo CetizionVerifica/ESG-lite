@@ -186,10 +186,10 @@ test("data token measures read the resolved binding; unavailable stays unavailab
   const tok = (measure, extra = {}) => ({ type: "data", attrs: { binding: { source: "ghg", metric: "total", years: { last: 2 }, sites: "all" }, measure, ...extra } });
   assert.equal(resolveToken(r, tok("value", { format: "1dp" })).display, "120.0");
   assert.equal(resolveToken(r, tok("change_pct")).display, "+20.0%");
-  assert.equal(resolveToken(r, tok("change_abs")).display, "+20");
+  assert.equal(resolveToken(r, tok("change_abs")).display, "+20.000"); // #209: tCO₂e on auto, 3 dp
   assert.equal(resolveToken(r, tok("share")).display, "25.0%");
-  assert.equal(resolveToken(r, tok("value", { year: 2024 })).display, "100");
-  assert.equal(resolveToken(r, tok("value", { year: "prior" })).display, "100");
+  assert.equal(resolveToken(r, tok("value", { year: 2024 })).display, "100.000");
+  assert.equal(resolveToken(r, tok("value", { year: "prior" })).display, "100.000");
   assert.equal(resolveToken(r, tok("progress")).display, EMPTY, "no target");
   const off = { source: "ghg", display: "Not reported", value: null, unit: "tCO₂e", unavailable: { reason: "NOT_RECORDED" } };
   assert.equal(resolveToken(off, tok("change_pct")), off);

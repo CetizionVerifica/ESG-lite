@@ -9,7 +9,7 @@ const MUTED = "#4A5568";
 const AXIS = "#4A5568";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const num = (n: number) => Math.round(n).toLocaleString("en-US");
+const num = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); // #209
 const share = (v: number, total: number) => (total > 0 ? `${((v / total) * 100).toFixed(1)}%` : "—");
 
 // Rough average glyph width of the report's sans face, as a fraction of the font size.

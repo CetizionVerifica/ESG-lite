@@ -31,11 +31,11 @@ test.after(async () => {
 });
 
 test("a corrected factor's entries are counted, then recalculated with statuses kept", async () => {
-  const march = await add("2025-03-31", 100); // 100 MWh × 0.71 / 1000 = 0.07 t
+  const march = await add("2025-03-31", 100); // 100 MWh × 0.71 / 1000 = 0.071 t
   const april = await add("2025-04-30", 200);
   await q(`UPDATE emission SET status = 'approved' WHERE pk_id = $1`, [april]);
   const totals = async () => (await q(`SELECT pk_id, total_emission, status, emission_factor_snapshot->>'factor_value' AS fv FROM emission WHERE pk_id = ANY($1) ORDER BY pk_id`, [[march, april]]));
-  assert.deepEqual((await totals()).map((r) => Number(r.total_emission)), [0.07, 0.14]);
+  assert.deepEqual((await totals()).map((r) => Number(r.total_emission)), [0.071, 0.142]); // #209: 3 dp
 
   // Nothing to change while the value is the old one.
   const before = await call("GET", `/admin/emission-factors/${FACTOR}/recalculate`, "superadmin");
@@ -47,9 +47,9 @@ test("a corrected factor's entries are counted, then recalculated with statuses 
   const preview = await call("GET", `/admin/emission-factors/${FACTOR}/recalculate`, "superadmin");
   assert.equal(preview.json.recalculated, false);
   assert.equal(preview.json.changed, 2);
-  assert.equal(preview.json.before_tco2e, 0.21);
+  assert.equal(preview.json.before_tco2e, 0.213); // 0.071 + 0.142
   assert.equal(preview.json.after_tco2e, 213);
-  assert.deepEqual((await totals()).map((r) => Number(r.total_emission)), [0.07, 0.14], "a preview writes nothing");
+  assert.deepEqual((await totals()).map((r) => Number(r.total_emission)), [0.071, 0.142], "a preview writes nothing");
 
   const done = await call("POST", `/admin/emission-factors/${FACTOR}/recalculate`, "superadmin");
   assert.equal(done.status, 200, JSON.stringify(done.json));
@@ -61,7 +61,7 @@ test("a corrected factor's entries are counted, then recalculated with statuses 
   assert.ok(after.every((r) => Number(r.fv) === 710), "the snapshot records the corrected value");
   const audit = await q(`SELECT entity_id, changed_fields, reason FROM audit_log WHERE entity_type = 'emission' AND action = 'factor_recalculation' AND entity_id = ANY($1) ORDER BY entity_id`, [[march, april]]);
   assert.equal(audit.length, 2);
-  assert.deepEqual(audit[1].changed_fields, { total_emission: { old: 0.14, new: 142 } });
+  assert.deepEqual(audit[1].changed_fields, { total_emission: { old: 0.142, new: 142 } });
   assert.match(audit[0].reason, /CI N4 Grid, 2024/);
 
   const again = await call("POST", `/admin/emission-factors/${FACTOR}/recalculate`, "superadmin");

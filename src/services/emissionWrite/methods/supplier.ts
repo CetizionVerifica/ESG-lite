@@ -12,6 +12,7 @@
 import { pickActivityValue } from "../../activityValue";
 import { getConversionFactor, unitsMatchExact } from "../units";
 import type { CategoryContext, ComputeResult, EngineRow } from "../compute";
+import { roundTonnes } from "../round";
 import type { SupplierFactorInput } from "../../../scope3/suppliers/engineInput";
 
 /** What a supplier-specific row stores as its factor snapshot (spec §Build.4). */
@@ -41,7 +42,7 @@ export const toUnit = (value: number, unit: string, target: string): number | nu
 };
 
 /** kg → the engine's two totals: tCO₂e at 2 dp (as every row) and kgCO₂e at 4 dp (D5). */
-export const totalsFromKg = (kg: number) => ({ total: Math.round((kg / 1000) * 100) / 100, total_kgco2e: (Math.round(kg * 10000) / 10000).toFixed(4) });
+export const totalsFromKg = (kg: number) => ({ total: roundTonnes(kg / 1000), total_kgco2e: (Math.round(kg * 10000) / 10000).toFixed(4) });
 
 export const compute = (ctx: CategoryContext, row: EngineRow): ComputeResult => {
   const supplier = row.supplier;

@@ -3,7 +3,7 @@
 // Change an input here and its expected figures follow; a lane that adds a
 // calculation adds its inputs and expected kg here too (README.md).
 //
-// Rounding rule (D5): each row stores tCO₂e at 2 dp and kgCO₂e at 4 dp; the
+// Rounding rule (D5, #209): each row stores tCO₂e at 3 dp and kgCO₂e at 4 dp; the
 // Scope 3 report sums kg first and rounds once.
 
 // The client reports by Indian financial year (April to March, the app's default year type).

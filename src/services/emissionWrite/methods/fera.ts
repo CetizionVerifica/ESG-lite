@@ -23,6 +23,7 @@ import { getConversionFactor, unitsMatchExact } from "../units";
 import type { FactorIndex } from "../resolve";
 import { ghgNumberFromName, scopeNumber } from "../../../scope3/factors/backfill";
 import type { CategoryContext, EngineIssue } from "../compute";
+import { roundTonnes } from "../round";
 import { factorHasUnit, gasesFor, kgFor } from "./activity";
 import type { Gas } from "../../../scope3/contracts/factor";
 import type { Scope3Sub } from "../../../scope3/contracts/ghgCategory";
@@ -84,7 +85,7 @@ const twinWith = (ctx: CategoryContext, factor: EmissionFactor, activity_data: R
     category_id: ctx.fera.category_id,
     factor,
     activityValue,
-    total: Math.round(((activityValue * conv * factor.factor_value) / 1000) * 100) / 100,
+    total: roundTonnes((activityValue * conv * factor.factor_value) / 1000),
     total_kgco2e: kgFor(activityValue * conv, factor),
     ...gasesFor(activityValue * conv, factor),
     scope3_sub,

@@ -138,7 +138,7 @@ test("a 0.00012345 factor survives upload and calculation at 8 decimals", async 
     );
     assert.equal(row.f, "0.00012345");
     // 1,000,000 litre × 0.00012345 kg / 1000 = 0.12345 t, stored at 2 dp as today.
-    assert.equal(row.t, "0.12");
+    assert.equal(row.t, "0.123"); // #209: 3 dp
   } finally {
     await withDb((db) => db.query(`DELETE FROM emission WHERE pk_id = $1`, [id]));
   }

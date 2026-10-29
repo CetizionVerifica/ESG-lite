@@ -140,7 +140,7 @@
                   "pctOfTotal": 0
                 },
                 "2025": {
-                  "emissions": 15935.95,
+                  "emissions": 15935.949,
                   "pctOfTotal": 42.83
                 }
               }
@@ -153,7 +153,7 @@
                   "pctOfTotal": 0
                 },
                 "2025": {
-                  "emissions": 17730.63,
+                  "emissions": 17730.621,
                   "pctOfTotal": 47.65
                 }
               }
@@ -166,7 +166,7 @@
                   "pctOfTotal": 0
                 },
                 "2025": {
-                  "emissions": 3544.57,
+                  "emissions": 3544.559,
                   "pctOfTotal": 9.53
                 }
               }
@@ -179,7 +179,7 @@
                   "pctOfTotal": 100
                 },
                 "2025": {
-                  "emissions": 37211.15,
+                  "emissions": 37211.129,
                   "pctOfTotal": 100
                 }
               }
@@ -196,7 +196,7 @@
                   {
                     "siteId": 1,
                     "siteName": "CI Plant A",
-                    "value": 10039.95
+                    "value": 10039.949
                   },
                   {
                     "siteId": 2,
@@ -206,55 +206,55 @@
                 ],
                 "category": "Stationary Combustion",
                 "scope": "Scope 1",
-                "total": 15935.95
+                "total": 15935.949
               },
               {
                 "bySite": [
                   {
                     "siteId": 1,
                     "siteName": "CI Plant A",
-                    "value": 17730.63
+                    "value": 17730.621
                   }
                 ],
                 "category": "Purchased Electricity",
                 "scope": "Scope 2",
-                "total": 17730.63
+                "total": 17730.621
               },
               {
                 "bySite": [
                   {
                     "siteId": 1,
                     "siteName": "CI Plant A",
-                    "value": 2761.5
+                    "value": 2761.502
                   }
                 ],
                 "category": "Upstream Transportation and Distribution",
                 "scope": "Scope 3",
-                "total": 2761.5
+                "total": 2761.502
               },
               {
                 "bySite": [
                   {
                     "siteId": 1,
                     "siteName": "CI Plant A",
-                    "value": 765.6
+                    "value": 765.591
                   }
                 ],
                 "category": "Use of Sold Products",
                 "scope": "Scope 3",
-                "total": 765.6
+                "total": 765.591
               },
               {
                 "bySite": [
                   {
                     "siteId": 1,
                     "siteName": "CI Plant A",
-                    "value": 17.47
+                    "value": 17.466
                   }
                 ],
                 "category": "Waste Generated in Operations",
                 "scope": "Scope 3",
-                "total": 17.47
+                "total": 17.466
               }
             ],
             "year": 2025
@@ -268,10 +268,10 @@
             "total": 0
           },
           "2025": {
-            "scope1": 15935.95,
-            "scope2": 17730.63,
-            "scope3": 3544.57,
-            "total": 37211.15
+            "scope1": 15935.949,
+            "scope2": 17730.621,
+            "scope3": 3544.559,
+            "total": 37211.129
           }
         }
       },
@@ -319,7 +319,7 @@
                   "pctOfTotal": 0
                 },
                 "2025": {
-                  "emissions": 10039.95,
+                  "emissions": 10039.949,
                   "pctOfTotal": 36.19
                 }
               }
@@ -358,7 +358,7 @@
                   "pctOfTotal": 100
                 },
                 "2025": {
-                  "emissions": 27739.95,
+                  "emissions": 27739.949,
                   "pctOfTotal": 100
                 }
               }
@@ -375,12 +375,12 @@
                   {
                     "siteId": 1,
                     "siteName": "CI Plant A",
-                    "value": 10039.95
+                    "value": 10039.949
                   }
                 ],
                 "category": "Stationary Combustion",
                 "scope": "Scope 1",
-                "total": 10039.95
+                "total": 10039.949
               },
               {
                 "bySite": [
@@ -406,10 +406,10 @@
             "total": 0
           },
           "2025": {
-            "scope1": 10039.95,
+            "scope1": 10039.949,
             "scope2": 17700,
             "scope3": 0,
-            "total": 27739.95
+            "total": 27739.949
           }
         }
       },
@@ -482,7 +482,7 @@
                   "pctOfTotal": 0
                 },
                 "2025": {
-                  "emissions": 1812.9,
+                  "emissions": 1812.902,
                   "pctOfTotal": 100
                 }
               }
@@ -495,7 +495,7 @@
                   "pctOfTotal": 100
                 },
                 "2025": {
-                  "emissions": 1812.9,
+                  "emissions": 1812.902,
                   "pctOfTotal": 100
                 }
               }
@@ -512,12 +512,12 @@
                   {
                     "siteId": 1,
                     "siteName": "CI Plant A",
-                    "value": 1812.9
+                    "value": 1812.902
                   }
                 ],
                 "category": "Upstream Transportation and Distribution",
                 "scope": "Scope 3",
-                "total": 1812.9
+                "total": 1812.902
               }
             ],
             "year": 2025
@@ -533,8 +533,8 @@
           "2025": {
             "scope1": 0,
             "scope2": 0,
-            "scope3": 1812.9,
-            "total": 1812.9
+            "scope3": 1812.902,
+            "total": 1812.902
           }
         }
       },
@@ -585,7 +585,7 @@
             "scope": "Scope 1",
             "selected": {
               "consumption": 500,
-              "emissions": 5072.45,
+              "emissions": 5072.449,
               "unit": "gallon"
             },
             "siteId": 1,
@@ -639,7 +639,7 @@
             "scope": "Scope 2",
             "selected": {
               "consumption": 1.25,
-              "emissions": 17730.63,
+              "emissions": 17730.621,
               "unit": "kwh"
             },
             "siteId": 1,
@@ -675,7 +675,7 @@
             "scope": "Scope 3",
             "selected": {
               "consumption": 1180,
-              "emissions": 295.14,
+              "emissions": 295.142,
               "unit": "km"
             },
             "siteId": 1,
@@ -693,7 +693,7 @@
             "scope": "Scope 3",
             "selected": {
               "consumption": 3285800,
-              "emissions": 765.6,
+              "emissions": 765.591,
               "unit": "kwh"
             },
             "siteId": 1,
@@ -711,7 +711,7 @@
             "scope": "Scope 3",
             "selected": {
               "consumption": 37.4,
-              "emissions": 17.47,
+              "emissions": 17.466,
               "unit": "tonne"
             },
             "siteId": 1,
@@ -727,12 +727,12 @@
         "bySite": [
           {
             "pctOfTotal": 84.16,
-            "scope1": 10039.95,
-            "scope2": 17730.63,
-            "scope3": 3544.57,
+            "scope1": 10039.949,
+            "scope2": 17730.621,
+            "scope3": 3544.559,
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 31315.15
+            "total": 31315.129
           },
           {
             "pctOfTotal": 15.84,
@@ -755,8 +755,8 @@
             "unit": "tonne"
           },
           {
-            "emissions": 5072.45,
-            "intensity": 5.336612,
+            "emissions": 5072.449,
+            "intensity": 5.336611,
             "month": "2025-02",
             "production": 950.5,
             "siteId": 1,
@@ -773,7 +773,7 @@
             "unit": "unit"
           },
           {
-            "emissions": 29.74,
+            "emissions": 29.736,
             "intensity": 0,
             "month": "2025-04",
             "production": 0,
@@ -782,7 +782,7 @@
             "unit": "unit"
           },
           {
-            "emissions": 0.89,
+            "emissions": 0.885,
             "intensity": 0,
             "month": "2025-05",
             "production": 0,
@@ -791,7 +791,7 @@
             "unit": "unit"
           },
           {
-            "emissions": 765.6,
+            "emissions": 765.591,
             "intensity": 0,
             "month": "2025-06",
             "production": 0,
@@ -800,7 +800,7 @@
             "unit": "unit"
           },
           {
-            "emissions": 1812.9,
+            "emissions": 1812.902,
             "intensity": 0,
             "month": "2025-07",
             "production": 0,
@@ -827,7 +827,7 @@
             "unit": "unit"
           },
           {
-            "emissions": 17.47,
+            "emissions": 17.466,
             "intensity": 0,
             "month": "2025-12",
             "production": 0,
@@ -847,7 +847,7 @@
             "month": "2025-02",
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 5072.45
+            "total": 5072.449
           },
           {
             "month": "2025-03",
@@ -859,25 +859,25 @@
             "month": "2025-04",
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 29.74
+            "total": 29.736
           },
           {
             "month": "2025-05",
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 0.89
+            "total": 0.885
           },
           {
             "month": "2025-06",
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 765.6
+            "total": 765.591
           },
           {
             "month": "2025-07",
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 1812.9
+            "total": 1812.902
           },
           {
             "month": "2025-08",
@@ -895,7 +895,7 @@
             "month": "2025-12",
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 17.47
+            "total": 17.466
           }
         ],
         "range": {
@@ -935,7 +935,7 @@
           {
             "name": "CI Plant A",
             "pct": 84.16,
-            "value": 31315.15
+            "value": 31315.129
           },
           {
             "name": "CI Plant B",
@@ -944,10 +944,10 @@
           }
         ],
         "totals": {
-          "scope1": 15935.95,
-          "scope2": 17730.63,
-          "scope3": 3544.57,
-          "total": 37211.15
+          "scope1": 15935.949,
+          "scope2": 17730.621,
+          "scope3": 3544.559,
+          "total": 37211.129
         }
       },
       "name": "EDE yearly 2025, both sites (DS-2 intensity extraction)",
@@ -1052,7 +1052,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": null,
-      "total_emission": "5072.45",
+      "total_emission": "5072.449",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1097,7 +1097,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": null,
-      "total_emission": "29.74",
+      "total_emission": "29.736",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1127,7 +1127,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": "1.25",
-      "total_emission": "0.89",
+      "total_emission": "0.885",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1142,7 +1142,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": "3285000",
-      "total_emission": "765.41",
+      "total_emission": "765.405",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1157,7 +1157,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": "800",
-      "total_emission": "0.19",
+      "total_emission": "0.186",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1187,7 +1187,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": "1180",
-      "total_emission": "295.14",
+      "total_emission": "295.142",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1217,7 +1217,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": "37.4",
-      "total_emission": "17.47",
+      "total_emission": "17.466",
       "unit": "tCO2e",
       "year_type": "CY"
     },
@@ -1262,7 +1262,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": null,
-      "total_emission": "4.28",
+      "total_emission": "4.282",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1277,7 +1277,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": "9170",
-      "total_emission": "4.28",
+      "total_emission": "4.282",
       "unit": "tCO2e",
       "year_type": null
     },
@@ -1292,7 +1292,7 @@
       "site_id": 1,
       "status": "approved",
       "stored_activity_value": "9.17",
-      "total_emission": "4.28",
+      "total_emission": "4.282",
       "unit": "tCO2e",
       "year_type": null
     }

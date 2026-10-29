@@ -106,7 +106,7 @@ function assertFlowHtml(html) {
   assert.doesNotMatch(s3, /Not reported/, "the Scope 3 table has rows");
   assert.equal((s3.match(/<tr data-category=/g) || []).length, 15, "all 15 categories");
   assert.match(s3, /data-category="6" data-status="reported"/);
-  assert.match(s3, /data-category="6" data-status="reported"><td>Scope 3 Category 6: Business travel<\/td><td>[^]*?<\/td><td class="num">3\.25<\/td>/, "Category 6 shows computeScope3's tCO₂e");
+  assert.match(s3, /data-category="6" data-status="reported"><td>Scope 3 Category 6: Business travel<\/td><td>[^]*?<\/td><td class="num">3\.250<\/td>/, "Category 6 shows computeScope3's tCO₂e");
   assert.match(s3, /data-category="8" data-status="excluded"[^]*?The company leases no assets\./);
   assert.match(s3, /data-category="1" data-status="not_addressed"/);
   const ef = section(html, "ghg_factor_table");
@@ -126,7 +126,7 @@ test("POST /studio/resolve with flows: factor and Scope 3 rows by section id, ap
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const s3 = r.json.scope3["p-categories"];
   assert.equal(s3.length, 15);
-  assert.deepEqual(s3.find((x) => x.n === 6), { n: 6, name: "Business travel", status: "reported", display: "3.25", method: s3.find((x) => x.n === 6).method, dq: s3.find((x) => x.n === 6).dq, reason: "" });
+  assert.deepEqual(s3.find((x) => x.n === 6), { n: 6, name: "Business travel", status: "reported", display: "3.250", method: s3.find((x) => x.n === 6).method, dq: s3.find((x) => x.n === 6).dq, reason: "" });
   assert.equal(s3.find((x) => x.n === 8).status, "excluded");
   assert.equal(s3.filter((x) => x.status === "reported").length, 1);
   const ef = r.json.flow["p-factors"];

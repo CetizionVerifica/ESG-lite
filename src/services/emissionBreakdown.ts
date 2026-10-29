@@ -78,7 +78,7 @@ export function computeBreakdown(rows: BreakdownSourceRow[], numberColumns: stri
     .map((g) => ({
       emission_category: g.label,
       entries: g.entries,
-      total_emission: round(g.emission, 2),
+      total_emission: round(g.emission, 3), // #209
       consumption: round(g.consumption, 4),
       unit: g.units.size === 1 ? [...g.units][0] : g.units.size > 1 ? MIXED_UNIT : null,
     }))

@@ -64,9 +64,9 @@ test("create: rows are planned, issues come first, totals come from the writer",
   assert.equal(plan.company_id, 1);
   assert.deepEqual(plan.counts, { rows: 6, ready: 4, issue: 2, skipped: 0, warnings: 2 });
   // 2000 l × 2.68 + 500 kWh × 0.708 + 1000 l × 2.65 (the FY 2024 row takes the 2023 factor) + 10 gal (37.8541 l) × 2.68
-  assert.equal(plan.totals.tco2e, 8465.45);
+  assert.equal(plan.totals.tco2e, 8465.449); // #209: 3 dp
   assert.deepEqual(plan.totals.by_month.map((m) => m.month), ["2024-03", "2025-06"], "FY 2024 ends 31 March 2024");
-  assert.deepEqual(plan.totals.by_category.map((c) => [c.category_id, c.name, c.tco2e, c.rows]), [[1, "Stationary Combustion", 8111.45, 3], [2, "Purchased Electricity", 354, 1]]);
+  assert.deepEqual(plan.totals.by_category.map((c) => [c.category_id, c.name, c.tco2e, c.rows]), [[1, "Stationary Combustion", 8111.449, 3], [2, "Purchased Electricity", 354, 1]]);
   assert.deepEqual(plan.issues_summary.map((i) => [i.code, i.count]).sort(), [["CLIENT_TOTAL_IGNORED", 1], ["DUPLICATE_IN_PLAN", 1], ["NON_POSITIVE_VALUE", 1], ["UNKNOWN_ACTIVITY", 1]]);
   assert.deepEqual(plan.rows.map((r) => r.row_ref), ["b", "d", "a", "c", "e", "f"]);
   const a = plan.rows.find((r) => r.row_ref === "a");
@@ -79,7 +79,7 @@ test("create: rows are planned, issues come first, totals come from the writer",
   assert.deepEqual(d.issues.map((i) => [i.code, i.severity]), [["NON_POSITIVE_VALUE", "error"]]);
   const f = plan.rows.find((r) => r.row_ref === "f");
   assert.deepEqual(f.issues.map((i) => [i.code, i.severity]), [["DUPLICATE_IN_PLAN", "warning"]], "same site, category, month and activity as row a");
-  assert.deepEqual([f.result.conversion, f.result.total_tco2e], [3.78541, 101.45]);
+  assert.deepEqual([f.result.conversion, f.result.total_tco2e], [3.78541, 101.449]);
   const e = plan.rows.find((r) => r.row_ref === "e");
   assert.deepEqual([e.result.reporting_date, e.result.reporting_period, e.result.year_type, e.result.factor.year, e.result.total_tco2e], ["2024-03-31", "yearly", "FY", 2023, 2650]);
   assert.match(plan.expires_at, /T/);
