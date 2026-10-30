@@ -917,12 +917,19 @@ const ymd = (d: unknown): string => (typeof d === "string" ? d.slice(0, 10) : ne
 /**
  * A requested date as YYYY-MM-DD, or null when it isn't a date. A string's own
  * calendar date counts ("2025-08-01T02:00+05:30" is 1 Aug), as the period-lock
- * guard reads it, so both check the same month.
+ * guard reads it, so both check the same month. A day the month doesn't have
+ * ("2025-02-31") isn't a date: stored, it would roll into the next month,
+ * which the period-lock guard never checked. Nor is null (not 1 Jan 1970).
  */
 const dateOnly = (d: unknown): string | null => {
+  if (d === null) return null;
   if (typeof d === "string") {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
-    if (m) return isNaN(new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`).getTime()) ? null : `${m[1]}-${m[2]}-${m[3]}`;
+    if (m) {
+      const day = `${m[1]}-${m[2]}-${m[3]}`;
+      const t = new Date(`${day}T00:00:00Z`);
+      return !isNaN(t.getTime()) && t.toISOString().slice(0, 10) === day ? day : null;
+    }
   }
   const t = new Date(d as any);
   return isNaN(t.getTime()) ? null : t.toISOString().slice(0, 10);
@@ -1729,7 +1736,8 @@ export const getEmissionFactorForEmission = async (req: Request, res: Response) 
     // Backfill: save snapshot on older records so future lookups are instant.
     // A read doesn't change the entry's version (updated_at), so an edit form
     // opened with this drawer still saves (#218's ENTRY_CHANGED check).
-    await AppDataSource.query(`UPDATE emission SET emission_factor_snapshot = $2::jsonb WHERE pk_id = $1::bigint`, [Number(emissionId), JSON.stringify(factorData)]);
+    // Only while there is none: an edit saved since this read has its own snapshot.
+    await AppDataSource.query(`UPDATE emission SET emission_factor_snapshot = $2::jsonb WHERE pk_id = $1::bigint AND (emission_factor_snapshot IS NULL OR emission_factor_snapshot = 'null'::jsonb)`, [Number(emissionId), JSON.stringify(factorData)]);
     await refreshChecksSafely(AppDataSource.manager, [Number(emissionId)]);
 
     return res.status(200).json({
@@ -2949,8 +2957,9 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (activityDataInput !== undefined) {
       changedFields.activity_data = { old: emission.activity_data, new: activityDataInput };
     }
-    if (date_of_reporting !== undefined) {
-      changedFields.date_of_reporting = { old: emission.date_of_reporting, new: date_of_reporting };
+    // Only a real move, logged as the calendar date stored (a re-sent date isn't a change).
+    if (dateChanged) {
+      changedFields.date_of_reporting = { old: emission.date_of_reporting, new: newDate };
     }
     if (activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit) {
       changedFields.activity_data_unit = { old: emission.activity_data_unit, new: activity_data_unit };

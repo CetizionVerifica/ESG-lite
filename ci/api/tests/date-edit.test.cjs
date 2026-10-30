@@ -172,3 +172,30 @@ test("an invalid date is refused and nothing changes", async () => {
   const [row] = await q(`SELECT date_of_reporting FROM emission WHERE pk_id = 9811`);
   assert.equal(ymd(row.date_of_reporting), "2025-06-30");
 });
+
+test("a day the month doesn't have, or no date, is refused by both edits and nothing changes", async () => {
+  await diesel(9811);
+  // 31 Feb would be stored as 3 Mar, a month the period-lock guard never checked; null would be 1 Jan 1970.
+  for (const date_of_reporting of ["2025-02-31", "2025-06-31T00:00:00Z", null]) {
+    const user = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting });
+    assert.equal(user.status, 400, `User, ${date_of_reporting}: ${JSON.stringify(user.json)}`);
+    const manager = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting, reason: "Wrong month" });
+    assert.equal(manager.status, 400, `Manager, ${date_of_reporting}: ${JSON.stringify(manager.json)}`);
+  }
+  const [row] = await q(`SELECT date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(ymd(row.date_of_reporting), "2025-06-30");
+});
+
+test("a manager's move is logged as the calendar date stored; the same date sent again isn't a change", async () => {
+  await diesel(9811);
+  const moved = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting: "2025-08-31T00:00:00+05:30", reason: "Wrong month" });
+  assert.equal(moved.status, 200, JSON.stringify(moved.json));
+  const edits = () => q(`SELECT changed_fields FROM audit_log WHERE entity_type = 'emission' AND entity_id = 9811 AND action = 'manager_edit' ORDER BY id`);
+  const [audit] = await edits();
+  assert.equal(audit.changed_fields.date_of_reporting.new, "2025-08-31");
+
+  const again = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting: "2025-08-31", reason: "Wrong month" });
+  assert.equal(again.status, 200, JSON.stringify(again.json));
+  assert.equal(again.json.message, "No changes detected");
+  assert.equal((await edits()).length, 1);
+});
