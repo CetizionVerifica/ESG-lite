@@ -35,7 +35,9 @@ export const refreshDqForEvidence = async (manager: EntityManager, emissionIds: 
     const next = dqWithEvidence(row.dq, row.method, Number(count) > 0);
     if (next.reliability === row.dq.reliability && next.overall === row.dq.overall) continue;
 
-    await repo.update({ pk_id: row.pk_id }, { dq: next });
+    // Not an edit of the entry: its version (updated_at) stays, so an edit
+    // form opened before the upload still saves (#218's ENTRY_CHANGED check).
+    await manager.query(`UPDATE emission SET dq = $2::jsonb WHERE pk_id = $1::bigint`, [row.pk_id, JSON.stringify(next)]);
     changed += 1;
   }
   return changed;
