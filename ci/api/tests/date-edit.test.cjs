@@ -87,6 +87,20 @@ test("an entry can't be moved onto a date that already holds the same activity, 
   assert.equal(ok.status, 200, JSON.stringify(ok.json));
 });
 
+test("a separate bill can keep both: a move onto a date with the same activity saves with keep_both", async () => {
+  await diesel(9811, "2025-06-30");
+  await diesel(9813, "2025-07-31");
+  await diesel(9814, "2025-06-30");
+  // The User moves a second Diesel bill into July, which already holds one, and keeps both.
+  const user = await call("PUT", "/user/emissions/9811?keep_both=true", "user", { date_of_reporting: "2025-07-31" });
+  assert.equal(user.status, 200, JSON.stringify(user.json));
+  // A Manager does the same for another bill.
+  const mgr = await call("PUT", "/user/emissions/manager-edit/9814?keep_both=true", "manager", { date_of_reporting: "2025-07-31", reason: "Second bill for July" });
+  assert.equal(mgr.status, 200, JSON.stringify(mgr.json));
+  const rows = await q(`SELECT pk_id, date_of_reporting FROM emission WHERE pk_id = ANY($1) ORDER BY pk_id`, [[9811, 9813, 9814]]);
+  assert.deepEqual(rows.map((r) => ymd(r.date_of_reporting)), ["2025-07-31", "2025-07-31", "2025-07-31"]);
+});
+
 test("changing an entry's activity onto one already saved for its date is refused; a kept-both pair stays editable", async () => {
   await diesel(9811, "2025-07-31");
   await q(
@@ -124,6 +138,31 @@ test("a save over a change someone made since the form opened is refused as a wa
   assert.equal(approved.status, 403);
   assert.equal(approved.json.code, "ENTRY_APPROVED");
   assert.equal(approved.json.severity, "warning");
+});
+
+test("opening an older entry's factor doesn't count as a change: the form opened before it still saves", async () => {
+  await diesel(9811); // no factor snapshot, as an entry saved before snapshots
+  const [{ updated_at: opened }] = await q(`SELECT updated_at FROM emission WHERE pk_id = 9811`);
+  const factor = await call("GET", "/user/emissions/9811/factor", "manager");
+  assert.equal(factor.status, 200, JSON.stringify(factor.json));
+  assert.equal(factor.json.source, "lookup");
+  const [row] = await q(`SELECT updated_at, emission_factor_snapshot FROM emission WHERE pk_id = 9811`);
+  assert.ok(row.emission_factor_snapshot, "the snapshot is backfilled");
+  assert.equal(new Date(row.updated_at).getTime(), new Date(opened).getTime(), "the entry's version is untouched");
+  const saved = await call("PUT", "/user/emissions/manager-edit/9811", "manager", {
+    activity_data: { activity_value: 150, emission_category: "Diesel" },
+    reason: "Meter re-read",
+    expected_updated_at: new Date(opened).toISOString(),
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+});
+
+test("a manager edit reads a date as its own calendar date, as the user edit does", async () => {
+  await diesel(9811);
+  const r = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting: "2025-08-31T00:00:00+05:30", reason: "Wrong month" });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const [row] = await q(`SELECT date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(ymd(row.date_of_reporting), "2025-08-31"); // not 30 Aug, the UTC date of that instant
 });
 
 test("an invalid date is refused and nothing changes", async () => {

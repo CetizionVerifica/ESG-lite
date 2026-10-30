@@ -744,6 +744,8 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
     const { activity_data, activity_data_unit, date_of_reporting, extra_data, reason, expected_updated_at } = req.body;
+    // Keep both (F-06), as on a new entry: a separate bill for the same activity may share the date.
+    const keepBoth = req.query.keep_both === "true";
 
     const emission = await repo.findOne({
       where: { pk_id: parseInt(id) },
@@ -837,7 +839,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
 
     // #218: saved only if the row is as it was read, and not onto a duplicate
     // (checked when the date moves or the activity changes, under the lock a new entry takes).
-    const saved = await saveChecked(emission, read, dateChanged ? "move" : activity_data !== undefined ? "edit" : null, req.user);
+    const saved = await saveChecked(emission, read, dateChanged ? "move" : activity_data !== undefined ? "edit" : null, req.user, keepBoth);
     if (saved.kind !== "saved") return res.status(saved.status).json(saved.body);
     await pcfDataChanged("emission", [emission.pk_id]);
     await kpiSourceChanged("emission", [emission.pk_id]);
@@ -1001,13 +1003,16 @@ type SaveOutcome = { kind: "saved" } | { kind: "refused"; status: number; body: 
  * would otherwise be undone): 409 ENTRY_CHANGED. With `checkDuplicate` (a move,
  * or an edit of the activity) it takes the site + category lock a new entry
  * takes and refuses a duplicate at the row's date (see duplicateAt), so a move
- * and a new entry can't both land on one date.
+ * and a new entry can't both land on one date. With `keepBoth` (F-06, as on a
+ * new entry: a separate bill for the same activity) the duplicate is allowed;
+ * the review check NO_DUPLICATE still holds it for the reviewer.
  */
 async function saveChecked(
   emission: Emission,
   read: { status: string; updated_at: Date; activity_data: Record<string, any> | null },
   checkDuplicate: "move" | "edit" | null,
   actor: { userId?: number; role?: string } | undefined,
+  keepBoth = false,
 ): Promise<SaveOutcome> {
   return AppDataSource.transaction(async (m): Promise<SaveOutcome> => {
     // A move re-checks its period (mode lock) under the lock, monthly or yearly, as a new entry does.
@@ -1028,14 +1033,14 @@ async function saveChecked(
       const refused = await moveError(m.getRepository(Emission), emission, ymd(emission.date_of_reporting));
       if (refused) return { kind: "refused", ...refused };
     }
-    if (checkDuplicate) {
+    if (checkDuplicate && !keepBoth) {
       const dup = await duplicateAt(m, emission, checkDuplicate, read.activity_data);
       if (dup) {
         return {
           kind: "refused",
           status: 409,
           body: {
-            message: "An entry for this site, category, date and emission subcategory already exists. Edit that entry instead.",
+            message: "An entry for this site, category, date and emission subcategory already exists. Keep both if this is a separate bill, or edit that entry instead.",
             duplicate: true,
             severity: "warning",
             existing_emission: duplicateView(dup),
@@ -1721,8 +1726,10 @@ export const getEmissionFactorForEmission = async (req: Request, res: Response) 
       year: emissionFactor.year,
     };
 
-    // Backfill: save snapshot on older records so future lookups are instant
-    await repo.update(emissionId, { emission_factor_snapshot: factorData });
+    // Backfill: save snapshot on older records so future lookups are instant.
+    // A read doesn't change the entry's version (updated_at), so an edit form
+    // opened with this drawer still saves (#218's ENTRY_CHANGED check).
+    await AppDataSource.query(`UPDATE emission SET emission_factor_snapshot = $2::jsonb WHERE pk_id = $1::bigint`, [Number(emissionId), JSON.stringify(factorData)]);
     await refreshChecksSafely(AppDataSource.manager, [Number(emissionId)]);
 
     return res.status(200).json({
@@ -2899,6 +2906,8 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     const { id }: any = req.params;
     const userId = req.user?.userId;
     const { activity_data: activityDataInput, date_of_reporting, activity_data_unit, reason, expected_updated_at } = req.body;
+    // Keep both (F-06), as on a new entry: a separate bill for the same activity may share the date.
+    const keepBoth = req.query.keep_both === "true";
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -2921,14 +2930,15 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     // while keeping the old total would leave the row off by the conversion
     // factor. Treat it as an activity_data edit using the stored data.
     const unitChanged = activity_data_unit !== undefined && activity_data_unit !== emission.activity_data_unit;
-    if (date_of_reporting !== undefined && isNaN(new Date(date_of_reporting).getTime())) {
+    // A requested date is read as its own calendar date, as on the user edit and the period-lock guard.
+    const newDate = date_of_reporting !== undefined ? dateOnly(date_of_reporting) : undefined;
+    if (newDate === null) {
       return res.status(400).json({ message: "Invalid date of reporting" });
     }
     // A new reporting date can mean a different factor year, so it recalculates
     // too, but only a row that has a category and unit: otherwise there is no
     // total to recalculate and the date alone changes, as before.
-    const storedDate = new Date(emission.date_of_reporting).toISOString().slice(0, 10);
-    const dateChanged = date_of_reporting !== undefined && new Date(date_of_reporting).toISOString().slice(0, 10) !== storedDate;
+    const dateChanged = newDate !== undefined && newDate !== ymd(emission.date_of_reporting);
     const canRecalculate = !!emission.activity_data?.emission_category && !!(activity_data_unit ?? emission.activity_data_unit);
     const activity_data = activityDataInput !== undefined
       ? activityDataInput
@@ -2963,14 +2973,14 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     if (dateChanged) {
       // No moving an entry into a period that hasn't started (as imports refuse),
       // nor into one filed the other way; the edit form already stops at this month.
-      const refused = await moveError(repo, emission, dateOnly(date_of_reporting) as string);
+      const refused = await moveError(repo, emission, newDate as string);
       if (refused) return res.status(refused.status).json(refused.body);
     }
     const read = { status: emission.status, updated_at: loadedVersion(emission, expected_updated_at), activity_data: emission.activity_data };
     const oldTotal = emission.total_emission;
 
     // Apply the new date first: the factor year follows the reporting date.
-    if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
+    if (newDate !== undefined) emission.date_of_reporting = new Date(newDate);
 
     // Apply changes (do NOT change approval status)
     if (activity_data_unit !== undefined) {
@@ -3009,7 +3019,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
 
     keepImportProvenance(emission, emission.extra_data, userId);
     // #218: saved only if the row is as it was read, and not onto a duplicate.
-    const saved = await saveChecked(emission, read, dateChanged ? "move" : activityDataInput !== undefined ? "edit" : null, req.user);
+    const saved = await saveChecked(emission, read, dateChanged ? "move" : activityDataInput !== undefined ? "edit" : null, req.user, keepBoth);
     if (saved.kind !== "saved") return res.status(saved.status).json(saved.body);
     await pcfDataChanged("emission", [emission.pk_id]);
     await kpiSourceChanged("emission", [emission.pk_id]);
