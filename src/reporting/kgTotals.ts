@@ -15,6 +15,13 @@
  *   rowKg(row)               one row's kgCO₂e in JS (an entity or a raw row)
  *   sumKg(list) / addKg(...) kg figures added exactly (each to 4 dp, as stored)
  *   kgToTonnes(kg)           kgCO₂e → tCO₂e, rounded once (roundTonnes, 3 dp)
+ *   rowsKg(q, ids)           the exact kgCO₂e of some emission rows (the rows behind a reported
+ *                            figure), for a caller that adds such figures later: KPI-5 keeps it
+ *                            beside each auto value so KPI roll-ups add kg and round once
+ *
+ * A part of a report (a site, a month, a quarter, a site × scope cell) is its
+ * own rows' kg rounded once too; a figure made of parts adds their kg, never
+ * their rounded tonnes.
  */
 import { roundTonnes } from "../services/emissionWrite/round";
 
@@ -50,3 +57,15 @@ export const addKg = (...kg: unknown[]): number => sumKg(kg);
  * row's stored total and the Scope 3 section (ghg-scope3 `kgToT`) use.
  */
 export const kgToTonnes = (kg: unknown): number => roundTonnes((Number(kg) || 0) / 1000) || 0;
+
+/** Something that runs SQL: the DataSource, an EntityManager or a transaction. */
+export interface KgQueryable {
+  query(sql: string, params?: unknown[]): Promise<any>;
+}
+
+/** The exact kgCO₂e of the emission rows `ids` (rowKgSql summed in SQL), 0 for none. */
+export async function rowsKg(q: KgQueryable, ids: number[]): Promise<number> {
+  if (!ids.length) return 0;
+  const rows = await q.query(`SELECT ${sumKgSql("e")} AS kg FROM emission e WHERE e.pk_id = ANY($1::bigint[])`, [ids]);
+  return Number(rows?.[0]?.kg) || 0;
+}

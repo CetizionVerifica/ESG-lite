@@ -33,7 +33,7 @@ import { enabledFrameworks, kpiSettings, todayIso } from "../setup/settings";
 import { figureDefs, targetsWithProgress } from "../targets/service";
 import { periodsFor, yearRange, type KpiPeriod } from "../values/period";
 import { assertSetupDone } from "../values/service";
-import { combine, figureOf, loadValues, type FigureDef, type StoredValue } from "../values/yearly";
+import { combineValues, figureOf, loadValues, type FigureDef, type StoredValue } from "../values/yearly";
 import { coverage, type FrameworkCoverage, type KpiState } from "./coverage";
 
 type Row = Record<string, any>;
@@ -202,7 +202,7 @@ export async function dashboard(caller: KpiCaller, query: unknown) {
       const series = lastPeriods(def, yearType, q.year, SERIES_LENGTH).map((p) => {
         const at = approved.filter((v) => v.kpi_definition_id === d.id && v.period_start === p.start && v.frequency === p.frequency);
         const pick = d.level === "company" ? at.filter((v) => v.site_id === null) : at.filter((v) => v.site_id !== null && (scope.siteFilter === null ? siteIds.includes(v.site_id) : v.site_id === scope.siteFilter));
-        return { period: p.label, period_start: p.start, label: p.label, value: pick.length ? combine(pick.map((v) => v.value), d.aggregation) : null };
+        return { period: p.label, period_start: p.start, label: p.label, value: pick.length ? combineValues(pick, d.aggregation) /* D14: GHG auto values add kg */ : null };
       });
       const target =
         targets

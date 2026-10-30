@@ -87,3 +87,28 @@ test("year figures: company-level values, latest headcount, text answers, LTIFR 
   const byCode = new Map([["LTIFR", ltifr], ["HOURS_WORKED", hours]]);
   assert.equal(figureOf(ltifr, vals, byCode, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 2.75, "(2×3m + 5×1m) / 4m");
 });
+
+// D14 review fix: GHG auto values keep their rows' kg (auto_snapshot.kg); a sum
+// of them adds the kg and rounds once, as the GHG report does. By hand: Scope 1
+// rows of 1,000.4 kg at site 1 in January and February and at site 2 in
+// January: each site-month 1,000.4 kg → 1.0 t; the company's year 3,001.2 kg
+// → 3.001 t (not 1 + 1 + 1 = 3.0); site 1's year 2,000.8 kg → 2.001 t; January
+// across both sites 2,000.8 kg → 2.001 t.
+test("year figures: GHG auto values add their kg and round once (D14); values without kg add as before", () => {
+  const { combineValues } = require(path.resolve("dist/kpi/values/yearly.js"));
+  const ghg = { id: 7, level: "site", aggregation: "sum", frequency: "monthly" };
+  const kg = (id, site, start) => ({ ...v(id, 7, site, start, 1), kg: 1000.4 });
+  const values = [kg(1, 1, "2026-01-01"), kg(2, 1, "2026-02-01"), kg(3, 2, "2026-01-01")];
+  assert.equal(yearFigure(ghg, values, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 3.001, "3,001.2 kg");
+  assert.equal(yearFigure(ghg, values, { year: 2026, yearType: "CY", sites: [1, 2], site: 1 }).value, 2.001, "2,000.8 kg");
+  assert.equal(combineValues(values.filter((x) => x.period_start === "2026-01-01"), "sum"), 2.001, "January, both sites");
+
+  // A value without kg (written before D14, or not in tCO2e) or whose kg isn't its own: the values are added.
+  const mixed = [values[0], values[1], { ...values[2], kg: null }];
+  assert.equal(yearFigure(ghg, mixed, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 3);
+  assert.equal(yearFigure(ghg, [values[0], { ...values[2], kg: 2000 }], { year: 2026, yearType: "CY", sites: [1, 2] }).value, 2, "kg 2,000 doesn't round to 1");
+  assert.equal(combineValues([values[0], { ...values[2], kg: null }], "sum"), 2);
+  // Other rules never read kg.
+  assert.equal(yearFigure({ ...ghg, aggregation: "max" }, values, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 1);
+  assert.equal(combineValues(values, "average"), 1);
+});
