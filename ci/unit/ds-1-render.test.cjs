@@ -335,3 +335,56 @@ test("the mirror hash is current (npm run check:studio-render)", () => {
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.match(r.stdout, new RegExp(R.RENDER_HASH));
 });
+
+// #209 review: the FE mirror is type-checked by ESG-lite_FE's tsconfig (`tsc && vite build`), which is stricter than ours
+// (noUnusedLocals, noUnusedParameters, noFallthroughCasesInSwitch, isolatedModules, bundler resolution, DOM lib). The
+// renderer is compiled here with those rules, and no ambient Node types (it is pure), so a sync can't hand the FE a mirror
+// its build rejects.
+const FE_TSCONFIG = {
+  target: "ES2020",
+  useDefineForClassFields: true,
+  lib: ["ES2020", "DOM", "DOM.Iterable"],
+  module: "ESNext",
+  skipLibCheck: true,
+  moduleResolution: "bundler",
+  isolatedModules: true,
+  noEmit: true,
+  strict: true,
+  noUnusedLocals: true,
+  noUnusedParameters: true,
+  noFallthroughCasesInSwitch: true,
+  types: [],
+};
+const feTsc = (dir) => {
+  const files = [];
+  const walk = (d) => {
+    for (const n of fs.readdirSync(d).sort()) {
+      const p = path.join(d, n);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (n.endsWith(".ts")) files.push(p);
+    }
+  };
+  walk(dir);
+  const tmp = fs.mkdtempSync(path.join(require("os").tmpdir(), "ds-render-fe-tsc-"));
+  try {
+    fs.writeFileSync(path.join(tmp, "tsconfig.json"), JSON.stringify({ compilerOptions: FE_TSCONFIG, files }));
+    return spawnSync(process.execPath, [require.resolve("typescript/bin/tsc"), "-p", path.join(tmp, "tsconfig.json")], { encoding: "utf8" });
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+};
+
+test("render/ compiles under the FE's tsconfig rules (the mirror never breaks ESG-lite_FE's typecheck or build)", () => {
+  const r = feTsc(path.resolve("src/reporting/studio/render"));
+  assert.equal(r.status, 0, `tsc with the FE rules:\n${r.stdout}${r.stderr}`);
+  // The check bites: an unused parameter (the FE's TS6133) fails it.
+  const tmp = fs.mkdtempSync(path.join(require("os").tmpdir(), "ds-render-fe-bad-"));
+  try {
+    fs.writeFileSync(path.join(tmp, "bad.ts"), "export const ids = (xs: number[]): number[] => xs.map((x, i) => i);\n");
+    const bad = feTsc(tmp);
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stdout, /TS6133/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

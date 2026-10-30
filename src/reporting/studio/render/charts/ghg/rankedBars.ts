@@ -64,7 +64,7 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
     if (prior && pv !== null) out.push(rectBox(x0 + scale.t(Math.min(0, pv)) * pw, y + band * 0.14 + mainH + band * 0.04, (scale.t(Math.max(0, pv)) - scale.t(Math.min(0, pv))) * pw, band * 0.18));
     return out;
   });
-  const shown = showValues ? ps.map((p, i) => i).filter((i) => labelled.has(i)) : [];
+  const shown = showValues ? ps.map((_, i) => i).filter((i) => labelled.has(i)) : [];
   const labelFit = (size: number, drop: boolean): { size: number; keep: Set<number> } | null => {
     const placed: LabelBox[] = [];
     const keep = new Set<number>();
