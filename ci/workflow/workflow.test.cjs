@@ -451,14 +451,33 @@ step("26 the Manager approves, rejects the wrong row and leaves one pending", as
 function expectedTotals() {
   const approved = SC.ENTRIES.filter((e) => e.review === "approve");
   const kg = { s1: 0, s2: 0, cat: { 1: S.spendKg + S.supplierKg, 3: 0, 6: SC.travelKg() } };
-  const t = { s1: 0, s2: 0, cat3: 0 }; // sums of stored 2-dp rows
   for (const e of approved) {
     const w = SC.expectedFor(e);
-    if (e.cat === "fuel") (kg.s1 += w.kg), (t.s1 += tonnes(w.kg));
-    if (e.cat === "electricity") (kg.s2 += w.kg), (t.s2 += tonnes(w.kg));
-    for (const v of Object.values(w.twins)) (kg.cat[3] += v), (t.cat3 += tonnes(v));
+    if (e.cat === "fuel") kg.s1 += w.kg;
+    if (e.cat === "electricity") kg.s2 += w.kg;
+    for (const v of Object.values(w.twins)) kg.cat[3] += v;
   }
-  return { kg, t };
+  return { kg };
+}
+
+/** kg of a row and its Category 3 twins. */
+const familyKg = (e) => {
+  const w = SC.expectedFor(e);
+  return w.kg + Object.values(w.twins).reduce((a, v) => a + v, 0);
+};
+
+/**
+ * D14: the approved FY REPORT_YEAR kg on both sites so far, by hand from the scenario (no row has
+ * no scope, so net = gross): step 26's approved rows and twins, the supplier, spend and flight
+ * rows, 29d's August rows and twins, and the March row DS-W7 approves when Chromium runs it.
+ * Overview and Insights show this sum rounded once.
+ */
+function approvedNetKg() {
+  const { kg } = expectedTotals();
+  let total = kg.s1 + kg.s2 + kg.cat[1] + kg.cat[3] + kg.cat[6];
+  for (const e of V2.entries) total += familyKg(e);
+  if (S.marPendingApproved) total += familyKg(SC.ENTRIES.find((e) => e.ref === "diesel-mar-pending"));
+  return total;
 }
 const r2 = (n) => Math.round(n * 1000) / 1000; // tCO₂e compared at 3 dp (#209)
 
@@ -483,17 +502,26 @@ step("26a the GHG report's Scope 3 table: every category's status, and approved 
   assert.deepEqual(r.json.gwp_sets, used.rows.map((x) => x.g));
 });
 
-step("26b the GHG report's scope totals: Scope 1, 2 and 3 from approved rows only", async () => {
-  const { t } = expectedTotals();
+// D14: every figure is the approved rows' kg summed, then rounded once to tCO₂e. By hand:
+//   Scope 1  diesel 1,200 l × 2.68 + 800 l × 2.68 = 3,216 + 2,144 = 5,360 kg → 5.36 t
+//   Scope 2  grid 45,000 kWh × 0.716 + 20,000 kWh × 0.727 = 32,220 + 14,540 = 46,760 kg → 46.76 t
+//   Scope 3  Category 3 twins 732 + 488 + 4,500 + 2,250 + 2,200 + 1,040 = 11,210 kg; Category 1 the
+//            supplier's 21,500 kg + the spend row (500,000 INR ÷ 85.6 × 292.655 ÷ 321.943 × 1.045 =
+//            5,548.6776 kg); Category 6 the flight 2 × 1,400 × 0.22928 = 641.984 kg
+//            → 11,210 + 21,500 + 5,548.6776 + 641.984 = 38,900.6616 kg → 38.901 t
+//   Total    5,360 + 46,760 + 38,900.6616 = 91,020.6616 kg → 91.021 t
+//   (the same figures as adding the rows' stored tonnes here: no rounding edge is crossed)
+step("26b the GHG report's scope totals: Scope 1, 2 and 3 from approved rows only (kg summed, then rounded)", async () => {
+  const { kg } = expectedTotals();
   const r = await call("POST", "/user/ghg/tables", S.people.manager, { siteIds: siteIds(), year: SC.REPORT_YEAR, yearType: SC.YEAR_TYPE, frequency: "yearly" });
   ok(r);
   const totals = r.json.totals?.[String(SC.REPORT_YEAR)];
   assert.ok(totals, JSON.stringify(Object.keys(r.json)));
-  assert.equal(r2(totals.scope1), r2(t.s1), "Scope 1");
-  assert.equal(r2(totals.scope2), r2(t.s2), "Scope 2");
-  const s3rows = r2(t.cat3 + tonnes(S.spendKg) + tonnes(S.supplierKg) + tonnes(SC.travelKg()));
-  assert.equal(r2(totals.scope3), s3rows, "Scope 3");
-  assert.equal(r2(totals.total), r2(t.s1 + t.s2 + s3rows), "Total");
+  assert.equal(totals.scope1, tonnes(kg.s1), "Scope 1");
+  assert.equal(totals.scope2, tonnes(kg.s2), "Scope 2");
+  const s3kg = kg.cat[1] + kg.cat[3] + kg.cat[6];
+  assert.equal(totals.scope3, tonnes(s3kg), "Scope 3");
+  assert.equal(totals.total, tonnes(kg.s1 + kg.s2 + s3kg), "Total");
 });
 
 step("26d supplier coverage for reports: the share of Category 1 and 2 from supplier data, and the top suppliers", async () => {
@@ -1216,6 +1244,7 @@ pendingStep("DS-W7 the Manager generates the final; it is immutable and its SHA 
   assert.deepEqual([blocked.status, blocked.json.code, blocked.json.details.checks[0].id], [409, "DS_CHECKS_BLOCKING", "GHG_PENDING_ENTRIES"]);
   // The Manager settles the period in Review: approves the pending row, deletes the rejected one.
   ok(await call("PUT", `/user/emissions/${S.rows["diesel-mar-pending"].id}/approve`, S.people.manager, {}));
+  S.marPendingApproved = true; // IN-W5's hand-worked net counts it from here
   ok(await call("DELETE", `/user/emissions/${S.rows["diesel-jun-wrong"].id}`, S.people.manager));
   // Review moved the figures, not the studio: DS-W9 compares with this.
   S.dsEmissionsBefore = await emissionReports();
@@ -1419,8 +1448,17 @@ step("IN-W4 the Manager adds an event; it is listed, and on the pathway when the
   assert.equal((await call("POST", "/insights/events", S.people.userMain, { ...IN.event, site_id: S.sites.main })).json.code, "IN_FORBIDDEN");
 });
 
-step("IN-W5 a User submits an entry and the Manager approves it: the stamp moves and net moves by exactly its tCO₂e", async () => {
+// D14: net is the approved kg summed, then rounded once, so the step checks net before and after
+// against approvedNetKg() (hand-worked) rather than adding the entry's rounded rows. By hand, the
+// entry is 100 l × 2.66155 = 266.155 kg and its 3a twin 100 × 0.62409 = 62.409 kg (328.564 kg):
+//   without Chromium (DS-W7 skipped)  100,667.6616 kg → 100.668 t, then 100,996.2256 kg → 100.996 t (+0.328)
+//   with Chromium, DS-W7 also approved March's 500 l: 1,330.775 + 312.045 kg more
+//                                     102,310.4816 kg → 102.31 t, then 102,639.0456 kg → 102.639 t (+0.329,
+//                                     where adding the rows' rounded tonnes would say +0.328)
+step("IN-W5 a User submits an entry and the Manager approves it: the stamp moves and net moves by exactly its kg, rounded once", async () => {
   const before = await inSummary();
+  const netKg = approvedNetKg();
+  assert.equal(before.data.net.value, tonnes(netKg), "net before, by hand");
   const e = IN.entry;
   const r = await call("POST", "/user/emissions", S.people[e.who], {
     site_id: S.sites[e.site],
@@ -1440,8 +1478,8 @@ step("IN-W5 a User submits an entry and the Manager approves it: the stamp moves
   ok(await call("PUT", `/user/emissions/${id}/approve`, S.people.manager, {}));
   const after = await inSummary();
   assert.notEqual(after.stamp, pending.stamp, "the approval moves the stamp: the cached summary is not served");
-  const delta = tonnes(want.kg) + Object.values(want.twins).reduce((a, kg) => a + tonnes(kg), 0);
-  assert.ok(Math.abs(after.data.net.value - before.data.net.value - delta) < 1e-6, `net moved ${after.data.net.value - before.data.net.value}, by hand ${delta}`);
+  const entryKg = want.kg + Object.values(want.twins).reduce((a, kg) => a + kg, 0);
+  assert.equal(after.data.net.value, tonnes(netKg + entryKg), `net moved ${after.data.net.value - before.data.net.value}, by hand ${tonnes(netKg + entryKg) - tonnes(netKg)}`);
   assert.equal(after.pending_not_in.emissions, before.pending_not_in.emissions);
   // The approval is a data change of its own: the reports are taken again before the switch goes off.
   S.inEmissionsBefore = await emissionReports();

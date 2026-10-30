@@ -3,8 +3,9 @@
 // Change an input here and its expected figures follow; a lane that adds a
 // calculation adds its inputs and expected kg here too (README.md).
 //
-// Rounding rule (D5, #209): each row stores tCO₂e at 3 dp and kgCO₂e at 4 dp; the
-// Scope 3 report sums kg first and rounds once.
+// Rounding rule (D5, #209, D14): each row stores tCO₂e at 3 dp and kgCO₂e at 4 dp;
+// every report (GHG tables, Scope 3 section, EDE, Overview, Insights) sums kg first
+// and rounds once.
 
 // The client reports by Indian financial year (April to March, the app's default year type).
 // Rows run from 1 Apr 2025 to 31 Mar 2026. Reports name a financial year by the
@@ -191,8 +192,9 @@ const KPI = {
 
 /**
  * Insights (IN-10): the entry approved while Insights is open. 100 L of diesel at the main site in
- * February of the report year; its tCO₂e and its Category 3 (3a) twin come from expectedFor, so the
- * Insights net for FY REPORT_YEAR moves by exactly tonnes(kg) + tonnes(twin kg) when it is approved.
+ * February of the report year; its kg and its Category 3 (3a) twin's come from expectedFor
+ * (266.155 + 62.409 = 328.564 kg), so the Insights net for FY REPORT_YEAR becomes the approved kg
+ * before it plus 328.564 kg, rounded once (D14).
  */
 const INSIGHTS = {
   entry: { ref: "in-diesel-feb", who: "userMain", site: "main", cat: "fuel", date: `${YEAR + 1}-02-28`, activity: "Diesel", value: 100, unit: "litre" },
