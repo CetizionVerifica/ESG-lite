@@ -10,6 +10,13 @@ import { n3 } from "../util";
 /** Width the value labels need on a vertical axis. */
 export const axisWidth = (s: Scale): number => Math.max(...s.ticks.map((t) => tickLabel(t).length)) * SMALL * 0.6 + SMALL;
 
+/**
+ * #209 round 4: the height a vertical value axis needs for its tick labels not to meet (a tick label's height and its air
+ * per step), and never under 2 × SMALL. A chart gives the plot this much before it takes height for anything new (a
+ * total line's extra lines, a staggered label row).
+ */
+export const tickRoom = (s: Scale): number => Math.max(SMALL * 2, (s.ticks.length - 1) * SMALL * 0.9);
+
 /** Horizontal gridlines + labels for a vertical value axis over plot [x0, x0+w] × [y0, y0+h]. */
 export function valueGridY(s: Scale, x0: number, y0: number, w: number, h: number, theme: Theme): string {
   return s.ticks

@@ -11,6 +11,11 @@ export const U = 4;
 /** 7.5 pt in viewBox units (1 pt = 0.3528 mm). */
 export const FONT = 7.5 * 0.3528 * U;
 export const SMALL = 6.5 * 0.3528 * U;
+/**
+ * #209 round 4: the least height a plot is ever given (half a SMALL line, about 1.1 mm): a frame too small for its chart
+ * draws short bars on an upright axis, never a zero or negative plot (bars of height 0, an axis upside down).
+ */
+export const PLOT_FLOOR = SMALL * 0.5;
 
 /**
  * Chart options (01-contracts §2 chart props). DS-8 adds: `colors` (scope
@@ -160,12 +165,15 @@ export const rectBox = (x: number, y: number, w: number, h: number, owner?: numb
  * `make(extraTop, size)` builds the row for a plot whose top is `extraTop` lower (the
  * chart's own geometry, so a staggered row takes room from the bars, not from the page);
  * the chart draws with the returned `extraTop` and `size`. `minY` is the top labels may
- * reach (a headline above the plot).
+ * reach (a headline above the plot). `maxLift` (#209 round 4) is the most height the plot
+ * can give up and keep the room its axis needs (axis.ts tickRoom): a stagger that would take
+ * more is not tried.
  */
-export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, w: number, h: number, opts: { x0?: number; minY?: number; size0?: number } = {}): LabelFit {
+export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, w: number, h: number, opts: { x0?: number; minY?: number; size0?: number; maxLift?: number } = {}): LabelFit {
   const x0 = opts.x0 ?? 0;
   const minY = opts.minY ?? 0;
   const size0 = opts.size0 ?? SMALL;
+  const canLift = (size: number) => LABEL_LIFT * size <= (opts.maxLift ?? Infinity) + 1e-9;
   const attempt = (size: number, stagger: boolean, drop: boolean): LabelFit | null => {
     const extraTop = stagger ? LABEL_LIFT * size : 0;
     const { labels: row, obstacles = [] } = make(extraTop, size);
@@ -208,10 +216,12 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
   const steps = LABEL_STEPS.map((k) => size0 * k);
   for (const stagger of [false, true])
     for (const size of steps) {
+      if (stagger && !canLift(size)) continue;
       const fit = attempt(size, stagger, false);
       if (fit) return fit;
     }
-  return attempt(steps[steps.length - 1], true, true) as LabelFit;
+  const last = steps[steps.length - 1];
+  return attempt(last, canLift(last), true) as LabelFit;
 }
 
 /**

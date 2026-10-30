@@ -168,7 +168,8 @@ export function scopeSplitChart(input: ChartInput): string {
   const gap = SMALL * 0.35;
   const shares = ps.map((p, i) => labelled.has(i) && p.value / sum >= 0.08);
   const minBar = shares.some(Boolean) ? SMALL * 1.1 : SMALL * 0.5;
-  const heads = [headline(value, theme, "Total", w), headline(value, theme, "Total", w, HEADLINE_STEPS.slice(-1))];
+  // #209 round 4: the last resort is one smaller line, never a cut figure (production drew one line).
+  const heads = [headline(value, theme, "Total", w), headline(value, theme, "Total", w, { steps: HEADLINE_STEPS.slice(-1) }), headline(value, theme, "Total", w, { maxH: 0 })];
   type Plan = { head: { svg: string; h: number }; leg: ReturnType<typeof legendRows>; lines: string[]; ns: number; room: number };
   const planFor = (head: Plan["head"], items: Item[], noteText: string, k: number): Plan | null => {
     const size = SMALL * k;
@@ -190,7 +191,7 @@ export function scopeSplitChart(input: ChartInput): string {
             break search;
           }
         }
-  const head = plan?.head ?? heads[0];
+  const head = plan?.head ?? heads[heads.length - 1];
   const barY = head.h + SMALL * 0.4;
   const want = Math.min(FONT * 3, Math.max(FONT * 1.5, (h - head.h) * 0.35));
   // A frame too small for even the bar and its share labels: the bar alone, as tall as it can be.

@@ -4,9 +4,9 @@
  */
 import { formatNumber, seriesUnit } from "../format";
 import { n3 } from "../util";
-import { axisWidth, bandLabels, tickBoxes, valueGridY } from "./axis";
+import { axisWidth, bandLabels, tickBoxes, tickRoom, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, SMALL, emptyChart, fitLabelRow, labelBox, rect, rectBox, svgOpen, text, type ChartInput, type Obstacle } from "./svg";
+import { FONT, PLOT_FLOOR, SMALL, emptyChart, fitLabelRow, labelBox, rect, rectBox, svgOpen, text, type ChartInput, type Obstacle } from "./svg";
 
 export function targetBarsChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
@@ -27,7 +27,7 @@ export function targetBarsChart(input: ChartInput): string {
   const fit = fitLabelRow(
     (extra) => {
       const te = FONT * 1.2 + extra;
-      const phe = h - te - FONT * 1.8;
+      const phe = Math.max(PLOT_FLOOR, h - te - FONT * 1.8);
       const obstacles: Obstacle[] = [...tickBoxes(scale, x0, te, phe)];
       shown.forEach(({ p, i }, li) => {
         const y = te + phe - scale.t(p.value as number) * phe;
@@ -39,10 +39,11 @@ export function targetBarsChart(input: ChartInput): string {
     },
     w,
     h,
-    { x0 },
+    // #209 round 4: a staggered row takes only the height the plot can spare; the plot never goes under PLOT_FLOOR.
+    { x0, maxLift: h - FONT * 3 - tickRoom(scale) },
   );
   const top = FONT * 1.2 + fit.extraTop;
-  const ph = h - top - FONT * 1.8;
+  const ph = Math.max(PLOT_FLOOR, h - top - FONT * 1.8);
   let body = valueGridY(scale, x0, top, pw, ph, theme);
   shown.forEach(({ p, i }, li) => {
     const y = top + ph - scale.t(p.value as number) * ph;

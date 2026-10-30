@@ -108,8 +108,16 @@ export function treemapChart(input: ChartInput): string {
   const ps = ranked(partsOf(cur).filter((p) => p.value > 0));
   const sum = total(ps);
   if (!ps.length || sum <= 0) return emptyChart(w, h, "No data", theme);
-  const head = headline(value, theme, "Total", w);
-  const tiles = squarify(ps, w, h - head.h);
+  // #209 round 4: the total line takes a second (or third) line only when the tiles lose no text line for it; else it
+  // stays one line, smaller (never taller than production's one line).
+  const layout = (head: { svg: string; h: number }) => {
+    const tiles = squarify(ps, w, Math.max(0, h - head.h));
+    const texts = tiles.map((t) => tileText(t, formatNumber(t.value, "auto", unit), pct(t.value / sum), options.showValues !== false));
+    return { head, tiles, texts, lines: texts.reduce((a, x) => a + (x ? 1 + x.lines.length : 0), 0) };
+  };
+  const one = layout(headline(value, theme, "Total", w, { maxH: 0 }));
+  const free = layout(headline(value, theme, "Total", w));
+  const { head, tiles, texts } = free.head.h > one.head.h && free.lines < one.lines ? one : free;
   const base = options.colors === "brand" ? null : theme.colors.s3;
   let body = head.svg;
   tiles.forEach((t, i) => {
@@ -117,7 +125,7 @@ export function treemapChart(input: ChartInput): string {
     const ink = contrastRatio(fill, "#FFFFFF") >= 3 ? "#FFFFFF" : theme.colors.ink;
     const y = head.h + t.y;
     body += rect(t.x, y, t.w, t.h, fill, ` stroke="${theme.colors.paper}" stroke-width="1" data-part="${esc(t.key)}"`);
-    const at = tileText(t, formatNumber(t.value, "auto", unit), pct(t.value / sum), options.showValues !== false);
+    const at = texts[i];
     if (at) {
       body += text(t.x + at.size * 0.5, y + at.size * 1.3, clip(t.key, at.chars), ink, { size: at.size, weight: 700 });
       at.lines.forEach((line, li) => {

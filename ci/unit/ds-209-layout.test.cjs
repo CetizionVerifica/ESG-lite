@@ -386,14 +386,78 @@ test("scope_split keeps its shares, every legend figure and the whole basis note
   assert.ok(run(200, 62).some((t) => t.s === R.SCOPE2_BASIS_NOTE && t.size < SVG.SMALL), "200×62: the whole note, on one line a step smaller");
   assert.deepEqual(content(200, 62), ["note", "figures", "total+shares"]);
   assert.deepEqual(content(100, 80), ["short note", "figures", "total+shares"]);
-  assert.deepEqual(content(100, 70), ["no note", "figures", "total+shares"]);
-  assert.deepEqual(content(100, 60), ["no note", "names", "total+shares"]);
-  assert.deepEqual(content(100, 40), ["no note", "no legend", "total+shares"]);
-  // Too short even for the bar and its share labels: the total, with a sliver of a bar.
-  assert.equal(run(100, 36).map((t) => t.s).join(" "), "Total 12,480.000 tCO₂e");
-  for (const [w, h] of [[200, 100], [200, 62], [100, 80], [100, 70], [100, 60], [100, 40], [100, 36], [400, 34]]) {
+  // #209 round 4: the total line is one smaller line (never cut) before the note or the legend gives anything up.
+  assert.deepEqual(content(100, 70), ["short note", "figures", "total+shares"]);
+  assert.ok(run(100, 70).some((t) => t.s === "Total 12,480.000 tCO₂e" && t.size < SVG.FONT * 0.85), "100×70: the total on one smaller line");
+  assert.deepEqual(content(100, 60), ["no note", "figures", "total+shares"]);
+  assert.deepEqual(content(100, 50), ["no note", "names", "total+shares"]);
+  assert.deepEqual(content(100, 40), ["short note", "no legend", "total+shares"]);
+  assert.deepEqual(content(100, 36), ["no note", "no legend", "total+shares"]);
+  // Too short even for the bar and its share labels: the total (one line), with a sliver of a bar.
+  assert.equal(run(100, 26).map((t) => t.s).join(" "), "Total 12,480.000 tCO₂e");
+  for (const [w, h] of [[200, 100], [200, 62], [100, 80], [100, 70], [100, 60], [100, 50], [100, 40], [100, 36], [100, 26], [400, 34]]) {
     const rows = run(w, h).map((t) => ({ t, b: boxOf(t) }));
     for (const { t, b } of rows) assert.ok(b.y0 >= -EPS && b.y1 <= h + EPS && b.x1 <= w + EPS, `${w}×${h}: "${t.s}" ${where(b)}`);
     for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) assert.ok(!SVG.boxesMeet(rows[i].b, rows[j].b), `${w}×${h}: "${rows[i].t.s}" meets "${rows[j].t.s}"`);
+  }
+});
+
+// ---- #209 round 4 ------------------------------------------------------------------------------------------------------
+
+/** A DS-8 fixture chart element alone on an A4 page, its frame resized to w × h mm; `display` replaces the 12,480.000 total. */
+function alone(id, wmm, hmm, display) {
+  const d = G.doc("a4");
+  for (const p of d.pages) p.elements = p.elements.filter((e) => e.id === id).map((e) => ({ ...e, frame: { ...e.frame, x: 5, y: 5, w: wmm, h: hmm } }));
+  d.pages = d.pages.filter((p) => p.elements.length);
+  const data = G.data((bs, ts, payload) => R.renderData(bs, ts, display ? { ...payload, values: payload.values.map((v) => (v.display === "12,480.000" ? { ...v, display } : v)) } : payload));
+  return charts(R.renderDocument(d, data, { mode: "sheet" }).html)[0];
+}
+/** Horizontal gridlines of a vertical value axis (y top to bottom, in tick order: the first is the axis's minimum). */
+const gridYs = (c) => [...c.body.matchAll(/<line x1="([\d.-]+)" x2="([\d.-]+)" y1="([\d.-]+)" y2="\3"/g)].map((m) => num(m[3]));
+
+test("round 4: a total line never takes the plot's room: the plot stays upright and at least PLOT_FLOOR tall, every part keeps a visible mark", () => {
+  const ids = ["g.gas_split", "g.monthly_stack", "g.monthly_plain", "g.category_bars", "g.category_prior", "g.site_bars", "g.treemap"];
+  let frames = 0;
+  let multi = 0;
+  for (const display of [null, "1,234,567.890"])
+    for (const id of ids)
+      for (let wmm = 25; wmm <= 120; wmm += 2.5)
+        for (let hmm = 15; hmm <= 60; hmm += 2.5) {
+          const c = alone(id, wmm, hmm, display);
+          const at = `${id} ${wmm}×${hmm} mm${display ? ` (${display})` : ""}`;
+          frames++;
+          const parts = c.rects.filter((r) => r.part !== undefined);
+          // Every part draws a mark of positive size (the fixture's parts are all positive).
+          assert.ok(parts.length > 0, `${at}: no marks`);
+          assert.ok(parts.every((r) => r.w > 0 && r.h > 0), `${at}: a mark of zero size ${parts.filter((r) => !(r.w > 0 && r.h > 0)).map((r) => `${r.part} ${r.w}×${r.h}`).join(", ")}`);
+          const head = c.texts.filter((t) => t.bold && t.x === 0 && (/^Total/.test(t.s) || /\d,\d{3}\.\d{3}|tCO₂e/.test(t.s)));
+          const headBottom = head.length ? Math.max(...head.map((t) => t.y + t.size * 0.6)) : 0;
+          const ys = gridYs(c);
+          if (ys.length > 1 && !["category_bars", "site_bars", "treemap"].includes(c.kind)) {
+            // A vertical value axis: gridlines from the minimum (bottom) up, never upside down, never shorter than the floor.
+            for (let i = 1; i < ys.length; i++) assert.ok(ys[i] < ys[i - 1], `${at}: the value axis runs downwards (${ys.join(", ")})`);
+            const ph = ys[0] - ys[ys.length - 1];
+            assert.ok(ph >= SVG.PLOT_FLOOR - EPS, `${at}: plot ${ph.toFixed(2)} under the floor`);
+            // A total line of more than one line only while the plot keeps the room its tick labels need.
+            if (head.length > 1) {
+              multi++;
+              assert.ok(ph >= Math.max(SVG.SMALL * 2, (ys.length - 1) * SVG.SMALL * 0.9) - EPS, `${at}: a ${head.length}-line total leaves a plot of ${ph.toFixed(2)}`);
+            }
+          }
+          if (["category_bars", "site_bars"].includes(c.kind)) {
+            const band = parts.length > 1 ? parts[1].y - parts[0].y : null;
+            if (head.length > 1 && band !== null) {
+              multi++;
+              assert.ok(band >= SVG.SMALL * 1.1 - EPS, `${at}: a ${head.length}-line total leaves bands of ${band.toFixed(2)}`);
+            }
+            assert.ok(parts.every((r) => r.y >= headBottom - EPS), `${at}: a bar under the total line`);
+          }
+        }
+  assert.ok(frames > 5000, String(frames));
+  assert.ok(multi > 100, `charts that wrap their total line: ${multi}`);
+  // The reviewers' cases (production drew these plots): the biggest mark keeps a visible size.
+  for (const [id, w, hh] of [["g.gas_split", 30, 22.5], ["g.monthly_stack", 27.5, 25], ["g.monthly_plain", 25, 15], ["g.category_bars", 25, 17.5], ["g.category_prior", 25, 15]]) {
+    const marks = alone(id, w, hh).rects.filter((r) => r.part !== undefined);
+    assert.ok(Math.max(...marks.map((r) => Math.min(r.w, r.h))) > 0.5, `${id} ${w}×${hh}: ${marks.map((r) => `${r.w}×${r.h}`).join(" ")}`);
   }
 });
