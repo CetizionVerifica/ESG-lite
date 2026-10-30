@@ -175,3 +175,12 @@ test("studio: site, month, quarter and scope-stack points are /user/ghg/tables' 
   assert.deepEqual(points(bySite), { "CI Plant A": 2.469, "CI Plant B": 2.469 });
 });
 
+test("EDE: totals.saved is the renewable rows' kg rounded once, as Overview and the GHG tables show it", async () => {
+  const ede = ok(await call("POST", "/user/reports/ede", "manager", { siteIds: [1, 2], frequency: "yearly", year: SAVED_YEAR }), "EDE");
+  assert.deepEqual(ede.savedBySite.map((s) => s.saved), [0.1, 0.1], "each site on its own: 100.45 kg → 0.1 t");
+  assert.equal(ede.totals.saved, 0.201);
+  const ov = ok(await call("GET", `/manager/overview?period=${SAVED_YEAR}&siteIds=1,2`, "manager"), "overview");
+  assert.equal(ov.kpis.saved, ede.totals.saved);
+  const t = await tables({ siteIds: [1, 2], year: SAVED_YEAR });
+  assert.equal(t.tables.table_overviewByLocations_selectedYear.rows.find((r) => r.category === "Renewable Electricity").total, ede.totals.saved);
+});

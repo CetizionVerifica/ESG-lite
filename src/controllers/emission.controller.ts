@@ -2318,12 +2318,17 @@ export const getEdeReport = async(req:Request, res:Response) =>{
       base.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
     }
     // D14: kgCO₂e summed, then rounded once to tCO₂e (kgTotals.ts), as the GHG report.
+    // `saved` (rows with no scope, e.g. renewable electricity) is the selection's
+    // kg rounded once, as Overview's saved: adding savedBySite, each rounded on
+    // its own, can miss it by 0.001 per site.
     const totalsRaw = await base.clone().select([
       `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
       `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
       `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
+      `${sumKgSql("emission", "category.scope IS NULL")} AS "saved"`,
     ]).getRawOne();
 
+    const saved = kgToTonnes(totalsRaw.saved);
     const scope1 = kgToTonnes(totalsRaw.scope1);
     const scope2 = kgToTonnes(totalsRaw.scope2);
     const scope3 = kgToTonnes(totalsRaw.scope3);
@@ -2441,7 +2446,7 @@ export const getEdeReport = async(req:Request, res:Response) =>{
         startDate,
         endDate,
       },
-      totals: { scope1, scope2, scope3, total },
+      totals: { scope1, scope2, scope3, total, saved },
 
       bySite,      
       siteDonut,    
