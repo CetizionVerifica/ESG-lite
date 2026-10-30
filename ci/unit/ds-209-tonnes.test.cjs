@@ -361,3 +361,19 @@ test("per-series units: a series' unit is not data, so stored data hashes stay v
   assert.equal(H.elementHash([withUnits]), H.elementHash([base]));
   assert.notEqual(H.dataHash(args({ ...withUnits, series: [withUnits.series[0]] })), H.dataHash(args(base)), "the series' values still count");
 });
+
+test("D14: monthly_stack's peak label is the month's own figure, not its rounded scope stacks added up", () => {
+  // January: Scope 1 2,124.2 kg → 2.124 t and Scope 2 1,234.4 kg → 1.234 t (stacks, each rounded on its own);
+  // the month is 3,358.6 kg → 3.359 t (the ghg source's month series), while the stacks add to 3.358.
+  const stacks = [
+    { label: "Scope 1", values: [{ key: "2016-01", value: 2.124 }, { key: "2016-02", value: 1.234 }] },
+    { label: "Scope 2", values: [{ key: "2016-01", value: 1.234 }, { key: "2016-02", value: 0 }] },
+  ];
+  const months = (jan) => [{ label: "2016", values: [{ key: "2016-01", value: jan }, { key: "2016-02", value: 1.234 }] }];
+  const ghg = svgTexts(chartOf("monthly_stack", { value: 4.593, unit: "tCO₂e", source: "ghg", series: months(3.359), stacks }));
+  assert.ok(ghg.includes("3.359"), ghg.join(" | "));
+  assert.ok(!ghg.includes("3.358"), ghg.join(" | "));
+  // A series that is not the stacks' total (custom data): the stacks added up, as before.
+  const custom = svgTexts(chartOf("monthly_stack", { value: 0, unit: "tCO₂e", source: "custom", series: months(9.5), stacks }));
+  assert.ok(custom.includes("3.358"), custom.join(" | "));
+});

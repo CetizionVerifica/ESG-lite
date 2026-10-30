@@ -7,7 +7,8 @@
  *   monthly_stack  months (or quarters) stacked by scope from `stacks` (one
  *                  series per scope, DS-8 addition to /resolve); without
  *                  stacks, the current year's months as plain bars. Only the
- *                  peak month carries a value label.
+ *                  peak month carries a value label: the month's own figure
+ *                  from the series when the stacks are its parts (D14).
  *                  Binding: ghg · metric total (or one scope) · breakdown month | quarter.
  */
 import { formatNumber, seriesUnit, sharedUnit } from "../../format";
@@ -124,11 +125,18 @@ export function monthlyStackChart(input: ChartInput): string {
   const names = h - namesH - leg.h - head.h >= PLOT_FLOOR - 1e-9;
   const foot = h - (names ? namesH : SMALL * 0.4) - leg.h;
   const maxLift = h - head.h - below - tickRoom(scale);
-  let peak = 0;
-  totals.forEach((t, i) => {
-    if (t > totals[peak]) peak = i;
+  // D14 review: a month's figure is the month series' (the ghg source rounds each month's kg once) when the stacks are its
+  // parts (they add to it within their rounding, 0.0005 a part); the stacks added up only size the column.
+  const month = value.stacks?.length ? currentSeries(value) : null;
+  const figures = keys.map((k, i) => {
+    const v = month ? valueAt(month, k) : null;
+    return v !== null && Math.abs(v - totals[i]) <= (stacks.length + 1) * 0.0005 + 1e-9 ? v : totals[i];
   });
-  const peakLabel = formatNumber(totals[peak], "auto", sharedUnit(stacks, value.unit));
+  let peak = 0;
+  figures.forEach((t, i) => {
+    if (t > figures[peak]) peak = i;
+  });
+  const peakLabel = formatNumber(figures[peak], "auto", sharedUnit(stacks, value.unit));
   // The stacked segments of month ki over a plot [top, top + ph].
   const segRects = (ki: number, top: number, ph: number) => {
     let acc = 0;

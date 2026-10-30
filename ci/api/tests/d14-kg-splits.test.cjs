@@ -241,6 +241,17 @@ test("studio: site, month, quarter and scope-stack points are /user/ghg/tables' 
   assert.deepEqual(points(bySite), { "CI Plant A": 2.469, "CI Plant B": 2.469 });
 });
 
+test("studio monthly_stack: the peak month's label is the resolved month total, not its scope stacks added up", async () => {
+  // CY 2038, site 1: January has a Scope 1 and a Scope 2 row of 1,234.4 kg: stacks 1.234 + 1.234 = 2.468,
+  // the month 2,468.8 kg → 2.469 t (the peak: February and March are 1.234).
+  await setStudio(1, true);
+  const [month] = await resolve(SPLIT_YEAR, [1], [ghg("total", { breakdown: "month" })]);
+  const R = require(path.join(ROOT, "dist/reporting/studio/render/index.js"));
+  const svg = R.chartRenderer("monthly_stack")({ value: month, w: 400, h: 220, theme: R.buildTheme({}), options: {}, label: "monthly_stack" });
+  const labels = [...svg.matchAll(/<text[^>]*font-weight="700"[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]).filter((t) => /^[\d,.]+$/.test(t));
+  assert.deepEqual(labels, ["2.469"], "the bold peak label (the headline is the binding's display)");
+});
+
 test("EDE: totals.saved is the renewable rows' kg rounded once, as Overview and the GHG tables show it", async () => {
   const ede = ok(await call("POST", "/user/reports/ede", "manager", { siteIds: [1, 2], frequency: "yearly", year: SAVED_YEAR }), "EDE");
   assert.deepEqual(ede.savedBySite.map((s) => s.saved), [0.1, 0.1], "each site on its own: 100.45 kg → 0.1 t");
