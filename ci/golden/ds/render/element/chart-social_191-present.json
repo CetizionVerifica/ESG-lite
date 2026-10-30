@@ -29,7 +29,7 @@
       "bytes": 3040,
       "frame": "166.31,8.389,128.512,33.556,0",
       "id": "p-charts.hbar",
-      "sha256": "1a0d80994e6ff5c23cfe2f3c986ab0f0ed309187e59652f92d529d517da7e5da"
+      "sha256": "9055be0144d5dc17a7dcb40adb2de8f5546880bcb9c0f916c9c6ce79fceee2fc"
     },
     {
       "bytes": 3116,
@@ -89,7 +89,7 @@
       "bytes": 2190,
       "frame": "120.952,149.881,75.595,13.422,0",
       "id": "p-charts.ghgkind",
-      "sha256": "17b1f6b73a32bd2b1df3a89f1c01b4bd4db5610c83bb1d7f4a22d7933cf36421"
+      "sha256": "75cc04be086e77a96373a51fdec24a54e985b936548ad553c1e2c838ba6ec907"
     }
   ],
   "format": "social_191",

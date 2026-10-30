@@ -176,9 +176,17 @@ test("DS-1 and DS-8 fixtures on every format: no value label meets another, a ti
       for (let j = i + 1; j < boxes.length; j++)
         assert.ok(!SVG.boxesMeet(boxes[i].b, boxes[j].b), `${r.name} ${c.id} (${c.kind}): "${boxes[i].t.s}" @${boxes[i].t.x},${boxes[i].t.y} meets "${boxes[j].t.s}" @${boxes[j].t.x},${boxes[j].t.y}`);
     // Centred labels over vertical bars stay inside the plot, right of the value axis (its gridlines start at the axis).
+    // #209 round 5: except a figure wider than the first column's band, which sits over that column's middle as production
+    // drew it, its ink over the axis gutter (clear of the tick labels: muted texts, above). Pressed inside the plot's edge it
+    // was centred over the second column (DS-8 A4 monthly_stack: "1,130.000" over February, the reviewers' finding A).
     const axis = /<line x1="([\d.]+)" x2="[\d.]+" y1="([\d.]+)" y2="\2"/.exec(c.body);
     if (axis && ["bar", "stacked_bar", "waterfall", "target_bars", "gas_split", "monthly_stack", "base_year_waterfall", "intensity_line"].includes(c.kind))
-      for (const { t, b } of boxes) if (t.anchor === "middle") assert.ok(b.x0 >= num(axis[1]) - EPS, `${r.name} ${c.id}: "${t.s}" starts at ${b.x0.toFixed(2)}, left of the plot at ${axis[1]}`);
+      for (const { t, b } of boxes) {
+        if (t.anchor !== "middle" || b.x0 >= num(axis[1]) - EPS) continue;
+        const first = bars.filter((x) => x.x >= num(axis[1]) - EPS).reduce((a, x) => (x.x < a.x ? x : a), { x: Infinity });
+        const band = Math.min(...bars.filter((x) => x.x > first.x + EPS).map((x) => x.x)) - first.x;
+        assert.ok(Math.abs(t.x - (first.x + first.w / 2)) < EPS && b.x1 - b.x0 > band, `${r.name} ${c.id}: "${t.s}" starts at ${b.x0.toFixed(2)}, left of the plot at ${axis[1]}`);
+      }
   }
   assert.ok(labels > 400, `labels checked: ${labels}`);
   for (const k of ["bar", "stacked_bar", "waterfall", "target_bars", "donut", "category_bars", "site_bars", "gas_split", "monthly_stack", "base_year_waterfall", "intensity_line", "treemap", "scope_split"]) assert.ok(kinds.has(k), `fixture lacks ${k}: ${[...kinds].join(", ")}`);
@@ -414,7 +422,8 @@ test("scope_split keeps its shares, every legend figure and the whole basis note
   assert.deepEqual(content(200, 100), ["note", "figures", "total+shares"]);
   assert.ok(run(200, 62).some((t) => t.s === R.SCOPE2_BASIS_NOTE && t.size < SVG.SMALL), "200×62: the whole note, on one line a step smaller");
   assert.deepEqual(content(200, 62), ["note", "figures", "total+shares"]);
-  assert.deepEqual(content(100, 80), ["short note", "figures", "total+shares"]);
+  // #209 round 5: measured per face (textWidth: the widest face's own sum), both sentences fit 100 mm at the smallest step.
+  assert.deepEqual(content(100, 80), ["note", "figures", "total+shares"]);
   // #209 round 4: the total line is one smaller line (never cut) before the note or the legend gives anything up.
   assert.deepEqual(content(100, 70), ["short note", "figures", "total+shares"]);
   assert.ok(run(100, 70).some((t) => t.s === "Total 12,480.000 tCO₂e" && t.size < SVG.FONT * 0.85), "100×70: the total on one smaller line");
@@ -575,47 +584,29 @@ function randomCharts(seed, n, kinds, frame = null) {
 }
 
 test("round 4: a kept-first label (latest total, waterfall start and end, bridge base and current) is never left out while a lower one is drawn", () => {
-  // fitLabelRow: a bold label blocked by a tall neighbour more than two lines up rises above it rather than be left out,
-  // and a lower label is left out first.
+  // #209 round 5: kept first means placed first, so a lower label never takes its room; it never means lifted onto a taller
+  // neighbour (round 4 let it rise past the two-line limit, where it read as the neighbour's value). fitLabelRow: a bold label
+  // blocked by a tall neighbour more than two lines up moves sideways, still over its own mark, and the lower label is left out
+  // where they would meet.
   const S = SVG.SMALL;
-  const tall = { x0: 70, x1: 90, y0: 30, y1: 200, owner: 1 };
-  const own = { x0: 40, x1: 60, y0: 150, y1: 200, owner: 0 };
+  const tall = SVG.rectBox(70, 30, 20, 170, 1);
+  const own = SVG.rectBox(40, 150, 20, 50, 0);
   const row = () => ({ labels: [{ x: 50, y: 150 - S * 0.5, text: "12,480.000", bold: true }, { x: 80, y: 30 - S * 0.5, text: "93,000.000" }], obstacles: [own, tall] });
   const f = SVG.fitLabelRow(row, 120, 200);
   assert.ok(f.labels[0], "the bold label is drawn");
   const b = SVG.labelBox(f.labels[0].x, f.labels[0].y, "12,480.000", f.size, { anchor: "middle", bold: true });
   assert.ok(!SVG.boxesMeet(b, tall) && b.y0 >= 0, "clear of the tall bar, inside the chart");
-  // Over random charts: the kept-first labels are drawn whenever any lower label of the row is (in a plot with the room its
-  // axis needs; a frame too small for its plot may have no line above its bars for any label).
-  const VAL = /^[+−]?\d[\d,]*(\.\d+)?$/;
+  assert.ok(b.x0 <= 50 && b.x1 >= 50 && b.y1 <= 150 + EPS, `over its own bar: ${where(b)}`);
+  // Over random charts: a kept-first label is left out (while lower ones are drawn) only when no spot over its own column fits
+  // it at the smallest step (keptFirstLeftOut, #209 round 5); every drawn label reads as its own column's.
   let rows = 0;
   for (const c of randomCharts(4209, 400, ["bar", "stacked_bar", "waterfall", "target_bars", "base_year_waterfall", "bridge_compare"])) {
     const ys = gridYs(c);
     if (ys.length < 2 || ys[0] - ys[ys.length - 1] < Math.max(SVG.SMALL * 2, (ys.length - 1) * SVG.SMALL * 0.9)) continue;
-    const muted = R.buildTheme({}).colors.muted;
-    const vals = c.texts.filter((t) => VAL.test(t.s) && t.fill !== muted);
-    const pts = c.kind === "bar" || c.kind === "target_bars" || c.kind === "waterfall" ? c.value.series[0].values : null;
-    let first;
-    let all;
-    if (c.kind === "bar" || c.kind === "stacked_bar") {
-      const keys = c.value.series[0].values.map((p) => p.key);
-      const tot = keys.map((key) => c.value.series.reduce((a, s) => a + Math.max(0, s.values.find((p) => p.key === key).value), 0));
-      all = tot.map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
-      first = [all[all.length - 1]];
-    } else if (c.kind === "target_bars") {
-      all = pts.map((p) => RF.formatNumber(p.value, "auto", "tCO₂e"));
-      first = [all[all.length - 1]];
-    } else {
-      const steps = c.kind === "waterfall" ? null : require(path.resolve("dist/reporting/studio/render/charts/ghg/trend.js")).bridgeSteps(c.value);
-      const ends = c.kind === "waterfall" ? [pts[0].value, pts[pts.length - 1].value] : [steps[0].to, steps[steps.length - 1].to];
-      first = ends.map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
-      all = vals.map((t) => t.s);
-    }
-    const drawn = vals.map((t) => t.s);
-    const lower = drawn.filter((s) => !first.includes(s));
-    if (!lower.length) continue;
+    const own = ownedLabels(c);
+    if (own.cols.length !== own.want.length || !own.labels.some((l) => !own.want[l.k].first)) continue;
     rows++;
-    for (const s of first) assert.ok(drawn.includes(s), `#${c.i} ${c.kind} ${c.w}×${c.h}: kept-first "${s}" left out while ${lower.join(", ")} drawn`);
+    assert.deepEqual(keptFirstLeftOut(c), [], `#${c.i} ${c.kind} ${c.w}×${c.h}`);
   }
   assert.ok(rows > 150, String(rows));
 });
@@ -887,8 +878,6 @@ test("round 4: seeded random charts over small, narrow and short frames keep plo
   const VERTICAL = new Set(["bar", "target_bars", "waterfall", "stacked_bar", "gas_split", "monthly_stack", "monthly_plain", "base_year_waterfall", "bridge_compare", "intensity_line"]);
   const HORIZONTAL = new Set(["hbar", "hstacked", "category_bars", "category_prior", "site_bars"]);
   const muted = R.buildTheme({}).colors.muted;
-  const VAL = /^[+−]?\d[\d,]*(\.\d+)?$/;
-  const trend = require(path.resolve("dist/reporting/studio/render/charts/ghg/trend.js"));
   const S8 = SVG.SMALL * 0.8;
   const seen = {};
   const checks = { plots: 0, rings: 0, rows: 0, axes: 0, scopeDonuts: 0, tiles: 0 };
@@ -913,31 +902,15 @@ test("round 4: seeded random charts over small, narrow and short frames keep plo
       assert.ok(ring && ring.r > 0.5, `${at}: ring ${ring?.r}`);
       checks.rings++;
     }
-    // 2. A kept-first label (latest total, waterfall start and end, bridge base and current) is drawn whenever a lower one is
-    //    (in a plot with the room its axis needs).
+    // 2. A kept-first label (latest total, waterfall start and end, bridge base and current) is left out while a lower one is
+    //    drawn only when no spot over its own column fits it (#209 round 5: keptFirstLeftOut; never lifted onto a neighbour).
     if (["bar", "stacked_bar", "waterfall", "target_bars", "base_year_waterfall", "bridge_compare"].includes(c.kind)) {
       const ys = axisYs(c);
       if (ys.length >= 2 && ys[0] - ys[ys.length - 1] >= Math.max(SVG.SMALL * 2, (ys.length - 1) * SVG.SMALL * 0.9)) {
-        const drawn = c.texts.filter((t) => VAL.test(t.s) && t.fill !== muted).map((t) => t.s);
-        let first;
-        if (c.kind === "bar" || c.kind === "stacked_bar") {
-          const keys = c.value.series[0].values.map((p) => p.key);
-          const key = keys[keys.length - 1];
-          first = [RF.formatNumber(c.value.series.reduce((a, s) => a + Math.max(0, s.values.find((p) => p.key === key).value), 0), "auto", "tCO₂e")];
-        } else if (c.kind === "target_bars") {
-          const pts = c.value.series[0].values;
-          first = [RF.formatNumber(pts[pts.length - 1].value, "auto", "tCO₂e")];
-        } else if (c.kind === "waterfall") {
-          const pts = c.value.series[0].values;
-          first = [pts[0].value, pts[pts.length - 1].value].map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
-        } else {
-          const steps = trend.bridgeSteps(c.value);
-          first = [steps[0].to, steps[steps.length - 1].to].map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
-        }
-        const lower = drawn.filter((s) => !first.includes(s));
-        if (lower.length) {
+        const own = ownedLabels(c);
+        if (own.cols.length === own.want.length && own.labels.some((l) => !own.want[l.k].first)) {
           checks.rows++;
-          for (const s of first) assert.ok(drawn.includes(s), `${at}: kept-first "${s}" left out while ${lower.join(", ")} drawn`);
+          assert.deepEqual(keptFirstLeftOut(c), [], at);
         }
       }
     }
@@ -1030,4 +1003,318 @@ test("round 4: frame sweeps: small frames keep what production drew clear (bar-e
   // 4. A short scope donut keeps its legend's tCO₂e figures (production drew them clear) before the total it drew over the ring.
   const sd = alone("g.scope_donut", 30, 15);
   for (const s of ["Scope 1 3,410.000", "Scope 2 5,800.000", "Scope 3 3,270.000"]) assert.ok(sd.texts.some((t) => t.s === s), `${s}: ${sd.texts.map((t) => t.s).join(" | ")}`);
+});
+
+// ---- #209 round 5 ------------------------------------------------------------------------------------------------------
+
+/** The columns of a vertical chart (its rects over the plot grouped by x-range, left to right): x0, x1, top, bottom. */
+function columnsOf(c) {
+  const ys = axisYs(c);
+  const floor = ys.length ? ys[0] : c.h;
+  const cols = [];
+  for (const r of c.rects) {
+    if (r.y > floor + EPS) continue; // a legend's squares, under the plot
+    if (r.w <= EPS) continue; // no width (a frame narrower than the axis and the target's year): no column to read a label against
+    let col = cols.find((q) => Math.abs(q.x0 - r.x) < EPS && Math.abs(q.x1 - (r.x + r.w)) < EPS);
+    if (!col) cols.push((col = { x0: r.x, x1: r.x + r.w, top: r.y, bottom: r.y + r.h }));
+    col.top = Math.min(col.top, r.y);
+    col.bottom = Math.max(col.bottom, r.y + r.h);
+  }
+  return cols.sort((a, b) => a.x0 - b.x0);
+}
+/** Each column's value label (as the chart prints it) and whether it is kept first, for the vertical kinds of randomCharts. */
+function columnLabels(c) {
+  const f = (v) => RF.formatNumber(v, "auto", "tCO₂e");
+  const signed = (d) => `${d >= 0 ? "+" : "−"}${f(Math.abs(d))}`;
+  const kind = c.kind;
+  if (kind === "bar" || kind === "stacked_bar") {
+    const keys = c.value.series[0].values.map((p) => p.key);
+    return keys.map((key, i) => ({ s: f(c.value.series.reduce((a, s) => a + Math.max(0, s.values.find((p) => p.key === key).value ?? 0), 0)), first: i === keys.length - 1, bold: i === keys.length - 1 }));
+  }
+  if (kind === "target_bars") {
+    const pts = c.value.series[0].values;
+    return pts.map((p, i) => ({ s: f(p.value), first: i === pts.length - 1, bold: false }));
+  }
+  if (kind === "waterfall") {
+    const pts = c.value.series[0].values;
+    return pts.map((p, i) => (i === 0 || i === pts.length - 1 ? { s: f(p.value), first: true, bold: false } : { s: signed(p.value), first: false, bold: false }));
+  }
+  const steps = require(path.resolve("dist/reporting/studio/render/charts/ghg/trend.js")).bridgeSteps(c.value);
+  return steps.map((s) => (s.kind === "abs" ? { s: f(s.to), first: true, bold: true } : { s: signed(s.to - s.from), first: false, bold: false }));
+}
+const numOf = (s) => (s.startsWith("−") ? -1 : 1) * Number(s.replace(/^[+−]/, "").replace(/,/g, ""));
+/**
+ * Why a value label's box `b` (font size `size`) does not read as column k's (null when it does): its centre more than 40 % of
+ * the way towards another column's middle; another column under or over it (sharing some of its width) within a line of it
+ * while its own is farther by more than a line (resting on a neighbour); or more than two lines higher than its natural place
+ * over its own column. A label beside its column (no
+ * column spans its width) reads as the nearest column's.
+ */
+function notOwn(b, k, cols, size) {
+  const own = cols[k];
+  const mid = (o) => (o.x0 + o.x1) / 2;
+  const cx = mid(b);
+  // Beside its column (round 4, in a plot too short for a line over it): in a gap no column spans, its own column the nearest.
+  const gapTo = (o) => Math.hypot(Math.max(0, o.x0 - b.x1, b.x0 - o.x1), Math.max(0, o.top - b.y1, b.y0 - o.bottom));
+  if (!cols.some((o) => o.x0 < b.x1 - EPS && b.x0 < o.x1 - EPS)) {
+    const near = cols.findIndex((o, j) => j !== k && gapTo(o) < gapTo(own) - EPS);
+    return near >= 0 ? `beside, nearer column ${near} (${gapTo(cols[near]).toFixed(1)}) than its own (${gapTo(own).toFixed(1)})` : null;
+  }
+  for (const [j, o] of cols.entries()) {
+    const d = mid(o) - mid(own);
+    if (j !== k && Math.abs(d) > EPS && (cx - mid(own)) * Math.sign(d) > 0.4 * Math.abs(d) + EPS) return `centred ${(cx - mid(own)).toFixed(1)} towards column ${j} (${d.toFixed(1)} away)`;
+  }
+  const across = (o) => o.x0 < b.x1 - EPS && b.x0 < o.x1 - EPS;
+  const vgap = (o) => Math.max(0, o.top - b.y1, b.y0 - o.bottom);
+  const ownGap = across(own) ? vgap(own) : Infinity;
+  const line = SVG.LABEL_LIFT * size;
+  for (const [j, o] of cols.entries()) if (j !== k && across(o) && vgap(o) < line - EPS && vgap(o) < ownGap - line - EPS) return `on column ${j} (gap ${vgap(o).toFixed(1)}, its own ${ownGap.toFixed(1)})`;
+  if (b.y1 <= own.top + EPS && own.top - b.y1 > SVG.SMALL * 0.5 + 2 * SVG.LABEL_LIFT * size + EPS) return `${(own.top - b.y1).toFixed(1)} over its own column`;
+  return null;
+}
+/** Every drawn value label of a vertical chart with its own column (matched by value, the nearest of equal ones). */
+function ownedLabels(c) {
+  const muted = R.buildTheme({}).colors.muted;
+  const cols = columnsOf(c);
+  const want = columnLabels(c);
+  const out = [];
+  for (const t of c.texts.filter((x) => /^[+−]?\d[\d,]*(\.\d+)?$/.test(x.s) && x.fill !== muted)) {
+    const ks = want.map((w, k) => ({ w, k })).filter(({ w }) => Math.abs(numOf(w.s) - numOf(t.s)) < 0.0015 && Math.sign(numOf(w.s)) === Math.sign(numOf(t.s)));
+    if (!ks.length) continue;
+    const k = ks.reduce((a, b) => (Math.abs((cols[b.k].x0 + cols[b.k].x1) / 2 - t.x) < Math.abs((cols[a.k].x0 + cols[a.k].x1) / 2 - t.x) ? b : a)).k;
+    out.push({ t, k });
+  }
+  return { cols, want, labels: out };
+}
+/**
+ * A spot over column k where its label `s` (bold or not), at the smallest step, meets no mark, no tick label or other text
+ * (`obstacles`), stays inside the chart and reads as column k's (notOwn): its centre anywhere its box still spans the column's
+ * middle, up to two lines over its natural place. Null when there is none.
+ */
+function spotOver(c, k, s, bold, cols, obstacles) {
+  const size = SVG.SMALL * 0.8;
+  const own = cols[k];
+  const mid = (own.x0 + own.x1) / 2;
+  const half = SVG.labelWidth(s, size, bold) / 2;
+  for (let dy = 0; dy <= 2 * SVG.LABEL_LIFT * size + 1e-9; dy += 0.2)
+    for (let dx = -half; dx <= half + 1e-9; dx += 0.2) {
+      const b = SVG.inkBox(mid + dx, own.top - SVG.SMALL * 0.5 - dy, s, size, { anchor: "middle", bold });
+      if (b.x0 < -1e-6 || b.x1 > c.w + 1e-6 || b.y0 < -1e-6 || b.y1 > c.h + 1e-6) continue;
+      if (obstacles.some((o) => SVG.boxesMeet(o, b))) continue;
+      if (!notOwn(b, k, cols, size)) return { dx, dy };
+    }
+  return null;
+}
+/**
+ * The kept-first rule (#209 round 5): a kept-first label (latest total, waterfall start and end, bridge base and current) is
+ * placed before the lower ones, so it is left out only when no spot over its own column fits it at the smallest step
+ * (spotOver, with every mark, tick label and other kept-first label in the way): never while a lower label holds its room.
+ */
+function keptFirstLeftOut(c) {
+  const muted = R.buildTheme({}).colors.muted;
+  const { cols, want, labels } = ownedLabels(c);
+  if (cols.length !== want.length) return [];
+  const drawn = new Set(labels.map((l) => l.k));
+  const rects = c.rects.filter((r) => r.y <= (axisYs(c)[0] ?? c.h) + EPS).map(rectBox);
+  // A target's words as target_bars declares them to its labels (labelBox: an em box with air), any other text by its ink.
+  const others = c.texts.filter((t) => !(/^[+−]?\d[\d,]*(\.\d+)?$/.test(t.s) && t.fill !== muted)).map((t) => (c.kind === "target_bars" && /^(Baseline|Target\b)/.test(t.s) ? SVG.labelBox(t.x, t.y, t.s, t.size, { anchor: t.anchor, bold: t.bold }) : boxOf(t)));
+  const firsts = labels.filter((l) => want[l.k].first).map((l) => boxOf(l.t));
+  const out = [];
+  want.forEach((w, k) => {
+    if (!w.first || drawn.has(k)) return;
+    const spot = spotOver(c, k, w.s, w.bold, cols, [...rects, ...others, ...firsts]);
+    if (spot) out.push(`"${w.s}" left out, though it fits over its column at dx ${spot.dx.toFixed(1)} dy ${spot.dy.toFixed(1)}`);
+  });
+  return out;
+}
+
+const ROUND5_CASES = [
+  ["m77 fe #109", {"kind":"stacked_bar","w":170,"h":130,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Scope 1","values":[{"key":"2019","value":3155.761},{"key":"2020","value":1220.949},{"key":"2021","value":11539.203},{"key":"2022","value":4541.706},{"key":"2023","value":2585.609}]},{"label":"Scope 2","values":[{"key":"2019","value":2246.848},{"key":"2020","value":5100.053},{"key":"2021","value":42.477},{"key":"2022","value":51711.235},{"key":"2023","value":2375.427}]},{"label":"Scope 3","values":[{"key":"2019","value":6273.069},{"key":"2020","value":16703.027},{"key":"2021","value":2624.23},{"key":"2022","value":45540.823},{"key":"2023","value":3628.41}]}]}}],
+  ["m77 fe #297", {"kind":"waterfall","w":132,"h":135,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":2605.613},{"key":"2020","value":7796.857},{"key":"2021","value":11918.7},{"key":"2022","value":12687.001}]}]}}],
+  ["m77 fe #341", {"kind":"waterfall","w":284,"h":207,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":188010.902},{"key":"2020","value":176965.147},{"key":"2021","value":2705.048},{"key":"2022","value":10372.067},{"key":"2023","value":15331.217},{"key":"2024","value":12559.538},{"key":"2025","value":11654.578}]}]}}],
+  ["m77 fe #120", {"kind":"target_bars","w":151,"h":211,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":10505.959},{"key":"2020","value":173.91},{"key":"2021","value":12547.398},{"key":"2022","value":434.163}]}],"target":{"baseline":13929.977,"value":16496.235,"year":2030}}}],
+  ["m77 ext #12", {"kind":"bar","w":161,"h":210,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":14694.534},{"key":"2020","value":6513.27},{"key":"2021","value":7806.362},{"key":"2022","value":13258.123},{"key":"2023","value":2439.688}]}]}}],
+  ["m77 ext #232", {"kind":"bar","w":237,"h":207,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":31147.39},{"key":"2020","value":56304.958},{"key":"2021","value":26637.026},{"key":"2022","value":88046.808},{"key":"2023","value":164953.608},{"key":"2024","value":17874.279}]}]}}],
+  ["gen 11 #14", {"kind":"stacked_bar","w":130,"h":118,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Scope 1","values":[{"key":"2019","value":5836.633},{"key":"2020","value":4533.609},{"key":"2021","value":619.704}]},{"label":"Scope 2","values":[{"key":"2019","value":3791.29},{"key":"2020","value":5319.07},{"key":"2021","value":6097.287}]},{"label":"Scope 3","values":[{"key":"2019","value":4082.892},{"key":"2020","value":62139.537},{"key":"2021","value":3647.901}]}]}}],
+  ["gen 11 #83", {"kind":"bar","w":241,"h":152,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":179288.179},{"key":"2020","value":50585.419},{"key":"2021","value":18107.054},{"key":"2022","value":13857.043},{"key":"2023","value":17654.669},{"key":"2024","value":165324.05},{"key":"2025","value":5630.016}]}]}}],
+  ["gen2 23 #288", {"kind":"base_year_waterfall","w":125,"h":175,"value":{"display":"7,010.225","value":7010.225,"unit":"tCO₂e","series":[{"label":"Total emissions","values":[{"key":"2024","value":13662.122},{"key":"2025","value":7010.225}]}],"compare":{"against":"base","year":2019,"value":149353.773,"change_abs":-142343.548,"change_pct":-95.306}}}],
+];
+const renderCase = ([, k]) => {
+  const svg = R.chartRenderer(k.kind)({ value: k.value, w: k.w, h: k.h, theme: R.buildTheme({}), options: k.options ?? {}, label: k.kind });
+  return { kind: k.kind === "base_year_waterfall" && k.value.compare ? "bridge_compare" : k.kind, w: k.w, h: k.h, value: k.value, body: /<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1], ...parseSvg(/<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1]) };
+};
+
+test("round 5: a value label reads as its own column's: never on a taller neighbour's top, never centred over a neighbour, never far above its own", () => {
+  // The reviewers' charts (seeds 77 and 11, gen2 seed 23): round 4 lifted a kept-first label onto a taller neighbour (the bold
+  // 2023 "8,589.445" on the 2022 bar under "101,793.763"; a waterfall's start and end over the steps beside them; the bridge's
+  // current year at the top of the Change bar).
+  for (const k of ROUND5_CASES) {
+    const c = renderCase(k);
+    const { cols, want, labels } = ownedLabels(c);
+    assert.equal(cols.length, want.length, `${k[0]}: columns`);
+    assert.ok(labels.length >= 2, `${k[0]}: ${labels.map((l) => l.t.s).join(", ")}`);
+    for (const { t, k: col } of labels) {
+      const why = notOwn(boxOf(t), col, cols, t.size);
+      assert.equal(why, null, `${k[0]}: "${t.s}" ${why}`);
+    }
+    assert.deepEqual(keptFirstLeftOut(c), [], k[0]);
+  }
+  // The DS-1 waterfall and the DS-8 bridge in the narrow, tall frames of the reviewers' sweeps.
+  for (const [what, c] of [
+    ...[55, 60, 65, 70].map((hh) => [`p-charts.water 30×${hh}`, alone1("p-charts.water", 30, hh)]),
+    ...[55, 60, 65, 70].map((hh) => [`g.bridge_compare 30×${hh}`, alone("g.bridge_compare", 30, hh)]),
+  ]) {
+    const cols = columnsOf(c);
+    const muted = R.buildTheme({}).colors.muted;
+    const vals = c.texts.filter((t) => /^[+−]?\d[\d,]*\.\d{3}$/.test(t.s) && t.fill !== muted);
+    for (const t of vals) {
+      // Its own column: the one whose step the fixture labels with this figure (the nearest middle of those it may be).
+      const k = cols.map((q, j) => ({ j, d: Math.abs((q.x0 + q.x1) / 2 - t.x) })).sort((a, b) => a.d - b.d)[0].j;
+      const why = notOwn(boxOf(t), k, cols, t.size);
+      assert.equal(why, null, `${what}: "${t.s}" ${why}`);
+    }
+  }
+  // fitLabelRow: a bold label blocked by a tall neighbour moves sideways, still over its own mark; with no room to its side it is
+  // left out rather than drawn on the tall bar.
+  const S = SVG.SMALL;
+  const row = (w) => () => ({ labels: [{ x: 50, y: 150 - S * 0.5, text: "12,480.000", bold: true }, { x: 80, y: 30 - S * 0.5, text: "93,000.000" }], obstacles: [SVG.rectBox(40, 150, 20, 50, 0), SVG.rectBox(70, 30, 20, 170, 1)] });
+  const f = SVG.fitLabelRow(row(120), 120, 200);
+  assert.ok(f.labels[0], "the bold label is drawn");
+  const b = SVG.inkBox(f.labels[0].x, f.labels[0].y, "12,480.000", f.size, { anchor: "middle", bold: true });
+  assert.ok(b.x1 <= 70 && b.x0 <= 50 && b.x1 >= 50 && b.y1 <= 150 && b.y1 >= 150 - S * 0.5 - 2 * SVG.LABEL_LIFT * f.size, `over its own bar, clear of the tall one: ${where(b)}`);
+  // The same bar with a tick label to its left: no room beside it, so it is left out (never lifted onto the tall bar).
+  const blocked = () => ({ ...row(120)(), obstacles: [...row(120)().obstacles, { x0: 0, x1: 34, y0: 100, y1: 160 }] });
+  const g = SVG.fitLabelRow(blocked, 120, 200);
+  if (g.labels[0]) {
+    const bb = SVG.inkBox(g.labels[0].x, g.labels[0].y, "12,480.000", g.size, { anchor: "middle", bold: true });
+    assert.ok(bb.x1 <= 70 + EPS && bb.y1 >= 150 - S * 0.5 - 2 * SVG.LABEL_LIFT * g.size - EPS, `never over the tall bar: ${where(bb)}`);
+  }
+});
+
+test("round 5: over random charts every value label reads as its own column's, and a kept-first label is left out only when nothing over its column fits it", () => {
+  const kinds = ["bar", "stacked_bar", "waterfall", "target_bars", "base_year_waterfall", "bridge_compare"];
+  let labels = 0;
+  let charts = 0;
+  for (const [seed, n, frame] of [[4209, 400, null], [5209, 400, null], [9209, 600, mixedFrames]])
+    for (const c of randomCharts(seed, n, kinds, frame)) {
+      const at = `seed ${seed} #${c.i} ${c.kind} ${c.w}×${c.h}`;
+      const own = ownedLabels(c);
+      if (own.cols.length !== own.want.length) continue;
+      charts++;
+      for (const { t, k } of own.labels) {
+        labels++;
+        const why = notOwn(boxOf(t), k, own.cols, t.size);
+        assert.equal(why, null, `${at}: "${t.s}" ${why}`);
+      }
+      assert.deepEqual(keptFirstLeftOut(c), [], at);
+    }
+  assert.ok(charts > 800 && labels > 3000, `${charts} charts, ${labels} labels`);
+});
+
+test("round 5: ranked bars print each value right after its own bar, never after the longer prior-year bar under it", () => {
+  // m77 ext #339 (Muharraq depot), s77 ext #35 (Sitra warehouse), gen2 seed 23 #239 (Business travel): round 4 moved the value
+  // to the end of the grey prior-year bar, where it read as that year's figure.
+  const cases = [
+    { w: 281, h: 114, kind: "site_bars", options: { greyPrior: true }, prior: [["Manama plant", 11492.441], ["Sitra warehouse", 1774.435], ["Head office", 1046.29], ["Muharraq depot", 12228.325], ["Riffa lab", 783.556], ["Hidd port", 690.588]], cur: [["Manama plant", 114.984], ["Sitra warehouse", 1144.083], ["Head office", 315.453], ["Muharraq depot", 1759.502], ["Riffa lab", 935.572], ["Hidd port", 848.983]] },
+    { w: 395, h: 79, kind: "site_bars", options: { greyPrior: true }, prior: [["Manama plant", 218.054], ["Sitra warehouse", 17851.194], ["Head office", 1186.247]], cur: [["Manama plant", 261.574], ["Sitra warehouse", 336.162], ["Head office", 5525.018]] },
+    { w: 231, h: 164, kind: "category_bars", options: {}, prior: [["1 · Purchased goods and services", 4850.736], ["2 · Capital goods", 15399.163], ["3 · Fuel- and energy-related activities", 4865.353], ["4 · Upstream transportation and distribution", 6403.229], ["5 · Waste generated in operations", 9608.736], ["6 · Business travel", 72745.997], ["7 · Employee commuting", 9779.937], ["9 · Downstream transportation and distribution", 9375.484]], cur: [["1 · Purchased goods and services", 135690.457], ["2 · Capital goods", 18560.536], ["3 · Fuel- and energy-related activities", 18284.142], ["4 · Upstream transportation and distribution", 5210.049], ["5 · Waste generated in operations", 11893.189], ["6 · Business travel", 22263.843], ["7 · Employee commuting", 19678.998], ["9 · Downstream transportation and distribution", 14034.429]] },
+  ];
+  const S = SVG.SMALL;
+  const check = (c, at, want) => {
+    // The bar-end figures (a headline total, at the chart's left edge, is not one).
+    const vals = c.texts.filter((t) => t.anchor === "start" && t.x > EPS && /^\d[\d,]*\.\d{3}$/.test(t.s));
+    if (want) for (const s of want) assert.ok(vals.some((t) => t.s === s), `${at}: "${s}" is drawn (${vals.map((t) => t.s).join(", ")})`);
+    const cur = c.rects.filter((r) => r.part);
+    for (const t of vals) {
+      const own = cur.find((r) => t.y >= r.y - EPS && t.y <= r.y + r.h + EPS);
+      assert.ok(own, `${at}: "${t.s}" is level with its own bar`);
+      // Right after its own bar's end; at most SMALL further, past a prior-year bar that ends that close (the last resort).
+      const after = t.x - (own.x + own.w) - S * 0.4;
+      assert.ok(after > -EPS && after < S + EPS, `${at}: "${t.s}" starts ${(t.x - own.x - own.w).toFixed(1)} after its own bar's end`);
+      if (after > EPS) assert.ok(c.rects.some((r) => !r.part && Math.abs(r.x + r.w + S * 0.4 - t.x) < EPS && r.y >= own.y + own.h - EPS && r.y <= own.y + own.h + S), `${at}: "${t.s}" starts ${after.toFixed(1)} past its own bar, not after its prior-year bar`);
+      for (const r of c.rects.filter((x) => x.w > 0.5 && x.h > 0.5)) if (r !== own) assert.ok(!SVG.boxesMeet(boxOf(t), rectBox(r)), `${at}: "${t.s}" meets a bar`);
+    }
+    return vals.length;
+  };
+  const fmt = (v) => RF.formatNumber(v, "auto", "tCO₂e");
+  for (const k of cases) {
+    const value = { display: "1.000", value: 1, unit: "tCO₂e", series: [{ label: "2024", values: k.prior.map(([key, v]) => ({ key, value: v })) }, { label: "2025", values: k.cur.map(([key, v]) => ({ key, value: v })) }] };
+    const svg = R.chartRenderer(k.kind)({ value, w: k.w, h: k.h, theme: R.buildTheme({}), options: k.options, label: k.kind });
+    const c = parseSvg(/<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1]);
+    const top3 = [...k.cur].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([, v]) => fmt(v));
+    check(c, `${k.kind} ${k.w}×${k.h}`, top3);
+  }
+  // The DS-8 fixture in the reviewers' sweep: at 30 × 30 mm "620.000" moves down within its bar's height, clear of the bold
+  // "1,290.000" (round 4 left it out); at 40 × 15 mm the bold "1,290.000" starts after the prior-year bar that ends 4.3 units
+  // past its own (at its own bar's end it meets that bar; round 4 left the other labels out).
+  let n = 0;
+  for (const [id, wmm, hmm, want] of [["g.category_bars", 30, 30, ["1,290.000", "620.000", "410.000"]], ["g.category_prior", 40, 15, ["1,290.000"]]]) n += check(alone(id, wmm, hmm), `${id} ${wmm}×${hmm}`, want);
+  // Over random charts: every value label starts right after its own bar.
+  for (const c of randomCharts(7209, 400, ["category_prior", "category_bars", "site_bars"])) n += check(c, `#${c.i} ${c.kind} ${c.w}×${c.h}`);
+  assert.ok(n > 500, String(n));
+});
+
+test("round 5: textWidth is the widest face's own sum of advances plus 0.05 em, so labels that fit in every face are drawn", () => {
+  const faces = Object.entries(METRICS.faces);
+  const samples = ["−1,600.000", "12,480.000", "9,300.000", "620.000", "174.000", "1,290.000 · 39%", "Total emissions 12,480.000 tCO₂e", "Baseline", "Target 2030"];
+  for (const s of samples)
+    for (const bold of [false, true]) {
+      const widest = Math.max(...faces.filter(([f]) => f.endsWith(bold ? "@700" : "@400")).map(([, m]) => [...s].reduce((a, ch) => a + m.advance[ch], 0)));
+      assert.ok(MET.textWidth(s, 1, bold) <= widest + 0.05 + 1e-9, `"${s}"${bold ? " bold" : ""}: ${MET.textWidth(s, 1, bold).toFixed(3)} em vs the widest face's ${widest.toFixed(3)} em`);
+    }
+  assert.ok(MET.TEXT_MARGIN_EM <= 0.05, String(MET.TEXT_MARGIN_EM));
+  // The reviewers' frames, where production drew the figure clear in all eight faces at its own mark.
+  const muted = R.buildTheme({}).colors.muted;
+  const has = (c, s, at) => {
+    const t = c.texts.find((x) => x.s === s);
+    assert.ok(t, `${at}: "${s}" is drawn (${c.texts.filter((x) => x.fill !== muted).map((x) => x.s).join(" | ")})`);
+    for (const u of c.texts) if (u !== t) assert.ok(!SVG.boxesMeet(boxOf(t), boxOf(u)), `${at}: "${s}" meets "${u.s}"`);
+  };
+  has(alone1("p-charts.water", 40, 15), "−1,600.000", "p-charts.water 40×15");
+  has(alone1("p-charts.water", 30, 70), "−820.000", "p-charts.water 30×70");
+  has(alone1("p-charts.target", 45, 15), "9,300.000", "p-charts.target 45×15");
+  has(alone("g.base_year_waterfall", 40, 15), "−800.000", "g.base_year_waterfall 40×15");
+  has(renderCase(ROUND5_CASES.find((k) => k[0] === "m77 fe #120")), "173.910", "m77 fe #120 target_bars 151×211");
+});
+
+test("round 5: a wide, short donut puts its figure beside the ring when under it would cost a share label", () => {
+  const theme = R.buildTheme({});
+  const donut = (w, h, parts, display) => {
+    const value = { display, value: 1, unit: "tCO₂e", series: parts.map(([label, v]) => ({ label, values: [{ key: "2025", value: v }] })) };
+    const c = parseSvg(/<svg [^>]*>(.*)<\/svg>/s.exec(R.chartRenderer("donut")({ value, w, h, theme, options: {}, label: "donut" }))[1]);
+    return { ...c, shares: c.texts.filter((t) => /%$/.test(t.s)) };
+  };
+  // gen2 seed 67 #9 (344 × 90): production drew all five shares clear; round 4 put the figure under the ring and left out 5.7 %.
+  const a = donut(344, 90, [["Scope 1", 1238.537], ["Scope 2", 16527.73], ["Scope 3", 13586.679], ["Biogenic", 15985.875], ["Other", 175256.211], ["Removals", 13392.727]], "235,987.759");
+  assert.deepEqual(a.shares.map((t) => t.s).sort(), ["5.7%", "5.8%", "6.8%", "7.0%", "74%"], a.texts.map((t) => t.s).join(" | "));
+  for (const t of a.shares) for (const u of a.texts) if (u !== t) assert.ok(!SVG.boxesMeet(boxOf(t), boxOf(u)), `"${t.s}" meets "${u.s}"`);
+  assert.ok(a.texts.some((t) => t.s === "235,987.759 tCO₂e" || t.s === "235,987.759"), "the figure is drawn");
+  // gen2 seed 23 #338 (417 × 129): the shares production drew clear (85 %, 5.7 % and the 4.6 % left of the ring; the other 4.6 %
+  // met "5.7%" in production) stay.
+  const b = donut(417, 129, [["Scope 1", 8443.422], ["Scope 2", 157352.167], ["Scope 3", 8562.946], ["Biogenic", 10445.232]], "184,803.767");
+  for (const s of ["85%", "5.7%", "4.6%"]) assert.ok(b.shares.some((t) => t.s === s), `${s}: ${b.texts.map((t) => t.s).join(" | ")}`);
+});
+
+test("round 5: target_bars never lifts its plot so far that the target's words meet each other, a tick label or the other line", () => {
+  // gen seed 53 #241 (132 × 88): round 4's staggered row pushed "Baseline" into "Target 2030" and under the target line.
+  const value = { display: "", value: 1, unit: "tCO₂e", series: [{ label: "Total", values: [["2019", 12448.115], ["2020", 18224.368], ["2021", 127191.883], ["2022", 12050.126]].map(([key, v]) => ({ key, value: v })) }], target: { baseline: 157750.446, value: 191784.579, year: 2030 } };
+  const body = /<svg [^>]*>(.*)<\/svg>/s.exec(R.chartRenderer("target_bars")({ value, w: 132, h: 88, theme: R.buildTheme({}), options: {}, label: "target_bars" }))[1];
+  const gen = parseSvg(body);
+  const base = gen.texts.find((t) => t.s === "Baseline");
+  const tgt = gen.texts.find((t) => t.s === "Target 2030");
+  assert.ok(base && tgt, gen.texts.map((t) => t.s).join(" | "));
+  // Production drew the two words 9.57 apart (baseline to baseline) and its target line 1.43 under the top of "Baseline"'s
+  // estimated ink (the ascenders' height); round 4 lifted the plot to 8.14 apart and 2.87 into "Baseline". They stay as
+  // production drew them: a lift never brings them closer.
+  assert.ok(base.y - tgt.y >= 9.57 - EPS, `"Baseline" at ${base.y}, "Target 2030" at ${tgt.y}: ${(base.y - tgt.y).toFixed(2)} apart`);
+  const ty = num(/<line [^>]*y1="([\d.]+)"[^>]*data-target=/.exec(body)[1]);
+  const bb = boxOf(base);
+  assert.ok(ty <= bb.y0 + 1.44 || ty > bb.y1 + 1, `the target line at ${ty} runs ${(ty - bb.y0).toFixed(2)} into "Baseline" ${where(bb)}`);
+  // Production's figure on the 2021 bar ("127,192", clear in every face) stays.
+  assert.ok(gen.texts.some((t) => t.s === "127,191.883"), gen.texts.map((t) => t.s).join(" | "));
+  // The DS-1 target at 25 × 55 mm: "Baseline" stays as far from the "12.5k" tick as production drew it (clear in every face).
+  const c = alone1("p-charts.target", 25, 55);
+  const b2 = c.texts.find((t) => t.s === "Baseline");
+  const tick = c.texts.find((t) => t.s === "12.5k");
+  assert.ok(b2 && tick && b2.y - tick.y >= 9.471 - EPS, `"Baseline" at ${b2?.y}, "12.5k" at ${tick?.y}`);
 });

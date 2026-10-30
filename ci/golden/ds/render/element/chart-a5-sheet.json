@@ -2,16 +2,16 @@
   "element": "chart",
   "elements": [
     {
-      "bytes": 2391,
+      "bytes": 2395,
       "frame": "10.571,107.475,59.905,49.495,0",
       "id": "p-summary.donut",
-      "sha256": "3f51caa4339370af039713e2e3fdb2d35c4d2482e6e7915fc083f35f4c5a534f"
+      "sha256": "6f7c9d4458a521c58f578a46d5b1acfdcb4a490ea645833a23eda218ecbfb643"
     },
     {
       "bytes": 2721,
       "frame": "77.524,107.475,59.905,49.495,0",
       "id": "p-summary.bars",
-      "sha256": "721a7712ca9fda33cb47328734076e158d9b698a3cc23b872bfe172c2a0833de"
+      "sha256": "0fa4571664d9c0ecc3d7897d29309d8d6112ded7d8941b170a4d3882303e6ee2"
     },
     {
       "bytes": 882,
@@ -26,10 +26,10 @@
       "sha256": "b75190ad8e021cf1c1727adf6e9d3c3d449c2b286db2725f085ac21d68a16e6d"
     },
     {
-      "bytes": 3031,
+      "bytes": 3036,
       "frame": "77.524,10.606,59.905,42.424,0",
       "id": "p-charts.hbar",
-      "sha256": "3c566b5c4305d227517d3d8f0164d70be718237c31b454c9495bdb55d35ae115"
+      "sha256": "c6be0a25759a610840b63aa4cbd32914ecd4425bdf4a84c5067cd4b72bb94b2c"
     },
     {
       "bytes": 3117,
@@ -59,7 +59,7 @@
       "bytes": 3061,
       "frame": "10.571,98.99,59.905,42.424,0",
       "id": "p-charts.water",
-      "sha256": "b88c615ee4053f81c7ab1b5410151922db224ba61b9e6302fbe99e7103a24750"
+      "sha256": "23d3593b388b07612057ecc224d1cde6f62402b877d7d04e781aaaa181219680"
     },
     {
       "bytes": 2572,
@@ -83,13 +83,13 @@
       "bytes": 2560,
       "frame": "10.571,189.495,42.286,16.97,0",
       "id": "p-charts.custom",
-      "sha256": "4b2c9e09a7b9c215ecf99e03eb5d9785b26e9fc7924b044561e45233346ddfdf"
+      "sha256": "780c56e5a49836bebce50b1d43bf036a2ad725e0810eb52641accfc92286124a"
     },
     {
       "bytes": 2257,
       "frame": "56.381,189.495,35.238,16.97,0",
       "id": "p-charts.ghgkind",
-      "sha256": "b6db704086a42e62fdc293052d69304c6961fa811e94a7254f61cb17dd08c2a3"
+      "sha256": "de3d942cf6b3bf6d28c19a3c8f6c203ecb4bd553ac454e3c9e2d6c648ff3d8ed"
     }
   ],
   "format": "a5",

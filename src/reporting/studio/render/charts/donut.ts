@@ -196,24 +196,28 @@ export function donutChart(input: ChartInput): string {
       return { plotH, ...g, inner: g.r * 0.62 };
     };
     const ok = (g: ReturnType<typeof geom>) => tier <= 0 || g.fit >= tier;
-    let g = geom(0);
+    const g = geom(0);
     if (!ok(g)) return null;
-    let centre = withFigure ? donutCentre(figure, value.unit, g.cx, g.cy, g.inner, theme) : "";
-    let under = "";
-    if (centre === null) {
-      const u = underDonut(figure, value.unit, w, theme);
-      const gu = geom(u.h);
-      if (!ok(gu)) {
-        // No room under it: beside the ring, in a wide frame.
-        const side = besideDonut(figure, value.unit, { ...g, labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) }, w, theme);
-        if (side === null) return null;
-        return { ...g, centre: "", under: side, labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) };
-      }
-      g = gu;
-      under = u.svg(h - legendH - u.h);
-      centre = "";
+    const centre = withFigure ? donutCentre(figure, value.unit, g.cx, g.cy, g.inner, theme) : "";
+    if (centre !== null) return { ...g, centre, under: "", labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) };
+    // Beside the ring, in a wide frame: the ring keeps the whole plot's height.
+    const beside = () => {
+      const labels = ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH);
+      const side = besideDonut(figure, value.unit, { ...g, labels }, w, theme);
+      return side === null ? null : { ...g, centre: "", under: side, labels };
+    };
+    const u = underDonut(figure, value.unit, w, theme);
+    const gu = geom(u.h);
+    // No room under it: beside the ring.
+    if (!ok(gu)) return beside();
+    const under = { ...gu, centre: "", under: u.svg(h - legendH - u.h), labels: ringLabels(rings, gu.cx, gu.cy, gu.r, w, gu.plotH) };
+    // #209 round 5: under the donut shrinks the ring; when that costs a share label, beside it is taken if it keeps more.
+    const kept = (ls: (unknown | null)[]) => ls.filter((l) => l !== null).length;
+    if (kept(under.labels) < rings.filter((p) => p.show).length) {
+      const side = beside();
+      if (side && kept(side.labels) > kept(under.labels)) return side;
     }
-    return { ...g, centre, under, labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) };
+    return under;
   };
   const loose = () => {
     const b = plan(0, false) as NonNullable<ReturnType<typeof plan>>;

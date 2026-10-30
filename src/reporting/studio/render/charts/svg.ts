@@ -161,6 +161,8 @@ export interface RowLabel {
  */
 export interface Obstacle extends LabelBox {
   owner?: number;
+  /** #209 round 5: a chart mark (a bar, a step, a column: rectBox), not a text; a value label must read as its own mark's. */
+  mark?: boolean;
 }
 /** What a chart hands fitLabelRow for a plot whose top is `extraTop` lower: its labels and their obstacles. */
 export interface LabelRow {
@@ -180,11 +182,37 @@ const LABEL_GAP = 0.15;
 export const LABEL_LIFT = LABEL_ASCENT + LABEL_DESCENT + LABEL_GAP + 0.04;
 /** The label font steps a row may take, down to 80 % (6.5 pt labels: 5.2 pt at the smallest). */
 export const LABEL_STEPS = [1, 0.95, 0.9, 0.85, 0.8];
-/** How far a staggered label may rise above its mark (em): two lines, so it still reads as its mark's. */
+/** How far a staggered label may rise above its mark (em): two lines, so it still reads as its mark's (#209 round 5: every label, kept-first ones too). */
 const MAX_RISE = 2 * LABEL_LIFT;
 
-/** A bar's rect as an obstacle box. */
-export const rectBox = (x: number, y: number, w: number, h: number, owner?: number): Obstacle => ({ x0: x, x1: x + Math.max(0, w), y0: y, y1: y + Math.max(0, h), owner });
+/** A bar's rect as an obstacle box (a mark). */
+export const rectBox = (x: number, y: number, w: number, h: number, owner?: number): Obstacle => ({ x0: x, x1: x + Math.max(0, w), y0: y, y1: y + Math.max(0, h), owner, mark: true });
+
+/** The ink gap between two boxes (0 when they meet). */
+const gapOf = (a: LabelBox, b: LabelBox): number => Math.hypot(Math.max(0, a.x0 - b.x1, b.x0 - a.x1), Math.max(0, a.y0 - b.y1, b.y0 - a.y1));
+
+/**
+ * #209 round 5: whether a value label's box reads as its own mark's (`own`, the obstacles it names as its owner) and not as
+ * one of `others` (every other mark of the chart):
+ *   1. its centre stays near its own mark's middle: towards any other mark, at most 40 % of the way to that mark's middle
+ *      (inside its own band with room to spare for every face's ink: a sideways move or an edge clamp never centres it over,
+ *      or between it and, a neighbour);
+ *   2. no other mark under or over it (sharing some of its width) is within `tol` of it (a line) while its own is farther by
+ *      more than that: it never rests on a taller neighbour's top, or hangs just over a lower step, away from its own mark.
+ * `beside` (a label level with its mark, in a gap no other mark spans) checks instead that its own mark is its nearest.
+ */
+export const ownsSpot = (box: LabelBox, own: LabelBox[], others: LabelBox[], beside = false, tol = 0): boolean => {
+  if (!own.length) return true;
+  if (beside) return others.every((o) => gapOf(box, o) >= Math.min(...own.map((m) => gapOf(box, m))) - 1e-6);
+  const mid = (o: LabelBox) => (o.x0 + o.x1) / 2;
+  const ownMid = (Math.min(...own.map((o) => o.x0)) + Math.max(...own.map((o) => o.x1))) / 2;
+  const cx = mid(box);
+  if (others.some((o) => Math.abs(mid(o) - ownMid) > 1e-6 && (cx - ownMid) * Math.sign(mid(o) - ownMid) > 0.4 * Math.abs(mid(o) - ownMid) + 1e-6)) return false;
+  const across = (o: LabelBox) => o.x0 < box.x1 - 1e-6 && box.x0 < o.x1 - 1e-6;
+  const vgap = (o: LabelBox) => Math.max(0, o.y0 - box.y1, box.y0 - o.y1);
+  const ownGap = Math.min(...own.filter(across).map(vgap));
+  return !others.some((o) => across(o) && vgap(o) < tol - 1e-6 && vgap(o) < ownGap - tol - 1e-6);
+};
 
 /**
  * Places one row of centred value labels (bar totals, waterfall steps, target bars, gas
@@ -199,14 +227,18 @@ export const rectBox = (x: number, y: number, w: number, h: number, owner?: numb
  *      (at most two lines above its mark);
  *   3. at the smallest step and staggered, a label that still meets something is left out
  *      (bold, then `priority`, then left to right keep their place first), after trying it moved
- *      sideways (up to SMALL × 2, still over its mark's middle), then under its mark (a floating
+ *      sideways (still over its mark's middle, the spot nearest it first), then under its mark (a floating
  *      step with room under it), then beside it (into a gap no other mark spans). In this pass a label may rise
  *      (up to two lines) within the room the plot has even when no line could be reserved.
  *      Never an overlap.
  *      #209 round 4: the kept-first labels (the row's highest rank, bold then `priority`: a
  *      latest total, a waterfall's start and end, the biggest gas) are placed before the
- *      others and may rise past the two-line limit, as far as the chart's top line (above
- *      every bar), rather than be left out while a lower label is drawn.
+ *      others, so a lower label never takes their room.
+ * #209 round 5: in every pass a spot counts only when the label reads as its own mark's
+ * (ownsSpot: centred in its own band, never resting on another mark), and no label
+ * rises more than two lines, kept-first ones included: a label that would sit on a taller
+ * neighbour's top or over another column is left out (a 3-decimal figure too wide for its
+ * band), never drawn as someone else's value.
  * `make(extraTop, size)` builds the row for a plot whose top is `extraTop` lower (the
  * chart's own geometry, so a staggered row takes room from the bars, not from the page);
  * the chart draws with the returned `extraTop` and `size`. `minY` is the top labels may
@@ -227,9 +259,7 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
     else order.sort((a, b) => row[a].x - row[b].x || a - b);
     const placed: LabelBox[] = [];
     const out: ({ x: number; y: number } | null)[] = row.map(() => null);
-    // The kept-first labels: the row's highest rank (bold, then priority), when the row ranks its labels at all.
-    const topBold = row.some((l) => l.bold);
-    const topPriority = Math.max(0, ...row.filter((l) => !!l.bold === topBold).map((l) => l.priority ?? 0));
+    const marks = obstacles.filter((o) => o.mark);
     // #209 round 4: decided on the labels' ink (inkBox: their glyphs, worst of the eight faces) with INK_GAP of air.
     const gap = INK_GAP * size;
     for (const i of order) {
@@ -239,20 +269,31 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
       const bottom = h - ink.down * size;
       let spot: { x: number; y: number; box: LabelBox } | null = null;
       const lw = labelWidth(l.text, size, l.bold);
+      // #209 round 5: its own mark(s) and every other mark, for ownsSpot.
+      const ownMarks = marks.filter((o) => o.owner === i);
+      const otherMarks = marks.filter((o) => o.owner !== i);
       // #209 round 4: in the last pass a label wider than the plot may use the axis gutter too (the tick labels are obstacles).
       if (lw <= w - x0 || (drop && lw <= w)) {
         const x = lw <= w - x0 ? insideX(l.x, l.text, w, size, l.bold, x0) : Math.min(Math.max(l.x, lw / 2), w - lw / 2);
         const y0 = Math.min(Math.max(l.y, top), bottom);
-        const first = drop && (!!l.bold || (l.priority ?? 0) > 0) && !!l.bold === topBold && (l.priority ?? 0) === topPriority;
-        const maxRise = first ? Infinity : MAX_RISE * size;
+        const maxRise = MAX_RISE * size;
         // #209 round 4: its own mark is an obstacle too (a label held under the chart's top line no longer sits on it).
-        const at = (x: number, yFrom = y0) => {
+        // #209 round 5: a clear spot counts only when the label reads as its own mark's (ownsSpot); one resting on another mark
+        // (within a line over it) rises a line clear of it, within the two lines a label may rise.
+        const line = LABEL_LIFT * size;
+        const at = (x: number, yFrom = y0, beside = false) => {
           let y = yFrom;
           for (let tries = 0; tries < 12 && y >= top && yFrom - y <= maxRise; tries++) {
             const box = inkBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
             const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => boxesMeet(o, box, gap))];
-            if (!hits.length) return { x, y, box };
-            if (!stagger && !first && !drop) return null;
+            if (!hits.length && ownsSpot(box, ownMarks, otherMarks, beside, line)) return { x, y, box };
+            if (!stagger && !drop) return null;
+            if (!hits.length) {
+              const under = beside ? [] : otherMarks.filter((o) => o.x0 < box.x1 - 1e-6 && box.x0 < o.x1 - 1e-6 && o.y0 >= box.y1 - 1e-6 && o.y0 - box.y1 < line - 1e-6);
+              if (!under.length) return null;
+              y = Math.min(...under.map((o) => o.y0)) - line - ink.down * size - 0.01;
+              continue;
+            }
             // Stagger: just above what it would meet.
             y = Math.min(...hits.map((p) => p.y0)) - gap - ink.down * size - 0.01; // 0.01: clear of the 3-decimal rounding of x, y
           }
@@ -261,32 +302,45 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
         spot = at(x);
         // #209 round 4: before a label is left out, it moves sideways (the smallest move first), inside the chart (over the axis
         // gutter too: the tick labels are obstacles) and still over its mark's middle (its own obstacle's, else its own x),
-        // then rises as above.
+        // then rises as above. #209 round 5: its centre stays near its own mark's middle (ownsSpot), and every move that still
+        // spans that middle is tried.
         if (!spot && drop) {
           const own = obstacles.filter((o) => o.owner === i);
           const mid = own.length ? (Math.min(...own.map((o) => o.x0)) + Math.max(...own.map((o) => o.x1))) / 2 : l.x;
-          const moves = [1, 2, 3, 4, 5, 6, 7, 8].flatMap((k) => [-k, k].map((d) => d * SMALL * 0.25));
+          // #209 round 5: also every exact move that just clears something (a label, a mark, a tick label) at any height, or
+          // reaches the chart's edge or the 40 % limit towards a neighbour (ownsSpot), so no gap a label fits is missed.
+          const box0 = inkBox(x, y0, l.text, size, { anchor: "middle", bold: l.bold });
+          const exact = [
+            ...[...placed, ...obstacles].flatMap((o) => [o.x1 - box0.x0 + gap + 0.01, o.x0 - box0.x1 - gap - 0.01]),
+            lw / 2 - x,
+            w - lw / 2 - x,
+            ...otherMarks.map((o) => mid + 0.4 * ((o.x0 + o.x1) / 2 - mid) - x),
+            mid - x,
+          ];
+          const grid = Array.from({ length: Math.ceil(lw / (SMALL * 0.5)) }, (_, k) => [-(k + 1), k + 1].map((d) => d * SMALL * 0.25)).flat();
+          // The spot nearest its mark's middle first (a label pressed inside the plot's edge goes back over its own mark).
+          const moves = [...exact, ...grid].sort((a, b) => Math.abs(x + a - mid) - Math.abs(x + b - mid) || a - b);
           for (const d of moves) {
             const nx = x + d;
             if (nx - lw / 2 < -1e-6 || nx + lw / 2 > w + 1e-6 || nx - lw / 2 > mid || nx + lw / 2 < mid) continue;
             spot = at(nx);
             if (spot) break;
           }
-          const marks = obstacles.filter((o) => o.owner !== i && o.x0 >= x0 - 1e-6);
+          const inPlot = obstacles.filter((o) => o.owner !== i && o.x0 >= x0 - 1e-6);
           // Then under its mark, when the mark floats in the plot (a waterfall's step) with a line of room under it.
           if (!spot && own.length) {
             const floor = Math.max(...obstacles.filter((o) => o.x0 >= x0 - 1e-6).map((o) => o.y1));
             const yb = Math.max(...own.map((o) => o.y1)) + gap + ink.up * size + 0.01;
             const box = inkBox(x, yb, l.text, size, { anchor: "middle", bold: l.bold });
-            if (box.y1 <= floor + 1e-6 && box.y1 <= h && !placed.some((p) => boxesMeet(p, box, gap)) && !obstacles.some((o) => boxesMeet(o, box, gap))) spot = { x, y: yb, box };
+            if (box.y1 <= floor + 1e-6 && box.y1 <= h && !placed.some((p) => boxesMeet(p, box, gap)) && !obstacles.some((o) => boxesMeet(o, box, gap)) && ownsSpot(box, ownMarks, otherMarks, false, line)) spot = { x, y: yb, box };
           }
           // Then beside its mark, level with its top (a plot too short for a line over it): only into a gap no other mark
           // spans, so it never reads as a neighbour's.
           if (!spot && own.length) {
             const [ox0, ox1, oy0] = [Math.min(...own.map((o) => o.x0)), Math.max(...own.map((o) => o.x1)), Math.min(...own.map((o) => o.y0))];
             for (const nx of [ox1 + SMALL * 0.3 + lw / 2, ox0 - SMALL * 0.3 - lw / 2]) {
-              if (nx - lw / 2 < x0 - 1e-6 || nx + lw / 2 > w + 1e-6 || marks.some((o) => o.x0 < nx + lw / 2 && o.x1 > nx - lw / 2)) continue;
-              spot = at(nx, Math.min(Math.max(oy0 + ink.up * size, top), bottom));
+              if (nx - lw / 2 < x0 - 1e-6 || nx + lw / 2 > w + 1e-6 || inPlot.some((o) => o.x0 < nx + lw / 2 && o.x1 > nx - lw / 2)) continue;
+              spot = at(nx, Math.min(Math.max(oy0 + ink.up * size, top), bottom), true);
               if (spot) break;
             }
           }

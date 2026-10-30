@@ -170,10 +170,11 @@ test("flow (data_tables) rows print in their own unit", () => {
 test("layout: a longer label stays inside the chart; one that fits stays where it was", () => {
   const S = SVG.SMALL;
   assert.ok(SVG.labelWidth("1,234.567") > SVG.labelWidth("1,235"));
-  // #209 review: each character's advance in the widest studio face (charts/metrics.ts: "1"–"7" 0.60 em regular, separators
-  // 0.31 em; bold "2" 0.65, "4" 0.67, "5" 0.61, "6" 0.65, separators 0.32) plus a 0.1 em margin; bold is wider.
-  assert.ok(Math.abs(SVG.labelWidth("1,234.567") - (7 * 0.6 + 2 * 0.31 + 0.1) * S) < 1e-9);
-  assert.ok(Math.abs(SVG.labelWidth("1,234.567", S, true) - (0.6 + 0.65 + 0.6 + 0.67 + 0.61 + 0.65 + 0.6 + 2 * 0.32 + 0.1) * S) < 1e-9);
+  // #209 round 5: the widest studio face's own sum of advances (charts/metrics.ts; for "1,234.567" IBM Plex Sans, 4.744 em
+  // regular and 4.820 em bold, measured in Chromium: ci/fixtures/studio/font-advances.json) plus a 0.05 em margin, not the sum
+  // of each character's widest advance plus 0.1 em (4.92 em), which was wider than any face; bold is wider.
+  assert.ok(Math.abs(SVG.labelWidth("1,234.567") - (4.744 + 0.05) * S) < 1e-9);
+  assert.ok(Math.abs(SVG.labelWidth("1,234.567", S, true) - (4.82 + 0.05) * S) < 1e-9);
   assert.ok(SVG.labelWidth("1,234.567", S, true) > SVG.labelWidth("1,234.567"));
   // insideX: centred labels near an edge move in; a centred one does not move; wider than the chart → centre.
   const w = 100;

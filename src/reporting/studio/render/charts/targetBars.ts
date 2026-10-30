@@ -6,7 +6,7 @@ import { formatNumber, seriesUnit } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, tickBoxes, tickRoom, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, SMALL, emptyChart, fitLabelRow, labelBox, plotSpan, rect, rectBox, svgOpen, text, type ChartInput, type Obstacle } from "./svg";
+import { FONT, LABEL_LIFT, LABEL_STEPS, SMALL, boxesMeet, emptyChart, fitLabelRow, inkBox, labelBox, plotSpan, rect, rectBox, svgOpen, text, type ChartInput, type LabelBox, type Obstacle } from "./svg";
 
 export function targetBarsChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
@@ -23,6 +23,43 @@ export function targetBarsChart(input: ChartInput): string {
   const showBase = options.showTarget !== false && typeof target?.baseline === "number";
   const showTarget = options.showTarget !== false && typeof target?.value === "number";
   const targetText = `Target${target?.year ? ` ${target.year}` : ""}`;
+  // #209 round 5: where the target's words ("Baseline", "Target 2030") meet each other, the other's line or a tick label in a
+  // plot whose top is `extra` lower, and how deep (the overlap's smaller side). A staggered row (fitLabelRow's lift) takes
+  // only the height that makes no meeting new or deeper: the words production drew apart stay apart, and the target line
+  // never strikes through "Baseline".
+  const wordClashes = (extra: number): Map<string, number> => {
+    const { top: te, ph: phe } = plotSpan(FONT * 1.2 + extra, h - FONT * 1.8);
+    const words: { box: LabelBox; line: { x0: number; x1: number; y: number } }[] = [];
+    if (showBase) {
+      const y = te + phe - scale.t(target?.baseline as number) * phe;
+      words.push({ box: inkBox(x0 + pw, y - SMALL * 0.4, "Baseline", SMALL, { anchor: "end" }), line: { x0, x1: x0 + pw, y } });
+    }
+    if (showTarget) {
+      const y = te + phe - scale.t(target?.value as number) * phe;
+      words.push({ box: inkBox(w, y - SMALL * 0.4, targetText, SMALL, { anchor: "end", bold: true }), line: { x0, x1: w - FONT * 0.5, y } });
+    }
+    const ticks = tickBoxes(scale, x0, te, phe);
+    const out = new Map<string, number>();
+    const depth = (a: LabelBox, b: LabelBox) => Math.min(Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+    words.forEach((a, i) => {
+      ticks.forEach((t, k) => {
+        if (boxesMeet(a.box, t)) out.set(`${i} tick ${k}`, depth(a.box, t));
+      });
+      words.forEach((b, j) => {
+        if (j > i && boxesMeet(a.box, b.box)) out.set(`${i} word ${j}`, depth(a.box, b.box));
+        // The other's line through the word's ink (1 unit of air: the target line is 1.6 wide).
+        const [y0, y1] = [a.box.y0 - 1, a.box.y1 + 1];
+        if (j !== i && b.line.x0 < a.box.x1 && a.box.x0 < b.line.x1 && b.line.y > y0 && b.line.y < y1) out.set(`${i} line ${j}`, Math.min(b.line.y - y0, y1 - b.line.y));
+      });
+    });
+    return out;
+  };
+  const clashes0 = wordClashes(0);
+  let wordLift = 0;
+  for (const lift of LABEL_STEPS.map((k) => LABEL_LIFT * SMALL * k).sort((a, b) => a - b)) {
+    if ([...wordClashes(lift)].some(([c, d]) => d > (clashes0.get(c) ?? 0) + 1e-6)) break;
+    wordLift = lift;
+  }
   // #209 review: bar labels may not meet each other, the tick labels, another bar or the target's words (svg.ts fitLabelRow); the latest year is kept first.
   const fit = fitLabelRow(
     (extra) => {
@@ -39,7 +76,8 @@ export function targetBarsChart(input: ChartInput): string {
     w,
     h,
     // #209 round 4: a staggered row takes only the height the plot can spare; the plot never goes under PLOT_FLOOR.
-    { x0, maxLift: h - FONT * 3 - tickRoom(scale) },
+    // #209 round 5: nor more than keeps the target's words apart (wordLift).
+    { x0, maxLift: Math.min(h - FONT * 3 - tickRoom(scale), wordLift) },
   );
   const { top, ph } = plotSpan(FONT * 1.2 + fit.extraTop, h - FONT * 1.8);
   let body = valueGridY(scale, x0, top, pw, ph, theme);
