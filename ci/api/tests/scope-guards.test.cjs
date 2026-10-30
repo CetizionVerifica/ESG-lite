@@ -156,7 +156,8 @@ test("someone with sites in two companies reads both companies' mappings and thr
       assert.equal((await call("GET", `/user/category-mappings/company/${company}`, "multiSiteUser")).status !== 403, true, `mappings ${company}`);
     }
     assert.equal((await call("GET", "/user/thresholds/company/99", "multiSiteUser")).status, 403);
-    assert.equal((await call("GET", "/user/category-mappings/company/abc", "multiSiteUser")).status, 403);
+    // A company id that isn't a whole number names no company: 400, like a malformed record id.
+    assert.equal((await call("GET", "/user/category-mappings/company/abc", "multiSiteUser")).status, 400);
   } finally {
     await withDb((db) => db.query("DELETE FROM user_sites WHERE user_id = 7 AND site_id = 3"));
   }
