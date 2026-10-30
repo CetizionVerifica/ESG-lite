@@ -44,7 +44,7 @@ function draw(input: ChartInput, stacked: boolean): string {
       return keys.reduce((t, _, kj) => (kj !== ki && Math.abs(kj - ki) * band - band * 0.32 < ((kj < ki ? ink.up : ink.down) + INK_GAP) * size ? Math.max(t, scale.t(totals[kj])) : t), scale.t(totals[ki]));
     };
     // Totals sit after the bar end; a long one (a 3-decimal tCO₂e figure, #209) narrows the plot so it isn't cut.
-    // #209 round 4: never narrower than its tick labels need (barEndsPlot): the totals step down first. A frame too narrow
+    // #209 round 4: no narrower than its tick labels need while the totals can step down instead (barEndsPlot). A frame too narrow
     // for the label gutter keeps a plot of SMALL × 2 (production's went negative there).
     const pw0 = Math.max(w - x0 - SMALL * 3, Math.min(SMALL * 2, w - x0));
     const steps = LABEL_STEPS.map((k) => SMALL * k);

@@ -4,7 +4,7 @@
 import type { Theme } from "../theme";
 import { tickLabel } from "../format";
 import type { Scale } from "./scale";
-import { FONT, LABEL_STEPS, SMALL, inkBox, labelBox, text, type Obstacle } from "./svg";
+import { FONT, LABEL_STEPS, SMALL, inkBox, text, type Obstacle } from "./svg";
 import { n3 } from "../util";
 
 /** Width the value labels need on a vertical axis. */
@@ -27,9 +27,9 @@ export function valueGridY(s: Scale, x0: number, y0: number, w: number, h: numbe
     .join("");
 }
 
-/** The boxes of valueGridY's tick labels, for value labels to keep clear of (#209 review). */
+/** The boxes of valueGridY's tick labels, for value labels to keep clear of (#209 review; #209 round 4: their ink, inkBox). */
 export const tickBoxes = (s: Scale, x0: number, y0: number, h: number): Obstacle[] =>
-  s.ticks.map((t) => labelBox(x0 - SMALL * 0.4, y0 + h - s.t(t) * h, tickLabel(t), SMALL, { anchor: "end", baseline: "middle" }));
+  s.ticks.map((t) => inkBox(x0 - SMALL * 0.4, y0 + h - s.t(t) * h, tickLabel(t), SMALL, { anchor: "end", baseline: "middle" }));
 
 /** Air between neighbouring tick labels' ink on a horizontal value axis (#209 round 4). */
 const TICK_AIR = SMALL * 0.1;

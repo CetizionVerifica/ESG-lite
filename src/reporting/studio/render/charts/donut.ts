@@ -7,7 +7,8 @@ import { formatNumber, sharedUnit } from "../format";
 import type { Theme } from "../theme";
 import type { RenderValue } from "../types";
 import { esc, n3 } from "../util";
-import { FONT, INK_GAP, SMALL, boxesMeet, emptyChart, fitLines, inkBox, labelBox, legend, rect, seriesColor, svgOpen, text, type ChartInput, type LabelBox } from "./svg";
+import { inkExtent } from "./metrics";
+import { FONT, INK_GAP, SMALL, boxesMeet, emptyChart, fitLines, inkBox, labelBox, labelWidth, legend, rect, seriesColor, svgOpen, text, type ChartInput, type LabelBox } from "./svg";
 
 export const parts = (v: RenderValue, theme: Theme): { label: string; value: number; color: string }[] => {
   const series = v.series ?? [];
@@ -151,6 +152,28 @@ export function underDonut(figure: string, unit: string | null | undefined, w: n
   };
 }
 
+/**
+ * #209 round 4: the figure and unit beside a ring whose hole and plot have no room for them (a wide, short frame): bold, on
+ * one line or two, at FONT down to SMALL, from FONT × 0.5 right of the ring and its share labels' ink, centred on the ring's
+ * middle and inside the plot; null when they don't fit there.
+ */
+export function besideDonut(figure: string, unit: string | null | undefined, ring: { cx: number; cy: number; r: number; plotH: number; labels: ({ x: number; y: number; anchor: Anchor; text: string } | null)[] }, w: number, theme: Theme): string | null {
+  const right = Math.max(ring.cx + ring.r, ...ring.labels.map((l) => (l ? inkBox(l.x, l.y, l.text, SMALL, { anchor: l.anchor, baseline: "middle" }).x1 : -Infinity)));
+  const x = right + FONT * 0.5;
+  const layouts = unit && figure ? [[`${figure} ${unit}`], [figure, unit]] : [[figure || unit || ""]];
+  for (const lines of layouts)
+    for (const size of [FONT, FONT * 0.9, SMALL]) {
+      const lh = size * 1.2;
+      const ink = lines.map((l) => inkExtent(l, "alphabetic"));
+      const y0 = ring.cy - ((lines.length - 1) * lh) / 2 + (ink[0].up - ink[ink.length - 1].down) * size * 0.5;
+      const top = y0 - ink[0].up * size;
+      const bottom = y0 + (lines.length - 1) * lh + ink[ink.length - 1].down * size;
+      if (top < 0 || bottom > ring.plotH || lines.some((l) => labelWidth(l, size, true) > w - x)) continue;
+      return lines.map((l, i) => text(x, y0 + i * lh, l, theme.colors.ink, { weight: 700, size })).join("");
+    }
+  return null;
+}
+
 export function donutChart(input: ChartInput): string {
   const { value, w, h, theme } = input;
   const ps = parts(value, theme);
@@ -161,9 +184,9 @@ export function donutChart(input: ChartInput): string {
   // #209 review: the figure goes in the hole when it fits there (donutCentre), else under the donut. #209 round 4: the ring
   // is as big as its share labels leave room for (ringFit: room only on the sides that carry one): at least FONT with every
   // label, else at least FONT × 0.5 with every label. A frame too small for that takes production's ring (looseRing) and
-  // leaves out the labels without room; there the figure goes under the donut only when that leaves out
-  // no label and keeps the ring at FONT, else it is left out (it didn't fit production's hole either: production drew it
-  // over the ring).
+  // leaves out the labels without room; there the figure goes in the hole, else beside the ring (besideDonut), else under
+  // the donut only when that leaves out no label and keeps the ring at FONT, else it is left out (it didn't fit production's
+  // hole either: production drew it over the ring). A plot with no room under the ring tries beside it too.
   const rings = ps.map((p) => ({ share: p.value / total, show: p.value / total >= 0.04 }));
   const plan = (tier: number, withFigure = true) => {
     const geom = (underH: number) => {
@@ -179,16 +202,26 @@ export function donutChart(input: ChartInput): string {
     let under = "";
     if (centre === null) {
       const u = underDonut(figure, value.unit, w, theme);
-      g = geom(u.h);
-      if (!ok(g)) return null;
+      const gu = geom(u.h);
+      if (!ok(gu)) {
+        // No room under it: beside the ring, in a wide frame.
+        const side = besideDonut(figure, value.unit, { ...g, labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) }, w, theme);
+        if (side === null) return null;
+        return { ...g, centre: "", under: side, labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) };
+      }
+      g = gu;
       under = u.svg(h - legendH - u.h);
       centre = "";
     }
     return { ...g, centre, under, labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) };
   };
   const loose = () => {
-    const a = plan(0) as NonNullable<ReturnType<typeof plan>>;
     const b = plan(0, false) as NonNullable<ReturnType<typeof plan>>;
+    const hole = donutCentre(figure, value.unit, b.cx, b.cy, b.inner, theme);
+    if (hole !== null) return { ...b, centre: hole };
+    const side = besideDonut(figure, value.unit, b, w, theme);
+    if (side !== null) return { ...b, under: side };
+    const a = plan(0) as NonNullable<ReturnType<typeof plan>>;
     return a.r >= Math.min(FONT, b.r) - 1e-9 && b.labels.every((l, i) => !l || a.labels[i]) ? a : b;
   };
   const { r, cx, cy, inner, centre, under, labels: shareLabels } = plan(FONT) ?? plan(FONT * 0.5) ?? loose();

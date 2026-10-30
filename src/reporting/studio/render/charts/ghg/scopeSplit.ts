@@ -9,7 +9,7 @@
 import { formatNumber, seriesUnit } from "../../format";
 import type { Theme } from "../../theme";
 import { esc, n3 } from "../../util";
-import { donutCentre, looseRing, ringFit, ringLabels, underDonut } from "../donut";
+import { besideDonut, donutCentre, looseRing, ringFit, ringLabels, underDonut } from "../donut";
 import { textWidth } from "../metrics";
 import { FONT, SMALL, emptyChart, rect, svgOpen, text, wrapWords, type ChartInput } from "../svg";
 import { HEADLINE_STEPS, biggest, currentSeries, headline, partColor, partsOf, pct, total } from "./common";
@@ -103,7 +103,8 @@ export function scopeSplitChart(input: ChartInput): string {
     // up, in the bar's order. #209 round 4: the ring is placed by ringFit (room only on the sides that carry a share label). A
     // frame too small for the full ring tries a ring of at least FONT, then FONT × 0.5, with every share label, giving up the
     // note's second sentence, then the note for it; then production's ring (looseRing, never under FONT), leaving out the
-    // share labels it has no room for, with the whole note, its first sentence, none; only then the legend's figures, in the
+    // share labels it has no room for, with the whole note, its first sentence, none; then the same without the total (it
+    // goes in the hole, under the ring, or beside it in a wide frame, while it fits); only then the legend's figures, in the
     // same order. The scope names go last: a frame too small for them, the ring at FONT and the total takes a smaller ring,
     // then leaves out the total (a ring never under FONT × 0.75 with it); the names are left out only when they don't fit
     // the frame at all.
@@ -114,7 +115,8 @@ export function scopeSplitChart(input: ChartInput): string {
      * whose labels without room are left out; under 0, a ring smaller than FONT (as big as the plot leaves, at least −tier).
      */
     const tiers = [FONT * 1.2, FONT, FONT * 0.5, 0];
-    const donutPlan = (items: Item[], noteText: string, k: number, tier: number, withFigure = true) => {
+    type DonutPlan = { plotH: number; r: number; fit: number; cx: number; cy: number; inner: number; leg: ReturnType<typeof legendRows>; lines: string[]; ns: number; noteH: number; centre: string; under: string; underH: number };
+    const donutPlan = (items: Item[], noteText: string, k: number, tier: number, withFigure = true): DonutPlan | null => {
       const size = SMALL * k;
       const leg = items.length ? legendRows(items, w, size) : null;
       if (items.length && !leg) return null;
@@ -136,8 +138,14 @@ export function scopeSplitChart(input: ChartInput): string {
       let underH = 0;
       if (centre === null) {
         const u = underDonut(figure, value.unit, w, theme);
-        g = geom(u.h);
-        if (!ok(g)) return null;
+        const gu = geom(u.h);
+        if (!ok(gu)) {
+          // #209 round 4: no room under the ring: beside it, in a wide frame (besideDonut).
+          const side = besideDonut(figure, value.unit, { ...g, plotH: Math.max(0, g.plotH), labels: ringLabels(ring, g.cx, g.cy, g.r, w, Math.max(0, g.plotH)) }, w, theme);
+          if (side === null) return null;
+          return { ...g, leg, lines, ns: size, noteH, centre: "", under: side, underH: 0 };
+        }
+        g = gu;
         under = u.svg(g.plotH);
         underH = u.h;
         centre = "";
@@ -146,15 +154,17 @@ export function scopeSplitChart(input: ChartInput): string {
     };
     const legends: Item[][] = options.showLegend === false ? [[]] : [valueItems, nameItems];
     const last = SMALL_TEXT_STEPS[SMALL_TEXT_STEPS.length - 1];
-    let dp: ReturnType<typeof donutPlan> = null;
+    let dp: DonutPlan | null = null;
     // For each legend: every note mode with every share label first (a ring of FONT × 1.2, FONT, FONT × 0.5), then every note
-    // mode with production's ring: the legend's tCO₂e figures outrank the share labels, and those the note.
+    // mode with production's ring, then those without the total in or by the ring (production drew it over a ring whose
+    // hole couldn't hold it): the legend's tCO₂e figures outrank the share labels, and those the note.
+    const passes: [number[], boolean][] = [[tiers.filter((t) => t > 0), true], [[0], true], [[0], false]];
     search: for (const items of legends)
-      for (const pass of [tiers.filter((t) => t > 0), [0]])
+      for (const [pass, withFigure] of passes)
         for (const noteText of noteModes)
           for (const tier of pass)
             for (const k of SMALL_TEXT_STEPS) {
-              dp = donutPlan(items, noteText, k, tier);
+              dp = donutPlan(items, noteText, k, tier, withFigure);
               if (dp) break search;
             }
     const names = legends[legends.length - 1];

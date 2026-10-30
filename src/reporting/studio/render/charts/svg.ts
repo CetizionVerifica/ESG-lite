@@ -136,15 +136,15 @@ export const fitBarEnds = (pw: number, x0: number, w: number, ends: { t: number;
 
 /**
  * #209 round 4: a horizontal bar chart's plot width: fitBarEnds for its value labels at the largest step (`steps`) whose
- * narrowing keeps the plot at least `floor` wide (the tick labels' tickFloorX), else `floor`, where the labels then step down
- * or are left out rather than leave the chart.
+ * narrowing keeps the plot at least `floor` wide (the tick labels' tickFloorX); when no step does, fitBarEnds at the smallest
+ * step: a reported figure keeps its place and the tick labels step down or thin (tickLabelsX) instead.
  */
 export const barEndsPlot = (floor: number, steps: number[], widthAt: (size: number) => number): number => {
   for (const size of steps) {
     const fit = widthAt(size);
     if (fit >= floor) return fit;
   }
-  return floor;
+  return widthAt(steps[steps.length - 1]);
 };
 
 /** A value label a chart wants centred over its mark: x, baseline y, text; bold labels and higher priority are kept first. */
@@ -189,7 +189,7 @@ export const rectBox = (x: number, y: number, w: number, h: number, owner?: numb
 /**
  * Places one row of centred value labels (bar totals, waterfall steps, target bars, gas
  * columns, line end points) so that no two meet, none meets an obstacle (a tick label, a
- * bar other than its own, a target's words) and each stays inside the plot, x0..w (#209
+ * bar, its own too, a target's words) and each stays inside the plot, x0..w (#209
  * review: 3-decimal tCO₂e labels are wider than their bands). Tried in order, the first
  * that fits wins:
  *   1. as drawn, at each font step (LABEL_STEPS, down to 80 %), each label moved inside
@@ -199,7 +199,8 @@ export const rectBox = (x: number, y: number, w: number, h: number, owner?: numb
  *      (at most two lines above its mark);
  *   3. at the smallest step and staggered, a label that still meets something is left out
  *      (bold, then `priority`, then left to right keep their place first), after trying it moved
- *      sideways (up to SMALL × 2, still over its mark's middle). In this pass a label may rise
+ *      sideways (up to SMALL × 2, still over its mark's middle), then under its mark (a floating
+ *      step with room under it), then beside it (into a gap no other mark spans). In this pass a label may rise
  *      (up to two lines) within the room the plot has even when no line could be reserved.
  *      Never an overlap.
  *      #209 round 4: the kept-first labels (the row's highest rank, bold then `priority`: a
@@ -244,11 +245,12 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
         const y0 = Math.min(Math.max(l.y, top), bottom);
         const first = drop && (!!l.bold || (l.priority ?? 0) > 0) && !!l.bold === topBold && (l.priority ?? 0) === topPriority;
         const maxRise = first ? Infinity : MAX_RISE * size;
-        const at = (x: number) => {
-          let y = y0;
-          for (let tries = 0; tries < 12 && y >= top && y0 - y <= maxRise; tries++) {
+        // #209 round 4: its own mark is an obstacle too (a label held under the chart's top line no longer sits on it).
+        const at = (x: number, yFrom = y0) => {
+          let y = yFrom;
+          for (let tries = 0; tries < 12 && y >= top && yFrom - y <= maxRise; tries++) {
             const box = inkBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
-            const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => o.owner !== i && boxesMeet(o, box, gap))];
+            const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => boxesMeet(o, box, gap))];
             if (!hits.length) return { x, y, box };
             if (!stagger && !first && !drop) return null;
             // Stagger: just above what it would meet.
@@ -269,6 +271,24 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
             if (nx - lw / 2 < -1e-6 || nx + lw / 2 > w + 1e-6 || nx - lw / 2 > mid || nx + lw / 2 < mid) continue;
             spot = at(nx);
             if (spot) break;
+          }
+          const marks = obstacles.filter((o) => o.owner !== i && o.x0 >= x0 - 1e-6);
+          // Then under its mark, when the mark floats in the plot (a waterfall's step) with a line of room under it.
+          if (!spot && own.length) {
+            const floor = Math.max(...obstacles.filter((o) => o.x0 >= x0 - 1e-6).map((o) => o.y1));
+            const yb = Math.max(...own.map((o) => o.y1)) + gap + ink.up * size + 0.01;
+            const box = inkBox(x, yb, l.text, size, { anchor: "middle", bold: l.bold });
+            if (box.y1 <= floor + 1e-6 && box.y1 <= h && !placed.some((p) => boxesMeet(p, box, gap)) && !obstacles.some((o) => boxesMeet(o, box, gap))) spot = { x, y: yb, box };
+          }
+          // Then beside its mark, level with its top (a plot too short for a line over it): only into a gap no other mark
+          // spans, so it never reads as a neighbour's.
+          if (!spot && own.length) {
+            const [ox0, ox1, oy0] = [Math.min(...own.map((o) => o.x0)), Math.max(...own.map((o) => o.x1)), Math.min(...own.map((o) => o.y0))];
+            for (const nx of [ox1 + SMALL * 0.3 + lw / 2, ox0 - SMALL * 0.3 - lw / 2]) {
+              if (nx - lw / 2 < x0 - 1e-6 || nx + lw / 2 > w + 1e-6 || marks.some((o) => o.x0 < nx + lw / 2 && o.x1 > nx - lw / 2)) continue;
+              spot = at(nx, Math.min(Math.max(oy0 + ink.up * size, top), bottom));
+              if (spot) break;
+            }
           }
         }
       }

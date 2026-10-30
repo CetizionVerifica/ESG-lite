@@ -970,3 +970,64 @@ test("round 4: seeded random charts over small, narrow and short frames keep plo
   assert.equal(Object.keys(seen).length, ALL_KINDS.length, JSON.stringify(seen));
   for (const [k, n] of Object.entries(checks)) assert.ok(n > (k === "tiles" ? 200 : 40), `${k}: ${n}`);
 });
+
+test("round 4: a value label never sits on its own mark: in a plot too short for a line over it, it goes beside the mark", () => {
+  // The reviewers' fuzz (BE seed 11 #26): a gas_split 349 × 76, its plot at PLOT_FLOOR under the total line (production's was
+  // upside down, its columns of height 0). The biggest gas's label has no room over its column: it sits beside it, level
+  // with its top, in the gap before the next gas, never on a column.
+  const theme = R.buildTheme({});
+  const value = {
+    display: "12,480.000",
+    value: 12480,
+    unit: "tCO₂e",
+    series: [
+      { label: "2024", unit: "t", values: [{ key: "CO₂", value: 3104.994 }, { key: "CH₄", value: 60.2 }, { key: "N₂O", value: 12.9 }] },
+      { label: "2025", unit: "t", values: [{ key: "CO₂", value: 169102.877 }, { key: "CH₄", value: 401.3 }, { key: "N₂O", value: 39.5 }] },
+    ],
+  };
+  const svg = R.chartRenderer("gas_split")({ value, w: 349, h: 76, theme, options: {}, label: "gas_split" });
+  const p = parseSvg(/<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1]);
+  const lab = p.texts.find((t) => t.s === "169,103");
+  assert.ok(lab, p.texts.map((t) => t.s).join(" | "));
+  const b = boxOf(lab);
+  const cols = p.rects.filter((r) => r.part && r.w > 0 && r.h > 0);
+  assert.ok(cols.length >= 2);
+  for (const r of cols) assert.ok(!SVG.boxesMeet(b, rectBox(r)), `"169,103" ${where(b)} meets the ${r.part} column ${where(rectBox(r))}`);
+  const own = cols.find((r) => r.part === "CO₂" && r.h > 1);
+  assert.ok(b.x0 >= own.x + own.w && b.y0 <= own.y + own.h && b.y1 >= own.y, `beside its column, level with its top: ${where(b)} / ${where(rectBox(own))}`);
+});
+
+/** A DS-1 fixture element alone on an A4 page at w × h mm: its chart. */
+function alone1(id, wmm, hmm) {
+  const d0 = F.fixtureDoc("a4");
+  const pg = d0.pages.find((p) => (p.elements || []).some((e) => e.id === id));
+  const e = pg.elements.find((x) => x.id === id);
+  const d = { ...d0, pages: [{ ...pg, elements: [{ ...e, frame: { ...e.frame, x: 5, y: 5, w: wmm, h: hmm } }] }] };
+  return charts(R.renderDocument(d, F.fixtureData(R.renderData), { mode: "sheet", assets: F.assets }).html)[0];
+}
+
+test("round 4: frame sweeps: small frames keep what production drew clear (bar-end figures, legends, legend figures, the total)", () => {
+  // From the reviewers' frame sweeps (w 25–100 mm, h 15–70 mm) against production.
+  const muted = R.buildTheme({}).colors.muted;
+  // 1. A horizontal bar's bar-end figures win over tick labels: the plot narrows for them and the tick labels thin.
+  const hbar = alone1("p-charts.hbar", 30, 25);
+  assert.ok(hbar.texts.some((t) => t.s === "1,500.000"), hbar.texts.map((t) => t.s).join(" | "));
+  const ticks = hTicks(hbar);
+  for (let i = 1; i < ticks.length; i++) assert.ok(!SVG.boxesMeet(boxOf(ticks[i - 1]), boxOf(ticks[i])), `tick ${ticks[i - 1].s} meets ${ticks[i].s}`);
+  // 2. A plot at its floor never pushes what is under it into the legend: gas_split leaves out its unit note, monthly_stack
+  //    its month names, and the legend stays clear.
+  for (const [id, w, h] of [["g.gas_split", 40, 15], ["g.monthly_stack", 40, 15]]) {
+    const c = alone(id, w, h);
+    const leg = c.texts.filter((t) => /^(2024|2025|Scope \d)$/.test(t.s) && t.fill === muted);
+    assert.ok(leg.length >= 2, `${id}: legend ${c.texts.map((t) => t.s).join(" | ")}`);
+    for (const l of leg) for (const t of c.texts) if (t !== l) assert.ok(!SVG.boxesMeet(boxOf(l), boxOf(t)), `${id} ${w}×${h}: legend "${l.s}" meets "${t.s}"`);
+  }
+  // 3. A wide, short donut prints its total beside the ring (no room in its hole or under it).
+  const dn = alone1("p-summary.donut", 95, 15);
+  const fig = dn.texts.find((t) => t.s === "12,480.000 tCO₂e");
+  const ring = ringOf(dn);
+  assert.ok(fig && ring && boxOf(fig).x0 >= ring.cx + ring.r, `beside the ring: ${dn.texts.map((t) => `${t.s}@${t.x.toFixed(1)}`).join(" | ")}`);
+  // 4. A short scope donut keeps its legend's tCO₂e figures (production drew them clear) before the total it drew over the ring.
+  const sd = alone("g.scope_donut", 30, 15);
+  for (const s of ["Scope 1 3,410.000", "Scope 2 5,800.000", "Scope 3 3,270.000"]) assert.ok(sd.texts.some((t) => t.s === s), `${s}: ${sd.texts.map((t) => t.s).join(" | ")}`);
+});
