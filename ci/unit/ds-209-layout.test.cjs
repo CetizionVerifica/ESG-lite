@@ -822,3 +822,44 @@ test("round 4: a horizontal value axis never prints tick labels over each other,
   }
   assert.ok(charts > 300 && thinned > 0, `${charts} ${thinned}`);
 });
+
+test("round 4: before a row label is left out it moves sideways or rises within the plot's room (production's clear labels stay)", () => {
+  // Two charts from the reviewers' fuzz (BE seed 11 #72, ext seed 5 #488): production drew every total clear at 6.5 pt; at
+  // 3 decimals the row needs the smallest step, and a label that meets a neighbour moves sideways (still over its bar) or
+  // rises a little in the room the plot has, rather than be left out.
+  const theme = R.buildTheme({});
+  const muted = theme.colors.muted;
+  const yrs = ["2019", "2020", "2021", "2022", "2023", "2024", "2025"];
+  const series = (label, vs) => ({ label, values: vs.map((value, i) => ({ key: yrs[i], value })) });
+  const cases = [
+    { kind: "bar", w: 200, h: 159, value: { display: "", value: 1, unit: "tCO₂e", series: [series("Total", [18005.321, 80700.761, 13855.5, 194909.912, 19382.415, 16648.078, 16046.615])] }, want: ["18,005.321"] },
+    {
+      kind: "stacked_bar",
+      w: 246,
+      h: 80,
+      value: {
+        display: "",
+        value: 1,
+        unit: "tCO₂e",
+        series: [
+          series("Scope 1", [2197.824, 3323.681, 23264.299, 6531.713, 38751.541, 3757.941, 4246.197]),
+          series("Scope 2", [1177.12, 6232.76, 2513.246, 3002.665, 5091.561, 6245.348, 3457.434]),
+          series("Scope 3", [2494.013, 19305.255, 65148.942, 65591.321, 49504.423, 2841.818, 2679.706]),
+        ],
+      },
+      want: ["5,868.957", "28,861.696", "90,926.487", "75,125.699", "93,347.525", "12,845.107", "10,383.337"],
+    },
+  ];
+  for (const c of cases) {
+    const svg = R.chartRenderer(c.kind)({ value: c.value, w: c.w, h: c.h, theme, options: {}, label: c.kind });
+    const p = parseSvg(/<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1]);
+    const vals = p.texts.filter((t) => t.fill !== muted && VALUE.test(t.s));
+    for (const s of c.want) assert.ok(vals.some((t) => t.s === s), `${c.kind} ${c.w}×${c.h}: ${s} is left out (${vals.map((t) => t.s).join(" ")})`);
+    const boxes = vals.map(boxOf);
+    boxes.forEach((b, i) => {
+      assert.ok(b.x0 >= -EPS && b.x1 <= c.w + EPS && b.y0 >= -EPS && b.y1 <= c.h + EPS, `${c.kind}: ${vals[i].s} leaves the chart`);
+      boxes.forEach((q, j) => j > i && assert.ok(!SVG.boxesMeet(b, q), `${c.kind}: ${vals[i].s} meets ${vals[j].s}`));
+      for (const t of p.texts.filter((x) => x.fill === muted)) assert.ok(!SVG.boxesMeet(b, boxOf(t)), `${c.kind}: ${vals[i].s} meets "${t.s}"`);
+    });
+  }
+});

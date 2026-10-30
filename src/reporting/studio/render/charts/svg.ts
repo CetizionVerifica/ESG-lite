@@ -198,7 +198,10 @@ export const rectBox = (x: number, y: number, w: number, h: number, owner?: numb
  *      left to right, a label that would meet a label or obstacle goes up just above it
  *      (at most two lines above its mark);
  *   3. at the smallest step and staggered, a label that still meets something is left out
- *      (bold, then `priority`, then left to right keep their place first). Never an overlap.
+ *      (bold, then `priority`, then left to right keep their place first), after trying it moved
+ *      sideways (up to SMALL × 2, still over its mark's middle). In this pass a label may rise
+ *      (up to two lines) within the room the plot has even when no line could be reserved.
+ *      Never an overlap.
  *      #209 round 4: the kept-first labels (the row's highest rank, bold then `priority`: a
  *      latest total, a waterfall's start and end, the biggest gas) are placed before the
  *      others and may rise past the two-line limit, as far as the chart's top line (above
@@ -234,22 +237,38 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
       const top = minY + ink.up * size;
       const bottom = h - ink.down * size;
       let spot: { x: number; y: number; box: LabelBox } | null = null;
-      if (labelWidth(l.text, size, l.bold) <= w - x0) {
+      const lw = labelWidth(l.text, size, l.bold);
+      if (lw <= w - x0) {
         const x = insideX(l.x, l.text, w, size, l.bold, x0);
         const y0 = Math.min(Math.max(l.y, top), bottom);
         const first = drop && (!!l.bold || (l.priority ?? 0) > 0) && !!l.bold === topBold && (l.priority ?? 0) === topPriority;
         const maxRise = first ? Infinity : MAX_RISE * size;
-        let y = y0;
-        for (let tries = 0; tries < 12 && y >= top && y0 - y <= maxRise; tries++) {
-          const box = inkBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
-          const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => o.owner !== i && boxesMeet(o, box, gap))];
-          if (!hits.length) {
-            spot = { x, y, box };
-            break;
+        const at = (x: number) => {
+          let y = y0;
+          for (let tries = 0; tries < 12 && y >= top && y0 - y <= maxRise; tries++) {
+            const box = inkBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
+            const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => o.owner !== i && boxesMeet(o, box, gap))];
+            if (!hits.length) return { x, y, box };
+            if (!stagger && !first && !drop) return null;
+            // Stagger: just above what it would meet.
+            y = Math.min(...hits.map((p) => p.y0)) - gap - ink.down * size - 0.01; // 0.01: clear of the 3-decimal rounding of x, y
           }
-          if (!stagger && !first) break;
-          // Stagger: just above what it would meet.
-          y = Math.min(...hits.map((p) => p.y0)) - gap - ink.down * size - 0.01; // 0.01: clear of the 3-decimal rounding of x, y
+          return null;
+        };
+        spot = at(x);
+        // #209 round 4: before a label is left out, it moves sideways (the smallest move first), inside the chart (over the axis
+        // gutter too: the tick labels are obstacles) and still over its mark's middle (its own obstacle's, else its own x),
+        // then rises as above.
+        if (!spot && drop) {
+          const own = obstacles.filter((o) => o.owner === i);
+          const mid = own.length ? (Math.min(...own.map((o) => o.x0)) + Math.max(...own.map((o) => o.x1))) / 2 : l.x;
+          const moves = [1, 2, 3, 4, 5, 6, 7, 8].flatMap((k) => [-k, k].map((d) => d * SMALL * 0.25));
+          for (const d of moves) {
+            const nx = x + d;
+            if (nx - lw / 2 < -1e-6 || nx + lw / 2 > w + 1e-6 || nx - lw / 2 > mid || nx + lw / 2 < mid) continue;
+            spot = at(nx);
+            if (spot) break;
+          }
         }
       }
       if (!spot) {
