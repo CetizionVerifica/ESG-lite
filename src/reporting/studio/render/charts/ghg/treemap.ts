@@ -82,8 +82,9 @@ const TILE_FOOT = 0.3;
 /**
  * What a tile prints: its name, then "value · share" on one line, or value and share on two (#209: a 3-decimal tCO₂e
  * figure is long). #209 review: a tile too small for that at the chart's size steps the text down (to 0.8 of it) before
- * it leaves anything out; only then does it print the value alone, then the name alone. Never a line measured as wider
- * than its tile. #209 round 4: a line fits the tile's height when its ink (metrics.ts inkExtent) clears the tile's foot by
+ * it leaves anything out. #209 round 4: only then does it print one line, the share (what a treemap is read for; the
+ * 3-decimal figure is the line that doesn't fit), and only a tile without room even for that prints its name alone: a
+ * tile with room for one value line keeps at least its share. Never a line measured as wider than its tile. #209 round 4: a line fits the tile's height when its ink (metrics.ts inkExtent) clears the tile's foot by
  * TILE_FOOT: value lines' baselines sit 2.6 and 3.9 em down, so a second line needs about 4.3 em, not 5.1.
  */
 function tileText(t: Tile, v: string, share: string, values: boolean): { size: number; chars: number; lines: string[] } | null {
@@ -104,7 +105,7 @@ function tileText(t: Tile, v: string, share: string, values: boolean): { size: n
   const one = `${v} · ${share}`;
   return (
     pick((z) => (z.tall([one]) && z.fits(one) ? [one] : z.tall([v, share]) && z.fits(v) && z.fits(share) ? [v, share] : null)) ??
-    pick((z) => (z.tall([v]) && z.fits(v) ? [v] : null)) ?? { size: named[0].size, chars: named[0].chars, lines: [] }
+    pick((z) => (z.tall([share]) && z.fits(share) ? [share] : null)) ?? { size: named[0].size, chars: named[0].chars, lines: [] }
   );
 }
 

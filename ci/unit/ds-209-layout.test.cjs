@@ -295,7 +295,7 @@ test("treemap: no value line is wider than its tile", () => {
   }
   assert.ok(lines > 40, String(lines));
   // The cases, on one tile each: one line; two lines; two lines a size smaller (#209 review: the text steps down before
-  // anything is left out); the value alone; no value line. Each line with its size (in SMALLs).
+  // anything is left out); the share alone; no value line. Each line with its size (in SMALLs).
   const tm = (w, h) => {
     const svg = R.chartRenderer("treemap")({ value: { display: "", value: 1290, unit: "tCO₂e", series: [{ label: "2025", values: [{ key: "A", value: 1290 }] }] }, w, h, theme: R.buildTheme({}), options: {}, label: "t" });
     return [...svg.matchAll(/<text[^>]*font-size="([\d.]+)"[^>]*>([^<]*)<\/text>/g)].slice(1).map((m) => `${m[2]} @${(Number(m[1]) / SVG.SMALL).toFixed(2)}`);
@@ -307,8 +307,11 @@ test("treemap: no value line is wider than its tile", () => {
   assert.deepEqual(tm(room("1,290.00"), S * 5.2), ["1,290.000 @0.90", "100% @0.90"]);
   // #209 round 4: two lines need their ink and some air (about 4.3 em), not 5.1 em: a 4-em tile keeps the share a step down.
   assert.deepEqual(tm(room("1,290.000"), S * 4), ["1,290.000 @0.90", "100% @0.90"]);
-  assert.deepEqual(tm(room("1,290.000"), S * 3.3), ["1,290.000 @1.00"]);
-  assert.deepEqual(tm(room("1,290"), S * 5.2), []);
+  // Room for one line only: the share (a tile with room for a value line prints at least its share).
+  assert.deepEqual(tm(room("1,290.000"), S * 3.3), ["100% @1.00"]);
+  assert.deepEqual(tm(room("1,290"), S * 5.2), ["100% @1.00"]);
+  // Too narrow even for the share: the name alone.
+  assert.deepEqual(tm(SVG.labelWidth("100%", S * 0.8) + S * 0.8 - 1, S * 5.2), []);
 });
 
 test("horizontal bars in thin bands: totals step down a size, clear of each other and of the next band's bar; names thin out last", () => {
@@ -641,4 +644,28 @@ test("round 4: ranked and horizontal bars keep the labels and names production d
     const own = bars.find((r) => t.y >= r.y && t.y <= r.y + r.h);
     assert.ok(own && t.x - (own.x + own.w) <= S * 0.4 + EPS, `"${t.s}" sits ${(t.x - own.x - own.w).toFixed(1)} after its bar's end`);
   }
+});
+
+test("round 4: a treemap tile with room for one value line prints at least its share", () => {
+  // The fixture tiles production printed "300 · 9.2%", "140 · 4.3%" and "180 · 5.5%" in: the 3-decimal value doesn't fit, the share does.
+  const tm = (name, id = "g.treemap") => ALL.find(({ r, c }) => r.name === name && c.id === id).c.texts.map((t) => t.s);
+  assert.ok(tm("DS-8 a5").includes("9.2%") && tm("DS-8 a5").includes("4.3%"), tm("DS-8 a5").join(" | "));
+  assert.ok(tm("DS-8 social_191").includes("5.5%"), tm("DS-8 social_191").join(" | "));
+  // Random treemaps: every named tile tall and wide enough for its share at the smallest step prints it.
+  const S = SVG.SMALL * 0.8;
+  let tiles = 0;
+  for (const c of randomCharts(5209, 300, ["treemap"])) {
+    const parts = c.value.series[0].values;
+    const sum = parts.reduce((a, p) => a + p.value, 0);
+    for (const r of c.rects.filter((x) => x.part)) {
+      const inTile = c.texts.filter((t) => t.x >= r.x && t.x <= r.x + r.w && t.y >= r.y && t.y <= r.y + r.h);
+      if (!inTile.some((t) => t.bold)) continue; // the tile is too small for its name: nothing printed, as production
+      const v = parts.find((p) => p.key === r.part).value / sum;
+      const share = `${RF.formatNumber(v * 100, v * 100 < 10 ? "1dp" : "int")}%`;
+      if (r.h < S * (2.6 + 0.05 + 0.3) || SVG.labelWidth(share, S) > r.w - S) continue;
+      tiles++;
+      assert.ok(inTile.some((t) => t.s === share || t.s.endsWith(` · ${share}`)), `#${c.i} ${c.w}×${c.h} tile ${r.part} ${r.w.toFixed(1)}×${r.h.toFixed(1)}: ${inTile.map((t) => t.s).join(" | ")} (share ${share})`);
+    }
+  }
+  assert.ok(tiles > 500, String(tiles));
 });
