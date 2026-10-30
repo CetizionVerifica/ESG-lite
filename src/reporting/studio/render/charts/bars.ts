@@ -7,7 +7,7 @@ import { formatNumber, sharedUnit } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, tickBoxes, tickRoom, valueGridX, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, LABEL_STEPS, PLOT_FLOOR, SMALL, boxesMeet, emptyChart, fitBarEnds, fitLabelRow, isYearKey, keysOf, labelBox, legend, rect, rectBox, seriesColor, svgOpen, text, valueAt, type ChartInput, type LabelBox, type Obstacle } from "./svg";
+import { FONT, LABEL_STEPS, SMALL, boxesMeet, emptyChart, fitBarEnds, fitLabelRow, isYearKey, keysOf, labelBox, legend, plotSpan, rect, rectBox, seriesColor, svgOpen, text, valueAt, type ChartInput, type LabelBox, type Obstacle } from "./svg";
 
 function draw(input: ChartInput, stacked: boolean): string {
   const { value, w, h, theme, options } = input;
@@ -129,8 +129,7 @@ function draw(input: ChartInput, stacked: boolean): string {
     const fit = fitLabelRow(
       (extra) => {
         if (!labelled) return { labels: [] };
-        const y0e = FONT * 1.2 + extra;
-        const phe = Math.max(PLOT_FLOOR, h - legendH - FONT * 1.8 - FONT * 1.2 - extra);
+        const { top: y0e, ph: phe } = plotSpan(FONT * 1.2 + extra, h - legendH - FONT * 1.8);
         const obstacles: Obstacle[] = [...tickBoxes(scale, x0, y0e, phe), ...keys.flatMap((_, ki) => barRects(ki, y0e, phe).map((r) => rectBox(r.x, r.y, r.w, r.h, ki)))];
         return { labels: keys.map((k, ki) => ({ x: x0 + band * (ki + 0.5), y: y0e + phe - scale.t(totals[ki]) * phe - SMALL * 0.5, text: valueText(totals[ki]), bold: k === latest })), obstacles };
       },
@@ -140,8 +139,7 @@ function draw(input: ChartInput, stacked: boolean): string {
       // under PLOT_FLOOR.
       { x0, maxLift: h - legendH - FONT * 3 - tickRoom(scale) },
     );
-    const ph = Math.max(PLOT_FLOOR, h - legendH - FONT * 1.8 - (options.showValues !== false ? FONT * 1.2 + fit.extraTop : 0));
-    const y0 = options.showValues !== false ? FONT * 1.2 + fit.extraTop : 0;
+    const { top: y0, ph } = plotSpan(options.showValues !== false ? FONT * 1.2 + fit.extraTop : 0, h - legendH - FONT * 1.8);
     body += valueGridY(scale, x0, y0, pw, ph, theme);
     keys.forEach((k, ki) => {
       const x = x0 + band * ki;

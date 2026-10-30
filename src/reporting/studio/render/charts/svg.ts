@@ -16,6 +16,16 @@ export const SMALL = 6.5 * 0.3528 * U;
  * draws short bars on an upright axis, never a zero or negative plot (bars of height 0, an axis upside down).
  */
 export const PLOT_FLOOR = SMALL * 0.5;
+/**
+ * A plot from `top` down to `bottom` (the content under it stays where it is), never under PLOT_FLOOR: a plot too short
+ * grows up into the room above it (its value labels' line), as far as `ceiling` (a headline's foot); only a frame too
+ * small even for that pushes the plot's bottom down.
+ */
+export const plotSpan = (top: number, bottom: number, ceiling = 0): { top: number; ph: number } => {
+  if (bottom - top >= PLOT_FLOOR) return { top, ph: bottom - top };
+  const t = Math.max(ceiling, Math.min(top, bottom - PLOT_FLOOR));
+  return { top: t, ph: Math.max(PLOT_FLOOR, bottom - t) };
+};
 
 /**
  * Chart options (01-contracts §2 chart props). DS-8 adds: `colors` (scope
@@ -162,6 +172,10 @@ export const rectBox = (x: number, y: number, w: number, h: number, owner?: numb
  *      (at most two lines above its mark);
  *   3. at the smallest step and staggered, a label that still meets something is left out
  *      (bold, then `priority`, then left to right keep their place first). Never an overlap.
+ *      #209 round 4: the kept-first labels (the row's highest rank, bold then `priority`: a
+ *      latest total, a waterfall's start and end, the biggest gas) are placed before the
+ *      others and may rise past the two-line limit, as far as the chart's top line (above
+ *      every bar), rather than be left out while a lower label is drawn.
  * `make(extraTop, size)` builds the row for a plot whose top is `extraTop` lower (the
  * chart's own geometry, so a staggered row takes room from the bars, not from the page);
  * the chart draws with the returned `extraTop` and `size`. `minY` is the top labels may
@@ -182,6 +196,9 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
     else order.sort((a, b) => row[a].x - row[b].x || a - b);
     const placed: LabelBox[] = [];
     const out: ({ x: number; y: number } | null)[] = row.map(() => null);
+    // The kept-first labels: the row's highest rank (bold, then priority), when the row ranks its labels at all.
+    const topBold = row.some((l) => l.bold);
+    const topPriority = Math.max(0, ...row.filter((l) => !!l.bold === topBold).map((l) => l.priority ?? 0));
     const top = minY + LABEL_ASCENT * size;
     const bottom = h - LABEL_DESCENT * size;
     const gap = LABEL_GAP * size;
@@ -191,15 +208,17 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
       if (labelWidth(l.text, size, l.bold) <= w - x0) {
         const x = insideX(l.x, l.text, w, size, l.bold, x0);
         const y0 = Math.min(Math.max(l.y, top), bottom);
+        const first = drop && (!!l.bold || (l.priority ?? 0) > 0) && !!l.bold === topBold && (l.priority ?? 0) === topPriority;
+        const maxRise = first ? Infinity : MAX_RISE * size;
         let y = y0;
-        for (let tries = 0; tries < 6 && y >= top && y0 - y <= MAX_RISE * size; tries++) {
+        for (let tries = 0; tries < 12 && y >= top && y0 - y <= maxRise; tries++) {
           const box = labelBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
           const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => o.owner !== i && boxesMeet(o, box, gap))];
           if (!hits.length) {
             spot = { x, y, box };
             break;
           }
-          if (!stagger) break;
+          if (!stagger && !first) break;
           // Stagger: just above what it would meet.
           y = Math.min(...hits.map((p) => p.y0)) - gap - LABEL_DESCENT * size - 1e-6;
         }

@@ -16,7 +16,7 @@ import type { RenderSeries } from "../../types";
 import { esc, n3 } from "../../util";
 import { axisWidth, tickBoxes, tickRoom, valueGridY } from "../axis";
 import { linearScale } from "../scale";
-import { FONT, PLOT_FLOOR, SMALL, emptyChart, fitLabelRow, keysOf, rect, rectBox, svgOpen, text, valueAt, type ChartInput, type Obstacle } from "../svg";
+import { FONT, SMALL, emptyChart, fitLabelRow, keysOf, plotSpan, rect, rectBox, svgOpen, text, valueAt, type ChartInput, type Obstacle } from "../svg";
 import { biggest, currentSeries, headline, partColor, partsOf, shortKey, wrapLegend } from "./common";
 
 export const GAS_UNIT_NOTE = "Tonnes of each gas, not CO₂e.";
@@ -37,7 +37,8 @@ export function gasSplitChart(input: ChartInput): string {
   const pw = w - x0;
   const noteH = SMALL * 1.6;
   // #209 round 4: the total line is chosen with the plot: more lines only while the plot keeps its axis room; the plot
-  // never goes under PLOT_FLOOR (never an upside-down axis), and a staggered label row takes only height it can spare.
+  // never goes under PLOT_FLOOR (svg.ts plotSpan: never an upside-down axis), and a staggered label row takes only height
+  // it can spare.
   const below = FONT * 1.2 + FONT * 1.8 + leg.h + noteH;
   const head = headline(value, theme, "Total emissions", w, { maxH: h - below - tickRoom(scale) });
   const maxLift = h - head.h - below - tickRoom(scale);
@@ -57,8 +58,7 @@ export function gasSplitChart(input: ChartInput): string {
   // #209 review: labels over the gases may not meet each other, the tick labels or another column (svg.ts fitLabelRow).
   const fit = fitLabelRow(
     (extra) => {
-      const te = head.h + FONT * 1.2 + extra;
-      const phe = Math.max(PLOT_FLOOR, h - te - FONT * 1.8 - leg.h - noteH);
+      const { top: te, ph: phe } = plotSpan(head.h + FONT * 1.2 + extra, h - FONT * 1.8 - leg.h - noteH, head.h);
       const obstacles: Obstacle[] = [...tickBoxes(scale, x0, te, phe)];
       ps.forEach((_, ki) =>
         years.forEach((__, si) => {
@@ -77,8 +77,7 @@ export function gasSplitChart(input: ChartInput): string {
     h,
     { x0, minY: head.h, maxLift },
   );
-  const top = head.h + FONT * 1.2 + fit.extraTop;
-  const ph = Math.max(PLOT_FLOOR, h - top - FONT * 1.8 - leg.h - noteH);
+  const { top, ph } = plotSpan(head.h + FONT * 1.2 + fit.extraTop, h - FONT * 1.8 - leg.h - noteH, head.h);
   let body = head.svg + valueGridY(scale, x0, top, pw, ph, theme);
   ps.forEach((p, ki) => {
     const x = x0 + band * ki;
@@ -135,8 +134,7 @@ export function monthlyStackChart(input: ChartInput): string {
   const fit = fitLabelRow(
     (extra) => {
       if (options.showValues === false || !(totals[peak] > 0)) return { labels: [] };
-      const te = head.h + FONT * 1.2 + extra;
-      const phe = Math.max(PLOT_FLOOR, h - te - FONT * 1.8 - leg.h);
+      const { top: te, ph: phe } = plotSpan(head.h + FONT * 1.2 + extra, h - FONT * 1.8 - leg.h, head.h);
       const obstacles: Obstacle[] = [...tickBoxes(scale, x0, te, phe), ...keys.flatMap((_, ki) => segRects(ki, te, phe).map((r) => rectBox(r.x, r.y, r.w, r.h, ki === peak ? 0 : undefined)))];
       return { labels: [{ x: x0 + band * (peak + 0.5), y: te + phe - scale.t(totals[peak]) * phe - SMALL * 0.5, text: peakLabel, bold: true }], obstacles };
     },
@@ -144,8 +142,7 @@ export function monthlyStackChart(input: ChartInput): string {
     h,
     { x0, minY: head.h, maxLift },
   );
-  const top = head.h + FONT * 1.2 + fit.extraTop;
-  const ph = Math.max(PLOT_FLOOR, h - top - FONT * 1.8 - leg.h);
+  const { top, ph } = plotSpan(head.h + FONT * 1.2 + fit.extraTop, h - FONT * 1.8 - leg.h, head.h);
   let body = head.svg + valueGridY(scale, x0, top, pw, ph, theme);
   keys.forEach((k, ki) => {
     const x = x0 + band * ki;

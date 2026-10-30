@@ -461,3 +461,131 @@ test("round 4: a total line never takes the plot's room: the plot stays upright 
     assert.ok(Math.max(...marks.map((r) => Math.min(r.w, r.h))) > 0.5, `${id} ${w}×${hh}: ${marks.map((r) => `${r.w}×${r.h}`).join(" ")}`);
   }
 });
+
+/**
+ * Seeded random charts (#209 round 4), in the reviewers' fuzz style: tCO₂e data at 3 decimals in frames 120–420 × 70–220
+ * viewBox units, plus small and narrow frames down to 40 × 40. `kinds` picks the chart kinds. A fixed LCG, so every run
+ * draws the same charts.
+ */
+function randomCharts(seed, n, kinds) {
+  let s = seed;
+  const rnd = () => {
+    s = (s * 1103515245 + 12345) % 2147483648;
+    return s / 2147483648;
+  };
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const theme = R.buildTheme({});
+  const val = () => Math.round((rnd() < 0.3 ? rnd() * 200000 : rnd() * 20000) * 1000) / 1000;
+  const years = (k) => Array.from({ length: k }, (_, i) => String(2019 + i));
+  const disp = (v) => RF.formatNumber(v, "auto", "tCO₂e");
+  const unit = "tCO₂e";
+  const CATS = ["1 · Purchased goods and services", "4 · Upstream transportation and distribution", "6 · Business travel", "7 · Employee commuting", "5 · Waste generated in operations", "3 · Fuel- and energy-related activities", "2 · Capital goods", "Other"];
+  const SITES = ["Manama plant", "Sitra warehouse", "Head office", "Muharraq depot", "Riffa lab", "Hidd port"];
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const kind = pick(kinds);
+    const small = rnd() < 0.25;
+    const w = Math.round(small ? 40 + rnd() * 120 : 120 + rnd() * 300);
+    const h = Math.round(small ? 40 + rnd() * 80 : 70 + rnd() * 150);
+    let value;
+    let rk = kind;
+    const options = {};
+    const k = 2 + Math.floor(rnd() * 6);
+    if (kind === "bar" || kind === "hbar" || kind === "target_bars" || kind === "waterfall") {
+      value = { display: "", value: 1, unit, series: [{ label: "Total", values: years(k).map((key) => ({ key, value: val() })) }] };
+      if (kind === "target_bars") value.target = { baseline: val(), value: val(), year: 2030 };
+      if (kind === "hbar") (rk = "bar"), (options.horizontal = true);
+    } else if (kind === "stacked_bar" || kind === "hstacked") {
+      value = { display: "", value: 1, unit, series: ["Scope 1", "Scope 2", "Scope 3"].map((label) => ({ label, values: years(k).map((key) => ({ key, value: val() / 3 })) })) };
+      if (kind === "hstacked") (rk = "stacked_bar"), (options.horizontal = true);
+    } else if (kind === "gas_split") {
+      value = { display: "12,480.000", value: 12480, unit, series: ["2024", "2025"].map((label) => ({ label, unit: "t", values: [{ key: "CO₂", value: val() }, { key: "CH₄", value: Math.round(rnd() * 5000) / 10 }, { key: "N₂O", value: Math.round(rnd() * 500) / 10 }] })) };
+    } else if (kind === "monthly_stack" || kind === "monthly_plain") {
+      const months = Array.from({ length: 12 }, (_, m) => `2025-${String(m + 1).padStart(2, "0")}`);
+      value = { display: "12,480.000", value: 12480, unit, series: [{ label: "2025", values: months.map((key) => ({ key, value: val() })) }] };
+      if (kind === "monthly_stack") value.stacks = ["Scope 1", "Scope 2", "Scope 3"].map((label) => ({ label, values: months.map((key) => ({ key, value: val() / 3 })) }));
+      rk = "monthly_stack";
+    } else if (kind === "base_year_waterfall") {
+      const a = val() + 5000;
+      const b = val() + 5000;
+      value = { display: disp(b), value: b, unit, series: [{ label: "2022", values: [{ key: "Scope 1", value: a * 0.3 }, { key: "Scope 2", value: a * 0.4 }, { key: "Scope 3", value: a * 0.3 }] }, { label: "2025", values: [{ key: "Scope 1", value: b * 0.25 }, { key: "Scope 2", value: b * 0.45 }, { key: "Scope 3", value: b * 0.3 }] }] };
+    } else if (kind === "bridge_compare") {
+      const base = val() + 1000;
+      const cur = val() + 1000;
+      rk = "base_year_waterfall";
+      value = { display: disp(cur), value: cur, unit, series: [{ label: "Total emissions", values: [{ key: "2024", value: val() + 1000 }, { key: "2025", value: cur }] }], compare: { against: "base", year: 2019, value: base } };
+    } else if (kind === "intensity_line") {
+      value = { display: "41.6", value: 41.6, unit: "tCO₂e per unit of revenue", series: [{ label: "Intensity", values: years(k).map((key) => ({ key, value: Math.round(rnd() * 100000) / 1000 })) }] };
+    } else if (kind === "category_bars" || kind === "category_prior" || kind === "site_bars" || kind === "treemap") {
+      const names = kind === "site_bars" ? SITES : CATS;
+      const keys = names.slice(0, 2 + Math.floor(rnd() * (names.length - 2)));
+      const cur = keys.map((key) => ({ key, value: val() / 10 }));
+      const sum = cur.reduce((a, x) => a + x.value, 0);
+      value = { display: disp(sum), value: sum, unit, series: [{ label: "2025", values: cur }] };
+      if (kind === "category_prior") (rk = "category_bars"), value.series.unshift({ label: "2024", values: keys.map((key) => ({ key, value: val() / 10 })) });
+    } else if (kind === "donut") {
+      const parts = ["Scope 1", "Scope 2", "Scope 3", "Biogenic", "Other"].slice(0, 2 + Math.floor(rnd() * 4));
+      value = { display: "", value: null, unit, series: parts.map((label) => ({ label, values: [{ key: "2025", value: rnd() < 0.2 ? val() / 40 : val() }] })) };
+      const sum = value.series.reduce((a, x) => a + x.values[0].value, 0);
+      value.display = disp(sum);
+      value.value = sum;
+    } else {
+      const parts = ["Scope 1", "Scope 2", "Scope 3"].map((key) => ({ key, value: rnd() < 0.15 ? val() / 200 : val() }));
+      const sum = parts.reduce((a, x) => a + x.value, 0);
+      value = { display: disp(sum), value: sum, unit, series: [{ label: "2025", values: parts }] };
+      rk = "scope_split";
+      if (kind === "scope_donut") options.variant = "donut";
+      if (rnd() < 0.3) options.basisNote = false;
+    }
+    const svg = R.chartRenderer(rk)({ value, w, h, theme, options, label: kind });
+    const body = /<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1];
+    out.push({ i, kind, w, h, value, options, svg, body, ...parseSvg(body) });
+  }
+  return out;
+}
+
+test("round 4: a kept-first label (latest total, waterfall start and end, bridge base and current) is never left out while a lower one is drawn", () => {
+  // fitLabelRow: a bold label blocked by a tall neighbour more than two lines up rises above it rather than be left out,
+  // and a lower label is left out first.
+  const S = SVG.SMALL;
+  const tall = { x0: 70, x1: 90, y0: 30, y1: 200, owner: 1 };
+  const own = { x0: 40, x1: 60, y0: 150, y1: 200, owner: 0 };
+  const row = () => ({ labels: [{ x: 50, y: 150 - S * 0.5, text: "12,480.000", bold: true }, { x: 80, y: 30 - S * 0.5, text: "93,000.000" }], obstacles: [own, tall] });
+  const f = SVG.fitLabelRow(row, 120, 200);
+  assert.ok(f.labels[0], "the bold label is drawn");
+  const b = SVG.labelBox(f.labels[0].x, f.labels[0].y, "12,480.000", f.size, { anchor: "middle", bold: true });
+  assert.ok(!SVG.boxesMeet(b, tall) && b.y0 >= 0, "clear of the tall bar, inside the chart");
+  // Over random charts: the kept-first labels are drawn whenever any lower label of the row is (in a plot with the room its
+  // axis needs; a frame too small for its plot may have no line above its bars for any label).
+  const VAL = /^[+−]?\d[\d,]*(\.\d+)?$/;
+  let rows = 0;
+  for (const c of randomCharts(4209, 400, ["bar", "stacked_bar", "waterfall", "target_bars", "base_year_waterfall", "bridge_compare"])) {
+    const ys = gridYs(c);
+    if (ys.length < 2 || ys[0] - ys[ys.length - 1] < Math.max(SVG.SMALL * 2, (ys.length - 1) * SVG.SMALL * 0.9)) continue;
+    const muted = R.buildTheme({}).colors.muted;
+    const vals = c.texts.filter((t) => VAL.test(t.s) && t.fill !== muted);
+    const pts = c.kind === "bar" || c.kind === "target_bars" || c.kind === "waterfall" ? c.value.series[0].values : null;
+    let first;
+    let all;
+    if (c.kind === "bar" || c.kind === "stacked_bar") {
+      const keys = c.value.series[0].values.map((p) => p.key);
+      const tot = keys.map((key) => c.value.series.reduce((a, s) => a + Math.max(0, s.values.find((p) => p.key === key).value), 0));
+      all = tot.map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
+      first = [all[all.length - 1]];
+    } else if (c.kind === "target_bars") {
+      all = pts.map((p) => RF.formatNumber(p.value, "auto", "tCO₂e"));
+      first = [all[all.length - 1]];
+    } else {
+      const steps = c.kind === "waterfall" ? null : require(path.resolve("dist/reporting/studio/render/charts/ghg/trend.js")).bridgeSteps(c.value);
+      const ends = c.kind === "waterfall" ? [pts[0].value, pts[pts.length - 1].value] : [steps[0].to, steps[steps.length - 1].to];
+      first = ends.map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
+      all = vals.map((t) => t.s);
+    }
+    const drawn = vals.map((t) => t.s);
+    const lower = drawn.filter((s) => !first.includes(s));
+    if (!lower.length) continue;
+    rows++;
+    for (const s of first) assert.ok(drawn.includes(s), `#${c.i} ${c.kind} ${c.w}×${c.h}: kept-first "${s}" left out while ${lower.join(", ")} drawn`);
+  }
+  assert.ok(rows > 150, String(rows));
+});
