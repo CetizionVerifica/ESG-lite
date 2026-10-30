@@ -2,10 +2,10 @@
   "element": "chart",
   "elements": [
     {
-      "bytes": 2415,
+      "bytes": 2402,
       "frame": "21.214,107.475,120.214,49.495,0",
       "id": "p-summary.donut",
-      "sha256": "7738680a1178286e9b7ca6eb73ac67d2f0fcbb449ebad1afb70f082e282792df"
+      "sha256": "dc04ecd169e01021505646e8063d1f33cb61830caa13c3d1243a8cc32556382f"
     },
     {
       "bytes": 2725,

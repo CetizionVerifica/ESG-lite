@@ -7,7 +7,7 @@ import { formatNumber, sharedUnit } from "../format";
 import type { Theme } from "../theme";
 import type { RenderValue } from "../types";
 import { esc, n3 } from "../util";
-import { FONT, SMALL, boxesMeet, emptyChart, fitLines, labelBox, labelWidth, legend, rect, seriesColor, svgOpen, text, type ChartInput, type LabelBox } from "./svg";
+import { FONT, INK_GAP, SMALL, boxesMeet, emptyChart, fitLines, inkBox, labelBox, legend, rect, seriesColor, svgOpen, text, type ChartInput, type LabelBox } from "./svg";
 
 export const parts = (v: RenderValue, theme: Theme): { label: string; value: number; color: string }[] => {
   const series = v.series ?? [];
@@ -20,34 +20,94 @@ export const parts = (v: RenderValue, theme: Theme): { label: string; value: num
 
 const pct = (x: number): string => `${formatNumber(x * 100, x * 100 < 10 ? "1dp" : "int")}%`;
 
+/** A part of a ring: its share of the whole, and whether the chart labels it. */
+export interface RingPart {
+  share: number;
+  show: boolean;
+}
+type Anchor = "start" | "middle" | "end";
+/** The middle angle of each part (radians, from 12 o'clock clockwise, as the arcs are drawn). */
+const midAngles = (parts: RingPart[]): number[] => {
+  let a0 = -Math.PI / 2;
+  return parts.map((p) => {
+    const mid = a0 + p.share * Math.PI;
+    a0 += p.share * Math.PI * 2;
+    return mid;
+  });
+};
+const anchorAt = (a: number): Anchor => (Math.cos(a) > 0.2 ? "start" : Math.cos(a) < -0.2 ? "end" : "middle");
+
 /**
- * A ring's outer radius in a w × plotH plot: FONT × 1.6 of room above and below for the share labels, and at the sides
- * room for the widest of them (`labels`) after a FONT gap, so a narrow, tall donut's side labels aren't cut (#209 review).
+ * #209 round 4: where a ring goes in a w × plotH plot: the largest radius `fit` at which the ring and its share labels (at
+ * FONT outside the ring, their ink boxes: svg.ts inkBox) stay inside the plot, its centre moved off the middle only as far as
+ * that takes, so room is kept only on the sides that carry a label. `fit` is 0 when no ring leaves room for every label.
  */
-export const ringRadius = (w: number, plotH: number, labels: string[]): number =>
-  Math.min(labels.length ? w / 2 - FONT - Math.max(...labels.map((l) => labelWidth(l))) - SMALL * 0.2 : w / 2 - FONT * 1.6, plotH / 2 - FONT * 1.6);
+export function ringFit(w: number, plotH: number, parts: RingPart[]): { fit: number; cx: number; cy: number } {
+  const angles = midAngles(parts);
+  const shown = parts.map((p, i) => ({ p, a: angles[i], text: pct(p.share) })).filter((x) => x.p.show);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+  // Labels keep EDGE (0.02 units) inside the plot, so the 3-decimal coordinates never round them onto the legend under it.
+  const EDGE = 0.02;
+  const place = (r: number): { cx: number; cy: number } | null => {
+    let [xlo, xhi, ylo, yhi] = [r, w - r, r, plotH - r];
+    for (const l of shown) {
+      const b = inkBox((r + FONT) * Math.cos(l.a), (r + FONT) * Math.sin(l.a), l.text, SMALL, { anchor: anchorAt(l.a), baseline: "middle" });
+      [xlo, xhi, ylo, yhi] = [Math.max(xlo, EDGE - b.x0), Math.min(xhi, w - EDGE - b.x1), Math.max(ylo, EDGE - b.y0), Math.min(yhi, plotH - EDGE - b.y1)];
+    }
+    return xlo <= xhi + 1e-9 && ylo <= yhi + 1e-9 ? { cx: clamp(w / 2, xlo, xhi), cy: clamp(plotH / 2, ylo, yhi) } : null;
+  };
+  let lo = 0;
+  let hi = place(0) ? Math.max(0, Math.min(w, plotH) / 2) : 0;
+  for (let i = 0; i < 40 && hi - lo > 1e-4; i++) {
+    const mid = (lo + hi) / 2;
+    if (place(mid)) lo = mid;
+    else hi = mid;
+  }
+  return { fit: lo, ...(place(lo) ?? { cx: w / 2, cy: plotH / 2 }) };
+}
+
+/**
+ * #209 round 4: the ring of a plot too small for a ring with every share label: the one production drew (the plot's middle,
+ * FONT × 1.6 of room a side), never under `rMin` or SMALL × 0.5 (FONT where production's had no size) nor over what the plot
+ * holds. ringLabels then leaves out the labels without room, never drawing one outside the plot.
+ */
+export function looseRing(w: number, plotH: number, rMin = 0): { r: number; cx: number; cy: number } {
+  const most = Math.max(0, Math.min(w, plotH) / 2);
+  const prod = most - FONT * 1.6;
+  return { r: Math.min(most, prod > 0 ? Math.max(rMin, prod, SMALL * 0.5) : Math.max(rMin, FONT)), cx: w / 2, cy: plotH / 2 };
+}
 
 /**
  * #209 review: where a ring's share labels go (outside the ring, at each part's middle angle), biggest share first; a
  * label that would meet one already placed (two thin neighbouring parts) is left out, never drawn over it. `parts`
- * are in ring order with their share and whether the chart labels them.
+ * are in ring order with their share and whether the chart labels them. #209 round 4: decided on the labels' ink
+ * (inkBox); a label that would meet one already placed first moves (out along its angle, up to SMALL × 2, or up or down, up
+ * to SMALL; the smallest move first, never onto the ring) before it is left out, and a label that would leave the plot
+ * (`w` × `plotH`) is left out too.
  */
-export function ringLabels(parts: { share: number; show: boolean }[], cx: number, cy: number, r: number): ({ x: number; y: number; anchor: "start" | "middle" | "end"; text: string } | null)[] {
-  let a0 = -Math.PI / 2;
-  const spots = parts.map((p) => {
-    const mid = a0 + p.share * Math.PI;
-    a0 += p.share * Math.PI * 2;
-    const anchor: "start" | "middle" | "end" = Math.cos(mid) > 0.2 ? "start" : Math.cos(mid) < -0.2 ? "end" : "middle";
-    return { x: cx + (r + FONT) * Math.cos(mid), y: cy + (r + FONT) * Math.sin(mid), anchor, text: pct(p.share) };
-  });
-  const out: ({ x: number; y: number; anchor: "start" | "middle" | "end"; text: string } | null)[] = parts.map(() => null);
+export function ringLabels(parts: RingPart[], cx: number, cy: number, r: number, w = Infinity, plotH = Infinity): ({ x: number; y: number; anchor: Anchor; text: string } | null)[] {
+  const angles = midAngles(parts);
+  const out: ({ x: number; y: number; anchor: Anchor; text: string } | null)[] = parts.map(() => null);
   const placed: LabelBox[] = [];
   const order = parts.map((_, i) => i).filter((i) => parts[i].show).sort((a, b) => parts[b].share - parts[a].share || a - b);
+  const moves = [
+    ...[0, 0.25, 0.5, 0.75, 1, 1.5, 2].map((k) => ({ d: k * SMALL, dy: 0 })),
+    ...[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].flatMap((k) => [{ d: 0, dy: k * SMALL }, { d: 0, dy: -k * SMALL }]),
+  ].sort((a, b) => Math.max(a.d, Math.abs(a.dy)) - Math.max(b.d, Math.abs(b.dy)));
+  const offRing = (b: LabelBox) => Math.hypot(Math.max(b.x0 - cx, 0, cx - b.x1), Math.max(b.y0 - cy, 0, cy - b.y1)) >= r;
   for (const i of order) {
-    const box = labelBox(spots[i].x, spots[i].y, spots[i].text, SMALL, { anchor: spots[i].anchor, baseline: "middle" });
-    if (placed.some((q) => boxesMeet(q, box, SMALL * 0.15))) continue;
-    placed.push(box);
-    out[i] = spots[i];
+    const a = angles[i];
+    const anchor = anchorAt(a);
+    const label = pct(parts[i].share);
+    for (const { d, dy } of moves) {
+      const spot = { x: cx + (r + FONT + d) * Math.cos(a), y: cy + (r + FONT + d) * Math.sin(a) + dy, anchor, text: label };
+      const box = inkBox(spot.x, spot.y, label, SMALL, { anchor, baseline: "middle" });
+      if (box.x0 < -1e-6 || box.x1 > w + 1e-6 || box.y0 < -1e-6 || box.y1 > plotH + 1e-6 || !offRing(box)) continue;
+      if (placed.some((q) => boxesMeet(q, box, SMALL * INK_GAP))) continue;
+      placed.push(box);
+      out[i] = spot;
+      break;
+    }
   }
   return out;
 }
@@ -98,22 +158,40 @@ export function donutChart(input: ChartInput): string {
   if (!ps.length || total <= 0) return emptyChart(w, h, "No data", theme);
   const legendH = SMALL * 2;
   const figure = value.display || formatNumber(total, "auto", sharedUnit(value.series ?? [], value.unit));
-  // #209 review: the figure goes in the hole when it fits there (donutCentre), else under the donut.
-  const sideLabels = ps.filter((p) => p.value / total >= 0.04).map((p) => pct(p.value / total));
-  const geom = (underH: number) => {
-    const r = ringRadius(w, h - legendH - underH, sideLabels);
-    return { r, cx: w / 2, cy: (h - legendH - underH) / 2, inner: r * 0.62 };
+  // #209 review: the figure goes in the hole when it fits there (donutCentre), else under the donut. #209 round 4: the ring
+  // is as big as its share labels leave room for (ringFit: room only on the sides that carry one): at least FONT with every
+  // label, else at least FONT × 0.5 with every label. A frame too small for that takes production's ring (looseRing) and
+  // leaves out the labels without room; there the figure goes under the donut only when that leaves out
+  // no label and keeps the ring at FONT, else it is left out (it didn't fit production's hole either: production drew it
+  // over the ring).
+  const rings = ps.map((p) => ({ share: p.value / total, show: p.value / total >= 0.04 }));
+  const plan = (tier: number, withFigure = true) => {
+    const geom = (underH: number) => {
+      const plotH = Math.max(0, h - legendH - underH);
+      const f = tier > 0 ? ringFit(w, plotH, rings) : null;
+      const g = f ? { r: f.fit, ...f } : { fit: 0, ...looseRing(w, plotH) };
+      return { plotH, ...g, inner: g.r * 0.62 };
+    };
+    const ok = (g: ReturnType<typeof geom>) => tier <= 0 || g.fit >= tier;
+    let g = geom(0);
+    if (!ok(g)) return null;
+    let centre = withFigure ? donutCentre(figure, value.unit, g.cx, g.cy, g.inner, theme) : "";
+    let under = "";
+    if (centre === null) {
+      const u = underDonut(figure, value.unit, w, theme);
+      g = geom(u.h);
+      if (!ok(g)) return null;
+      under = u.svg(h - legendH - u.h);
+      centre = "";
+    }
+    return { ...g, centre, under, labels: ringLabels(rings, g.cx, g.cy, g.r, w, g.plotH) };
   };
-  let { r, cx, cy, inner } = geom(0);
-  let centre = donutCentre(figure, value.unit, cx, cy, inner, theme);
-  let under = "";
-  if (centre === null) {
-    const u = underDonut(figure, value.unit, w, theme);
-    ({ r, cx, cy, inner } = geom(u.h));
-    under = u.svg(h - legendH - u.h);
-    centre = "";
-  }
-  const shareLabels = ringLabels(ps.map((p) => ({ share: p.value / total, show: p.value / total >= 0.04 })), cx, cy, r);
+  const loose = () => {
+    const a = plan(0) as NonNullable<ReturnType<typeof plan>>;
+    const b = plan(0, false) as NonNullable<ReturnType<typeof plan>>;
+    return a.r >= Math.min(FONT, b.r) - 1e-9 && b.labels.every((l, i) => !l || a.labels[i]) ? a : b;
+  };
+  const { r, cx, cy, inner, centre, under, labels: shareLabels } = plan(FONT) ?? plan(FONT * 0.5) ?? loose();
   let a0 = -Math.PI / 2;
   let body = "";
   for (const [pi, p] of ps.entries()) {

@@ -218,11 +218,18 @@ test("GHG total lines fit the chart's width, and a donut's figure fits its hole 
   }
   assert.ok(heads >= 70, String(heads));
   assert.ok(centres >= 20, String(centres));
-  // The real displays need it: on A5 the DS-1 donut's figure steps down to fit, on social_191 it goes under the donut.
+  // The real displays need it: on A5 and social_191 the DS-1 donut's figure steps down to fit its hole (#209 round 4: on
+  // social_191 the ring keeps room only on the sides with a share label, so its hole now holds the figure); a ring too small
+  // for the figure puts it under the donut, with its unit.
   const donut = (format) => ALL.find(({ r, c }) => r.name === `DS-1 ${format}` && c.id === "p-summary.donut").c;
-  const a5 = donut("a5").texts.find((t) => t.s === "12,480.000");
-  assert.ok(a5 && a5.size < SVG.FONT * 1.4 - EPS && a5.size >= SVG.SMALL - EPS, String(a5?.size));
-  assert.ok(donut("social_191").texts.some((t) => t.s === "12,480.000 tCO₂e"), "social_191: under the donut, with its unit");
+  for (const format of ["a5", "social_191"]) {
+    const fig = donut(format).texts.find((t) => t.s === "12,480.000");
+    assert.ok(fig && fig.size < SVG.FONT * 1.4 - EPS && fig.size >= SVG.SMALL - EPS, `${format} ${fig?.size}`);
+  }
+  const theme = R.buildTheme({});
+  const small = { display: "12,480.000", value: 12480, unit: "tCO₂e", series: ["Scope 1", "Scope 2", "Scope 3"].map((label, i) => ({ label, values: [{ key: "2025", value: [3410, 5800, 3270][i] }] })) };
+  const under = parseSvg(/<svg [^>]*>(.*)<\/svg>/s.exec(R.chartRenderer("donut")({ value: small, w: 300, h: 70, theme, options: {}, label: "donut" }))[1]);
+  assert.ok(under.texts.some((t) => t.s === "12,480.000 tCO₂e"), "a 300 × 70 donut: the figure under the donut, with its unit");
 });
 
 test("the DS-8 bridge keeps every 3-decimal step label: a size smaller on A4, staggered too on A5, never an overlap", () => {
@@ -674,4 +681,99 @@ test("round 4: a treemap tile with room for one value line prints at least its s
     }
   }
   assert.ok(tiles > 500, String(tiles));
+});
+
+/** A donut's ring radius and centre, read from its first arc (as the donut test above). */
+function ringOf(c) {
+  const d = /<path d="(M[^"]+)" fill="[^"]+" fill-rule="evenodd"/.exec(c.body)?.[1];
+  if (!d) return null;
+  const m = /^M([-\d.]+) ([-\d.]+)A([-\d.]+) /.exec(d);
+  const r = num(m[3]);
+  const [cx, cy] = /ZM/.test(d) ? [num(m[1]) - r, num(m[2])] : [num(m[1]), num(m[2]) + r];
+  return { r, cx, cy };
+}
+
+test("round 4: a plain donut keeps a ring and the share labels production drew clear; room only on the sides with a label", () => {
+  // Production (ab0b6e3): r = min(w, h − 2 SMALL) / 2 − 1.6 FONT around the plot's middle, every part ≥ 4 % labelled at r + FONT,
+  // the figure (FONT × 1.4, bold) and its unit in the middle, the legend along the foot (unchanged). A production label is clear
+  // when its ink stays in the chart and meets no other production text; the new render draws each of those, and a ring
+  // never under min(FONT, production's) where production's was positive.
+  const S = SVG.SMALL;
+  const F = SVG.FONT;
+  const theme = R.buildTheme({});
+  const muted = theme.colors.muted;
+  const ink = (x, y, s, size, o) => SVG.inkBox(x, y, s, size, o);
+  const pctOf = (x) => `${RF.formatNumber(x * 100, x * 100 < 10 ? "1dp" : "int")}%`;
+  const cases = randomCharts(8209, 300, ["donut"]);
+  const base = cases[0].value;
+  for (let w = 50; w <= 150; w += 10) for (let h = 90; h <= 250; h += 20) cases.push({ ...cases[0], w, h, value: base, custom: true });
+  let checked = 0;
+  let kept = 0;
+  let small = 0;
+  for (const c0 of cases) {
+    const c = c0.custom ? { ...c0, ...(() => { const svg = R.chartRenderer("donut")({ value: c0.value, w: c0.w, h: c0.h, theme, options: {}, label: "donut" }); const body = /<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1]; return { svg, body, ...parseSvg(body) }; })() } : c0;
+    const at = `#${c.i}${c.custom ? " sweep" : ""} ${c.w}×${c.h}`;
+    const ps = c.value.series.map((s) => s.values[0].value).filter((v) => v > 0);
+    const sum = ps.reduce((a, v) => a + v, 0);
+    const plotH = c.h - S * 2;
+    const rp = Math.min(c.w, plotH) / 2 - F * 1.6;
+    const got = ringOf(c);
+    assert.ok(got && got.r > 0, `${at}: no ring`);
+    if (rp <= 0) continue;
+    // Never near zero where production's was positive: at least SMALL × 0.5, and at least FONT × 0.5 or production's.
+    assert.ok(got.r >= Math.max(S * 0.5, Math.min(F * 0.5, rp)) - EPS, `${at}: ring ${got.r} (production's ${rp.toFixed(2)})`);
+    if (got.r < Math.min(F, rp) - EPS) small++;
+    // A production ring under SMALL × 0.5 (near zero) grows: its labels move out and may give way.
+    if (rp < S * 0.5) continue;
+    const legendTexts = c.texts.filter((t) => t.fill === muted && Math.abs(t.y - (c.h - S * 0.3)) < 0.01);
+    const prod = [];
+    let a0 = -Math.PI / 2;
+    for (const v of ps) {
+      const share = v / sum;
+      const mid = a0 + share * Math.PI;
+      a0 += share * Math.PI * 2;
+      if (share < 0.04) continue;
+      const anchor = Math.cos(mid) > 0.2 ? "start" : Math.cos(mid) < -0.2 ? "end" : "middle";
+      const s = pctOf(share);
+      prod.push({ s, b: ink(c.w / 2 + (rp + F) * Math.cos(mid), plotH / 2 + (rp + F) * Math.sin(mid), s, S, { anchor, baseline: "middle" }) });
+    }
+    const others = [ink(c.w / 2, plotH / 2, c.value.display, F * 1.4, { anchor: "middle", bold: true, baseline: "middle" }), ink(c.w / 2, plotH / 2 + F * 1.4, c.value.unit, S, { anchor: "middle", baseline: "middle" }), ...legendTexts.map(boxOf)];
+    const clear = prod.filter((p) => p.b.x0 >= 0 && p.b.x1 <= c.w && p.b.y0 >= 0 && p.b.y1 <= c.h && !others.some((o) => SVG.boxesMeet(p.b, o)) && !prod.some((q) => q !== p && SVG.boxesMeet(p.b, q.b)));
+    const drawn = c.texts.filter((t) => t.fill !== muted && /%$/.test(t.s)).map((t) => t.s);
+    for (const p of clear) {
+      checked++;
+      const i = drawn.indexOf(p.s);
+      assert.ok(i >= 0, `${at}: production's clear share ${p.s} is left out (drawn: ${drawn.join(", ")})`);
+      drawn.splice(i, 1);
+      kept++;
+    }
+  }
+  assert.ok(checked > 300, String(checked));
+  assert.equal(kept, checked);
+  console.log("donut small rings", small, "of", cases.length);
+  // A narrow donut with its labels on the right side only keeps no room on the left: the ring sits off the middle.
+  const one = { display: "12,480.000", value: 12480, unit: "tCO₂e", series: [{ label: "A", values: [{ key: "2025", value: 30 }] }, { label: "B", values: [{ key: "2025", value: 70 }] }] };
+  const svg = R.chartRenderer("donut")({ value: one, w: 300, h: 200, theme, options: {}, label: "donut" });
+  const ring = ringOf({ body: /<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1] });
+  assert.ok(ring.r > Math.min(300, 200 - S * 2) / 2 - F * 1.6, `the ring ${ring.r} is bigger than production's`);
+});
+
+test("round 4: a scope_split donut gives up the note and the legend's figures before the scope names, and keeps a ring", () => {
+  // Over random frames, small and narrow too: the three scope names are always drawn (in the legend, with or without their
+  // figures), the ring is never under FONT × 0.5 (production's: FONT), and nothing leaves the chart.
+  let n = 0;
+  let namesOnly = 0;
+  for (const c of randomCharts(7209, 400, ["scope_donut"])) {
+    const at = `#${c.i} ${c.w}×${c.h}${c.options.basisNote === false ? " (no note)" : ""}`;
+    n++;
+    for (const s of ["Scope 1", "Scope 2", "Scope 3"]) assert.ok(c.texts.some((t) => t.s === s || t.s.startsWith(`${s} `)), `${at}: ${s} is not drawn (${c.texts.map((t) => t.s).join(" | ")})`);
+    if (c.texts.some((t) => t.s === "Scope 1")) namesOnly++;
+    const ring = ringOf(c);
+    assert.ok(ring && ring.r >= SVG.FONT * 0.5 - EPS, `${at}: ring ${ring?.r}`);
+    for (const t of c.texts) {
+      const b = boxOf(t);
+      assert.ok(b.x0 >= -EPS && b.x1 <= c.w + EPS && b.y0 >= -EPS && b.y1 <= c.h + EPS, `${at}: "${t.s}" ${where(b)} leaves the chart`);
+    }
+  }
+  assert.ok(n > 100 && namesOnly > 5, `${n} ${namesOnly}`);
 });

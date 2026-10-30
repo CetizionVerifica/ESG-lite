@@ -1,5 +1,5 @@
 {
- "renderHash": "d20496445e6c79d1a7ca7480b0696666427ee882b0190cae1312eef1200d8953",
+ "renderHash": "9438b1a106e78738aef0b51db09e132ed36c5edc94c719546aed19c3122b17ea",
  "elements": {
   "p-cover.bg": "<div class=\"ds-el ds-el--frame\" data-el-id=\"p-cover.bg\" data-type=\"frame\" data-frame=\"-3,-3,216,150,0\" data-mask=\"rect\" data-bleed=\"true\" style=\"left:-3mm;top:-3mm;width:216mm;height:150mm;z-index:0;\"><div class=\"ds-media ds-frame\" style=\"\"><img src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22160%22%20height%3D%22100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20x2%3D%221%22%20y1%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230B3B25%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232DD4BF%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22160%22%20height%3D%22100%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%2230%22%20r%3D%2214%22%20fill%3D%22%23FDE68A%22%2F%3E%3C%2Fsvg%3E\" alt=\"The plant at dawn\" style=\"width:100%;height:100%;object-fit:cover;\" data-asset-id=\"a-plant\"></div></div>",
   "p-cover.kicker": "<div class=\"ds-el ds-el--text\" data-el-id=\"p-cover.kicker\" data-type=\"text\" data-frame=\"20,160,170,8,0\" data-text-style=\"kicker\" style=\"left:20mm;top:160mm;width:170mm;height:8mm;z-index:1;\"><div class=\"ds-text ts-kicker\" style=\"text-align:left;justify-content:flex-start;color:#FFFFFF;\"><div class=\"ds-text-in\"><p>GHG INVENTORY</p></div></div></div>",
@@ -15,7 +15,7 @@
   "p-summary.ring": "<div class=\"ds-el ds-el--progress\" data-el-id=\"p-summary.ring\" data-type=\"progress\" data-frame=\"15,108,40,40,0\" data-binding-hash=\"64eb7a71\" data-source=\"kpi\" data-progress=\"0.38\" style=\"left:15mm;top:108mm;width:40mm;height:40mm;z-index:11;\"><div class=\"ds-progress ds-progress--ring\"><svg viewBox=\"0 0 36 36\" width=\"100%\" height=\"100%\" role=\"img\" aria-label=\"Renewable share: 38%\"><circle cx=\"18\" cy=\"18\" r=\"15.9155\" fill=\"none\" stroke=\"#DDE2E8\" stroke-width=\"3.2\"/><circle cx=\"18\" cy=\"18\" r=\"15.9155\" fill=\"none\" stroke=\"#0F5132\" stroke-width=\"3.2\" stroke-linecap=\"round\" stroke-dasharray=\"38 100\" transform=\"rotate(-90 18 18)\"/><text x=\"18\" y=\"18\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"7\" font-weight=\"700\" fill=\"#101828\">38%</text></svg><div class=\"ds-progress-label\">Renewable share</div></div></div>",
   "p-summary.bar": "<div class=\"ds-el ds-el--progress\" data-el-id=\"p-summary.bar\" data-type=\"progress\" data-frame=\"60,118,70,14,0\" data-binding-hash=\"f971083a\" data-source=\"kpi\" data-progress=\"0.49\" style=\"left:60mm;top:118mm;width:70mm;height:14mm;z-index:12;\"><div class=\"ds-progress ds-progress--bar\"><div class=\"ds-progress-head\"><div class=\"ds-progress-label\">Towards the 2030 target</div><span class=\"ds-progress-pct\">49%</span></div><div class=\"ds-progress-track\"><div class=\"ds-progress-fill\" style=\"width:49%;background:#0F5132\"></div></div></div></div>",
   "p-summary.callout": "<div class=\"ds-el ds-el--callout\" data-el-id=\"p-summary.callout\" data-type=\"callout\" data-frame=\"135,108,60,40,0\" data-tone=\"good\" style=\"left:135mm;top:108mm;width:60mm;height:40mm;z-index:13;\"><div class=\"ds-callout\" style=\"background:#E3EFEB;border-left-color:#13795B\"><div class=\"ds-callout-icon\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"100%\" height=\"100%\" fill=\"none\" stroke=\"#13795B\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 19c0-8 5-13 14-14 0 9-5 14-13 14z\"/><path d=\"M5 19l8-8\"/></svg></div><div class=\"ds-callout-text ts-body\"><p>Biogenic CO₂ is reported separately.</p></div></div></div>",
-  "p-summary.donut": "<div class=\"ds-el ds-el--chart\" data-el-id=\"p-summary.donut\" data-type=\"chart\" data-frame=\"15,152,85,70,0\" data-binding-hash=\"c8320ca5\" data-source=\"ghg\" data-chart-kind=\"donut\" style=\"left:15mm;top:152mm;width:85mm;height:70mm;z-index:14;\"><figure class=\"ds-chart\" style=\"--chart-font:10.584px\"><figcaption class=\"ds-chart-title ts-subheading\">Scope 2 is the largest share</figcaption><div class=\"ds-chart-plot\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 340 256\" width=\"100%\" height=\"100%\" preserveAspectRatio=\"xMidYMid meet\" role=\"img\" aria-label=\"Scope 2 is the largest share\"><path d=\"M170 16.934A101.893 101.893 0 0 1 271.788 123.437L233.109 121.685A63.174 63.174 0 0 0 170 55.654Z\" fill=\"#1F6FEB\" fill-rule=\"evenodd\" stroke=\"#FFFFFF\" stroke-width=\"1\"><title>Scope 1</title></path><text x=\"251.312\" y=\"41.114\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"start\" dominant-baseline=\"middle\">26%</text><path d=\"M271.788 123.437A101.893 101.893 0 0 1 69.705 136.802L107.817 129.972A63.174 63.174 0 0 0 233.109 121.685Z\" fill=\"#0EA5A4\" fill-rule=\"evenodd\" stroke=\"#FFFFFF\" stroke-width=\"1\"><title>Scope 2</title></path><text x=\"177.423\" y=\"231.059\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"middle\" dominant-baseline=\"middle\">46%</text><path d=\"M69.705 136.802A101.893 101.893 0 0 1 170 16.934L170 55.654A63.174 63.174 0 0 0 107.817 129.972Z\" fill=\"#8B5CF6\" fill-rule=\"evenodd\" stroke=\"#FFFFFF\" stroke-width=\"1\"><title>Scope 3</title></path><text x=\"83.736\" y=\"46.65\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"end\" dominant-baseline=\"middle\">28%</text><text x=\"170\" y=\"118.827\" font-size=\"14.818\" fill=\"#101828\" text-anchor=\"middle\" font-weight=\"700\" dominant-baseline=\"middle\">12,480.000</text><text x=\"170\" y=\"133.645\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"middle\" dominant-baseline=\"middle\">tCO₂e</text><rect x=\"0\" y=\"245.91\" width=\"7.338\" height=\"7.338\" fill=\"#1F6FEB\"/><text x=\"11.007\" y=\"253.248\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"start\">Scope 1</text><rect x=\"63.315\" y=\"245.91\" width=\"7.338\" height=\"7.338\" fill=\"#0EA5A4\"/><text x=\"74.323\" y=\"253.248\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"start\">Scope 2</text><rect x=\"126.631\" y=\"245.91\" width=\"7.338\" height=\"7.338\" fill=\"#8B5CF6\"/><text x=\"137.638\" y=\"253.248\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"start\">Scope 3</text></svg></div></figure></div>",
+  "p-summary.donut": "<div class=\"ds-el ds-el--chart\" data-el-id=\"p-summary.donut\" data-type=\"chart\" data-frame=\"15,152,85,70,0\" data-binding-hash=\"c8320ca5\" data-source=\"ghg\" data-chart-kind=\"donut\" style=\"left:15mm;top:152mm;width:85mm;height:70mm;z-index:14;\"><figure class=\"ds-chart\" style=\"--chart-font:10.584px\"><figcaption class=\"ds-chart-title ts-subheading\">Scope 2 is the largest share</figcaption><div class=\"ds-chart-plot\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 340 256\" width=\"100%\" height=\"100%\" preserveAspectRatio=\"xMidYMid meet\" role=\"img\" aria-label=\"Scope 2 is the largest share\"><path d=\"M170 0A112.283 112.283 0 0 1 282.168 117.363L239.544 115.432A69.616 69.616 0 0 0 170 42.668Z\" fill=\"#1F6FEB\" fill-rule=\"evenodd\" stroke=\"#FFFFFF\" stroke-width=\"1\"><title>Scope 1</title></path><text x=\"258.824\" y=\"27.391\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"start\" dominant-baseline=\"middle\">26%</text><path d=\"M282.168 117.363A112.283 112.283 0 0 1 59.478 132.092L101.476 124.564A69.616 69.616 0 0 0 239.544 115.432Z\" fill=\"#0EA5A4\" fill-rule=\"evenodd\" stroke=\"#FFFFFF\" stroke-width=\"1\"><title>Scope 2</title></path><text x=\"178.109\" y=\"234.883\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"middle\" dominant-baseline=\"middle\">46%</text><path d=\"M59.478 132.092A112.283 112.283 0 0 1 170 0L170 42.668A69.616 69.616 0 0 0 101.476 124.564Z\" fill=\"#8B5CF6\" fill-rule=\"evenodd\" stroke=\"#FFFFFF\" stroke-width=\"1\"><title>Scope 3</title></path><text x=\"75.767\" y=\"33.438\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"end\" dominant-baseline=\"middle\">28%</text><text x=\"170\" y=\"112.283\" font-size=\"14.818\" fill=\"#101828\" text-anchor=\"middle\" font-weight=\"700\" dominant-baseline=\"middle\">12,480.000</text><text x=\"170\" y=\"127.101\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"middle\" dominant-baseline=\"middle\">tCO₂e</text><rect x=\"0\" y=\"245.91\" width=\"7.338\" height=\"7.338\" fill=\"#1F6FEB\"/><text x=\"11.007\" y=\"253.248\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"start\">Scope 1</text><rect x=\"63.315\" y=\"245.91\" width=\"7.338\" height=\"7.338\" fill=\"#0EA5A4\"/><text x=\"74.323\" y=\"253.248\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"start\">Scope 2</text><rect x=\"126.631\" y=\"245.91\" width=\"7.338\" height=\"7.338\" fill=\"#8B5CF6\"/><text x=\"137.638\" y=\"253.248\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"start\">Scope 3</text></svg></div></figure></div>",
   "p-summary.bars": "<div class=\"ds-el ds-el--chart\" data-el-id=\"p-summary.bars\" data-type=\"chart\" data-frame=\"110,152,85,70,0\" data-binding-hash=\"f3b47c73\" data-source=\"ghg\" data-chart-kind=\"bar\" style=\"left:110mm;top:152mm;width:85mm;height:70mm;z-index:15;\"><figure class=\"ds-chart\" style=\"--chart-font:10.584px\"><figcaption class=\"ds-chart-title ts-subheading\">Emissions fell for two years</figcaption><div class=\"ds-chart-sub ts-caption\">tCO₂e</div><div class=\"ds-chart-plot\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 340 220\" width=\"100%\" height=\"100%\" preserveAspectRatio=\"xMidYMid meet\" role=\"img\" aria-label=\"Emissions fell for two years\"><g data-bars=\"4\"><line x1=\"36.691\" x2=\"340\" y1=\"200.949\" y2=\"200.949\" stroke=\"#5B6475\" stroke-width=\"1\"/><text x=\"33.022\" y=\"200.949\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"end\" dominant-baseline=\"middle\">0</text><line x1=\"36.691\" x2=\"340\" y1=\"138.199\" y2=\"138.199\" stroke=\"#DDE2E8\" stroke-width=\"0.6\"/><text x=\"33.022\" y=\"138.199\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"end\" dominant-baseline=\"middle\">5,000</text><line x1=\"36.691\" x2=\"340\" y1=\"75.45\" y2=\"75.45\" stroke=\"#DDE2E8\" stroke-width=\"0.6\"/><text x=\"33.022\" y=\"75.45\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"end\" dominant-baseline=\"middle\">10k</text><line x1=\"36.691\" x2=\"340\" y1=\"12.701\" y2=\"12.701\" stroke=\"#DDE2E8\" stroke-width=\"0.6\"/><text x=\"33.022\" y=\"12.701\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"end\" dominant-baseline=\"middle\">15k</text><rect x=\"50.34\" y=\"26.506\" width=\"48.529\" height=\"174.443\" fill=\"#B8C0CC\"/><text x=\"74.605\" y=\"21.919\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"middle\">13,900.000</text><rect x=\"126.167\" y=\"37.55\" width=\"48.529\" height=\"163.399\" fill=\"#B8C0CC\"/><text x=\"150.432\" y=\"32.963\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"middle\">13,020.000</text><rect x=\"201.994\" y=\"37.424\" width=\"48.529\" height=\"163.525\" fill=\"#B8C0CC\"/><text x=\"226.259\" y=\"32.838\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"middle\">13,030.000</text><rect x=\"277.822\" y=\"44.326\" width=\"48.529\" height=\"156.622\" fill=\"#0F5132\"/><text x=\"302.086\" y=\"39.74\" font-size=\"9.173\" fill=\"#101828\" text-anchor=\"middle\" font-weight=\"700\">12,480.000</text><text x=\"74.605\" y=\"213.65\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"middle\">2022</text><text x=\"150.432\" y=\"213.65\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"middle\">2023</text><text x=\"226.259\" y=\"213.65\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"middle\">2024</text><text x=\"302.086\" y=\"213.65\" font-size=\"9.173\" fill=\"#5B6475\" text-anchor=\"middle\">2025</text></g></svg></div><div class=\"ds-chart-caption ts-caption\">Location-based Scope 2.</div></figure></div>",
   "p-summary.unavail": "<div class=\"ds-el ds-el--chart\" data-el-id=\"p-summary.unavail\" data-type=\"chart\" data-frame=\"15,226,85,30,0\" data-binding-hash=\"088c66b5\" data-source=\"ghg\" data-reason=\"NOT_RECORDED\" data-chart-kind=\"bar\" data-reason=\"NOT_RECORDED\" style=\"left:15mm;top:226mm;width:85mm;height:30mm;z-index:16;\"><figure class=\"ds-chart\" style=\"--chart-font:10.584px\"><figcaption class=\"ds-chart-title ts-subheading\">Market-based Scope 2</figcaption><div class=\"ds-chart-plot\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 340 96\" width=\"100%\" height=\"100%\" preserveAspectRatio=\"xMidYMid meet\" role=\"img\" aria-label=\"Not reported\"><rect x=\"0\" y=\"0\" width=\"340\" height=\"96\" fill=\"#F4F6F8\"/><text x=\"170\" y=\"48\" font-size=\"10.584\" fill=\"#5B6475\" text-anchor=\"middle\" dominant-baseline=\"middle\">Not reported</text></svg></div></figure></div>",
   "p-summary.table": "<div class=\"ds-el ds-el--table\" data-el-id=\"p-summary.table\" data-type=\"table\" data-frame=\"110,226,85,30,0\" data-binding-hash=\"2b847af0\" data-source=\"custom\" data-unlinked=\"true\" style=\"left:110mm;top:226mm;width:85mm;height:30mm;z-index:17;\"><table class=\"ds-table ds-table--zebra\"><thead><tr><th>Initiative</th><th class=\"num\">Saved tCO₂e</th></tr></thead><tbody><tr><td>LED retrofit</td><td class=\"num\">120</td></tr><tr><td>Solar PPA</td><td class=\"num\">860</td></tr><tr><td>Fleet EVs</td><td class=\"num\">310</td></tr></tbody></table><span class=\"ds-unlinked\" aria-hidden=\"true\">Unlinked data</span></div>",
@@ -59,50 +59,50 @@
  },
  "formats": {
   "a4": {
-   "sha256": "c4c95be32ebf2bebfc9fa080560fb0b9791860c3807af24c0362ddf59f50b282",
-   "bytes": 147302
+   "sha256": "3f9d92a343d2d491d205e4a0ee9f0d477629ca18c326fa56bffeff62e691aee4",
+   "bytes": 147293
   },
   "a4_landscape": {
-   "sha256": "8e220be7cbb3a177883a18662b55e8818c5317f395d7cb847463847dbd46022a",
-   "bytes": 150286
+   "sha256": "7d0f794cdaa4e9979238a9a6542cd126f11e81f7be9e4bf4a18a95ecc1333963",
+   "bytes": 150273
   },
   "letter": {
-   "sha256": "268fdddb4f47b96100003fbf73a8a0b89c70d83b79804210ea3f57dad67b0737",
-   "bytes": 150254
+   "sha256": "cb71ca272424f416c57597b3c5ba652ae39b05ff196184f319f4efeb3586b36e",
+   "bytes": 150256
   },
   "a5": {
-   "sha256": "1bcedab625a0e7914b2d574dd0e251d845b61d89eda5d955bd2714714a35529d",
-   "bytes": 150063
+   "sha256": "3f82fb0994508cd0174d0e35b172e4a2c12838ed96d6b4544e0cd9fccc900c76",
+   "bytes": 150054
   },
   "slide_16_9": {
-   "sha256": "3a8d0a63c9e7102a5c6994315c226faf39ee82e07e38dc776488761f55768621",
-   "bytes": 150114
+   "sha256": "84213db863318f2b5c7ef241f05e3599bc8af9f7cbd870c35806772321d4e42b",
+   "bytes": 150105
   },
   "square": {
-   "sha256": "8c708368f59dd4d15a5b1ff33995ec2cf88521bd5ef9bcee48968176349c370f",
+   "sha256": "47922d9164efd5064b4f2348e7ae2236b207714b009ce723e055e61f5e1fbe94",
    "bytes": 150380
   },
   "social_191": {
-   "sha256": "8bbf4dc643be673cc744bc94c656dd40bbea730638b1782d3c8e878daa2edb8f",
-   "bytes": 149821
+   "sha256": "f1393f28dd21a1e2a67ceb93c7ff0530af0075c0b30d0428582234c0ce31b19c",
+   "bytes": 149961
   }
  },
  "modes": {
   "sheet": {
-   "sha256": "c4c95be32ebf2bebfc9fa080560fb0b9791860c3807af24c0362ddf59f50b282",
-   "bytes": 147302
+   "sha256": "3f9d92a343d2d491d205e4a0ee9f0d477629ca18c326fa56bffeff62e691aee4",
+   "bytes": 147293
   },
   "paged": {
-   "sha256": "1b059cd6da0c5e6c89cb1e3e752936dc9e8f55273fd8df3af5b8134e9ff18859",
-   "bytes": 146975
+   "sha256": "17585bd40fdfe929863927838ff86fe3a8c20dd03ffbfa88055e476941daebd9",
+   "bytes": 146966
   },
   "present": {
-   "sha256": "ee147959be1da7636fd2238ac7c536a20f178726c84bf8e743af72b81f977964",
-   "bytes": 146916
+   "sha256": "3baf24dc4939f73fa491d0f2a56187b8cacb6db202ab71fe8cc24b96b0a1cf00",
+   "bytes": 146907
   },
   "print": {
-   "sha256": "94e5aeb1d01b5e597be5a9ccb9ab6297a89dd1842006a7573a320f0f956e8225",
-   "bytes": 146961
+   "sha256": "bb954212d65b494ee37d8a8187f279c31a6ab38280fe657e20ea1c768ed7972e",
+   "bytes": 146952
   }
  }
 }

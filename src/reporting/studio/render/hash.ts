@@ -3,4 +3,4 @@
  * `npm run sync:studio-render` (scripts/sync-studio-render.mjs). The FE mirror
  * carries the same value; `npm run check:studio-render` fails when they differ.
  */
-export const RENDER_HASH = "d20496445e6c79d1a7ca7480b0696666427ee882b0190cae1312eef1200d8953";
+export const RENDER_HASH = "9438b1a106e78738aef0b51db09e132ed36c5edc94c719546aed19c3122b17ea";
