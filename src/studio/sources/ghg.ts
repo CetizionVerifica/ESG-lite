@@ -25,6 +25,7 @@
 import { computeGhgByFuelType, computeGhgTables, getPeriodRange, type FuelTypeRow, type GhgFilters, type GhgTablesResult } from "../../reporting/ghg-data";
 import { computeScope3, type Scope3BaseYearSummary, type Scope3Report } from "../../reporting/ghg-scope3";
 import { loadMonthlyProduction } from "../../reporting/intensity";
+import { kgToTonnes, sumKg } from "../../reporting/kgTotals";
 import { baseYearSummary } from "../../scope3/baseYear/service";
 import { ghgCategory } from "../../scope3/contracts/ghgCategory";
 import { DsError, type GhgBinding, type GhgBreakdown, type GhgMetric, type NumberFormat, type YearType } from "../contracts";
@@ -114,6 +115,20 @@ export function bindingYears(years: GhgBinding["years"], docYear: number): { yea
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const tidy = (n: number) => Number(n.toPrecision(12));
+
+/**
+ * D14: tCO₂e of the monthly rows of `scopes` in the months `keys`: their kg
+ * added, then rounded once, as /user/ghg/tables rounds that month or quarter.
+ * Adding months or scopes that were each rounded already can miss it by 0.001
+ * per part.
+ */
+const monthsTonnes = (m: MonthScopeRow[], keys: string[], scopes: readonly string[]) =>
+  kgToTonnes(sumKg(m.filter((r) => keys.includes(r.month) && scopes.includes(r.scope)).map((r) => r.kg)));
+
+type SiteTotal = GhgTablesResult["tables"]["table_overviewByLocations_selectedYear"]["siteTotals"][number];
+/** A site's figure for the scopes of a metric: computeGhgTables' own per-site figure (the site's kg rounded once, D14). */
+const siteFigure = (s: SiteTotal, scopes: readonly string[]) =>
+  scopes.length === 3 ? s.total : scopes[0] === "Scope 1" ? s.scope1 : scopes[0] === "Scope 2" ? s.scope2 : s.scope3;
 
 /**
  * Memoised reads for one resolve request: each report function runs once per
@@ -278,48 +293,36 @@ export async function breakdownPoints(L: GhgLoader, ctx: ResolveContext, b: GhgB
         .map((x) => ({ key: x.n === null ? "Unmapped" : `${x.n} · ${x.name}`, value: x.tco2e }));
     }
     case "site": {
+      // D14: each site's figure is computeGhgTables' siteTotals (the site's kg
+      // rounded once, as EDE and Overview show it), for the sites with rows in
+      // the metric's scopes; never its category cells added up.
+      const t = await L.tables(year, sites);
+      const view = t.tables.table_overviewByLocations_selectedYear;
+      const withRows = new Set(view.rows.filter((r) => (scopes as string[]).includes(r.scope)).flatMap((r) => r.bySite.map((s) => s.siteId)));
+      const siteRows = view.siteTotals.filter((s) => withRows.has(s.siteId)).sort((a, b2) => a.siteId - b2.siteId);
       if (b.metric === "intensity_output") {
-        const t = await L.tables(year, sites);
         const prod = await L.production(year, sites);
-        const rows = t.tables.table_overviewByLocations_selectedYear.rows.filter((r) => (scopes as string[]).includes(r.scope));
-        const names = new Map<number, string>();
-        const em = new Map<number, number>();
-        for (const r of rows) for (const s of r.bySite) {
-          names.set(s.siteId, s.siteName);
-          em.set(s.siteId, (em.get(s.siteId) ?? 0) + s.value);
-        }
-        return [...em.entries()].sort((a, b2) => a[0] - b2[0]).map(([id, e]) => {
-          const p = sum(prod.filter((x) => Number(x.siteId) === id).map((x) => Number(x.production) || 0));
-          return { key: names.get(id) ?? String(id), value: intensity(tidy(e), p).value };
+        return siteRows.map((s) => {
+          const p = sum(prod.filter((x) => Number(x.siteId) === s.siteId).map((x) => Number(x.production) || 0));
+          return { key: s.siteName, value: intensity(siteFigure(s, scopes), p).value };
         });
       }
-      const t = await L.tables(year, sites);
-      const rows = t.tables.table_overviewByLocations_selectedYear.rows.filter((r) => (scopes as string[]).includes(r.scope));
-      const bySite = new Map<number, { name: string; value: number }>();
-      for (const r of rows)
-        for (const s of r.bySite) {
-          const cur = bySite.get(s.siteId) ?? { name: s.siteName, value: 0 };
-          cur.value += s.value;
-          bySite.set(s.siteId, cur);
-        }
-      return [...bySite.entries()].sort((a, b2) => a[0] - b2[0]).map(([, v]) => ({ key: v.name, value: tidy(v.value) }));
+      return siteRows.map((s) => ({ key: s.siteName, value: siteFigure(s, scopes) }));
     }
     case "month":
     case "quarter": {
+      // D14: a month or quarter adds its kg and rounds once (monthsTonnes).
       const keys = reportingMonthKeys(ctx.yearType, year);
+      const m = await L.monthly(year, sites);
       if (b.metric === "intensity_output") {
-        const m = await L.monthly(year, sites);
         const prod = await L.production(year, sites);
         return keys.map((k) => {
-          const e = sum(m.filter((r) => r.month === k).map((r) => r.tco2e));
           const p = sum(prod.filter((x) => String(x.month) === k).map((x) => Number(x.production) || 0));
-          return { key: k, value: intensity(tidy(e), p).value };
+          return { key: k, value: intensity(monthsTonnes(m, [k], scopes), p).value };
         });
       }
-      const m = (await L.monthly(year, sites)).filter((r) => (scopes as string[]).includes(r.scope));
-      const month = (k: string) => tidy(sum(m.filter((r) => r.month === k).map((r) => r.tco2e)));
-      if (bd === "month") return keys.map((k) => ({ key: k, value: month(k) }));
-      return [0, 1, 2, 3].map((q) => ({ key: `Q${q + 1}`, value: tidy(sum(keys.slice(q * 3, q * 3 + 3).map(month))) }));
+      if (bd === "month") return keys.map((k) => ({ key: k, value: monthsTonnes(m, [k], scopes) }));
+      return [0, 1, 2, 3].map((q) => ({ key: `Q${q + 1}`, value: monthsTonnes(m, keys.slice(q * 3, q * 3 + 3), scopes) }));
     }
     case "gas": {
       const g = await L.gases(year, sites);
@@ -348,18 +351,18 @@ export async function breakdownPoints(L: GhgLoader, ctx: ResolveContext, b: GhgB
 /**
  * DS-8 · one series per scope of the metric (Scope 1, 2, 3 for total), keyed by
  * month or quarter of the year: the same approved monthly rows as the `month`
- * breakdown, split by scope, so the stacks add up to that breakdown.
+ * breakdown, split by scope. Each point is that scope's kg in the month or
+ * quarter, rounded once (D14): /user/ghg/tables' scope figure for that period.
  */
 export async function scopeStacks(L: GhgLoader, ctx: ResolveContext, b: GhgBinding, year: number, sites: number[]): Promise<Series[]> {
   const scopes = SCOPE_OF[b.metric] ?? [];
   const keys = reportingMonthKeys(ctx.yearType, year);
   const m = await L.monthly(year, sites);
   return scopes.map((scope) => {
-    const month = (k: string) => tidy(sum(m.filter((r) => r.scope === scope && r.month === k).map((r) => r.tco2e)));
     const values =
       b.breakdown === "quarter"
-        ? [0, 1, 2, 3].map((q) => ({ key: `Q${q + 1}`, value: tidy(sum(keys.slice(q * 3, q * 3 + 3).map(month))) }))
-        : keys.map((k) => ({ key: k, value: month(k) }));
+        ? [0, 1, 2, 3].map((q) => ({ key: `Q${q + 1}`, value: monthsTonnes(m, keys.slice(q * 3, q * 3 + 3), [scope]) }))
+        : keys.map((k) => ({ key: k, value: monthsTonnes(m, [k], [scope]) }));
     return { label: scope, values };
   });
 }

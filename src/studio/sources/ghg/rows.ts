@@ -4,10 +4,11 @@
  * the newest approval. Each reads APPROVED emission rows with exactly the
  * filters computeGhgTables uses (status approved, the filters' sites, the
  * period from getPeriodRange, the category filter) and sums the same figure
- * (each row's kgCO₂e, rounded once per month and scope to tCO₂e: D14,
- * reporting/kgTotals.ts), so every split comes from the report's own rows
- * (ci/api/tests/ds-2-resolve.test.cjs proves months and sites against
- * POST /user/ghg/tables).
+ * (each row's kgCO₂e: D14, reporting/kgTotals.ts), so every split comes from
+ * the report's own rows. A month keeps its kg, so a month, a quarter or a
+ * stack of scopes adds kg and rounds once, as /user/ghg/tables does for that
+ * period (ci/api/tests/ds-2-sources.test.cjs and d14-kg-splits.test.cjs prove
+ * months, quarters and sites against POST /user/ghg/tables).
  *
  * Read only. No total is computed here that the report doesn't already have:
  * these are partitions of the same approved rows.
@@ -37,10 +38,13 @@ export type ScopeName = (typeof SCOPES)[number];
 export interface MonthScopeRow {
   month: string; // YYYY-MM
   scope: ScopeName;
+  /** The month's kgCO₂e in this scope: add these, then round once (D14). */
+  kg: number;
+  /** That kg rounded once to tCO₂e: the month and scope on its own. */
   tco2e: number;
 }
 
-/** tCO₂e per calendar month and scope (Scope 1–3 rows only, like the report's totals): the kg summed, rounded once. */
+/** kgCO₂e and tCO₂e per calendar month and scope (Scope 1–3 rows only, like the report's totals): the kg summed, rounded once. */
 export async function monthlyByScope(filters: GhgFilters): Promise<MonthScopeRow[]> {
   const w = approvedWhere(filters);
   const rows: Row[] = await AppDataSource.query(
@@ -50,7 +54,7 @@ export async function monthlyByScope(filters: GhgFilters): Promise<MonthScopeRow
       GROUP BY 1, 2 ORDER BY 1, 2`,
     w.params,
   );
-  return rows.map((r) => ({ month: String(r.month), scope: r.scope as ScopeName, tco2e: kgToTonnes(r.kg) }));
+  return rows.map((r) => ({ month: String(r.month), scope: r.scope as ScopeName, kg: Number(r.kg) || 0, tco2e: kgToTonnes(r.kg) }));
 }
 
 export interface GasRow {

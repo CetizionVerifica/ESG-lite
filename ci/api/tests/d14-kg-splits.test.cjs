@@ -135,3 +135,43 @@ test("GHG PDF: the site table, its Total row, the site chart and the site status
   assert.equal(scope1.total, "4.938 tCO₂e · 100.0%", "Scope 1's chart total is Table 1's");
 });
 
+const ghg = (metric, extra = {}) => ({ source: "ghg", metric, years: { last: 1 }, sites: "all", ...extra });
+const resolve = async (year, sites, bindings) =>
+  ok(await call("POST", "/studio/resolve", "manager", { kind: "ghg", year, yearType: "CY", sites, bindings, tokens: [] }), "resolve").values;
+const points = (v) => Object.fromEntries(v.series[0].values.map((p) => [p.key, p.value]));
+
+test("studio: site, month, quarter and scope-stack points are /user/ghg/tables' figures for that site or period", async () => {
+  await setStudio(1, true);
+  const [site, month, quarter, s1Quarter, s1Month] = await resolve(SPLIT_YEAR, [1], [
+    ghg("total", { breakdown: "site" }),
+    ghg("total", { breakdown: "month" }),
+    ghg("total", { breakdown: "quarter" }),
+    ghg("scope1", { breakdown: "quarter" }),
+    ghg("scope1", { breakdown: "month" }),
+  ]);
+  assert.equal(site.value, 4.938);
+  assert.deepEqual(points(site), { "CI Plant A": 4.938 });
+  const m = points(month);
+  assert.deepEqual([m[`${SPLIT_YEAR}-01`], m[`${SPLIT_YEAR}-02`], m[`${SPLIT_YEAR}-03`], m[`${SPLIT_YEAR}-04`]], [2.469, 1.234, 1.234, 0]);
+  assert.deepEqual(points(quarter), { Q1: 4.938, Q2: 0, Q3: 0, Q4: 0 });
+  assert.deepEqual(points(s1Quarter), { Q1: 3.703, Q2: 0, Q3: 0, Q4: 0 });
+  assert.equal(points(s1Month)[`${SPLIT_YEAR}-01`], 1.234);
+  const stack = (v, label, key) => v.stacks.find((s) => s.label === label).values.find((p) => p.key === key).value;
+  assert.deepEqual(["Scope 1", "Scope 2", "Scope 3"].map((sc) => stack(quarter, sc, "Q1")), [3.703, 1.234, 0]);
+  assert.deepEqual(["Scope 1", "Scope 2"].map((sc) => stack(month, sc, `${SPLIT_YEAR}-01`)), [1.234, 1.234]);
+
+  // The same figures from the GHG tables for that month or quarter, and from Overview.
+  const jan = await tables({ siteIds: [1], year: SPLIT_YEAR, frequency: "monthly", month: 1 });
+  assert.equal(jan.totals[String(SPLIT_YEAR)].total, m[`${SPLIT_YEAR}-01`]);
+  const q1 = await tables({ siteIds: [1], year: SPLIT_YEAR, frequency: "quarterly", quarter: 1 });
+  const t = q1.totals[String(SPLIT_YEAR)];
+  assert.deepEqual([t.total, t.scope1, t.scope2], [points(quarter).Q1, points(s1Quarter).Q1, stack(quarter, "Scope 2", "Q1")]);
+  const ov = ok(await call("GET", `/manager/overview?period=${SPLIT_YEAR}&siteIds=1`, "manager"), "overview");
+  assert.equal(ov.by_month.find((x) => x.month === `${SPLIT_YEAR}-01`).gross, m[`${SPLIT_YEAR}-01`]);
+
+  // Two sites, two Scope 1 categories each: each site's figure is EDE's and Overview's.
+  const [bySite] = await resolve(SITES_YEAR, [1, 2], [ghg("total", { breakdown: "site" })]);
+  assert.equal(bySite.value, 4.938);
+  assert.deepEqual(points(bySite), { "CI Plant A": 2.469, "CI Plant B": 2.469 });
+});
+
