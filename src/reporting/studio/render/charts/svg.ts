@@ -5,7 +5,7 @@
 import type { Theme } from "../theme";
 import type { RenderSeries, RenderValue } from "../types";
 import { esc, n3 } from "../util";
-import { TEXT_MARGIN_EM, textWidth } from "./metrics";
+import { TEXT_MARGIN_EM, inkExtent, textWidth } from "./metrics";
 
 export const U = 4;
 /** 7.5 pt in viewBox units (1 pt = 0.3528 mm). */
@@ -94,6 +94,19 @@ export const labelBox = (x: number, y: number, s: string, size = SMALL, opts: { 
   const mid = opts.baseline === "middle" || opts.baseline === "central";
   return { x0, x1: x0 + lw, y0: mid ? y - size / 2 : y - LABEL_ASCENT * size, y1: mid ? y + size / 2 : y + LABEL_DESCENT * size };
 };
+
+/**
+ * #209 round 4: a text's ink box (metrics.ts inkExtent: the glyphs it holds, worst of the eight faces) drawn at x, y with
+ * `anchor` and `baseline`; its width as labelWidth. Fits are decided on it with INK_GAP of air.
+ */
+export const inkBox = (x: number, y: number, s: string, size = SMALL, opts: { anchor?: "start" | "middle" | "end"; bold?: boolean; baseline?: string } = {}): LabelBox => {
+  const lw = labelWidth(s, size, opts.bold);
+  const x0 = opts.anchor === "middle" ? x - lw / 2 : opts.anchor === "end" ? x - lw : x;
+  const ink = inkExtent(s, opts.baseline === "middle" || opts.baseline === "central" ? "middle" : "alphabetic");
+  return { x0, x1: x0 + lw, y0: y - ink.up * size, y1: y + ink.down * size };
+};
+/** Air kept between ink boxes (em of the label's size). */
+export const INK_GAP = 0.03;
 
 /** Whether two label boxes meet (touching counts, with `gap` of air around them). */
 export const boxesMeet = (a: LabelBox, b: LabelBox, gap = 0): boolean => a.x0 < b.x1 + gap && b.x0 < a.x1 + gap && a.y0 < b.y1 + gap && b.y0 < a.y1 + gap;
@@ -199,11 +212,13 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
     // The kept-first labels: the row's highest rank (bold, then priority), when the row ranks its labels at all.
     const topBold = row.some((l) => l.bold);
     const topPriority = Math.max(0, ...row.filter((l) => !!l.bold === topBold).map((l) => l.priority ?? 0));
-    const top = minY + LABEL_ASCENT * size;
-    const bottom = h - LABEL_DESCENT * size;
-    const gap = LABEL_GAP * size;
+    // #209 round 4: decided on the labels' ink (inkBox: their glyphs, worst of the eight faces) with INK_GAP of air.
+    const gap = INK_GAP * size;
     for (const i of order) {
       const l = row[i];
+      const ink = inkExtent(l.text);
+      const top = minY + ink.up * size;
+      const bottom = h - ink.down * size;
       let spot: { x: number; y: number; box: LabelBox } | null = null;
       if (labelWidth(l.text, size, l.bold) <= w - x0) {
         const x = insideX(l.x, l.text, w, size, l.bold, x0);
@@ -212,7 +227,7 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
         const maxRise = first ? Infinity : MAX_RISE * size;
         let y = y0;
         for (let tries = 0; tries < 12 && y >= top && y0 - y <= maxRise; tries++) {
-          const box = labelBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
+          const box = inkBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
           const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => o.owner !== i && boxesMeet(o, box, gap))];
           if (!hits.length) {
             spot = { x, y, box };
@@ -220,7 +235,7 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
           }
           if (!stagger && !first) break;
           // Stagger: just above what it would meet.
-          y = Math.min(...hits.map((p) => p.y0)) - gap - LABEL_DESCENT * size - 1e-6;
+          y = Math.min(...hits.map((p) => p.y0)) - gap - ink.down * size - 1e-6;
         }
       }
       if (!spot) {

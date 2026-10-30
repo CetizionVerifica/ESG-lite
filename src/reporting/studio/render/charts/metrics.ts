@@ -46,3 +46,31 @@ export const textWidth = (s: string, size: number, bold = false): number => {
   for (const c of s) em += (ADVANCE[c] ?? WIDEST)[k];
   return em * size;
 };
+
+/**
+ * #209 round 4 · how far a text's ink reaches above and below its `y` (em), on the high side: the eight studio faces
+ * measured in Chromium 1194 (canvas actualBoundingBox per character, regular and bold; ci/fixtures/studio/font-advances.json
+ * `top`, `bottom`, `middleShift`), so a fit is decided on the glyphs, not on a whole em box plus air.
+ *   figures (digits, % . + − - · space): 0.75 above the baseline, 0.05 below;
+ *   a comma or semicolon reaches 0.21 below; a descender (g j p q y Q J µ) 0.26, brackets, slashes, @ $ _ 0.27; subscripts
+ *   0.11; any other letter or sign 0.80 above; quotes, ° and superscripts 0.87; a character the table doesn't list (an
+ *   accented capital, a fallback glyph) 1.0 above and 0.3 below.
+ * With dominant-baseline "middle" the baseline sits 0.237–0.273 em under y (per face), so a figure's ink spans 0.50 above
+ * y and 0.30 below it (0.45 with a comma, 0.52 with a descender); a letter's 0.62 above.
+ */
+const FIGURE = new Set("0123456789%.+−-· ");
+const COMMA = new Set(",;");
+const DESCENDER = new Set("gjpqyQJµ");
+const DEEP = new Set("()[]{}/\\|@$_");
+const SUBSCRIPT = new Set("₂₃₄");
+const TALL = new Set("\"'‘’“”`²³°*^");
+export const inkExtent = (s: string, baseline: "alphabetic" | "middle" = "alphabetic"): { up: number; down: number } => {
+  const chars = [...s];
+  const unknown = chars.some((c) => !(c in ADVANCE));
+  const tall = chars.some((c) => TALL.has(c));
+  const figures = chars.every((c) => FIGURE.has(c) || COMMA.has(c));
+  const has = (set: Set<string>) => chars.some((c) => set.has(c));
+  const down = unknown ? 5 : has(DEEP) ? 3 : has(DESCENDER) ? 2 : has(COMMA) ? 1 : has(SUBSCRIPT) ? 4 : 0;
+  if (baseline === "middle") return { up: unknown ? 0.77 : tall ? 0.62 : figures ? 0.5 : 0.56, down: [0.3, 0.45, 0.52, 0.52, 0.37, 0.58][down] };
+  return { up: unknown ? 1 : tall ? 0.87 : figures ? 0.75 : 0.8, down: [0.05, 0.21, 0.26, 0.27, 0.11, 0.3][down] };
+};

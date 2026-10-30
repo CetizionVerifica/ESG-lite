@@ -9,6 +9,7 @@ import { formatNumber, seriesUnit } from "../../format";
 import { contrastRatio, mix } from "../../theme";
 import { esc, n3 } from "../../util";
 import { FONT, LABEL_STEPS, SMALL, emptyChart, labelWidth, rect, svgOpen, text, type ChartInput } from "../svg";
+import { inkExtent } from "../metrics";
 import { clip, currentSeries, headline, partsOf, pct, ranked, total, type Part } from "./common";
 
 export interface Tile extends Part {
@@ -75,15 +76,21 @@ export function squarify(parts: Part[], w: number, h: number): Tile[] {
   return out;
 }
 
+/** Air between a tile's last text line's ink and the tile's foot (em). */
+const TILE_FOOT = 0.3;
+
 /**
  * What a tile prints: its name, then "value · share" on one line, or value and share on two (#209: a 3-decimal tCO₂e
  * figure is long). #209 review: a tile too small for that at the chart's size steps the text down (to 0.8 of it) before
  * it leaves anything out; only then does it print the value alone, then the name alone. Never a line measured as wider
- * than its tile.
+ * than its tile. #209 round 4: a line fits the tile's height when its ink (metrics.ts inkExtent) clears the tile's foot by
+ * TILE_FOOT: value lines' baselines sit 2.6 and 3.9 em down, so a second line needs about 4.3 em, not 5.1.
  */
 function tileText(t: Tile, v: string, share: string, values: boolean): { size: number; chars: number; lines: string[] } | null {
   const sizes = LABEL_STEPS.map((k) => SMALL * k);
-  const at = (size: number) => ({ size, chars: Math.floor((t.w - size) / (size * 0.55)), fits: (s: string) => labelWidth(s, size) <= t.w - size });
+  /** Whether `lines` (value lines under the name) fit the tile's height at `size`. */
+  const tall = (lines: string[], size: number) => t.h >= size * (2.6 + 1.3 * (lines.length - 1) + inkExtent(lines[lines.length - 1]).down + TILE_FOOT);
+  const at = (size: number) => ({ size, chars: Math.floor((t.w - size) / (size * 0.55)), fits: (s: string) => labelWidth(s, size) <= t.w - size, tall: (lines: string[]) => tall(lines, size) });
   const named = sizes.map(at).filter((z) => t.h >= z.size * 2.4 && z.chars >= 4);
   if (!named.length) return null;
   const pick = (want: (z: ReturnType<typeof at>) => string[] | null): { size: number; chars: number; lines: string[] } | null => {
@@ -96,8 +103,8 @@ function tileText(t: Tile, v: string, share: string, values: boolean): { size: n
   if (!values) return { size: named[0].size, chars: named[0].chars, lines: [] };
   const one = `${v} · ${share}`;
   return (
-    pick((z) => (t.h >= z.size * 3.8 && z.fits(one) ? [one] : t.h >= z.size * 5.1 && z.fits(v) && z.fits(share) ? [v, share] : null)) ??
-    pick((z) => (t.h >= z.size * 3.8 && z.fits(v) ? [v] : null)) ?? { size: named[0].size, chars: named[0].chars, lines: [] }
+    pick((z) => (z.tall([one]) && z.fits(one) ? [one] : z.tall([v, share]) && z.fits(v) && z.fits(share) ? [v, share] : null)) ??
+    pick((z) => (z.tall([v]) && z.fits(v) ? [v] : null)) ?? { size: named[0].size, chars: named[0].chars, lines: [] }
   );
 }
 

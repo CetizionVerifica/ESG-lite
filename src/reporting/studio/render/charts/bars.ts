@@ -6,8 +6,9 @@
 import { formatNumber, sharedUnit } from "../format";
 import { n3 } from "../util";
 import { axisWidth, bandLabels, tickBoxes, tickRoom, valueGridX, valueGridY } from "./axis";
+import { inkExtent } from "./metrics";
 import { linearScale } from "./scale";
-import { FONT, LABEL_STEPS, SMALL, boxesMeet, emptyChart, fitBarEnds, fitLabelRow, isYearKey, keysOf, labelBox, legend, plotSpan, rect, rectBox, seriesColor, svgOpen, text, valueAt, type ChartInput, type LabelBox, type Obstacle } from "./svg";
+import { FONT, INK_GAP, LABEL_STEPS, SMALL, boxesMeet, emptyChart, fitBarEnds, fitLabelRow, inkBox, isYearKey, keysOf, legend, plotSpan, rect, rectBox, seriesColor, svgOpen, text, valueAt, type ChartInput, type LabelBox, type Obstacle } from "./svg";
 
 function draw(input: ChartInput, stacked: boolean): string {
   const { value, w, h, theme, options } = input;
@@ -36,9 +37,12 @@ function draw(input: ChartInput, stacked: boolean): string {
     const band = ph / keys.length;
     const labelled = options.showValues !== false && (stacked || !multi);
     // #209 review: in a thin band a total would sit on the next band's longer bar, so it starts after the end of every bar
-    // its box reaches (a bar spans 0.18–0.82 of its band; a middle-baseline label is ±0.5 em, plus 0.15 em of air).
-    const reach = (ki: number, size: number): number =>
-      keys.reduce((t, _, kj) => (kj !== ki && Math.abs(kj - ki) * band - band * 0.32 < size * 0.65 ? Math.max(t, scale.t(totals[kj])) : t), scale.t(totals[ki]));
+    // its ink reaches (a bar spans 0.18–0.82 of its band; #209 round 4: the label's glyphs above and below its middle
+    // baseline, metrics.ts inkExtent, and INK_GAP of air: a total production drew clear of the next bar stays).
+    const reach = (ki: number, size: number): number => {
+      const ink = inkExtent(valueText(totals[ki]), "middle");
+      return keys.reduce((t, _, kj) => (kj !== ki && Math.abs(kj - ki) * band - band * 0.32 < ((kj < ki ? ink.up : ink.down) + INK_GAP) * size ? Math.max(t, scale.t(totals[kj])) : t), scale.t(totals[ki]));
+    };
     // Totals sit after the bar end; a long one (a 3-decimal tCO₂e figure, #209) narrows the plot so it isn't cut.
     const pw0 = w - x0 - SMALL * 3;
     const pw = labelled ? fitBarEnds(pw0, x0, w, totals.map((t, ki) => ({ t: reach(ki, SMALL), label: valueText(t) }))) : pw0;
@@ -65,15 +69,15 @@ function draw(input: ChartInput, stacked: boolean): string {
       for (const ki of labelled ? order : []) {
         const s = valueText(totals[ki]);
         let x = x0 + reach(ki, size) * pw + SMALL * 0.4;
-        let box = labelBox(x, band * ki + band / 2, s, size, { baseline: "middle" });
+        let box = inkBox(x, band * ki + band / 2, s, size, { baseline: "middle" });
         for (let n = 0; mode !== "plain" && n <= placed.length; n++) {
-          const hit = placed.filter((b) => boxesMeet(b, box, size * 0.15));
+          const hit = placed.filter((b) => boxesMeet(b, box, size * INK_GAP));
           if (!hit.length) break;
           x = Math.max(...hit.map((b) => b.x1)) + size * 0.3;
-          box = labelBox(x, band * ki + band / 2, s, size, { baseline: "middle" });
+          box = inkBox(x, band * ki + band / 2, s, size, { baseline: "middle" });
         }
         const moved = x > x0 + reach(ki, size) * pw + SMALL * 0.4;
-        const meets = placed.some((b) => boxesMeet(b, box, size * 0.15)) || bars.some((b) => b.owner !== ki && boxesMeet(b, box, size * 0.15)) || (moved && box.x1 > w);
+        const meets = placed.some((b) => boxesMeet(b, box, size * INK_GAP)) || bars.some((b) => b.owner !== ki && boxesMeet(b, box, size * INK_GAP)) || (moved && box.x1 > w);
         if (meets && mode !== "drop") return null;
         if (meets) continue;
         placed.push(box);
@@ -85,9 +89,13 @@ function draw(input: ChartInput, stacked: boolean): string {
       steps.map((sz) => rowFit(sz, "plain")).find(Boolean) ??
       steps.map((sz) => rowFit(sz, "shift")).find(Boolean) ??
       (rowFit(steps[steps.length - 1], "drop") as RowFit);
-    // Category names step down to fit their band; in a band too thin for the smallest size every n-th is named, the latest always.
-    const keySize = steps.find((sz) => sz * 1.15 <= band) ?? steps[steps.length - 1];
-    const every = Math.max(1, Math.ceil((keySize * 1.15) / band));
+    // Category names step down to fit their band; in a band too thin for the smallest size every n-th is named, the latest
+    // always. #209 round 4: decided on the names' ink (a year's figures take 0.8 em, a name with a descender 1.08 em), so
+    // names production drew apart stay.
+    const nameInk = keys.map((k) => inkExtent(k, "middle"));
+    const pitch = Math.max(...nameInk.map((e) => e.up)) + Math.max(...nameInk.map((e) => e.down)) + INK_GAP;
+    const keySize = steps.find((sz) => sz * pitch <= band) ?? steps[steps.length - 1];
+    const every = Math.max(1, Math.ceil((keySize * pitch) / band));
     body += valueGridX(scale, x0, 0, pw, ph, theme);
     keys.forEach((k, ki) => {
       const y = band * ki;

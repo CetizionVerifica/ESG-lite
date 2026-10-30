@@ -72,14 +72,11 @@ function charts(html) {
   return out;
 }
 
-const isNumeric = (s) => VALUE.test(s) || /^[−-]?\d[\d,.]*[kKMB]?$/.test(s);
-/** A text's box: value labels and ticks by labelBox (their glyphs), any other text with the letters' deeper box. */
-const boxOf = (t) => {
-  const b = SVG.labelBox(t.x, t.y, t.s, t.size, { anchor: t.anchor, bold: t.bold, baseline: t.baseline });
-  if (isNumeric(t.s)) return b;
-  const mid = t.baseline === "middle" || t.baseline === "central";
-  return { ...b, y0: mid ? t.y - t.size * 0.55 : t.y - TEXT_ASCENT * t.size, y1: mid ? t.y + t.size * 0.55 : t.y + TEXT_DESCENT * t.size };
-};
+/**
+ * A text's box: its ink (#209 round 4: SVG.inkBox, the glyphs it holds, alphabetic or middle baseline, never smaller than
+ * any of the eight faces measured in Chromium, checked by the first test) across its measured width (labelWidth).
+ */
+const boxOf = (t) => SVG.inkBox(t.x, t.y, t.s, t.size, { anchor: t.anchor, bold: t.bold, baseline: t.baseline });
 const rectBox = (r) => ({ x0: r.x, x1: r.x + r.w, y0: r.y, y1: r.y + r.h });
 const where = (b) => [b.x0, b.x1, b.y0, b.y1].map((v) => v.toFixed(2)).join(",");
 
@@ -120,7 +117,22 @@ test("textWidth, labelWidth and labelBox are never smaller than any studio face,
     }
     // Every measured character is in the table (a character outside it takes the widest advance).
     for (const [ch, adv] of Object.entries(m.advance)) assert.ok(MET.textWidth(ch, 1, bold) - MET.TEXT_MARGIN_EM >= adv - 1e-9, `${face} "${ch}"`);
+    // #209 round 4: the ink box (inkExtent) reaches at least as far above and below y as every glyph of the text in this
+    // face, on the alphabetic baseline and on the middle one (moved down by the face's middleShift).
+    assert.ok(m.middleShift > 0.2 && m.middleShift < 0.3, `${face} middleShift ${m.middleShift}`);
+    for (const s of [...samples, ...texts, ...Object.keys(m.advance)]) {
+      const chars = [...s].filter((ch) => ch in m.top);
+      if (!chars.length) continue;
+      const top = Math.max(...chars.map((ch) => m.top[ch]));
+      const bottom = Math.max(...chars.map((ch) => m.bottom[ch]));
+      const a = MET.inkExtent(s, "alphabetic");
+      const mid = MET.inkExtent(s, "middle");
+      assert.ok(a.up >= top - 1e-9 && a.down >= bottom - 1e-9, `${face} "${s}" ink ${top}/${bottom} vs ${a.up}/${a.down}`);
+      assert.ok(mid.up >= top - m.middleShift - 1e-9 && mid.down >= bottom + m.middleShift - 1e-9, `${face} "${s}" middle ink ${(top - m.middleShift).toFixed(3)}/${(bottom + m.middleShift).toFixed(3)} vs ${mid.up}/${mid.down}`);
+    }
   }
+  // Every character the charts print is measured (top and bottom) in every face.
+  for (const [face, m] of faces) for (const ch of Object.keys(m.advance)) assert.ok(Number.isFinite(m.top[ch]) && Number.isFinite(m.bottom[ch]), `${face} "${ch}" ink`);
 });
 
 test("the fixtures send the displays the server sends: a tCO₂e figure with 3 decimals (sources/format.ts)", () => {
@@ -293,7 +305,9 @@ test("treemap: no value line is wider than its tile", () => {
   assert.deepEqual(tm(room("1,290.000 · 100%"), S * 4), ["1,290.000 · 100% @1.00"]);
   assert.deepEqual(tm(room("1,290.000"), S * 5.2), ["1,290.000 @1.00", "100% @1.00"]);
   assert.deepEqual(tm(room("1,290.00"), S * 5.2), ["1,290.000 @0.90", "100% @0.90"]);
-  assert.deepEqual(tm(room("1,290.000"), S * 4), ["1,290.000 @1.00"]);
+  // #209 round 4: two lines need their ink and some air (about 4.3 em), not 5.1 em: a 4-em tile keeps the share a step down.
+  assert.deepEqual(tm(room("1,290.000"), S * 4), ["1,290.000 @0.90", "100% @0.90"]);
+  assert.deepEqual(tm(room("1,290.000"), S * 3.3), ["1,290.000 @1.00"]);
   assert.deepEqual(tm(room("1,290"), S * 5.2), []);
 });
 
@@ -324,13 +338,18 @@ test("horizontal bars in thin bands: totals step down a size, clear of each othe
   // Room enough: every total and name at the chart's size.
   const roomy = draw(372, 200, 6);
   assert.deepEqual([roomy.shown, roomy.size, roomy.names.length, roomy.nameSize], [roomy.totals, r3(S), 6, r3(S)]);
-  // A band a little thinner than a label: every total and name kept, a size or three smaller, each after any longer bar its box would reach.
-  const thin = draw(278, 100, 7);
+  // #209 round 4: fits are decided on the glyphs' ink, so a band that holds a total's figures (0.95 em with the comma) keeps
+  // it at full size.
+  const fits = draw(278, 100, 7);
+  assert.deepEqual([fits.shown.slice().sort(), fits.size, fits.names.length, fits.nameSize], [fits.totals.slice().sort(), r3(S), 7, r3(S)]);
+  // A band a little thinner than a label: every total and name kept, totals a size or more smaller, each after any longer
+  // bar its ink would reach; the year names (0.8 em of ink) still fit at full size.
+  const thin = draw(278, 90, 7);
   assert.deepEqual([thin.shown.slice().sort(), thin.names.length], [thin.totals.slice().sort(), 7]);
-  assert.ok(thin.size < r3(S) && thin.size >= r3(S * 0.8) && thin.nameSize === thin.size, `${thin.size} ${thin.nameSize}`);
+  assert.ok(thin.size < r3(S) && thin.size >= r3(S * 0.8) && thin.nameSize >= thin.size, `${thin.size} ${thin.nameSize}`);
   // Too thin for the smallest size: a total that would meet its neighbour moves along after it while the chart has room
   // (6 of 7 here), else is left out with the latest year's kept; names go to every other band, ending on the latest.
-  const shifted = draw(420, 92, 7);
+  const shifted = draw(420, 80, 7);
   assert.ok(shifted.shown.length === 6 && shifted.shown.includes(shifted.totals[6]), JSON.stringify(shifted.shown));
   const tiny = draw(372, 71, 6);
   assert.ok(tiny.shown.includes(tiny.totals[5]) && tiny.shown.length < 6, JSON.stringify(tiny.shown));
@@ -588,4 +607,38 @@ test("round 4: a kept-first label (latest total, waterfall start and end, bridge
     for (const s of first) assert.ok(drawn.includes(s), `#${c.i} ${c.kind} ${c.w}×${c.h}: kept-first "${s}" left out while ${lower.join(", ")} drawn`);
   }
   assert.ok(rows > 150, String(rows));
+});
+
+test("round 4: ranked and horizontal bars keep the labels and names production drew clear (decided on ink, not an em box plus air)", () => {
+  const S = SVG.SMALL;
+  const muted = R.buildTheme({}).colors.muted;
+  const clear = (c, at) => {
+    // Value labels: figures in ink after their bars (names sit before the axis, end-anchored).
+    const vals = c.texts.filter((t) => VALUE.test(t.s) && t.fill !== muted && t.anchor !== "end");
+    const bars = c.rects.filter((r) => r.part !== undefined || r.fill !== muted);
+    for (const t of vals) {
+      const b = boxOf(t);
+      const own = bars.filter((r) => t.y >= r.y - EPS && t.y <= r.y + r.h + EPS && b.x0 >= r.x + r.w - EPS);
+      for (const r of bars) if (!own.includes(r) && r.w > 0.5 && r.h > 0.5) assert.ok(!SVG.boxesMeet(b, rectBox(r)), `${at}: "${t.s}" ${where(b)} meets a bar ${where(rectBox(r))}`);
+      for (const u of vals) if (u !== t) assert.ok(!SVG.boxesMeet(b, boxOf(u)), `${at}: "${t.s}" meets "${u.s}"`);
+    }
+    return vals.map((t) => t.s);
+  };
+  // The DS-8 category bars 3.5 mm shorter than the social_191 frame: production drew 1,290, 620 and 410 clear of every bar.
+  assert.deepEqual(clear(alone("g.category_bars", 136.07, 30), "category_bars 136×30").sort(), ["1,290.000", "410.000", "620.000"]);
+  assert.ok(clear(alone("g.category_prior", 136.07, 26), "category_prior 136×26").includes("620.000"));
+  // Seven years in a band of about 8 units: every name at full size, every total right after its own bar.
+  const vals = [14989.417, 1758.997, 16766.405, 12775.164, 29916.859, 96447.361, 16412.877];
+  const keys = ["2019", "2020", "2021", "2022", "2023", "2024", "2025"];
+  const svg = R.chartRenderer("bar")({ value: { display: "", value: 1, unit: "tCO₂e", series: [{ label: "Total", values: keys.map((key, i) => ({ key, value: vals[i] })) }] }, w: 334, h: 75, theme: R.buildTheme({}), options: { horizontal: true }, label: "h" });
+  const c = { ...parseSvg(/<svg [^>]*>(.*)<\/svg>/s.exec(svg)[1]) };
+  const names = c.texts.filter((t) => keys.includes(t.s));
+  assert.deepEqual(names.map((t) => [t.s, t.size]), keys.map((k) => [k, Math.round(S * 1000) / 1000]), "every year named at full size");
+  const totals = clear(c, "hbar 334×75");
+  assert.equal(totals.length, 7, totals.join(", "));
+  const bars = c.rects.filter((r) => r.w > 0.5 && r.h > 0.5 && r.y < 70);
+  for (const t of c.texts.filter((x) => VALUE.test(x.s) && x.anchor === "start")) {
+    const own = bars.find((r) => t.y >= r.y && t.y <= r.y + r.h);
+    assert.ok(own && t.x - (own.x + own.w) <= S * 0.4 + EPS, `"${t.s}" sits ${(t.x - own.x - own.w).toFixed(1)} after its bar's end`);
+  }
 });

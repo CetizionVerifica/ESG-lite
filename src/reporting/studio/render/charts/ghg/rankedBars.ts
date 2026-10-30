@@ -10,9 +10,10 @@ import { formatNumber, seriesUnit } from "../../format";
 import { esc, n3 } from "../../util";
 import { valueGridX } from "../axis";
 import { linearScale } from "../scale";
-import { LABEL_STEPS, PLOT_FLOOR, SMALL, boxesMeet, emptyChart, fitBarEnds, labelBox, rect, rectBox, svgOpen, text, type ChartInput, type LabelBox, type Obstacle } from "../svg";
+import { INK_GAP, LABEL_STEPS, PLOT_FLOOR, SMALL, boxesMeet, emptyChart, fitBarEnds, inkBox, rect, rectBox, svgOpen, text, type ChartInput, type LabelBox, type Obstacle } from "../svg";
 import { biggest, clip, currentSeries, headline, partColor, partsOf, priorSeries, ranked, wrapLegend } from "./common";
 import { mix } from "../../theme";
+import { inkExtent } from "../metrics";
 
 function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): string {
   const { value, w, h, theme, options } = input;
@@ -46,19 +47,21 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
   const ph = Math.max(PLOT_FLOOR, h - top - leg.h - SMALL * 2);
   const band = ph / ps.length;
   const mainH = prior ? band * 0.5 : band * 0.66;
-  // #209 review: a value label sits after its bar's end, centred on it. When the band is so thin that the label would reach down
-  // onto the prior year's bar under it, and that bar is the longer one, the label goes after the prior bar's end instead.
-  const endOf = (p: (typeof ps)[number]): number => {
+  // #209 review: a value label sits after its bar's end, centred on it. When the band is so thin that the label's ink (#209
+  // round 4: its glyphs, metrics.ts inkExtent, not an em box) would reach down onto the prior year's bar under it, and that
+  // bar is the longer one, the label goes after the prior bar's end instead.
+  const endOf = (p: (typeof ps)[number], size = SMALL): number => {
     const t = scale.t(Math.max(0, p.value));
     const pv = priorOf(p.key);
-    const reachesPrior = SMALL / 2 + SMALL * 0.15 > mainH / 2 + band * 0.04;
+    const reachesPrior = (inkExtent(valueText(p.value), "middle").down + INK_GAP) * size > mainH / 2 + band * 0.04;
     return prior && pv !== null && reachesPrior ? Math.max(t, scale.t(Math.max(0, pv))) : t;
   };
   const pw0 = w - x0 - (showValues ? SMALL * 4.5 : SMALL);
   const pw = showValues ? fitBarEnds(pw0, x0, w, ps.map((p, i) => ({ p, i })).filter(({ i }) => labelled.has(i)).map(({ p, i }) => ({ t: endOf(p), label: valueText(p.value), bold: i === 0 }))) : pw0;
   // #209 review: the labels (after the bar ends, centred on the bars) may not meet each other or a bar other than their own:
   // in thin bands they step down a size, down to 80 %; at that size a label that still meets one is left out, the
-  // biggest bars' labels kept first.
+  // biggest bars' labels kept first. #209 round 4: decided on the labels' ink (inkBox), so a label production drew clear
+  // of the next bar stays.
   const bars: Obstacle[] = ps.flatMap((p, i) => {
     const y = top + band * i;
     const out = [rectBox(x0 + scale.t(Math.min(0, p.value)) * pw, y + band * 0.14, (scale.t(Math.max(0, p.value)) - scale.t(Math.min(0, p.value))) * pw, mainH, i)];
@@ -71,8 +74,8 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
     const placed: LabelBox[] = [];
     const keep = new Set<number>();
     for (const i of shown) {
-      const box = labelBox(x0 + endOf(ps[i]) * pw + SMALL * 0.4, top + band * i + band * 0.14 + mainH / 2, valueText(ps[i].value), size, { baseline: "middle", bold: i === 0 });
-      const meets = placed.some((b) => boxesMeet(b, box, size * 0.15)) || bars.some((b) => b.owner !== i && boxesMeet(b, box, size * 0.15));
+      const box = inkBox(x0 + endOf(ps[i], size) * pw + SMALL * 0.4, top + band * i + band * 0.14 + mainH / 2, valueText(ps[i].value), size, { baseline: "middle", bold: i === 0 });
+      const meets = placed.some((b) => boxesMeet(b, box, size * INK_GAP)) || bars.some((b) => b.owner !== i && boxesMeet(b, box, size * INK_GAP));
       if (meets && !drop) return null;
       if (meets) continue;
       placed.push(box);
@@ -96,7 +99,7 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
       const pb = x0 + scale.t(Math.max(0, pv)) * pw;
       body += rect(pa, y + band * 0.14 + mainH + band * 0.04, pb - pa, band * 0.18, legendItems[1].color, ` data-prior="${esc(prior.label)}"`);
     }
-    if (fit.keep.has(i)) body += text(x0 + endOf(p) * pw + SMALL * 0.4, y + band * 0.14 + mainH / 2, valueText(p.value), theme.colors.ink, { size: fit.size, baseline: "middle", weight: i === 0 ? 700 : undefined });
+    if (fit.keep.has(i)) body += text(x0 + endOf(p, fit.size) * pw + SMALL * 0.4, y + band * 0.14 + mainH / 2, valueText(p.value), theme.colors.ink, { size: fit.size, baseline: "middle", weight: i === 0 ? 700 : undefined });
   });
   body += `<g transform="translate(0 ${n3(h - leg.h)})">${leg.svg}</g>`;
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="${kind}" data-bars="${ps.length}">${body}</g></svg>`;
