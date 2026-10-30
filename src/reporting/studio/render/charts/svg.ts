@@ -97,7 +97,7 @@ export const labelBox = (x: number, y: number, s: string, size = SMALL, opts: { 
 
 /**
  * #209 round 4: a text's ink box (metrics.ts inkExtent: the glyphs it holds, worst of the eight faces) drawn at x, y with
- * `anchor` and `baseline`; its width as labelWidth. Fits are decided on it with INK_GAP of air.
+ * `anchor` and `baseline`; its width as labelWidth. Fits are decided on it (INK_GAP).
  */
 export const inkBox = (x: number, y: number, s: string, size = SMALL, opts: { anchor?: "start" | "middle" | "end"; bold?: boolean; baseline?: string } = {}): LabelBox => {
   const lw = labelWidth(s, size, opts.bold);
@@ -105,8 +105,8 @@ export const inkBox = (x: number, y: number, s: string, size = SMALL, opts: { an
   const ink = inkExtent(s, opts.baseline === "middle" || opts.baseline === "central" ? "middle" : "alphabetic");
   return { x0, x1: x0 + lw, y0: y - ink.up * size, y1: y + ink.down * size };
 };
-/** Air kept between ink boxes (em of the label's size). */
-export const INK_GAP = 0.03;
+/** Air kept between ink boxes (em of the label's size): none, as the boxes already hold the worst face's glyphs (touching is not meeting). */
+export const INK_GAP = 0;
 
 /** Whether two label boxes meet (touching counts, with `gap` of air around them). */
 export const boxesMeet = (a: LabelBox, b: LabelBox, gap = 0): boolean => a.x0 < b.x1 + gap && b.x0 < a.x1 + gap && a.y0 < b.y1 + gap && b.y0 < a.y1 + gap;
@@ -235,7 +235,7 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
           }
           if (!stagger && !first) break;
           // Stagger: just above what it would meet.
-          y = Math.min(...hits.map((p) => p.y0)) - gap - ink.down * size - 1e-6;
+          y = Math.min(...hits.map((p) => p.y0)) - gap - ink.down * size - 0.01; // 0.01: clear of the 3-decimal rounding of x, y
         }
       }
       if (!spot) {

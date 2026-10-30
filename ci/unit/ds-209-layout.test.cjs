@@ -630,6 +630,12 @@ test("round 4: ranked and horizontal bars keep the labels and names production d
   // The DS-8 category bars 3.5 mm shorter than the social_191 frame: production drew 1,290, 620 and 410 clear of every bar.
   assert.deepEqual(clear(alone("g.category_bars", 136.07, 30), "category_bars 136×30").sort(), ["1,290.000", "410.000", "620.000"]);
   assert.ok(clear(alone("g.category_prior", 136.07, 26), "category_prior 136×26").includes("620.000"));
+  // On social_191, production drew "440" right after its bar, its ink 0.27 units clear of the prior year's bar under it: the
+  // label stays there (it doesn't jump past the longer prior bar).
+  const cp = ALL.find(({ r, c }) => r.name === "DS-8 social_191" && c.id === "g.category_prior").c;
+  const t440 = cp.texts.find((t) => t.s === "440.000");
+  const own440 = cp.rects.find((r) => r.part === "Other");
+  assert.ok(t440 && Math.abs(t440.x - (own440.x + own440.w) - S * 0.4) < EPS, `440.000 at ${t440?.x} after its bar's end ${own440.x + own440.w}`);
   // Seven years in a band of about 8 units: every name at full size, every total right after its own bar.
   const vals = [14989.417, 1758.997, 16766.405, 12775.164, 29916.859, 96447.361, 16412.877];
   const keys = ["2019", "2020", "2021", "2022", "2023", "2024", "2025"];
