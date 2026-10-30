@@ -194,6 +194,7 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
       by_category: [],
       submission: { month: submissionMonth(period), submitted: 0, missing: 0, users: [] },
       trend: trendMonths(period, null).map((month) => ({ month, gross: 0, saved: 0, net: 0 })),
+      trend_scope_2: trendMonths(period, null).map((month) => ({ month, total: 0 })),
       last_year: lastYear(period, []),
     };
   }
@@ -372,12 +373,15 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
   }
   const trendKeys = trendMonths(period, latestMonth);
   let trend: { month: string; gross: number; saved: number; net: number }[] = [];
+  // D14: Scope 2 of the same months and rows (the Overview's Scope 2 tab), each month's kg rounded once.
+  let trend_scope_2: { month: string; total: number }[] = [];
   if (trendKeys.length) {
     const [y, m] = trendKeys[trendKeys.length - 1].split("-").map(Number);
     const rows = await filtered({ key: "trend", type: "month", start: `${trendKeys[0]}-01`, end: ymd(y, m, lastDay(y, m)) })
       .select("to_char(e.date_of_reporting, 'YYYY-MM')", "month")
       .addSelect("(c.scope IS NULL)", "saved")
       .addSelect(sumKgSql("e"), "kg")
+      .addSelect(sumKgSql("e", "c.scope = 'Scope 2'"), "scope2_kg")
       .andWhere("e.status = 'approved'")
       .andWhere("e.reporting_period IS DISTINCT FROM 'yearly'")
       .groupBy("to_char(e.date_of_reporting, 'YYYY-MM')")
@@ -388,6 +392,7 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
       const saved = num(rows.find((r) => r.month === month && r.saved)?.kg);
       return { month, gross: t3(gross), saved: t3(saved), net: t3(addKg(gross, -saved)) };
     });
+    trend_scope_2 = trendKeys.map((month) => ({ month, total: t3(sumKg(rows.filter((r) => r.month === month).map((r) => r.scope2_kg))) }));
   }
 
   // The same period last year, on the same rules as the KPIs.
@@ -401,7 +406,7 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
     net_vs_last_year_pct: pctChange(s.net, compared?.by_site.find((x) => x.site_id === s.site_id)?.net),
   }));
 
-  return { ...base, kpis, by_scope, by_site: by_site_ly, by_month, yearly_total, by_category, submission, trend, last_year };
+  return { ...base, kpis, by_scope, by_site: by_site_ly, by_month, yearly_total, by_category, submission, trend, trend_scope_2, last_year };
 }
 
 type ApprovedRow = { site_id: number; scope: string | null; kg: unknown };

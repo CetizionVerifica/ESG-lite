@@ -26,6 +26,11 @@
 //   of 100.45 kg at each site (0.10045 t → stored 0.1 t).
 //     saved = 2 × 100.45 = 200.9 kg → 0.201 t   (sites 0.1 + 0.1 = 0.2)
 //
+//   CY 2045, sites 1 and 2 (the Overview's Intensity and Scope 2 tabs):
+//     January  a Scope 1 row at each site: 2 × 1,234.4 = 2,468.8 kg → 2.469 t   (sites 1.234 + 1.234 = 2.468)
+//     February a Scope 2 row at each site: 2,468.8 kg → 2.469 t                   (stored 1.234 + 1.234 = 2.468)
+//     March    a legacy Scope 2 row at site 1 stored at 2 dp: 885.4 kg → 0.885 t  (stored 0.89 t)
+//
 // Rows use pk_id 82100–82119, years no other test writes to.
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -37,6 +42,7 @@ const ROOT = path.resolve(__dirname, "../../..");
 const SPLIT_YEAR = 2038;
 const SITES_YEAR = 2041;
 const SAVED_YEAR = 2043;
+const TABS_YEAR = 2045;
 const MOBILE = 9841; // a second Scope 1 category
 
 const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
@@ -64,6 +70,11 @@ test.before(async () => {
   await insert(82107, MOBILE, 2, `${SITES_YEAR}-03-10`, 1.234, "1234.4");
   await insert(82108, 4, 1, `${SAVED_YEAR}-04-10`, 0.1, "100.45");
   await insert(82109, 4, 2, `${SAVED_YEAR}-04-10`, 0.1, "100.45");
+  await insert(82110, 1, 1, `${TABS_YEAR}-01-10`, 1.234, "1234.4");
+  await insert(82111, 1, 2, `${TABS_YEAR}-01-10`, 1.234, "1234.4");
+  await insert(82112, 2, 1, `${TABS_YEAR}-02-10`, 1.234, "1234.4");
+  await insert(82113, 2, 2, `${TABS_YEAR}-02-10`, 1.234, "1234.4");
+  await insert(82114, 2, 1, `${TABS_YEAR}-03-10`, 0.89, "885.4");
 });
 test.after(async () => {
   await reset();
@@ -238,4 +249,26 @@ test("EDE: totals.saved is the renewable rows' kg rounded once, as Overview and 
   assert.equal(ov.kpis.saved, ede.totals.saved);
   const t = await tables({ siteIds: [1, 2], year: SAVED_YEAR });
   assert.equal(t.tables.table_overviewByLocations_selectedYear.rows.find((r) => r.category === "Renewable Electricity").total, ede.totals.saved);
+});
+
+test("Overview tabs: the Scope 2 and intensity months are the server's, each month's kg rounded once, as the main chart and the GHG tables", async () => {
+  const months = [`${TABS_YEAR}-01`, `${TABS_YEAR}-02`, `${TABS_YEAR}-03`];
+  const ov = ok(await call("GET", `/manager/overview?period=${TABS_YEAR}&siteIds=1,2`, "manager"), "overview");
+  const gross = Object.fromEntries(ov.by_month.map((m) => [m.month, m.gross]));
+  assert.deepEqual(months.map((m) => gross[m]), [2.469, 2.469, 0.885], "main chart (by_month)");
+  // Scope 2 tab: the same months as the trend, Scope 2 only.
+  assert.deepEqual(ov.trend_scope_2.map((m) => m.month), ov.trend.map((m) => m.month));
+  const s2 = Object.fromEntries(ov.trend_scope_2.map((m) => [m.month, m.total]));
+  assert.deepEqual(months.map((m) => s2[m]), [0, 2.469, 0.885], "Scope 2 by month");
+  for (const [i, m] of [[2, 1], [3, 2]]) {
+    const t = await tables({ siteIds: [1, 2], year: TABS_YEAR, frequency: "monthly", month: i });
+    assert.equal(t.totals[String(TABS_YEAR)].scope2, s2[months[m]], `GHG tables Scope 2, month ${i}`);
+  }
+  // Intensity tab: both sites' months combined on the server.
+  const cmp = ok(await call("GET", `/user/emission-intensity/comparison?siteIds=1,2&startDate=${TABS_YEAR}-01-01&endDate=${TABS_YEAR}-12-31`, "manager"), "comparison");
+  const monthly = Object.fromEntries(cmp.monthlyData.map((m) => [m.month, m.emissions]));
+  assert.deepEqual(months.map((m) => monthly[m]), [2.469, 2.469, 0.885], "combined monthly emissions");
+  // One site on its own: its own months (January 1,234.4 kg → 1.234 t).
+  const one = ok(await call("GET", `/user/emission-intensity/site/1?startDate=${TABS_YEAR}-01-01&endDate=${TABS_YEAR}-12-31`, "manager"), "site intensity");
+  assert.deepEqual(one.monthlyData.map((m) => [m.month, m.emissions]), [[months[0], 1.234], [months[1], 1.234], [months[2], 0.885]]);
 });
