@@ -226,13 +226,27 @@ export const updateUserCategories = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Update user's categories
-    if (category_ids.length > 0) {
-      const categories = await categoryRepo.findBy({ category_id: In(category_ids) });
-      targetUser.categories = categories;
-    } else {
-      targetUser.categories = [];
+    // user_categories has no site column: a grant for a category that isn't on
+    // this manager's shared sites came from another manager, so it stays.
+    // A person with no grants yet (legacy: every category) keeps every category
+    // of the sites this manager doesn't share, rather than losing them.
+    const otherSiteIds = [...userSiteIds].filter((id) => !managerSiteIds.has(id));
+    const current = targetUser.categories?.length
+      ? targetUser.categories.map((c) => c.category_id)
+      : otherSiteIds.length
+        ? (await AppDataSource.query(`SELECT DISTINCT category_id FROM site_categories WHERE site_id = ANY($1)`, [otherSiteIds])).map((r: { category_id: number }) => Number(r.category_id))
+        : [];
+    const keptIds = current.filter((id: number) => !allowedCategoryIds.has(id));
+    const nextIds = [...new Set<number>([...keptIds, ...category_ids])];
+    // No grants at all reads as every category (filterUserCategories, legacy
+    // users), so removing the last one would grant everything instead.
+    if (nextIds.length === 0) {
+      return res.status(400).json({
+        code: "CATEGORY_ACCESS_EMPTY",
+        message: "Keep at least one category enabled. To remove this person's access, remove them from the site.",
+      });
     }
+    targetUser.categories = await categoryRepo.findBy({ category_id: In(nextIds) });
 
     await userRepo.save(targetUser);
 
