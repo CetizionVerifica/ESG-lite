@@ -5,6 +5,7 @@ import { emissionIntensityComparison } from "../services/emissionIntensity.servi
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { Product } from "../entities/Product";
 import { Emission, EmissionStatus } from "../entities/Emission";
+import { kgToTonnes, sumKgSql } from "../reporting/kgTotals"; // D14
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
@@ -350,14 +351,14 @@ export const getEmissionIntensity = async (req: Request, res: Response) => {
     const emissionsQuery = emissionRepo
       .createQueryBuilder("emission")
       .leftJoin("emission.category", "category")
-      .select("SUM(emission.total_emission)", "totalEmissions")
+      .select(sumKgSql("emission"), "kg") // D14: the rows' kg, rounded once
       .where("emission.site_id = :siteId", { siteId: parseInt(siteId) })
       .andWhere("emission.status = :status", { status: EmissionStatus.APPROVED })
       .andWhere("emission.date_of_reporting BETWEEN :startDate AND :endDate", dateFilter)
       .andWhere("category.scope IS NOT NULL"); // Exclude null-scope categories
 
     const emissionsResult = await emissionsQuery.getRawOne();
-    const totalEmissions = parseFloat(emissionsResult?.totalEmissions || 0);
+    const totalEmissions = kgToTonnes(emissionsResult?.kg);
 
     // Get total production for the site (where production period overlaps with filter, approved only)
     const productionQuery = repo
@@ -423,7 +424,7 @@ async function getMonthlyIntensity(
     .createQueryBuilder("e")
     .leftJoin("e.category", "category")
     .select("DATE_TRUNC('month', e.date_of_reporting)", "month")
-    .addSelect("SUM(e.total_emission)", "emissions")
+    .addSelect(sumKgSql("e"), "kg") // D14: each month's kg, rounded once
     .where("e.site_id = :siteId", { siteId })
     .andWhere("e.status = :status", { status: EmissionStatus.APPROVED })
     .andWhere("e.date_of_reporting BETWEEN :startDate AND :endDate", { startDate, endDate })
@@ -454,7 +455,7 @@ async function getMonthlyIntensity(
   monthlyEmissions.forEach((e) => {
     const monthKey = new Date(e.month).toISOString().slice(0, 7);
     monthMap.set(monthKey, {
-      emissions: parseFloat(e.emissions || 0),
+      emissions: kgToTonnes(e.kg),
       production: 0,
       intensity: 0,
     });

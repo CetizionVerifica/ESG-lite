@@ -8,6 +8,7 @@ import { AppDataSource } from "../config/data-source";
 import { Emission } from "../entities/Emission";
 import { UserRole } from "../types/type";
 import { approvedEntryCountSql, pendingReviewCountSql } from "../utils/feraFold";
+import { addKg, kgToTonnes, sumKg, sumKgSql } from "../reporting/kgTotals";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -153,7 +154,9 @@ const submissionMonth = (period: OverviewPeriod): string => {
 };
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
-const r3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000 || 0;
+// D14: every figure below adds the rows' exact kgCO₂e (addKg) and rounds once
+// to tCO₂e at the end (kgToTonnes), as the GHG report does.
+const t3 = kgToTonnes;
 
 // A yearly batch counts in the KPIs only for a whole year of its own type
 // (CY batch <-> "YYYY", FY batch <-> "FYyyyy-yy") or for all time. For any
@@ -228,8 +231,8 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
   };
   const { sql: countedSql, params: countedParams } = countedFor(period);
 
-  // Approved tCO2e by site x category x month x period type; everything
-  // else is summed from these rows in JS.
+  // Approved kgCO2e by site x category x month x period type; everything
+  // else is summed from these rows in JS, in kg, and rounded once (D14).
   const approvedRows = (p: OverviewPeriod) => {
     const counted = countedFor(p);
     return filtered(p)
@@ -240,7 +243,7 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
     .addSelect("to_char(e.date_of_reporting, 'YYYY-MM')", "month")
     .addSelect("(e.reporting_period = 'yearly')", "yearly")
     .addSelect(counted.sql, "counted")
-    .addSelect("SUM(e.total_emission)", "total")
+    .addSelect(sumKgSql("e"), "kg")
     .andWhere("e.status = 'approved'")
     .setParameters(counted.params)
     .groupBy("e.site_id")
@@ -263,24 +266,24 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
     .addSelect("COUNT(*) FILTER (WHERE e.status = 'pending')", "pending")
     .addSelect(pendingReviewCountSql("e", "c"), "pending_review")
     .addSelect("COUNT(*) FILTER (WHERE e.status = 'rejected')", "rejected")
-    .addSelect("COALESCE(SUM(e.total_emission) FILTER (WHERE e.status = 'pending'), 0)", "pending_emission")
+    .addSelect(sumKgSql("e", "e.status = 'pending'"), "pending_kg")
     .andWhere(countedSql, countedParams)
     // S3-15 part 2: a Draft isn't submitted yet, so it is no entry for the manager.
     .andWhere("e.status::text <> 'draft'")
     .groupBy("e.site_id")
     .getRawMany();
 
-  // KPIs
+  // KPIs (kg until rounded once below)
   const kpis = emptyKpis();
   for (const r of inKpis) {
-    const t = num(r.total);
-    if (r.scope === "Scope 1") kpis.scope_1 += t;
-    else if (r.scope === "Scope 2") kpis.scope_2 += t;
-    else if (r.scope === "Scope 3") kpis.scope_3 += t;
-    else if (r.scope === null) kpis.saved += t;
+    const kg = num(r.kg);
+    if (r.scope === "Scope 1") kpis.scope_1 = addKg(kpis.scope_1, kg);
+    else if (r.scope === "Scope 2") kpis.scope_2 = addKg(kpis.scope_2, kg);
+    else if (r.scope === "Scope 3") kpis.scope_3 = addKg(kpis.scope_3, kg);
+    else if (r.scope === null) kpis.saved = addKg(kpis.saved, kg);
   }
-  kpis.gross = kpis.scope_1 + kpis.scope_2 + kpis.scope_3;
-  kpis.net = kpis.gross - kpis.saved;
+  kpis.gross = addKg(kpis.scope_1, kpis.scope_2, kpis.scope_3);
+  kpis.net = addKg(kpis.gross, -kpis.saved);
   for (const c of counts) {
     kpis.entries += num(c.entries);
     kpis.approved_count += num(c.approved);
@@ -288,9 +291,9 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
     kpis.pending_count += num(c.pending);
     kpis.pending_review_count += num(c.pending_review);
     kpis.rejected_count += num(c.rejected);
-    kpis.pending_emission += num(c.pending_emission);
+    kpis.pending_emission = addKg(kpis.pending_emission, c.pending_kg);
   }
-  for (const k of ["gross", "net", "saved", "scope_1", "scope_2", "scope_3", "pending_emission"] as const) kpis[k] = r3(kpis[k]);
+  for (const k of ["gross", "net", "saved", "scope_1", "scope_2", "scope_3", "pending_emission"] as const) kpis[k] = t3(kpis[k]);
 
   const by_scope = [
     { scope: "Scope 1", total: kpis.scope_1 },
@@ -309,32 +312,32 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
   let yearly_total = 0;
   for (const r of approved) {
     if (r.yearly) {
-      yearly_total += num(r.total);
+      yearly_total = addKg(yearly_total, r.kg);
       continue;
     }
     const bucket = monthMap.get(r.month);
     if (!bucket) continue;
-    if (r.scope === null || r.scope === undefined) bucket.saved += num(r.total);
-    else bucket.gross += num(r.total);
+    if (r.scope === null || r.scope === undefined) bucket.saved = addKg(bucket.saved, r.kg);
+    else bucket.gross = addKg(bucket.gross, r.kg);
   }
-  yearly_total = r3(yearly_total);
-  const by_month = [...monthMap.values()].map((b) => ({ month: b.month, gross: r3(b.gross), saved: r3(b.saved), net: r3(b.gross - b.saved) }));
+  yearly_total = t3(yearly_total);
+  const by_month = [...monthMap.values()].map((b) => ({ month: b.month, gross: t3(b.gross), saved: t3(b.saved), net: t3(addKg(b.gross, -b.saved)) }));
 
   // By site: `total` is every approved entry (as the dashboard's site
   // comparison chart), gross/saved/net split it like the KPIs.
   const by_site = siteIds.map((siteId) => {
     const rows = inKpis.filter((r) => r.site_id === siteId);
     const c = counts.find((x) => x.site_id === siteId);
-    const sum = (pred: (r: any) => boolean) => rows.filter(pred).reduce((s, r) => s + num(r.total), 0);
+    const sum = (pred: (r: any) => boolean) => sumKg(rows.filter(pred).map((r) => r.kg));
     const gross = sum((r) => r.scope === "Scope 1" || r.scope === "Scope 2" || r.scope === "Scope 3");
     const saved = sum((r) => r.scope === null);
     return {
       site_id: siteId,
       name: managed.get(siteId),
-      total: r3(sum(() => true)),
-      gross: r3(gross),
-      saved: r3(saved),
-      net: r3(gross - saved),
+      total: t3(sum(() => true)),
+      gross: t3(gross),
+      saved: t3(saved),
+      net: t3(addKg(gross, -saved)),
       entries: num(c?.entries),
       approved: num(c?.approved),
       pending: num(c?.pending),
@@ -347,11 +350,11 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
   for (const r of inKpis) {
     if (r.scope === null || r.scope === undefined) continue;
     const cur = catMap.get(r.category_id) || { category_id: r.category_id, category_name: r.category_name, scope: r.scope, total: 0 };
-    cur.total += num(r.total);
+    cur.total = addKg(cur.total, r.kg); // kg until rounded below
     catMap.set(r.category_id, cur);
   }
   const by_category = [...catMap.values()]
-    .map((c) => ({ ...c, total: r3(c.total) }))
+    .map((c) => ({ ...c, total: t3(c.total) }))
     .sort((a, b) => b.total - a.total || a.category_id - b.category_id);
 
   const submission = await submissionFor(submissionMonth(period), siteIds);
@@ -374,16 +377,16 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
     const rows = await filtered({ key: "trend", type: "month", start: `${trendKeys[0]}-01`, end: ymd(y, m, lastDay(y, m)) })
       .select("to_char(e.date_of_reporting, 'YYYY-MM')", "month")
       .addSelect("(c.scope IS NULL)", "saved")
-      .addSelect("SUM(e.total_emission)", "total")
+      .addSelect(sumKgSql("e"), "kg")
       .andWhere("e.status = 'approved'")
       .andWhere("e.reporting_period IS DISTINCT FROM 'yearly'")
       .groupBy("to_char(e.date_of_reporting, 'YYYY-MM')")
       .addGroupBy("(c.scope IS NULL)")
       .getRawMany();
     trend = trendKeys.map((month) => {
-      const gross = num(rows.find((r) => r.month === month && !r.saved)?.total);
-      const saved = num(rows.find((r) => r.month === month && r.saved)?.total);
-      return { month, gross: r3(gross), saved: r3(saved), net: r3(gross - saved) };
+      const gross = num(rows.find((r) => r.month === month && !r.saved)?.kg);
+      const saved = num(rows.find((r) => r.month === month && r.saved)?.kg);
+      return { month, gross: t3(gross), saved: t3(saved), net: t3(addKg(gross, -saved)) };
     });
   }
 
@@ -401,7 +404,7 @@ export async function computeManagerOverview({ period, siteIds, managed, categor
   return { ...base, kpis, by_scope, by_site: by_site_ly, by_month, yearly_total, by_category, submission, trend, last_year };
 }
 
-type ApprovedRow = { site_id: number; scope: string | null; total: unknown };
+type ApprovedRow = { site_id: number; scope: string | null; kg: unknown };
 
 // Gross/saved/net and per-scope figures of last year's counted approved rows
 // (see lastYearComparison), in total and per site; null when the period has
@@ -410,13 +413,13 @@ const lastYear = (period: OverviewPeriod, siteIds: number[], rows: ApprovedRow[]
   const ly = lastYearComparison(period);
   if (!ly) return null;
   const split = (rs: ApprovedRow[]) => {
-    const t = (scope: string | null) => rs.filter((r) => r.scope === scope).reduce((s, r) => s + num(r.total), 0);
+    const t = (scope: string | null) => sumKg(rs.filter((r) => r.scope === scope).map((r) => r.kg));
     const scope_1 = t("Scope 1");
     const scope_2 = t("Scope 2");
     const scope_3 = t("Scope 3");
     const saved = t(null);
-    const gross = scope_1 + scope_2 + scope_3;
-    return { gross: r3(gross), net: r3(gross - saved), saved: r3(saved), scope_1: r3(scope_1), scope_2: r3(scope_2), scope_3: r3(scope_3) };
+    const gross = addKg(scope_1, scope_2, scope_3);
+    return { gross: t3(gross), net: t3(addKg(gross, -saved)), saved: t3(saved), scope_1: t3(scope_1), scope_2: t3(scope_2), scope_3: t3(scope_3) };
   };
   const kpis = split(rows);
   return {
