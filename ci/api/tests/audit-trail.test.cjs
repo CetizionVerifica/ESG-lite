@@ -143,7 +143,7 @@ test("the server never stores a total the client sent", async () => {
 });
 
 test("a manager edit recalculates the FERA twin and keeps it in step with the parent", async () => {
-  const before = await q("SELECT pk_id, activity_data, total_emission, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+  const before = await q("SELECT pk_id, activity_data, total_emission, total_kgco2e, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
   await q(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id)
            VALUES (901, 'Diesel', 2.68, 'litre', 2024, 1, 1), (902, 'Diesel', 0.61, 'litre', 2024, 1, 5)`);
   await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id IN (1, 5)");
@@ -176,8 +176,8 @@ test("a manager edit recalculates the FERA twin and keeps it in step with the pa
   } finally {
     for (const b of before) {
       await q(
-        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7 WHERE pk_id=$1",
-        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by]
+        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7, total_kgco2e=$8 WHERE pk_id=$1",
+        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by, b.total_kgco2e]
       );
     }
     await q("DELETE FROM emission_factors WHERE emission_factor_id IN (901, 902)");
@@ -186,7 +186,7 @@ test("a manager edit recalculates the FERA twin and keeps it in step with the pa
 });
 
 test("manager edit takes the quantity, not a select's option id (configured select names)", async () => {
-  const before = await q("SELECT activity_data, total_emission, activity_data_unit, emission_factor_snapshot, date_of_reporting FROM emission WHERE pk_id=3");
+  const before = await q("SELECT activity_data, total_emission, total_kgco2e, activity_data_unit, emission_factor_snapshot, date_of_reporting FROM emission WHERE pk_id=3");
   await q("INSERT INTO column_entity (pk_id, column_name, column_type) VALUES (9901, 'Waste Type', 'select'), (9902, 'Amount of waste', 'number')");
   await q(`INSERT INTO column_config (pk_id, config_name, site_id, category_id, column_options) VALUES (9901, 'CI waste', 1, 3, '{"9901":[{"id":"6","label":"ETP Sludge"}]}')`);
   await q("INSERT INTO column_config_columns (column_config_id, column_id) VALUES (9901, 9901), (9901, 9902)");
@@ -216,8 +216,8 @@ test("manager edit takes the quantity, not a select's option id (configured sele
     assert.equal(Number((await q("SELECT total_emission FROM emission WHERE pk_id=3"))[0].total_emission), 5.502);
   } finally {
     const [b] = before;
-    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4, date_of_reporting=$5 WHERE pk_id=3",
-      [b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.date_of_reporting]);
+    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4, date_of_reporting=$5, total_kgco2e=$6 WHERE pk_id=3",
+      [b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.date_of_reporting, b.total_kgco2e]);
     await q("DELETE FROM column_config_columns WHERE column_config_id=9901");
     await q("DELETE FROM column_config WHERE pk_id=9901");
     await q("DELETE FROM column_entity WHERE pk_id IN (9901, 9902)");
@@ -227,7 +227,7 @@ test("manager edit takes the quantity, not a select's option id (configured sele
 });
 
 test("manager edit: the FERA twin takes the quantity, not a select's option id", async () => {
-  const before = await q("SELECT pk_id, activity_data, total_emission, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+  const before = await q("SELECT pk_id, activity_data, total_emission, total_kgco2e, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
   await q("INSERT INTO column_entity (pk_id, column_name, column_type) VALUES (9903, 'Fuel Name', 'select'), (9904, 'Litres', 'number')");
   await q("INSERT INTO column_config (pk_id, config_name, site_id, category_id) VALUES (9902, 'CI fuel', 1, 1)");
   await q("INSERT INTO column_config_columns (column_config_id, column_id) VALUES (9902, 9903), (9902, 9904)");
@@ -245,8 +245,8 @@ test("manager edit: the FERA twin takes the quantity, not a select's option id",
   } finally {
     for (const b of before) {
       await q(
-        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7 WHERE pk_id=$1",
-        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by]
+        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7, total_kgco2e=$8 WHERE pk_id=$1",
+        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by, b.total_kgco2e]
       );
     }
     await q("DELETE FROM column_config_columns WHERE column_config_id=9902");
@@ -259,7 +259,7 @@ test("manager edit: the FERA twin takes the quantity, not a select's option id",
 
 test("a date-only manager edit of a row without category or unit keeps its total", async () => {
   // Fixture rows 2 (pending) and 3 (approved) have no emission_category.
-  const before = await q("SELECT pk_id, total_emission, date_of_reporting, status FROM emission WHERE pk_id IN (2, 3) ORDER BY pk_id");
+  const before = await q("SELECT pk_id, total_emission, total_kgco2e, date_of_reporting, status FROM emission WHERE pk_id IN (2, 3) ORDER BY pk_id");
   try {
     for (const b of before) {
       const r = await call("PUT", `/user/emissions/manager-edit/${b.pk_id}`, "manager", { date_of_reporting: "2025-08-31", reason: "Wrong month" });
@@ -273,14 +273,14 @@ test("a date-only manager edit of a row without category or unit keeps its total
     assert.equal(bad.status, 400);
   } finally {
     for (const b of before) {
-      await q("UPDATE emission SET total_emission=$2, date_of_reporting=$3, status=$4 WHERE pk_id=$1", [b.pk_id, b.total_emission, b.date_of_reporting, b.status]);
+      await q("UPDATE emission SET total_emission=$2, date_of_reporting=$3, status=$4, total_kgco2e=$5 WHERE pk_id=$1", [b.pk_id, b.total_emission, b.date_of_reporting, b.status, b.total_kgco2e]);
     }
     await clearAudit("emission", [2, 3]);
   }
 });
 
 test("a manager edit with an empty, zero or negative amount is refused and keeps the entry as it was", async () => {
-  const [before] = await q("SELECT activity_data, total_emission, activity_data_unit, emission_factor_snapshot FROM emission WHERE pk_id=1");
+  const [before] = await q("SELECT activity_data, total_emission, total_kgco2e, activity_data_unit, emission_factor_snapshot FROM emission WHERE pk_id=1");
   await q("INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES (901, 'Diesel', 2.68, 'litre', 2024, 1, 1)");
   await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id=1");
   try {
@@ -296,8 +296,8 @@ test("a manager edit with an empty, zero or negative amount is refused and keeps
     assert.deepEqual(row.activity_data, before.activity_data);
     assert.equal((await auditRows("emission", 1)).length, 0);
   } finally {
-    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4 WHERE pk_id=1",
-      [before.activity_data, before.total_emission, before.activity_data_unit, before.emission_factor_snapshot]);
+    await q("UPDATE emission SET activity_data=$1, total_emission=$2, activity_data_unit=$3, emission_factor_snapshot=$4, total_kgco2e=$5 WHERE pk_id=1",
+      [before.activity_data, before.total_emission, before.activity_data_unit, before.emission_factor_snapshot, before.total_kgco2e]);
     await q("DELETE FROM emission_factors WHERE emission_factor_id = 901");
     await clearAudit("emission", [1]);
   }
@@ -376,7 +376,7 @@ test("legacy Excel import: totals from the engine and the site's factor, never t
 });
 
 test("a FERA factor in a unit that cannot be converted gives no twin total from the raw value (F-12)", async () => {
-  const before = await q("SELECT pk_id, activity_data, total_emission, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
+  const before = await q("SELECT pk_id, activity_data, total_emission, total_kgco2e, activity_data_unit, emission_factor_snapshot, status, reviewed_by FROM emission WHERE pk_id IN (1, 5) ORDER BY pk_id");
   await q(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id)
            VALUES (903, 'Diesel', 2.68, 'litre', 2024, 1, 1), (904, 'Diesel', 0.3, 'kWh', 2024, 1, 5)`);
   await q("UPDATE emission SET activity_data_unit='litre' WHERE pk_id IN (1, 5)");
@@ -416,8 +416,8 @@ test("a FERA factor in a unit that cannot be converted gives no twin total from 
     }
     for (const b of before) {
       await q(
-        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7, review_comment=NULL WHERE pk_id=$1",
-        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by]
+        "UPDATE emission SET activity_data=$2, total_emission=$3, activity_data_unit=$4, emission_factor_snapshot=$5, status=$6, reviewed_by=$7, review_comment=NULL, total_kgco2e=$8 WHERE pk_id=$1",
+        [b.pk_id, b.activity_data, b.total_emission, b.activity_data_unit, b.emission_factor_snapshot, b.status, b.reviewed_by, b.total_kgco2e]
       );
     }
     await q("DELETE FROM emission_factors WHERE emission_factor_id IN (903, 904)");

@@ -179,7 +179,7 @@
                   "pctOfTotal": 100
                 },
                 "2025": {
-                  "emissions": 37211.129,
+                  "emissions": 37211.13,
                   "pctOfTotal": 100
                 }
               }
@@ -271,7 +271,7 @@
             "scope1": 15935.949,
             "scope2": 17730.621,
             "scope3": 3544.559,
-            "total": 37211.129
+            "total": 37211.13
           }
         }
       },
@@ -732,7 +732,7 @@
             "scope3": 3544.559,
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 31315.129
+            "total": 31315.13
           },
           {
             "pctOfTotal": 15.84,
@@ -935,7 +935,7 @@
           {
             "name": "CI Plant A",
             "pct": 84.16,
-            "value": 31315.129
+            "value": 31315.13
           },
           {
             "name": "CI Plant B",
@@ -947,7 +947,7 @@
           "scope1": 15935.949,
           "scope2": 17730.621,
           "scope3": 3544.559,
-          "total": 37211.129
+          "total": 37211.13
         }
       },
       "name": "EDE yearly 2025, both sites (DS-2 intensity extraction)",
