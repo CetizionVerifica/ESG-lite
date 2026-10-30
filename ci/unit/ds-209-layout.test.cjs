@@ -1046,9 +1046,10 @@ const numOf = (s) => (s.startsWith("−") ? -1 : 1) * Number(s.replace(/^[+−]/
 /**
  * Why a value label's box `b` (font size `size`) does not read as column k's (null when it does): its centre more than 40 % of
  * the way towards another column's middle; another column under or over it (sharing some of its width) within a line of it
- * while its own is farther by more than a line (resting on a neighbour); or more than two lines higher than its natural place
- * over its own column. A label beside its column (no
- * column spans its width) reads as the nearest column's.
+ * and nearer than half its own column's gap (#209 round 6: resting on a neighbour; round 5 allowed it whenever its own was
+ * less than a line farther), or nearer than its own by more than one SMALL (#209 round 6: the nearest mark under its ink is its
+ * own, or within one SMALL of the nearest); or more than two lines higher than its natural place over its own column. A label
+ * beside its column (no column spans its width) reads as the nearest column's.
  */
 function notOwn(b, k, cols, size) {
   const own = cols[k];
@@ -1068,7 +1069,11 @@ function notOwn(b, k, cols, size) {
   const vgap = (o) => Math.max(0, o.top - b.y1, b.y0 - o.bottom);
   const ownGap = across(own) ? vgap(own) : Infinity;
   const line = SVG.LABEL_LIFT * size;
-  for (const [j, o] of cols.entries()) if (j !== k && across(o) && vgap(o) < line - EPS && vgap(o) < ownGap - line - EPS) return `on column ${j} (gap ${vgap(o).toFixed(1)}, its own ${ownGap.toFixed(1)})`;
+  for (const [j, o] of cols.entries()) {
+    if (j === k || !across(o)) continue;
+    if (vgap(o) < line - EPS && vgap(o) < ownGap / 2 - EPS) return `on column ${j} (gap ${vgap(o).toFixed(2)}, its own ${ownGap.toFixed(2)})`;
+    if (vgap(o) < ownGap - SVG.SMALL - EPS) return `nearer column ${j} (gap ${vgap(o).toFixed(2)}, its own ${ownGap.toFixed(2)})`;
+  }
   if (b.y1 <= own.top + EPS && own.top - b.y1 > SVG.SMALL * 0.5 + 2 * SVG.LABEL_LIFT * size + EPS) return `${(own.top - b.y1).toFixed(1)} over its own column`;
   return null;
 }
@@ -1209,6 +1214,86 @@ test("round 5: over random charts every value label reads as its own column's, a
       assert.deepEqual(keptFirstLeftOut(c), [], at);
     }
   assert.ok(charts > 800 && labels > 3000, `${charts} charts, ${labels} labels`);
+});
+
+// #209 round 6 (final review): the reviewers' frames where round 5 left a value label resting at a gap of about 0 on a
+// neighbouring column (its own top less than a line lower, so ownsSpot's "within a line while its own is farther by more
+// than a line" let it through), the neighbour's own label then left out: seed 2718 fe #367 ("2,834.447" 0.16–0.6 over the
+// 2022 bar), seed 77 fe #358 ("4,408.763" 0.53 over 2020, "2,464.087" 0.52 over 2023), seed 77 ext #229 ("721.844" 0.24
+// over the 2023 bar).
+const ROUND6_CASES = [
+  ["m2718 fe #367", {"kind":"target_bars","w":159,"h":137,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":2768.963},{"key":"2020","value":26112.037},{"key":"2021","value":2834.447},{"key":"2022","value":19777.896},{"key":"2023","value":93075.226},{"key":"2024","value":176570.625}]}],"target":{"baseline":111884.456,"value":16097.309,"year":2030}}}],
+  ["m77 fe #358", {"kind":"target_bars","w":160,"h":125,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":152160.817},{"key":"2020","value":17127.372},{"key":"2021","value":4408.763},{"key":"2022","value":88232.626},{"key":"2023","value":20420.324},{"key":"2024","value":2464.087}]}],"target":{"baseline":91348.493,"value":161914.308,"year":2030}}}],
+  ["m77 ext #229", {"kind":"bar","w":127,"h":135,"value":{"display":"","value":1,"unit":"tCO₂e","series":[{"label":"Total","values":[{"key":"2019","value":6734.787},{"key":"2020","value":4794.997},{"key":"2021","value":141006.083},{"key":"2022","value":721.844},{"key":"2023","value":9566.288},{"key":"2024","value":150560.035},{"key":"2025","value":19518.909}]}]}}],
+];
+/**
+ * The reviewers' ownership invariant (#209 round 6), by itself: of the columns under or over a value label's ink (sharing
+ * any of its width), the nearest is its own or its own is within one SMALL of it, and no other column's top is within 2
+ * units under its ink while its own is 4 or more farther (rest5.cjs's REST_OTHER). Null when it holds.
+ */
+function nearestNotOwn(b, k, cols) {
+  const across = (o) => Math.min(o.x1, b.x1) - Math.max(o.x0, b.x0) > EPS;
+  const vgap = (o) => Math.max(0, o.top - b.y1, b.y0 - o.bottom);
+  const near = cols.map((o, j) => ({ o, j })).filter(({ o }) => across(o));
+  if (!near.length) return null; // beside its column (notOwn checks that one)
+  const own = across(cols[k]) ? vgap(cols[k]) : Infinity;
+  const best = near.reduce((a, c) => (vgap(c.o) < vgap(a.o) ? c : a));
+  if (best.j !== k && own > vgap(best.o) + SVG.SMALL + EPS) return `nearest column ${best.j} at ${vgap(best.o).toFixed(2)}, its own at ${own.toFixed(2)}`;
+  const rest = near.find(({ o, j }) => j !== k && o.top >= b.y1 - EPS && o.top - b.y1 < 2 && own >= o.top - b.y1 + 4);
+  return rest ? `rests ${(rest.o.top - b.y1).toFixed(2)} over column ${rest.j}, its own at ${own.toFixed(2)}` : null;
+}
+
+test("round 6: a value label never rests on a neighbouring column (the reviewers' frames); with no spot of its own it is left out", () => {
+  for (const k of ROUND6_CASES) {
+    const c = renderCase(k);
+    const { cols, want, labels } = ownedLabels(c);
+    assert.equal(cols.length, want.length, `${k[0]}: columns`);
+    for (const { t, k: col } of labels) {
+      for (const why of [nearestNotOwn(boxOf(t), col, cols), notOwn(boxOf(t), col, cols, t.size)]) assert.equal(why, null, `${k[0]}: "${t.s}" ${why}`);
+    }
+    // A kept-first label (the latest year) is left out only when nothing over its column fits it.
+    assert.deepEqual(keptFirstLeftOut(c), [], k[0]);
+  }
+  // fitLabelRow on its own: a sliver's label over a neighbour whose top is less than a line higher than the sliver's. Round 5
+  // drew it touching the neighbour (gap 0.01, its own 5.4 lower); now it rises until the neighbour is no nearer than half its
+  // own gap, or is left out when it may not rise so far.
+  const S = SVG.SMALL;
+  const row = () => ({ labels: [{ x: 50, y: 120 - S * 0.5, text: "2,834.447" }], obstacles: [SVG.rectBox(45, 120, 10, 30, 0), SVG.rectBox(62, 115, 10, 35, 1)] });
+  const f = SVG.fitLabelRow(row, 120, 150);
+  if (f.labels[0]) {
+    const b = SVG.inkBox(f.labels[0].x, f.labels[0].y, "2,834.447", f.size, { anchor: "middle" });
+    const own = 120 - b.y1;
+    const other = b.x1 > 62 ? 115 - b.y1 : Infinity;
+    assert.ok(other >= own / 2 - 1e-6 || other >= SVG.LABEL_LIFT * f.size - 1e-6, `rests on the neighbour: ${where(b)} (gap ${other.toFixed(2)}, its own ${own.toFixed(2)})`);
+    assert.ok(other >= own - S - 1e-6, `the neighbour nearer by more than SMALL: ${where(b)}`);
+  }
+  // ownsSpot itself: a box 0.2 over a neighbour it covers, its own top 8.7 under it, is not its own (round 5 said it was).
+  const own = [{ x0: 66.4, x1: 76, y0: 116.6, y1: 130 }];
+  const nb = [{ x0: 82.4, x1: 92, y0: 108.4, y1: 130 }];
+  const box = { x0: 60.7, x1: 94.5, y0: 101.2, y1: 108.2 };
+  assert.equal(SVG.ownsSpot(box, own, nb, false, SVG.LABEL_LIFT * S * 0.8), false);
+  assert.equal(SVG.ownsSpot({ ...box, y0: 91.4, y1: 98.4 }, [{ ...own[0], y0: 126 }], nb, false, SVG.LABEL_LIFT * S * 0.8), false, "27.6 over its own, 10.0 over the neighbour: nearer by more than SMALL");
+  assert.equal(SVG.ownsSpot({ ...box, y0: 91.4, y1: 98.4 }, [{ ...own[0], y0: 117 }], nb, false, SVG.LABEL_LIFT * S * 0.8), true, "18.6 over its own, 10.0 over the neighbour: within SMALL, clear of resting");
+  assert.equal(SVG.ownsSpot({ x0: 52, x1: 86, y0: 107, y1: 114 }, own, [{ x0: 82.4, x1: 92, y0: 116.2, y1: 130 }], false, SVG.LABEL_LIFT * S * 0.8), true, "the neighbour 0.4 nearer than its own 2.6: no rest");
+});
+
+test("round 6: over random charts the nearest column under or over a value label is its own, or within one SMALL of it, and none rests on another", () => {
+  const kinds = ["bar", "stacked_bar", "waterfall", "target_bars", "base_year_waterfall", "bridge_compare"];
+  let labels = 0;
+  let charts = 0;
+  for (const [seed, n, frame] of [[4209, 400, null], [5209, 400, null], [2718, 400, null], [77, 400, null], [9209, 600, mixedFrames]])
+    for (const c of randomCharts(seed, n, kinds, frame)) {
+      const at = `seed ${seed} #${c.i} ${c.kind} ${c.w}×${c.h}`;
+      const own = ownedLabels(c);
+      if (own.cols.length !== own.want.length) continue;
+      charts++;
+      for (const { t, k } of own.labels) {
+        labels++;
+        const why = nearestNotOwn(boxOf(t), k, own.cols);
+        assert.equal(why, null, `${at}: "${t.s}" ${why}`);
+      }
+    }
+  assert.ok(charts > 1500 && labels > 5000, `${charts} charts, ${labels} labels`);
 });
 
 test("round 5: ranked bars print each value right after its own bar, never after the longer prior-year bar under it", () => {

@@ -197,8 +197,13 @@ const gapOf = (a: LabelBox, b: LabelBox): number => Math.hypot(Math.max(0, a.x0 
  *   1. its centre stays near its own mark's middle: towards any other mark, at most 40 % of the way to that mark's middle
  *      (inside its own band with room to spare for every face's ink: a sideways move or an edge clamp never centres it over,
  *      or between it and, a neighbour);
- *   2. no other mark under or over it (sharing some of its width) is within `tol` of it (a line) while its own is farther by
- *      more than that: it never rests on a taller neighbour's top, or hangs just over a lower step, away from its own mark.
+ *   2. #209 round 6: no other mark under or over it (sharing any of its width) is nearer to it than its own mark, in the
+ *      gaps between their tops (or bottoms) and its ink:
+ *      a. it never rests on another mark: one within `tol` (a line) of it is no nearer than half its own mark's gap (round 5
+ *         subtracted a whole line from its own gap, so a label whose own top was less than a line lower could sit at a gap of
+ *         about 0 on a neighbour's top);
+ *      b. its own mark is the nearest, or within one SMALL of the nearest, however high it floats.
+ *      A label that rises keeps the height between two tops, so rising never makes such a spot its own.
  * `beside` (a label level with its mark, in a gap no other mark spans) checks instead that its own mark is its nearest.
  */
 export const ownsSpot = (box: LabelBox, own: LabelBox[], others: LabelBox[], beside = false, tol = 0): boolean => {
@@ -211,7 +216,7 @@ export const ownsSpot = (box: LabelBox, own: LabelBox[], others: LabelBox[], bes
   const across = (o: LabelBox) => o.x0 < box.x1 - 1e-6 && box.x0 < o.x1 - 1e-6;
   const vgap = (o: LabelBox) => Math.max(0, o.y0 - box.y1, box.y0 - o.y1);
   const ownGap = Math.min(...own.filter(across).map(vgap));
-  return !others.some((o) => across(o) && vgap(o) < tol - 1e-6 && vgap(o) < ownGap - tol - 1e-6);
+  return !others.some((o) => across(o) && ((vgap(o) < tol - 1e-6 && vgap(o) < ownGap / 2 - 1e-6) || vgap(o) < ownGap - SMALL - 1e-6));
 };
 
 /**
@@ -239,6 +244,9 @@ export const ownsSpot = (box: LabelBox, own: LabelBox[], others: LabelBox[], bes
  * rises more than two lines, kept-first ones included: a label that would sit on a taller
  * neighbour's top or over another column is left out (a 3-decimal figure too wide for its
  * band), never drawn as someone else's value.
+ * #209 round 6: a label that would rest on another mark rises just clear of it (ownsSpot 2a) only in the staggered pass or,
+ * in the last pass, after every label of its rank has tried the spots plainly its own; the last pass keeps the plan that
+ * leaves out the fewest labels, the highest ranks first (`plan`). A label with no spot that reads as its own is left out.
  * `make(extraTop, size)` builds the row for a plot whose top is `extraTop` lower (the
  * chart's own geometry, so a staggered row takes room from the bars, not from the page);
  * the chart draws with the returned `extraTop` and `size`. `minY` is the top labels may
@@ -251,18 +259,31 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
   const minY = opts.minY ?? 0;
   const size0 = opts.size0 ?? SMALL;
   const canLift = (size: number) => LABEL_LIFT * size <= (opts.maxLift ?? Infinity) + 1e-9;
-  const attempt = (size: number, stagger: boolean, drop: boolean): LabelFit | null => {
+  // #209 round 6: in the last pass, `plan` says which label goes first within its rank (`first`) and how the rank floats
+  // (`mode`): "rank" places each rank twice (first only in spots plainly its own, then the rest may float a line clear of
+  // a neighbour), "all" places every rank in its own spots before any label floats, "one" lets each label float at once.
+  const attempt = (size: number, stagger: boolean, drop: boolean, plan: { first?: number; mode: "rank" | "all" | "one" } = { mode: "rank" }): LabelFit | null => {
     const extraTop = stagger ? LABEL_LIFT * size : 0;
     const { labels: row, obstacles = [] } = make(extraTop, size);
     const order = row.map((_, i) => i);
-    if (drop) order.sort((a, b) => Number(!!row[b].bold) - Number(!!row[a].bold) || (row[b].priority ?? 0) - (row[a].priority ?? 0) || row[a].x - row[b].x || a - b);
+    const rank = (i: number) => Number(!!row[i].bold) * 1e6 + (row[i].priority ?? 0);
+    if (drop) order.sort((a, b) => rank(b) - rank(a) || Number(b === plan.first) - Number(a === plan.first) || row[a].x - row[b].x || a - b);
     else order.sort((a, b) => row[a].x - row[b].x || a - b);
     const placed: LabelBox[] = [];
     const out: ({ x: number; y: number } | null)[] = row.map(() => null);
     const marks = obstacles.filter((o) => o.mark);
     // #209 round 4: decided on the labels' ink (inkBox: their glyphs, worst of the eight faces) with INK_GAP of air.
     const gap = INK_GAP * size;
-    for (const i of order) {
+    const both = (ids: number[]) => [false, true].flatMap((f) => ids.map((j) => [j, f] as [number, boolean]));
+    const rounds: [number, boolean][] = !drop
+      ? order.map((i) => [i, stagger])
+      : plan.mode === "one"
+        ? order.map((i) => [i, true])
+        : plan.mode === "all"
+          ? both(order)
+          : order.flatMap((i, k) => (k > 0 && rank(order[k - 1]) === rank(i) ? [] : both(order.filter((j) => rank(j) === rank(i)))));
+    for (const [i, float] of rounds) {
+      if (out[i]) continue;
       const l = row[i];
       const ink = inkExtent(l.text);
       const top = minY + ink.up * size;
@@ -279,7 +300,8 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
         const maxRise = MAX_RISE * size;
         // #209 round 4: its own mark is an obstacle too (a label held under the chart's top line no longer sits on it).
         // #209 round 5: a clear spot counts only when the label reads as its own mark's (ownsSpot); one resting on another mark
-        // (within a line over it) rises a line clear of it, within the two lines a label may rise.
+        // rises clear of it, within the two lines a label may rise. #209 round 6: only when it may `float` (the staggered
+        // pass, or the last pass's second round for its rank), and only as high as ownsSpot needs.
         const line = LABEL_LIFT * size;
         const at = (x: number, yFrom = y0, beside = false) => {
           let y = yFrom;
@@ -289,9 +311,15 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
             if (!hits.length && ownsSpot(box, ownMarks, otherMarks, beside, line)) return { x, y, box };
             if (!stagger && !drop) return null;
             if (!hits.length) {
-              const under = beside ? [] : otherMarks.filter((o) => o.x0 < box.x1 - 1e-6 && box.x0 < o.x1 - 1e-6 && o.y0 >= box.y1 - 1e-6 && o.y0 - box.y1 < line - 1e-6);
+              // #209 round 6: it rises just enough that no other mark under it rests it (nearer than half its own mark's gap,
+              // or a line clear of it); a spot that fails ownsSpot otherwise is no better higher up.
+              if (!float || beside) return null;
+              const across = (o: LabelBox) => o.x0 < box.x1 - 1e-6 && box.x0 < o.x1 - 1e-6;
+              const below = (o: LabelBox) => Math.max(0, o.y0 - box.y1);
+              const ownGap = Math.min(...ownMarks.filter(across).map(below));
+              const under = otherMarks.filter((o) => across(o) && o.y0 >= box.y1 - 1e-6 && below(o) < line - 1e-6 && below(o) < ownGap / 2 - 1e-6);
               if (!under.length) return null;
-              y = Math.min(...under.map((o) => o.y0)) - line - ink.down * size - 0.01;
+              y -= Math.max(...under.map((o) => Math.min(line - below(o), ownGap - 2 * below(o)))) + 0.01;
               continue;
             }
             // Stagger: just above what it would meet.
@@ -363,7 +391,29 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
       if (fit) return fit;
     }
   const last = steps[steps.length - 1];
-  return attempt(last, canLift(last), true) as LabelFit;
+  // #209 round 6: the last pass keeps the most labels, the higher ranks first: the plain plan, then each other way of floating,
+  // then each label it leaves out tried first in its rank (the first plan that keeps as many wins).
+  const lift = canLift(last);
+  const { labels: row } = make(lift ? LABEL_LIFT * last : 0, last);
+  const score = (f: LabelFit) => f.labels.flatMap((p, i) => (p ? [Number(!!row[i].bold) * 1e6 + (row[i].priority ?? 0)] : [])).sort((a, b) => b - a);
+  const better = (a: number[], b: number[]) => {
+    for (let k = 0; k < Math.max(a.length, b.length); k++) if ((a[k] ?? -Infinity) !== (b[k] ?? -Infinity)) return (a[k] ?? -Infinity) > (b[k] ?? -Infinity);
+    return false;
+  };
+  let best = attempt(last, lift, true) as LabelFit;
+  let bestScore = score(best);
+  const tryPlan = (plan: { first?: number; mode: "rank" | "all" | "one" }) => {
+    const f = attempt(last, lift, true, plan) as LabelFit;
+    const sc = score(f);
+    if (better(sc, bestScore)) [best, bestScore] = [f, sc];
+  };
+  if (best.labels.some((p) => !p)) {
+    const left = best.labels.map((p, i) => (p ? -1 : i)).filter((i) => i >= 0);
+    tryPlan({ mode: "all" });
+    tryPlan({ mode: "one" });
+    for (const i of left) tryPlan({ first: i, mode: "rank" });
+  }
+  return best;
 }
 
 /**
