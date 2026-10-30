@@ -2,10 +2,10 @@
   "element": "chart",
   "elements": [
     {
-      "bytes": 2361,
+      "bytes": 2365,
       "frame": "15,152,85,70,0",
       "id": "p-summary.donut",
-      "sha256": "cc5128f3df558635ef95c180eee4cfaed8bdba271d06766a6b3ac9256952b68a"
+      "sha256": "e322c17d52efefe93a6bf7806fc79c98072ba672e601528e94ae71f70ca6c6b7"
     },
     {
       "bytes": 2669,
@@ -26,10 +26,10 @@
       "sha256": "f8488af616d1914891cfdfdcec5ee86a26264f911fe00f3d107781d4eb22aab9"
     },
     {
-      "bytes": 2967,
+      "bytes": 2978,
       "frame": "110,15,85,60,0",
       "id": "p-charts.hbar",
-      "sha256": "3075bf7f14b915fabfc8c1c4cb480cb7c95345181fad035d2618428053d543ae"
+      "sha256": "828c83661097062157dc858a57bb3bbc9e9ad86ad94db4733260ca7a4446265b"
     },
     {
       "bytes": 3063,
@@ -86,10 +86,10 @@
       "sha256": "587fa046c67c79115bcbba57ba59240c1213489876f214d8dd68fb52a33f215d"
     },
     {
-      "bytes": 2103,
+      "bytes": 2224,
       "frame": "80,268,50,24,0",
       "id": "p-charts.ghgkind",
-      "sha256": "34b23d0b10f6b6ec1cce37874c9ad9e3ea404655802216d926f352b797780495"
+      "sha256": "88c4b68c6281c025a73871f8d6afb9888c8b51df4d97dac4554b18c9a0e4e98f"
     }
   ],
   "format": "a4",

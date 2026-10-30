@@ -91,7 +91,7 @@ test("data marks: bound elements name their binding hash and source; custom data
   assert.match(html, /Unlinked data/); // DS-8: the badge's words
   assert.match(tag("p-charts.custom"), /data-unlinked="true"/);
   // Text chips carry their marks too.
-  assert.match(html, /class="ds-chip" data-source="ghg" data-binding-hash="[0-9a-f]{8}" data-measure="value">3,210<\/span>/);
+  assert.match(html, /class="ds-chip" data-source="ghg" data-binding-hash="[0-9a-f]{8}" data-measure="value">3,210\.000<\/span>/); // the server's display: tCO₂e with 3 decimals (#209)
 });
 
 test("an unavailable value renders \"Not reported\" with its reason, never 0 or blank", () => {

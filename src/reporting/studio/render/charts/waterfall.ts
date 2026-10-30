@@ -6,9 +6,9 @@
  */
 import { formatNumber, seriesUnit } from "../format";
 import { n3 } from "../util";
-import { axisWidth, bandLabels, valueGridY } from "./axis";
+import { axisWidth, bandLabels, tickBoxes, valueGridY } from "./axis";
 import { linearScale } from "./scale";
-import { FONT, SMALL, emptyChart, fitLabelRow, rect, svgOpen, text, type ChartInput } from "./svg";
+import { FONT, SMALL, emptyChart, fitLabelRow, rect, rectBox, svgOpen, text, type ChartInput } from "./svg";
 
 export function waterfallChart(input: ChartInput): string {
   const { value, w, h, theme } = input;
@@ -30,25 +30,36 @@ export function waterfallChart(input: ChartInput): string {
   const pw = w - x0;
   const band = pw / steps.length;
   const labels = steps.map((s) => (s.kind === "abs" ? formatNumber(s.to, "auto", unit) : `${s.to - s.from >= 0 ? "+" : "−"}${formatNumber(Math.abs(s.to - s.from), "auto", unit)}`));
-  // #209 review: neighbouring step labels may not meet (svg.ts fitLabelRow); the start and end totals are kept first.
+  // A step's bar over a plot [top, top + ph].
+  const stepRect = (i: number, top: number, ph: number) => {
+    const s = steps[i];
+    const y1 = top + ph - scale.t(Math.max(s.from, s.to)) * ph;
+    const y2 = top + ph - scale.t(Math.min(s.from, s.to)) * ph;
+    return { x: x0 + band * i + band * 0.15, y: y1, w: band * 0.7, h: y2 - y1 };
+  };
+  // #209 review: step labels may not meet each other, the tick labels or another step (svg.ts fitLabelRow); the start and end totals are kept first.
   const fit = fitLabelRow(
     (extra) => {
       const te = FONT * 1.2 + extra;
       const phe = h - te - FONT * 1.8;
-      return steps.map((s, i) => ({ x: x0 + band * (i + 0.5), y: te + phe - scale.t(Math.max(s.from, s.to)) * phe - SMALL * 0.5, text: labels[i], priority: s.kind === "abs" ? 1 : 0 }));
+      const obstacles = [...tickBoxes(scale, x0, te, phe), ...steps.map((_, i) => {
+        const r = stepRect(i, te, phe);
+        return rectBox(r.x, r.y, r.w, r.h, i);
+      })];
+      return { labels: steps.map((s, i) => ({ x: x0 + band * (i + 0.5), y: te + phe - scale.t(Math.max(s.from, s.to)) * phe - SMALL * 0.5, text: labels[i], priority: s.kind === "abs" ? 1 : 0 })), obstacles };
     },
     w,
     h,
+    { x0 },
   );
   const top = FONT * 1.2 + fit.extraTop;
   const ph = h - top - FONT * 1.8;
   let body = valueGridY(scale, x0, top, pw, ph, theme);
   steps.forEach((s, i) => {
-    const y1 = top + ph - scale.t(Math.max(s.from, s.to)) * ph;
-    const y2 = top + ph - scale.t(Math.min(s.from, s.to)) * ph;
+    const r = stepRect(i, top, ph);
     // Emissions: a rise is bad, a fall is good.
     const fill = s.kind === "abs" ? theme.colors.primary : s.kind === "up" ? theme.colors.bad : theme.colors.good;
-    body += rect(x0 + band * i + band * 0.15, y1, band * 0.7, y2 - y1, fill, ` data-step="${s.kind}" data-from="${n3(s.from)}" data-to="${n3(s.to)}"`);
+    body += rect(r.x, r.y, r.w, r.h, fill, ` data-step="${s.kind}" data-from="${n3(s.from)}" data-to="${n3(s.to)}"`);
     const at = fit.labels[i];
     if (at) body += text(at.x, at.y, labels[i], theme.colors.ink, { size: fit.size, anchor: "middle" });
   });

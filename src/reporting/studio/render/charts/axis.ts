@@ -4,7 +4,7 @@
 import type { Theme } from "../theme";
 import { tickLabel } from "../format";
 import type { Scale } from "./scale";
-import { FONT, SMALL, text } from "./svg";
+import { FONT, SMALL, labelBox, text, type Obstacle } from "./svg";
 import { n3 } from "../util";
 
 /** Width the value labels need on a vertical axis. */
@@ -19,6 +19,10 @@ export function valueGridY(s: Scale, x0: number, y0: number, w: number, h: numbe
     })
     .join("");
 }
+
+/** The boxes of valueGridY's tick labels, for value labels to keep clear of (#209 review). */
+export const tickBoxes = (s: Scale, x0: number, y0: number, h: number): Obstacle[] =>
+  s.ticks.map((t) => labelBox(x0 - SMALL * 0.4, y0 + h - s.t(t) * h, tickLabel(t), SMALL, { anchor: "end", baseline: "middle" }));
 
 /** Vertical gridlines + labels for a horizontal value axis. */
 export function valueGridX(s: Scale, x0: number, y0: number, w: number, h: number, theme: Theme): string {

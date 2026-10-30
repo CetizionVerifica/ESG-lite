@@ -2,16 +2,16 @@
   "element": "chart",
   "elements": [
     {
-      "bytes": 2397,
+      "bytes": 2400,
       "frame": "10.571,107.475,59.905,49.495,0",
       "id": "p-summary.donut",
-      "sha256": "0000029ea705c299c6998b6e86d61e13c81e5d42f5ccc983211c5286910f43e9"
+      "sha256": "91deb28da9e7a5face2c2d3d68849fe778551e47910e09c159fe4275ed402008"
     },
     {
-      "bytes": 2720,
+      "bytes": 2721,
       "frame": "77.524,107.475,59.905,49.495,0",
       "id": "p-summary.bars",
-      "sha256": "e0697bd03d4c31508ec33f8ce0f961f22b131789f1c59ab1508d7e456a7b417e"
+      "sha256": "721a7712ca9fda33cb47328734076e158d9b698a3cc23b872bfe172c2a0833de"
     },
     {
       "bytes": 882,
@@ -26,10 +26,10 @@
       "sha256": "b75190ad8e021cf1c1727adf6e9d3c3d449c2b286db2725f085ac21d68a16e6d"
     },
     {
-      "bytes": 3037,
+      "bytes": 3031,
       "frame": "77.524,10.606,59.905,42.424,0",
       "id": "p-charts.hbar",
-      "sha256": "aaf1f7f7f9fd633c163bdfe9ed1485f5a3009a38d86397a8074de0b212a95078"
+      "sha256": "3c566b5c4305d227517d3d8f0164d70be718237c31b454c9495bdb55d35ae115"
     },
     {
       "bytes": 3117,
@@ -56,10 +56,10 @@
       "sha256": "7e5700e79fb7dce2445a0aff663c076090a90efb20fbf8e2925b6ac5ba3357b8"
     },
     {
-      "bytes": 3057,
+      "bytes": 3056,
       "frame": "10.571,98.99,59.905,42.424,0",
       "id": "p-charts.water",
-      "sha256": "04bbc4ad2d0e280ca3a482886f250826337f454ea437c3ba3dfdb0ec7475133e"
+      "sha256": "b1c44b0371935dca33db8526c68517addad12e052f1ac9272253ac419ee6a0d3"
     },
     {
       "bytes": 2572,
@@ -86,10 +86,10 @@
       "sha256": "39042abf905991cdcb890b7f3d7250ea0eb47a07f90189a3d149b5a0a87aa32d"
     },
     {
-      "bytes": 2116,
+      "bytes": 2257,
       "frame": "56.381,189.495,35.238,16.97,0",
       "id": "p-charts.ghgkind",
-      "sha256": "8eac781e655041acdc54516c3d9655727f0576734aee7c89adda1199ce90069f"
+      "sha256": "b6db704086a42e62fdc293052d69304c6961fa811e94a7254f61cb17dd08c2a3"
     }
   ],
   "format": "a5",

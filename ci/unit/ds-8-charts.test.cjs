@@ -53,7 +53,7 @@ test("goldens: each GHG chart's HTML and the page in every mode match ghg-snapsh
 
 test("labelling: totals come from display; only the three biggest parts carry a value", () => {
   const cats = el("g.category_bars");
-  assert.match(cats, />Total 3,270 tCO₂e</);
+  assert.match(cats, />Total 3,270\.000 tCO₂e</); // the server's display, as sent (tCO₂e: 3 decimals, #209)
   // 9 bars, 3 value labels (1,290, 620, 410: tCO₂e, so 3 decimals, #209), sorted largest first, "Other" last.
   assert.equal(count(cats, /data-part="/g), 9);
   for (const n of ["1,290.000", "620.000", "410.000"]) assert.match(cats, new RegExp(`>${n}<`));
@@ -75,7 +75,7 @@ test("labelling: totals come from display; only the three biggest parts carry a 
   assert.doesNotMatch(el("g.scope_donut"), /location-based/);
   assert.match(el("g.scope_donut"), /data-variant="donut"/);
   // The donut uses the current year (the last series), not a sum of years.
-  assert.match(el("g.scope_donut"), />12,480</);
+  assert.match(el("g.scope_donut"), />12,480\.000</);
   // site_bars in brand colours.
   assert.match(el("g.site_bars"), /data-part="Manama plant"/);
   assert.doesNotMatch(el("g.site_bars"), /#8B5CF6/);

@@ -11,9 +11,9 @@
  */
 import { formatNumber, seriesUnit, sharedUnit } from "../../format";
 import { esc, n3 } from "../../util";
-import { axisWidth, bandLabels, valueGridY } from "../axis";
+import { axisWidth, bandLabels, tickBoxes, valueGridY } from "../axis";
 import { linearScale } from "../scale";
-import { FONT, SMALL, emptyChart, fitLabelRow, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
+import { FONT, SMALL, emptyChart, fitLabelRow, rect, rectBox, svgOpen, text, valueAt, type ChartInput } from "../svg";
 import { clip, partsOf, total, type Part } from "./common";
 
 type Step = { key: string; from: number; to: number; kind: "abs" | "up" | "down" };
@@ -83,25 +83,36 @@ export function baseYearWaterfallChart(input: ChartInput): string {
     const d = s.to - s.from;
     return s.kind === "abs" ? formatNumber(s.to, "auto", unit) : `${d >= 0 ? "+" : "−"}${formatNumber(Math.abs(d), "auto", unit)}`;
   });
-  // #209 review: neighbouring step labels may not meet (svg.ts fitLabelRow); the bold base and current totals are kept first.
+  // A step's bar over a plot [top, top + ph].
+  const stepRect = (i: number, top: number, ph: number) => {
+    const s = steps[i];
+    const y1 = top + ph - scale.t(Math.max(s.from, s.to)) * ph;
+    const y2 = top + ph - scale.t(Math.min(s.from, s.to)) * ph;
+    return { x: x0 + band * i + band * 0.15, y: y1, w: band * 0.7, h: Math.max(0.5, y2 - y1) };
+  };
+  // #209 review: step labels may not meet each other, the tick labels or another step (svg.ts fitLabelRow); the bold base and current totals are kept first.
   const fit = fitLabelRow(
     (extra) => {
-      if (options.showValues === false) return [];
+      if (options.showValues === false) return { labels: [] };
       const te = FONT * 1.4 + extra;
       const phe = h - te - FONT * 1.8;
-      return steps.map((s, i) => ({ x: x0 + band * (i + 0.5), y: te + phe - scale.t(Math.max(s.from, s.to)) * phe - SMALL * 0.5, text: labels[i], bold: s.kind === "abs" }));
+      const obstacles = [...tickBoxes(scale, x0, te, phe), ...steps.map((_, i) => {
+        const r = stepRect(i, te, phe);
+        return rectBox(r.x, r.y, r.w, r.h, i);
+      })];
+      return { labels: steps.map((s, i) => ({ x: x0 + band * (i + 0.5), y: te + phe - scale.t(Math.max(s.from, s.to)) * phe - SMALL * 0.5, text: labels[i], bold: s.kind === "abs" })), obstacles };
     },
     w,
     h,
+    { x0 },
   );
   const top = FONT * 1.4 + fit.extraTop;
   const ph = h - top - FONT * 1.8;
   let body = valueGridY(scale, x0, top, pw, ph, theme);
   steps.forEach((s, i) => {
-    const y1 = top + ph - scale.t(Math.max(s.from, s.to)) * ph;
-    const y2 = top + ph - scale.t(Math.min(s.from, s.to)) * ph;
+    const r = stepRect(i, top, ph);
     const fill = s.kind === "abs" ? (i === 0 ? theme.colors.prior : theme.colors.primary) : s.kind === "up" ? theme.colors.bad : theme.colors.good;
-    body += rect(x0 + band * i + band * 0.15, y1, band * 0.7, Math.max(0.5, y2 - y1), fill, ` data-step="${s.kind}" data-key="${esc(s.key)}"`);
+    body += rect(r.x, r.y, r.w, r.h, fill, ` data-step="${s.kind}" data-key="${esc(s.key)}"`);
     if (i > 0 && i < steps.length - 1) {
       // A connector from the previous step's end.
       const yc = top + ph - scale.t(s.from) * ph;
@@ -128,16 +139,17 @@ export function intensityLineChart(input: ChartInput): string {
   const band = pw / keys.length;
   const lineUnit = seriesUnit(s, value.unit);
   const ends = pts.map((p, i) => ({ p, i })).filter(({ i }) => options.showValues !== false && (i === 0 || i === pts.length - 1));
-  // #209 review: the two end labels may not meet or leave the chart (svg.ts fitLabelRow); the latest is kept first.
+  // #209 review: the two end labels may not meet each other or the tick labels, or leave the plot (svg.ts fitLabelRow); the latest is kept first.
   const fit = fitLabelRow(
     (extra) => {
       const te = unitH + FONT * 1.2 + extra;
       const phe = h - te - FONT * 1.8;
-      return ends.map(({ p, i }) => ({ x: x0 + band * (keys.indexOf(p.key) + 0.5), y: te + phe - scale.t(p.value) * phe - SMALL * 0.9, text: formatNumber(p.value, "auto", lineUnit), bold: i === pts.length - 1 }));
+      const labels = ends.map(({ p, i }) => ({ x: x0 + band * (keys.indexOf(p.key) + 0.5), y: te + phe - scale.t(p.value) * phe - SMALL * 0.9, text: formatNumber(p.value, "auto", lineUnit), bold: i === pts.length - 1 }));
+      return { labels, obstacles: tickBoxes(scale, x0, te, phe) };
     },
     w,
     h,
-    unitH,
+    { x0, minY: unitH },
   );
   const top = unitH + FONT * 1.2 + fit.extraTop;
   const ph = h - top - FONT * 1.8;

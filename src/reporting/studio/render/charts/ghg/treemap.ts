@@ -8,7 +8,7 @@
 import { formatNumber, seriesUnit } from "../../format";
 import { contrastRatio, mix } from "../../theme";
 import { esc, n3 } from "../../util";
-import { FONT, SMALL, emptyChart, labelWidth, rect, svgOpen, text, type ChartInput } from "../svg";
+import { FONT, LABEL_STEPS, SMALL, emptyChart, labelWidth, rect, svgOpen, text, type ChartInput } from "../svg";
 import { clip, currentSeries, headline, partsOf, pct, ranked, total, type Part } from "./common";
 
 export interface Tile extends Part {
@@ -75,6 +75,32 @@ export function squarify(parts: Part[], w: number, h: number): Tile[] {
   return out;
 }
 
+/**
+ * What a tile prints: its name, then "value · share" on one line, or value and share on two (#209: a 3-decimal tCO₂e
+ * figure is long). #209 review: a tile too small for that at the chart's size steps the text down (to 0.8 of it) before
+ * it leaves anything out; only then does it print the value alone, then the name alone. Never a line measured as wider
+ * than its tile.
+ */
+function tileText(t: Tile, v: string, share: string, values: boolean): { size: number; chars: number; lines: string[] } | null {
+  const sizes = LABEL_STEPS.map((k) => SMALL * k);
+  const at = (size: number) => ({ size, chars: Math.floor((t.w - size) / (size * 0.55)), fits: (s: string) => labelWidth(s, size) <= t.w - size });
+  const named = sizes.map(at).filter((z) => t.h >= z.size * 2.4 && z.chars >= 4);
+  if (!named.length) return null;
+  const pick = (want: (z: ReturnType<typeof at>) => string[] | null): { size: number; chars: number; lines: string[] } | null => {
+    for (const z of named) {
+      const lines = want(z);
+      if (lines) return { size: z.size, chars: z.chars, lines };
+    }
+    return null;
+  };
+  if (!values) return { size: named[0].size, chars: named[0].chars, lines: [] };
+  const one = `${v} · ${share}`;
+  return (
+    pick((z) => (t.h >= z.size * 3.8 && z.fits(one) ? [one] : t.h >= z.size * 5.1 && z.fits(v) && z.fits(share) ? [v, share] : null)) ??
+    pick((z) => (t.h >= z.size * 3.8 && z.fits(v) ? [v] : null)) ?? { size: named[0].size, chars: named[0].chars, lines: [] }
+  );
+}
+
 export function treemapChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
   const cur = currentSeries(value);
@@ -82,7 +108,7 @@ export function treemapChart(input: ChartInput): string {
   const ps = ranked(partsOf(cur).filter((p) => p.value > 0));
   const sum = total(ps);
   if (!ps.length || sum <= 0) return emptyChart(w, h, "No data", theme);
-  const head = headline(value, theme);
+  const head = headline(value, theme, "Total", w);
   const tiles = squarify(ps, w, h - head.h);
   const base = options.colors === "brand" ? null : theme.colors.s3;
   let body = head.svg;
@@ -91,21 +117,12 @@ export function treemapChart(input: ChartInput): string {
     const ink = contrastRatio(fill, "#FFFFFF") >= 3 ? "#FFFFFF" : theme.colors.ink;
     const y = head.h + t.y;
     body += rect(t.x, y, t.w, t.h, fill, ` stroke="${theme.colors.paper}" stroke-width="1" data-part="${esc(t.key)}"`);
-    const chars = Math.floor((t.w - SMALL) / (SMALL * 0.55));
-    if (t.h >= SMALL * 2.4 && chars >= 4) {
-      body += text(t.x + SMALL * 0.5, y + SMALL * 1.3, clip(t.key, chars), ink, { size: SMALL, weight: 700 });
-      if (t.h >= SMALL * 3.8 && options.showValues !== false) {
-        const v = formatNumber(t.value, "auto", unit);
-        const share = pct(t.value / sum);
-        const room = t.w - SMALL;
-        const fits = (s: string) => labelWidth(s) <= room;
-        // A value too long for "value · share" on one line (a 3-decimal tCO₂e figure, #209) puts the share on a line of its own when the tile is
-        // tall enough, else prints the value alone, else no value line (#209 review: never a line measured as too wide for its tile).
-        const lines = fits(`${v} · ${share}`) ? [`${v} · ${share}`] : t.h >= SMALL * 5.1 && fits(v) && fits(share) ? [v, share] : fits(v) ? [v] : [];
-        lines.forEach((line, li) => {
-          body += text(t.x + SMALL * 0.5, y + SMALL * (2.6 + 1.3 * li), line, ink, { size: SMALL });
-        });
-      }
+    const at = tileText(t, formatNumber(t.value, "auto", unit), pct(t.value / sum), options.showValues !== false);
+    if (at) {
+      body += text(t.x + at.size * 0.5, y + at.size * 1.3, clip(t.key, at.chars), ink, { size: at.size, weight: 700 });
+      at.lines.forEach((line, li) => {
+        body += text(t.x + at.size * 0.5, y + at.size * (2.6 + 1.3 * li), line, ink, { size: at.size });
+      });
     }
   });
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="treemap" data-tiles="${tiles.length}" style="font-size:${n3(FONT)}px">${body}</g></svg>`;

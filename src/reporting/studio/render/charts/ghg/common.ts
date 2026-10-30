@@ -15,7 +15,7 @@
 import { formatNumber } from "../../format";
 import type { Theme } from "../../theme";
 import type { RenderSeries, RenderValue } from "../../types";
-import { FONT, SMALL, rect, seriesColor, text, type ChartInput } from "../svg";
+import { FONT, SMALL, fitLines, rect, seriesColor, text, type ChartInput } from "../svg";
 
 export interface Part {
   key: string;
@@ -70,16 +70,26 @@ export const shortKey = (k: string): string => {
 /** Shortens a label to about `chars` characters with an ellipsis. */
 export const clip = (s: string, chars: number): string => (s.length > chars ? `${s.slice(0, Math.max(1, chars - 1))}…` : s);
 
+/** Font steps the total line may take to fit the chart's width: 7.5 pt down to 6.4 pt. */
+export const HEADLINE_STEPS = [1, 0.95, 0.9, 0.85];
+
 /**
- * The total line along the top: "Total 12,480 tCO₂e" from the server's display
- * (never re-formatted). Returns the svg and the height it takes.
+ * The total line along the top: "Total 12,480.000 tCO₂e" from the server's display
+ * (never re-formatted). Returns the svg and the height it takes. #209 review: it fits the
+ * chart's width `w` (measured, metrics.ts): one line, a font step smaller if needed; else
+ * the figure and unit on a second line ("Total" / "12,480.000 tCO₂e"); else the unit on a
+ * third. A chart too narrow even for that at 6.4 pt gets a smaller font, never a cut figure.
+ * `steps` lets a chart short of height ask for the smaller sizes only (scope_split).
  */
-export function headline(v: RenderValue, theme: Theme, label = "Total"): { svg: string; h: number } {
+export function headline(v: RenderValue, theme: Theme, label = "Total", w = Infinity, steps = HEADLINE_STEPS): { svg: string; h: number } {
   if (!v.display) return { svg: "", h: 0 };
   const unit = v.unit ? ` ${v.unit}` : "";
+  const layouts = [[`${label} ${v.display}${unit}`], [label, `${v.display}${unit}`], ...(v.unit ? [[label, v.display, v.unit]] : [])];
+  const { lines, size } = fitLines(layouts, w, steps.map((k) => FONT * k), true);
+  const lh = size * 1.2;
   return {
-    svg: text(0, FONT, `${label} ${v.display}${unit}`, theme.colors.ink, { size: FONT, weight: 700 }),
-    h: FONT * 1.6,
+    svg: lines.map((l, i) => text(0, size + i * lh, l, theme.colors.ink, { size, weight: 700 })).join(""),
+    h: size * 1.6 + (lines.length - 1) * lh,
   };
 }
 

@@ -5,6 +5,7 @@
 import type { Theme } from "../theme";
 import type { RenderSeries, RenderValue } from "../types";
 import { esc, n3 } from "../util";
+import { TEXT_MARGIN_EM, textWidth } from "./metrics";
 
 export const U = 4;
 /** 7.5 pt in viewBox units (1 pt = 0.3528 mm). */
@@ -51,32 +52,17 @@ export const text = (x: number, y: number, s: string, fill: string, opts: { size
 export const rect = (x: number, y: number, w: number, h: number, fill: string, extra = ""): string =>
   `<rect x="${n3(x)}" y="${n3(y)}" width="${n3(Math.max(0, w))}" height="${n3(Math.max(0, h))}" fill="${fill}"${extra}/>`;
 
-/**
- * Advance widths (em) of value-label characters: the widest of the eight studio faces
- * (render/fonts.ts, @fontsource Latin subsets) measured in Chromium, regular and bold
- * (#209 review). Digits: Fraunces 0.648 / 0.702; ", .": Source Serif 4 0.302 / 0.312;
- * "+ −": Archivo 0.625 / 0.641; "%": Archivo 0.950, IBM Plex Sans bold 0.974; "·": IBM Plex
- * Sans 0.333 / 0.358; space: Noto Sans 0.260. Other characters take the digit width.
- */
-const EM_REGULAR = { digit: 0.65, sep: 0.31, sign: 0.63, pct: 0.95, dot: 0.34, space: 0.26 };
-const EM_BOLD = { digit: 0.71, sep: 0.32, sign: 0.65, pct: 0.98, dot: 0.36, space: 0.26 };
 /** Safety margin on every label width (em): kerning, hinting and rounding never make a label wider than this estimate. */
-export const LABEL_MARGIN_EM = 0.1;
+export const LABEL_MARGIN_EM = TEXT_MARGIN_EM;
 /** Glyph box of a label above and below its baseline (em): the tallest digit (Fraunces bold 0.74) and the comma's tail (0.20), rounded up. */
 export const LABEL_ASCENT = 0.75;
 export const LABEL_DESCENT = 0.21;
 
 /**
- * A value label's width in viewBox units, on the wide side (#209 review): every studio
- * face fits inside it, bold too (`bold` for weight 700). Numeric labels only in practice:
- * digits, separators, signs, "%", "·".
+ * A label's width in viewBox units, on the wide side (#209 review): every studio face fits
+ * inside it, bold too (`bold` for weight 700). Measured per character (metrics.ts).
  */
-export const labelWidth = (s: string, size = SMALL, bold = false): number => {
-  const m = bold ? EM_BOLD : EM_REGULAR;
-  let em = LABEL_MARGIN_EM;
-  for (const c of s) em += c === "," || c === "." ? m.sep : c === "·" ? m.dot : c === "%" ? m.pct : c === "+" || c === "−" || c === "-" ? m.sign : /\s/.test(c) ? m.space : m.digit;
-  return em * size;
-};
+export const labelWidth = (s: string, size = SMALL, bold = false): number => textWidth(s, size, bold);
 
 /** A label's estimated box in viewBox units. */
 export interface LabelBox {
@@ -98,14 +84,14 @@ export const labelBox = (x: number, y: number, s: string, size = SMALL, opts: { 
 export const boxesMeet = (a: LabelBox, b: LabelBox, gap = 0): boolean => a.x0 < b.x1 + gap && b.x0 < a.x1 + gap && a.y0 < b.y1 + gap && b.y0 < a.y1 + gap;
 
 /**
- * x for a label centred on `x` that keeps it inside the chart's 0..w: a long
- * value over the first or last band (a 3-decimal tCO₂e figure, #209) would
- * otherwise be cut at the SVG edge. Bold-aware (#209 review). A label that
- * fits stays where it was.
+ * x for a label centred on `x` that keeps it inside `x0..w` (the chart, or its plot): a long
+ * value over the first or last band (a 3-decimal tCO₂e figure, #209) would otherwise be cut
+ * at the SVG edge or run into the axis. Bold-aware (#209 review). A label that fits stays
+ * where it was.
  */
-export const insideX = (x: number, s: string, w: number, size = SMALL, bold = false): number => {
+export const insideX = (x: number, s: string, w: number, size = SMALL, bold = false, x0 = 0): number => {
   const half = labelWidth(s, size, bold) / 2;
-  return half * 2 >= w ? w / 2 : Math.min(Math.max(x, half), w - half);
+  return half * 2 >= w - x0 ? (x0 + w) / 2 : Math.min(Math.max(x, x0 + half), w - half);
 };
 
 /**
@@ -127,6 +113,18 @@ export interface RowLabel {
   bold?: boolean;
   priority?: number;
 }
+/**
+ * Something a row label may not meet (#209 review): a bar, a tick label, a target's words. A bar
+ * names the label it carries (`owner`, the label's index in the row); that label may sit on it.
+ */
+export interface Obstacle extends LabelBox {
+  owner?: number;
+}
+/** What a chart hands fitLabelRow for a plot whose top is `extraTop` lower: its labels and their obstacles. */
+export interface LabelRow {
+  labels: RowLabel[];
+  obstacles?: Obstacle[];
+}
 /** Where a row label is drawn (null: left out), its font size, and the extra room the chart reserves at its top. */
 export interface LabelFit {
   extraTop: number;
@@ -134,33 +132,43 @@ export interface LabelFit {
   labels: ({ x: number; y: number } | null)[];
 }
 
-/** Air between two labels (em). */
+/** Air between a label and anything it keeps clear of (em). */
 const LABEL_GAP = 0.15;
 /** The room a staggered row reserves at its top (em): one label's height and its air. */
 export const LABEL_LIFT = LABEL_ASCENT + LABEL_DESCENT + LABEL_GAP + 0.04;
-/** The label font steps a row may take: as drawn, then one step smaller. */
-export const LABEL_STEPS = [1, 0.85];
+/** The label font steps a row may take, down to 80 % (6.5 pt labels: 5.2 pt at the smallest). */
+export const LABEL_STEPS = [1, 0.95, 0.9, 0.85, 0.8];
+/** How far a staggered label may rise above its mark (em): two lines, so it still reads as its mark's. */
+const MAX_RISE = 2 * LABEL_LIFT;
+
+/** A bar's rect as an obstacle box. */
+export const rectBox = (x: number, y: number, w: number, h: number, owner?: number): Obstacle => ({ x0: x, x1: x + Math.max(0, w), y0: y, y1: y + Math.max(0, h), owner });
 
 /**
- * Places one row of centred value labels (bar totals, waterfall steps, target bars,
- * gas columns, line end points) so that no two meet and each stays inside the chart
- * (#209 review: 3-decimal tCO₂e labels are wider than their bands). Tried in order, the
- * first that fits wins:
- *   1. as drawn, each moved inside 0..w by its (bold-aware) width;
- *   2. with one line reserved at the top: left to right, a label that would meet one
- *      already placed goes up just above it, so neighbours stagger;
- *   3. and 4. the same a font step smaller;
- *   5. at that step and stagger, a label that still meets one is left out (bold, then
- *      `priority`, then left to right keep their place first). Never an overlap.
+ * Places one row of centred value labels (bar totals, waterfall steps, target bars, gas
+ * columns, line end points) so that no two meet, none meets an obstacle (a tick label, a
+ * bar other than its own, a target's words) and each stays inside the plot, x0..w (#209
+ * review: 3-decimal tCO₂e labels are wider than their bands). Tried in order, the first
+ * that fits wins:
+ *   1. as drawn, at each font step (LABEL_STEPS, down to 80 %), each label moved inside
+ *      x0..w by its (bold-aware) width;
+ *   2. staggered, at each font step: one line is reserved at the top of the plot and,
+ *      left to right, a label that would meet a label or obstacle goes up just above it
+ *      (at most two lines above its mark);
+ *   3. at the smallest step and staggered, a label that still meets something is left out
+ *      (bold, then `priority`, then left to right keep their place first). Never an overlap.
  * `make(extraTop, size)` builds the row for a plot whose top is `extraTop` lower (the
  * chart's own geometry, so a staggered row takes room from the bars, not from the page);
  * the chart draws with the returned `extraTop` and `size`. `minY` is the top labels may
  * reach (a headline above the plot).
  */
-export function fitLabelRow(make: (extraTop: number, size: number) => RowLabel[], w: number, h: number, minY = 0, size0 = SMALL): LabelFit {
+export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, w: number, h: number, opts: { x0?: number; minY?: number; size0?: number } = {}): LabelFit {
+  const x0 = opts.x0 ?? 0;
+  const minY = opts.minY ?? 0;
+  const size0 = opts.size0 ?? SMALL;
   const attempt = (size: number, stagger: boolean, drop: boolean): LabelFit | null => {
     const extraTop = stagger ? LABEL_LIFT * size : 0;
-    const row = make(extraTop, size);
+    const { labels: row, obstacles = [] } = make(extraTop, size);
     const order = row.map((_, i) => i);
     if (drop) order.sort((a, b) => Number(!!row[b].bold) - Number(!!row[a].bold) || (row[b].priority ?? 0) - (row[a].priority ?? 0) || row[a].x - row[b].x || a - b);
     else order.sort((a, b) => row[a].x - row[b].x || a - b);
@@ -172,18 +180,19 @@ export function fitLabelRow(make: (extraTop: number, size: number) => RowLabel[]
     for (const i of order) {
       const l = row[i];
       let spot: { x: number; y: number; box: LabelBox } | null = null;
-      if (labelWidth(l.text, size, l.bold) <= w) {
-        const x = insideX(l.x, l.text, w, size, l.bold);
-        let y = Math.min(Math.max(l.y, top), bottom);
-        for (let tries = 0; tries < 4 && y >= top; tries++) {
+      if (labelWidth(l.text, size, l.bold) <= w - x0) {
+        const x = insideX(l.x, l.text, w, size, l.bold, x0);
+        const y0 = Math.min(Math.max(l.y, top), bottom);
+        let y = y0;
+        for (let tries = 0; tries < 6 && y >= top && y0 - y <= MAX_RISE * size; tries++) {
           const box = labelBox(x, y, l.text, size, { anchor: "middle", bold: l.bold });
-          const hits = placed.filter((p) => boxesMeet(p, box, gap));
+          const hits: LabelBox[] = [...placed.filter((p) => boxesMeet(p, box, gap)), ...obstacles.filter((o) => o.owner !== i && boxesMeet(o, box, gap))];
           if (!hits.length) {
             spot = { x, y, box };
             break;
           }
           if (!stagger) break;
-          // Stagger: just above the labels it would meet.
+          // Stagger: just above what it would meet.
           y = Math.min(...hits.map((p) => p.y0)) - gap - LABEL_DESCENT * size - 1e-6;
         }
       }
@@ -197,11 +206,37 @@ export function fitLabelRow(make: (extraTop: number, size: number) => RowLabel[]
     return { extraTop, size, labels: out };
   };
   const steps = LABEL_STEPS.map((k) => size0 * k);
-  for (const size of steps) for (const stagger of [false, true]) {
-    const fit = attempt(size, stagger, false);
-    if (fit) return fit;
-  }
+  for (const stagger of [false, true])
+    for (const size of steps) {
+      const fit = attempt(size, stagger, false);
+      if (fit) return fit;
+    }
   return attempt(steps[steps.length - 1], true, true) as LabelFit;
+}
+
+/**
+ * The first of `layouts` (each a list of lines, best first) whose every line fits `w` at one of
+ * `sizes` (largest first), measured (metrics.ts); when none does, the last layout at the size
+ * that makes its widest line fit, so a figure is made smaller, never cut (#209 review).
+ */
+export function fitLines(layouts: string[][], w: number, sizes: number[], bold = false): { lines: string[]; size: number } {
+  for (const lines of layouts) {
+    const size = sizes.find((sz) => lines.every((l) => textWidth(l, sz, bold) <= w));
+    if (size !== undefined) return { lines, size };
+  }
+  const lines = layouts[layouts.length - 1];
+  return { lines, size: Math.min(sizes[sizes.length - 1], w / Math.max(...lines.map((l) => textWidth(l, 1, bold)))) };
+}
+
+/** Words of `s` on as few lines as fit `w` at `size` (a word wider than `w` keeps a line of its own). */
+export function wrapWords(s: string, w: number, size: number, bold = false): string[] {
+  const lines: string[] = [];
+  for (const word of s.split(/\s+/).filter(Boolean)) {
+    const last = lines[lines.length - 1];
+    if (last !== undefined && textWidth(`${last} ${word}`, size, bold) <= w) lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  }
+  return lines;
 }
 
 /** Category keys in first-seen order across every series. */
