@@ -31,8 +31,9 @@ async function login() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
   });
-  assert.equal(res.status, 200, await res.text());
-  return (await res.json()).token;
+  const text = await res.text();
+  assert.equal(res.status, 200, text);
+  return JSON.parse(text).token;
 }
 
 test.after(() => q(`DELETE FROM "user" WHERE user_id = $1`, [ID]));
