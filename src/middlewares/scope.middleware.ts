@@ -32,9 +32,10 @@ const toIds = strictIdList;
 const forbidden = (res: Response) => res.status(403).json(SITE_ACCESS_DENIED);
 const invalidId = (res: Response) => res.status(400).json(INVALID_ID);
 
-/** Replace req.query (a getter in Express 5) with a patched copy. */
-const patchQuery = (req: AuthRequest, patch: Record<string, string>) => {
-  const query = { ...(req.query as Record<string, unknown>), ...patch };
+/** Replace req.query (a getter in Express 5) with a patched copy; an undefined value removes the key. */
+const patchQuery = (req: AuthRequest, patch: Record<string, string | undefined>) => {
+  const query: Record<string, unknown> = { ...(req.query as Record<string, unknown>), ...patch };
+  for (const key of Object.keys(patch)) if (patch[key] === undefined) delete query[key];
   Object.defineProperty(req, "query", { value: query, writable: true, configurable: true, enumerable: true });
 };
 
@@ -102,29 +103,36 @@ export const guardBodyEntrySites: Guard = wrap(async (req, res, next) => {
 
 /**
  * Site ids in the query (`siteIds=1,2`, `siteId=1` or `site_id=1`). Foreign
- * ids are refused; when none is given the query is narrowed to the caller's
- * sites under `fillAs`.
+ * ids are refused. Under `fillAs` the handler reads that key and lists every
+ * site when it is missing or blank, so whenever it carries no checked id it is
+ * filled: with the ids asked for under another key (`site_id=3`), or else with
+ * the caller's sites. Blank and placeholder keys (`siteId=null`) are removed so
+ * no handler reads them as a site.
  */
 export const guardQuerySites = (fillAs?: "siteIds" | "siteId"): Guard =>
   wrap(async (req, res, next) => {
     const q = req.query as Record<string, unknown>;
-    const patch: Record<string, string> = {};
+    const patch: Record<string, string | undefined> = {};
     const requested: number[] = [];
+    let filterOnFillKey = false;
     for (const key of ["siteIds", "siteId", "site_id"]) {
       const ids = toIds(q[key]);
       // siteId and site_id name one site ("1,2" is not an id).
       if (!ids || (key !== "siteIds" && ids.length > 1)) return invalidId(res);
       if (ids.length) patch[key] = ids.join(","); // the handler reads the ids checked here
+      else if (fillAs && key in q) patch[key] = undefined;
+      if (key === fillAs && ids.length) filterOnFillKey = true;
       requested.push(...ids);
     }
-    if (requested.length) patchQuery(req, patch);
+    if (Object.keys(patch).length) patchQuery(req, patch);
     const allowed = await allowedSites(req);
     if (!allowed) return next();
     if (requested.some((id) => !allowed.has(id))) return forbidden(res);
-    if (!requested.length && fillAs) {
-      if (!allowed.size) return res.status(200).json(fillAs === "siteIds" ? [] : { data: [] });
-      if (fillAs === "siteIds") patchQuery(req, { siteIds: [...allowed].join(",") });
-      else if (allowed.size === 1) patchQuery(req, { siteId: String([...allowed][0]) });
+    if (fillAs && !filterOnFillKey) {
+      const sites = requested.length ? [...new Set(requested)] : [...allowed];
+      if (!sites.length) return res.status(200).json(fillAs === "siteIds" ? [] : { data: [] });
+      if (fillAs === "siteIds") patchQuery(req, { siteIds: sites.join(",") });
+      else if (sites.length === 1) patchQuery(req, { siteId: String(sites[0]) });
       else return res.status(400).json({ message: "siteId is required" });
     }
     next();
