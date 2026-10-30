@@ -170,7 +170,6 @@ function expectedScope3Kg() {
   }
   return kg;
 }
-const r2 = (n) => Math.round(n * 1000) / 1000; // tCO₂e compared at 3 dp (#209)
 
 check("C7 the GHG report's Scope 3 table: each of the 15 categories carries its approved kg", async () => {
   const kg = expectedScope3Kg();
@@ -186,18 +185,27 @@ check("C7 the GHG report's Scope 3 table: each of the 15 categories carries its 
   assert.equal(r.json.rows.find((x) => x.n === null)?.tco2e ?? 0, 0, "nothing unmapped");
 });
 
-check("C8 the GHG report's scope totals: Scope 1, 2 and 3 are the sums of the stored rows", async () => {
-  const t = { "Scope 1": 0, "Scope 2": 0, "Scope 3": 0 };
+// D14: the scope totals add the rows' kg and round once, as the Scope 3 table (C7) does, so both
+// show the same Scope 3. By hand from ROWS:
+//   Scope 1  3,992.325 + 8,040.928 + 27,072 + 22,000 = 61,105.253 kg → 61.105 t
+//   Scope 2  43,620 + 20,000 = 63,620 kg → 63.62 t
+//   Scope 3  the twins 936.135 + 1,952.032 + 6,600 + 3,120 + 3,000 = 15,608.167 kg, plus Categories
+//            1, 2, 4–15: 37,000 + 8,000 + 1,284 + 2,082.1308 + 353.4 + 14,042.16 + 1,090.5 + 400
+//            + 14,540 + 76,500 + 5,822.447 + 6,000 + 30,000 + 1,000,000 = 1,212,722.8048 kg → 1,212.723 t
+//   Total    61,105.253 + 63,620 + 1,212,722.8048 = 1,337,448.0578 kg → 1,337.448 t
+//   (adding the rows' stored tonnes gave Scope 3 1,212.722 t and Total 1,337.447 t, while C7 said 1,212.723)
+check("C8 the GHG report's scope totals: Scope 1, 2 and 3 are the stored rows' kg, summed and rounded once", async () => {
+  const kg = { "Scope 1": 0, "Scope 2": 0, "Scope 3": 0 };
   for (const row of SC.ROWS) {
-    t[SC.scopeOf(row.cat)] += tonnes(row.kg);
-    for (const v of Object.values(row.twins ?? {})) t["Scope 3"] += tonnes(v);
+    kg[SC.scopeOf(row.cat)] += row.kg;
+    for (const v of Object.values(row.twins ?? {})) kg["Scope 3"] += v;
   }
   const r = await call("POST", "/user/ghg/tables", S.people.manager, { siteIds: [site()], year: SC.REPORT_YEAR, yearType: SC.YEAR_TYPE, frequency: "yearly" });
   ok(r);
   const totals = r.json.totals?.[String(SC.REPORT_YEAR)];
   assert.ok(totals, JSON.stringify(Object.keys(r.json)));
-  assert.equal(r2(totals.scope1), r2(t["Scope 1"]), "Scope 1");
-  assert.equal(r2(totals.scope2), r2(t["Scope 2"]), "Scope 2");
-  assert.equal(r2(totals.scope3), r2(t["Scope 3"]), "Scope 3");
-  assert.equal(r2(totals.total), r2(t["Scope 1"] + t["Scope 2"] + t["Scope 3"]), "Total");
+  assert.equal(totals.scope1, tonnes(kg["Scope 1"]), "Scope 1");
+  assert.equal(totals.scope2, tonnes(kg["Scope 2"]), "Scope 2");
+  assert.equal(totals.scope3, tonnes(kg["Scope 3"]), "Scope 3");
+  assert.equal(totals.total, tonnes(kg["Scope 1"] + kg["Scope 2"] + kg["Scope 3"]), "Total");
 });

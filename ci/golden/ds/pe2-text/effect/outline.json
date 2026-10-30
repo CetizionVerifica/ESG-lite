@@ -1,6 +1,6 @@
 {
   "effect": "outline",
-  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.outline\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"outline\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title ds-fx-outline\" style=\"text-align:left;justify-content:flex-start;-webkit-text-stroke:0.6mm #1E5D9D;paint-order:stroke fill;--ds-ol-fb:0.3mm 0mm 0 #1E5D9D,-0.3mm 0mm 0 #1E5D9D,0mm 0.3mm 0 #1E5D9D,0mm -0.3mm 0 #1E5D9D,0.3mm 0.3mm 0 #1E5D9D,-0.3mm 0.3mm 0 #1E5D9D,0.3mm -0.3mm 0 #1E5D9D,-0.3mm -0.3mm 0 #1E5D9D;\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></p></div></div></div>",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.outline\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"outline\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title ds-fx-outline\" style=\"text-align:left;justify-content:flex-start;-webkit-text-stroke:0.6mm #1E5D9D;paint-order:stroke fill;--ds-ol-fb:0.3mm 0mm 0 #1E5D9D,-0.3mm 0mm 0 #1E5D9D,0mm 0.3mm 0 #1E5D9D,0mm -0.3mm 0 #1E5D9D,0.3mm 0.3mm 0 #1E5D9D,-0.3mm 0.3mm 0 #1E5D9D,0.3mm -0.3mm 0 #1E5D9D,-0.3mm -0.3mm 0 #1E5D9D;\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210.000</span></p></div></div></div>",
   "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
   "props": {
     "align": "left",
@@ -12,5 +12,5 @@
     },
     "font": null
   },
-  "sha256": "b04bd75bc8cd1bb50d8777047562d901a768a95afae472309ee42c1c30848ed5"
+  "sha256": "a64a6e9e9647aca7a605015ace6ec6a2abf9cc56c98d7646941d85a41f9c7f9b"
 }

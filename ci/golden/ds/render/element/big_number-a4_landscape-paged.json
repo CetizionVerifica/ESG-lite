@@ -2,10 +2,10 @@
   "element": "big_number",
   "elements": [
     {
-      "bytes": 546,
+      "bytes": 550,
       "frame": "28.286,152.02,127.286,22.626,0",
       "id": "p-cover.total",
-      "sha256": "ee95f9f9eab34468a309fa9a8d77ce77f520664369a4d5429c088f391eee3a84"
+      "sha256": "ba34fede48690896f4b54f5feb5c8cae5394e1327d56bca38de1ed48395e38a0"
     }
   ],
   "format": "a4_landscape",

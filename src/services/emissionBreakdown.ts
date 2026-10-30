@@ -1,17 +1,21 @@
 // Consumption and emissions per emission category (fuel type, waste stream …)
 // for one category: the My entries "Breakdown" panel. Same rules as the old My
 // emissions sidebar, which paged every row into the browser to compute this.
+// D14: a group's tCO₂e adds its rows' exact kgCO₂e and rounds once, as reports do.
+import { kgToTonnes, rowKg, sumKg } from "../reporting/kgTotals";
 
 export interface BreakdownSourceRow {
   activity_data: Record<string, unknown> | null;
   activity_data_unit: string | null;
   total_emission: number | string | null;
+  /** kgCO₂e at 4 dp; null on rows saved before kg totals (then tonnes × 1000 is used). */
+  total_kgco2e?: number | string | null;
 }
 
 export interface BreakdownGroup {
   emission_category: string;
   entries: number;
-  /** tCO₂e, rounded to 2 decimals. */
+  /** tCO₂e: the rows' kgCO₂e summed, rounded once to 3 decimals (D14). */
   total_emission: number;
   /** Sum of each entry's activity value. */
   consumption: number;
@@ -61,15 +65,15 @@ const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 *
 
 /** Groups by emission_category (case-insensitively, first spelling kept), largest emissions first. */
 export function computeBreakdown(rows: BreakdownSourceRow[], numberColumns: string[]): BreakdownGroup[] {
-  const groups = new Map<string, { label: string; entries: number; emission: number; consumption: number; units: Set<string> }>();
+  const groups = new Map<string, { label: string; entries: number; kg: number[]; consumption: number; units: Set<string> }>();
   for (const row of rows) {
     const data = row.activity_data ?? {};
     const raw = valueCI(data, "emission_category");
     const label = raw === undefined || raw === null || String(raw).trim() === "" ? BLANK_GROUP : String(raw).trim();
     const key = label.toLowerCase();
-    const g = groups.get(key) ?? { label, entries: 0, emission: 0, consumption: 0, units: new Set<string>() };
+    const g = groups.get(key) ?? { label, entries: 0, kg: [], consumption: 0, units: new Set<string>() };
     g.entries += 1;
-    g.emission += Number(row.total_emission) || 0;
+    g.kg.push(rowKg(row));
     g.consumption += consumptionOf(data, numberColumns);
     if (row.activity_data_unit) g.units.add(row.activity_data_unit);
     groups.set(key, g);
@@ -78,7 +82,7 @@ export function computeBreakdown(rows: BreakdownSourceRow[], numberColumns: stri
     .map((g) => ({
       emission_category: g.label,
       entries: g.entries,
-      total_emission: round(g.emission, 3), // #209
+      total_emission: kgToTonnes(sumKg(g.kg)), // #209, D14
       consumption: round(g.consumption, 4),
       unit: g.units.size === 1 ? [...g.units][0] : g.units.size > 1 ? MIXED_UNIT : null,
     }))

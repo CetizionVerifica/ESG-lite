@@ -5,6 +5,7 @@ import { emissionIntensityComparison } from "../services/emissionIntensity.servi
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
 import { Product } from "../entities/Product";
 import { Emission, EmissionStatus } from "../entities/Emission";
+import { kgToTonnes, sumKgSql } from "../reporting/kgTotals"; // D14
 import { AuditLog } from "../entities/AuditLog";
 import { User } from "../entities/User";
 import { UserRole } from "../types/type";
@@ -350,14 +351,14 @@ export const getEmissionIntensity = async (req: Request, res: Response) => {
     const emissionsQuery = emissionRepo
       .createQueryBuilder("emission")
       .leftJoin("emission.category", "category")
-      .select("SUM(emission.total_emission)", "totalEmissions")
+      .select(sumKgSql("emission"), "kg") // D14: the rows' kg, rounded once
       .where("emission.site_id = :siteId", { siteId: parseInt(siteId) })
       .andWhere("emission.status = :status", { status: EmissionStatus.APPROVED })
       .andWhere("emission.date_of_reporting BETWEEN :startDate AND :endDate", dateFilter)
       .andWhere("category.scope IS NOT NULL"); // Exclude null-scope categories
 
     const emissionsResult = await emissionsQuery.getRawOne();
-    const totalEmissions = parseFloat(emissionsResult?.totalEmissions || 0);
+    const totalEmissions = kgToTonnes(emissionsResult?.kg);
 
     // Get total production for the site (where production period overlaps with filter, approved only)
     const productionQuery = repo
@@ -390,7 +391,7 @@ export const getEmissionIntensity = async (req: Request, res: Response) => {
 
     // Get monthly breakdown
     const monthlyData = await getMonthlyIntensity(
-      parseInt(siteId),
+      [parseInt(siteId)],
       dateFilter.startDate,
       dateFilter.endDate,
       productId ? parseInt(productId as string) : undefined
@@ -411,9 +412,10 @@ export const getEmissionIntensity = async (req: Request, res: Response) => {
   }
 };
 
-// Helper function for monthly intensity
+// Helper function for monthly intensity. D14: several sites are combined per
+// month on the server (their kg added, rounded once), never per-site months added.
 async function getMonthlyIntensity(
-  siteId: number,
+  siteIds: number[],
   startDate: Date,
   endDate: Date,
   productId?: number
@@ -423,8 +425,8 @@ async function getMonthlyIntensity(
     .createQueryBuilder("e")
     .leftJoin("e.category", "category")
     .select("DATE_TRUNC('month', e.date_of_reporting)", "month")
-    .addSelect("SUM(e.total_emission)", "emissions")
-    .where("e.site_id = :siteId", { siteId })
+    .addSelect(sumKgSql("e"), "kg") // D14: each month's kg, rounded once
+    .where("e.site_id IN (:...siteIds)", { siteIds })
     .andWhere("e.status = :status", { status: EmissionStatus.APPROVED })
     .andWhere("e.date_of_reporting BETWEEN :startDate AND :endDate", { startDate, endDate })
     .andWhere("category.scope IS NOT NULL") // Exclude null-scope categories
@@ -436,7 +438,7 @@ async function getMonthlyIntensity(
     .createQueryBuilder("pd")
     .select("DATE_TRUNC('month', pd.start_date)", "month")
     .addSelect("SUM(pd.quantity)", "production")
-    .where("pd.site_id = :siteId", { siteId })
+    .where("pd.site_id IN (:...siteIds)", { siteIds })
     .andWhere("pd.status = :prodStatus", { prodStatus: ProductionDataStatus.APPROVED })
     .andWhere("pd.start_date <= :endDate AND pd.end_date >= :startDate", { startDate, endDate });
 
@@ -454,7 +456,7 @@ async function getMonthlyIntensity(
   monthlyEmissions.forEach((e) => {
     const monthKey = new Date(e.month).toISOString().slice(0, 7);
     monthMap.set(monthKey, {
-      emissions: parseFloat(e.emissions || 0),
+      emissions: kgToTonnes(e.kg),
       production: 0,
       intensity: 0,
     });
@@ -504,9 +506,14 @@ export const getEmissionIntensityComparison = async (req: Request, res: Response
     }
 
     const results = await emissionIntensityComparison(siteIdArray, dateFilter); // IN-1 (moved, unchanged)
+    // D14: the chosen sites' gross emissions and production per month, combined on the
+    // server (each month's kg rounded once), for the Overview's intensity trend.
+    const monthlySites = siteIdArray.filter(Number.isInteger);
+    const monthlyData = monthlySites.length ? await getMonthlyIntensity(monthlySites, dateFilter.startDate, dateFilter.endDate) : [];
 
     return res.status(200).json({
       comparison: results,
+      monthlyData,
       dateRange: dateFilter,
     });
   } catch (error) {

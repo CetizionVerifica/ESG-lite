@@ -187,6 +187,12 @@ test("years, compare and top: a series per year, change vs prior, the rest folde
   assert.equal(top.series[1].values.length, 2);
   assert.equal(top.series[1].values[1].key, "Other");
   close(sum(top.series[1].values), tables24["2025"].total, "top + Other = total");
+  // #209 review: parts in the metric's unit carry no unit of their own; a gas breakdown's parts are
+  // tonnes of each gas ("t"), not the binding's tCO₂e.
+  assert.ok(top.series.every((s) => !("unit" in s)), JSON.stringify(top.series));
+  const gas = (await ok("manager", body([ghg("total", { breakdown: "gas", years: { last: 2 } })], { sites: [1, 2] }))).values[0];
+  assert.equal(gas.unit, "tCO₂e");
+  assert.deepEqual(gas.series.map((s) => [s.label, s.unit]), [["2024", "t"], ["2025", "t"]]);
   // A token measures the same binding.
   const tok = await ok("manager", { ...body([], { sites: [1, 2] }), tokens: [{ type: "data", attrs: { binding: ghg("total"), measure: "change_pct", format: "pct1" } }] });
   assert.equal(tok.tokens.length, 1);
@@ -262,7 +268,17 @@ test("the sustainability kind needs KPI tracking (DS_KIND_OFF); KPI bindings rea
   assert.equal(water.compare.change_abs, 300);
   assert.equal(water.compare.change_pct, 25);
   assert.equal(headline.value, 15, "Scope 1 + Scope 2 (location-based)");
+  // #209: a KPI in tonnes of CO₂e (canonical "tCO2e") shows 3 decimals; other units keep auto.
+  assert.equal(headline.display, "15.000");
+  assert.equal(water.display, "1,500");
   assert.deepEqual(bySite.series[0].values, [{ key: "1", value: 1000 }, { key: "2", value: 500 }]);
+  // #209 review: every series carries its unit; KPIs of one binding keep their own.
+  assert.deepEqual(water.series.map((x) => x.unit), ["kL"]);
+  assert.deepEqual(bySite.series.map((x) => x.unit), ["kL"]);
+  const mixed = (await ok("manager", { ...body([kb(["GHG_SCOPE1", "WATER_WITHDRAWAL"])]), kind: "sustainability" })).values[0];
+  assert.equal(mixed.unit, "tCO2e", "the first KPI's unit");
+  assert.equal(mixed.display, "10.000");
+  assert.deepEqual(mixed.series.map((x) => [x.label, x.unit, x.values.map((p) => p.value)]), [[mixed.series[0].label, "tCO2e", [null, 10]], [mixed.series[1].label, "kL", [1200, 1500]]]);
 
   const notSelected = await resolve("manager", { ...body([kb(["WATER_WITHDRAWAL"]), kb(["AIR_NOX"])]), kind: "sustainability" });
   assert.equal(notSelected.status, 422);

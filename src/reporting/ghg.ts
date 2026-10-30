@@ -76,6 +76,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
   const totalsSel = data.totals[String(selectedYear)];
   const totalsComp = data.totals[String(compYear)];
   const overviewRows = data.tables.table_overviewByLocations_selectedYear.rows;
+  const overviewSites = data.tables.table_overviewByLocations_selectedYear.siteTotals;
 
   const total = totalsSel.total;
   const s1 = totalsSel.scope1, s2 = totalsSel.scope2, s3 = totalsSel.scope3;
@@ -137,12 +138,17 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     if (!CORE_SCOPES.has(row.scope)) continue;
     scopeSet.add(row.scope);
     catTotals.set(row.category, (catTotals.get(row.category) ?? 0) + row.total);
-    for (const bs of row.bySite) {
-      siteTotals.set(bs.siteName, (siteTotals.get(bs.siteName) ?? 0) + bs.value);
-      const k = `${bs.siteName}||${row.scope}`;
-      siteScopeMap.set(k, (siteScopeMap.get(k) ?? 0) + bs.value);
-    }
   }
+  // D14: a site's figures are its own kg rounded once (computeGhgTables
+  // siteTotals), never its category cells added up, so they are the figures
+  // EDE and Overview show for the site.
+  const SCOPE_FIELD = { "Scope 1": "scope1", "Scope 2": "scope2", "Scope 3": "scope3" } as const;
+  for (const s of overviewSites) {
+    siteTotals.set(s.siteName, s.total);
+    for (const sc of scopeSet) siteScopeMap.set(`${s.siteName}||${sc}`, s[SCOPE_FIELD[sc as keyof typeof SCOPE_FIELD]]);
+  }
+  // A scope's figure is Table 1's (its kg rounded once), never its categories added up.
+  const scopeTotal = (sc: string) => (sc === "Scope 1" ? s1 : sc === "Scope 2" ? s2 : sc === "Scope 3" ? s3 : 0);
 
   const scopeNames = [...scopeSet].filter(Boolean).sort();
   const bySite = [...siteTotals.entries()]
@@ -289,7 +295,8 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     if (scopes.length > 1) {
       B.push({
         type: "shareBar", title: topScope ? `${topScope.scope} drives the footprint` : "Emissions by scope", subtitle: `Share of total emissions by scope, ${unit}`,
-        parts: scopes.map((s) => ({ label: s.scope, value: s.t, color: SCOPE_COLOR[s.scope] })), unit, caption: source,
+        // D14: "100% =" and the shares are of Table 1's total, not the rounded scopes added up.
+        parts: scopes.map((s) => ({ label: s.scope, value: s.t, color: SCOPE_COLOR[s.scope] })), unit, total, caption: source,
       });
     }
     if (prevTotal > 0) {
@@ -319,12 +326,14 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
         ? `${topSite.site_name} accounts for ${pct(topSite.t, total)} of emissions${topSiteScope && topSiteScope.v > topSite.t / 2 ? `, mostly ${scopeWhat[topSiteScope.sc] ?? topSiteScope.sc}` : ""}.`
         : `Emissions by site for ${yearLabel}.`,
     });
-    const siteSum = bySite.reduce((a, r) => a + r.t, 0);
+    // D14: the chart's total and the table's Total row are the report's own
+    // figures (Table 1), not the rounded site figures added up; each bar's
+    // label is its site's own figure (siteTotals), not its rounded scopes added up.
     B.push({
       type: "stackedBars", title: "Emissions by site and scope", subtitle: `${unit}; bar labels show each site's total and share`,
       series: scopeNames.map((sc) => ({ name: sc, color: SCOPE_COLOR[sc] ?? theme.colors.primary })),
-      rows: siteNames.map((sn) => ({ label: sn, values: scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0) })),
-      total: siteSum, caption: source,
+      rows: siteNames.map((sn) => ({ label: sn, values: scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0), total: siteTotals.get(sn) ?? 0 })),
+      total, caption: source,
     });
     B.push({
       type: "table", title: "Site × scope", subtitle: unit,
@@ -332,11 +341,11 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
       rows: [
         ...siteNames.map((sn) => {
           const vals = scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0);
-          const t = vals.reduce((a, b) => a + b, 0);
-          return [sn, ...vals.map((v) => fmt(v)), fmt(t), pct(t, siteSum)];
+          const t = siteTotals.get(sn) ?? 0;
+          return [sn, ...vals.map((v) => fmt(v)), fmt(t), pct(t, total)];
         }),
         ...(siteNames.length > 1
-          ? [["Total", ...scopeNames.map((sc) => fmt(siteNames.reduce((a, sn) => a + (siteScopeMap.get(`${sn}||${sc}`) ?? 0), 0))), fmt(siteSum), "100.0%"]]
+          ? [["Total", ...scopeNames.map((sc) => fmt(scopeTotal(sc))), fmt(total), "100.0%"]]
           : []),
       ],
       totalRow: siteNames.length > 1,
@@ -350,7 +359,7 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     const NO_FUEL_BREAKDOWN = /purchased electricity/i;
     const scopeParts = scopeNames.map((sc) => {
       const rows = scopeCat.filter((r) => r.scope === sc && r.t > 0).sort((a, b) => b.t - a.t);
-      const scTotal = rows.reduce((a, b) => a + b.t, 0);
+      const scTotal = scopeTotal(sc); // Table 1's figure (D14)
       const fuels = fuelRows
         .filter((f) => f.scope === sc && f.emissions > 0 && !NO_FUEL_BREAKDOWN.test(f.category))
         .sort((a, b) => b.emissions - a.emissions);

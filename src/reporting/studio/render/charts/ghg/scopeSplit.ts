@@ -6,32 +6,176 @@
  * location-based" (market-based isn't recorded, D7).
  * Binding: ghg · metric total · breakdown scope.
  */
-import { formatNumber } from "../../format";
+import { formatNumber, seriesUnit } from "../../format";
+import type { Theme } from "../../theme";
 import { esc, n3 } from "../../util";
-import { FONT, SMALL, emptyChart, rect, svgOpen, text, type ChartInput } from "../svg";
-import { biggest, currentSeries, headline, partColor, partsOf, pct, total, wrapLegend } from "./common";
+import { besideDonut, donutCentre, looseRing, ringFit, ringLabels, underDonut } from "../donut";
+import { textWidth } from "../metrics";
+import { FONT, SMALL, emptyChart, rect, svgOpen, text, wrapWords, type ChartInput } from "../svg";
+import { HEADLINE_STEPS, biggest, currentSeries, headline, partColor, partsOf, pct, total } from "./common";
 
 export const SCOPE2_BASIS_NOTE = "Scope 2: location-based. Market-based isn't recorded.";
+/** The note's first sentence: what a frame too small for the whole note keeps (a last resort, #209 review). */
+export const SCOPE2_BASIS_NOTE_SHORT = "Scope 2: location-based.";
+/** Steps the legend and note text may take before anything is left out: 6.5 pt down to 5.2 pt. */
+export const SMALL_TEXT_STEPS = [1, 0.95, 0.9, 0.85, 0.8];
+
+type Item = { label: string; color: string };
+
+/** The note's lines at `size` in `w`: one line; else a line per sentence; else wrapped words; null when a line still doesn't fit. */
+export function noteLines(note: string, w: number, size: number): string[] | null {
+  const fits = (lines: string[]) => lines.every((l) => textWidth(l, size) <= w);
+  if (fits([note])) return [note];
+  const sentences = (note.match(/[^.]+\.(?=\s|$)/g) ?? [note]).map((x) => x.trim());
+  if (sentences.length > 1 && fits(sentences)) return sentences;
+  const words = wrapWords(note, w, size);
+  return fits(words) ? words : null;
+}
+
+/**
+ * Text metrics of the legend and note blocks (em): a swatch's top and the tallest glyph above the baseline, the
+ * deepest glyph under it (the eight studio faces measured in Chromium: ascent 0.79, descent 0.25 with "g", "j"),
+ * the row and line pitch, and the air between blocks.
+ */
+const SWATCH = 0.8;
+const ASCENT = 0.8;
+const DEPTH = 0.26;
+const PITCH = 1.25;
+const AIR = 0.3;
+/** Air between legend items (em, after the measured, generous text width). */
+const ITEM_GAP = 0.9;
+
+/** A legend laid out on rows that fit `w` at `size`, measured (metrics.ts); null when one item alone is wider than `w`. `h`: its swatch tops to its last glyph's foot. */
+function legendRows(items: Item[], w: number, size: number): { rows: (Item & { x: number })[][]; h: number; size: number } | null {
+  const rows: (Item & { x: number })[][] = [];
+  let x = 0;
+  for (const it of items) {
+    const iw = size * 1.2 + textWidth(it.label, size);
+    if (iw > w) return null;
+    if (!rows.length || (x > 0 && x + iw > w)) {
+      rows.push([]);
+      x = 0;
+    }
+    rows[rows.length - 1].push({ ...it, x });
+    x += iw + size * ITEM_GAP;
+  }
+  return { rows, h: rows.length ? (SWATCH + (rows.length - 1) * PITCH + DEPTH) * size : 0, size };
+}
+
+/** A note block's height: its first line's ascent to its last line's foot. */
+const noteHeight = (lines: string[], size: number): number => (lines.length ? (ASCENT + (lines.length - 1) * PITCH + DEPTH) * size : 0);
+
+const drawLegend = (lg: { rows: (Item & { x: number })[][]; size: number }, y0: number, theme: Theme): string =>
+  lg.rows
+    .map((row, li) =>
+      row
+        .map((it) => {
+          const y = y0 + (SWATCH + li * PITCH) * lg.size;
+          return rect(it.x, y - lg.size * SWATCH, lg.size * SWATCH, lg.size * SWATCH, it.color) + text(it.x + lg.size * 1.2, y, it.label, theme.colors.muted, { size: lg.size });
+        })
+        .join(""),
+    )
+    .join("");
+
+/** The note's lines from the block's top `y0`. */
+const drawNote = (lines: string[], y0: number, size: number, theme: Theme): string => lines.map((l, i) => text(0, y0 + (ASCENT + i * PITCH) * size, l, theme.colors.muted, { size })).join("");
 
 export function scopeSplitChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
-  const ps = partsOf(currentSeries(value)).filter((p) => p.value > 0);
+  const cur = currentSeries(value);
+  const ps = partsOf(cur).filter((p) => p.value > 0);
   const sum = total(ps);
   if (!ps.length || sum <= 0) return emptyChart(w, h, "No data", theme);
   const colors = ps.map((p, i) => partColor(input, p.key, i));
   const labelled = biggest(ps, 3);
   const note = options.basisNote !== false;
-  const legendItems = ps.map((p, i) => ({ label: `${p.key} ${formatNumber(p.value)}`, color: colors[i] }));
+  const valueItems = ps.map((p, i) => ({ label: `${p.key} ${formatNumber(p.value, "auto", seriesUnit(cur, value.unit))}`, color: colors[i] }));
   let body = "";
 
+  const nameItems = valueItems.map((it, i) => ({ ...it, label: ps[i].key }));
+  const legendModes: Item[][] = options.showLegend === false ? [[]] : [valueItems, nameItems, []];
+  const noteModes = note ? [SCOPE2_BASIS_NOTE, SCOPE2_BASIS_NOTE_SHORT, ""] : [""];
+
   if (options.variant === "donut") {
-    const leg = options.showLegend === false ? { svg: "", h: 0 } : wrapLegend(legendItems, w, 0, theme);
-    const noteH = note ? SMALL * 1.6 : 0;
-    const plotH = h - leg.h - noteH;
-    const r = Math.max(FONT, Math.min(w, plotH) / 2 - FONT * 1.6);
-    const cx = w / 2;
-    const cy = plotH / 2;
-    const inner = r * 0.62;
+    // #209 review: as the bar's plan below: the legend (measured, wrapping onto rows) and the whole basis note (wrapped) keep
+    // their place, stepping their text down to 5.2 pt, as long as the donut keeps a radius of at least FONT × 1.2; the total sits
+    // in the hole when it fits there, else under the donut, never over the ring. Only a frame too small for that gives something
+    // up, in the bar's order. #209 round 4: the ring is placed by ringFit (room only on the sides that carry a share label). A
+    // frame too small for the full ring tries a ring of at least FONT, then FONT × 0.5, with every share label, giving up the
+    // note's second sentence, then the note for it; then production's ring (looseRing, never under FONT), leaving out the
+    // share labels it has no room for, with the whole note, its first sentence, none; then the same without the total (it
+    // goes in the hole, under the ring, or beside it in a wide frame, while it fits); only then the legend's figures, in the
+    // same order. The scope names go last: a frame too small for them, the ring at FONT and the total takes a smaller ring,
+    // then leaves out the total (a ring never under FONT × 0.75 with it); the names are left out only when they don't fit
+    // the frame at all.
+    const figure = value.display ?? "";
+    const ring = ps.map((p, i) => ({ share: p.value / sum, show: labelled.has(i) && p.value / sum >= 0.04 }));
+    /**
+     * How small the ring may be: over 0, the least radius at which every share label fits; 0, production's ring (at least FONT)
+     * whose labels without room are left out; under 0, a ring smaller than FONT (as big as the plot leaves, at least −tier).
+     */
+    const tiers = [FONT * 1.2, FONT, FONT * 0.5, 0];
+    type DonutPlan = { plotH: number; r: number; fit: number; cx: number; cy: number; inner: number; leg: ReturnType<typeof legendRows>; lines: string[]; ns: number; noteH: number; centre: string; under: string; underH: number };
+    const donutPlan = (items: Item[], noteText: string, k: number, tier: number, withFigure = true): DonutPlan | null => {
+      const size = SMALL * k;
+      const leg = items.length ? legendRows(items, w, size) : null;
+      if (items.length && !leg) return null;
+      const lines = noteText ? noteLines(noteText, w, size) : [];
+      if (!lines) return null;
+      const legH = leg ? leg.h + SMALL * 0.4 : 0;
+      const noteH = lines.length ? noteHeight(lines, size) + SMALL * 0.4 : 0;
+      const geom = (underH: number) => {
+        const plotH = h - legH - noteH - underH;
+        const f = tier > 0 ? ringFit(w, Math.max(0, plotH), ring) : null;
+        const g = f ? { r: f.fit, ...f } : { fit: 0, ...looseRing(w, Math.max(0, plotH), FONT) };
+        return { plotH, ...g, inner: g.r * 0.62 };
+      };
+      const ok = (g: ReturnType<typeof geom>) => (tier > 0 ? g.fit >= tier : tier === 0 ? Math.min(w, g.plotH) >= FONT * 2 : Math.min(w, g.plotH) >= -tier * 2);
+      let g = geom(0);
+      if (!ok(g)) return null;
+      let centre = withFigure && (figure || value.unit) ? donutCentre(figure, value.unit, g.cx, g.cy, g.inner, theme) : "";
+      let under = "";
+      let underH = 0;
+      if (centre === null) {
+        const u = underDonut(figure, value.unit, w, theme);
+        const gu = geom(u.h);
+        if (!ok(gu)) {
+          // #209 round 4: no room under the ring: beside it, in a wide frame (besideDonut).
+          const side = besideDonut(figure, value.unit, { ...g, plotH: Math.max(0, g.plotH), labels: ringLabels(ring, g.cx, g.cy, g.r, w, Math.max(0, g.plotH)) }, w, theme);
+          if (side === null) return null;
+          return { ...g, leg, lines, ns: size, noteH, centre: "", under: side, underH: 0 };
+        }
+        g = gu;
+        under = u.svg(g.plotH);
+        underH = u.h;
+        centre = "";
+      }
+      return { ...g, leg, lines, ns: size, noteH, centre, under, underH };
+    };
+    const legends: Item[][] = options.showLegend === false ? [[]] : [valueItems, nameItems];
+    const last = SMALL_TEXT_STEPS[SMALL_TEXT_STEPS.length - 1];
+    let dp: DonutPlan | null = null;
+    // For each legend: every note mode with every share label first (a ring of FONT × 1.2, FONT, FONT × 0.5), then every note
+    // mode with production's ring, then those without the total in or by the ring (production drew it over a ring whose
+    // hole couldn't hold it): the legend's tCO₂e figures outrank the share labels, and those the note.
+    const passes: [number[], boolean][] = [[tiers.filter((t) => t > 0), true], [[0], true], [[0], false]];
+    search: for (const items of legends)
+      for (const [pass, withFigure] of passes)
+        for (const noteText of noteModes)
+          for (const tier of pass)
+            for (const k of SMALL_TEXT_STEPS) {
+              dp = donutPlan(items, noteText, k, tier, withFigure);
+              if (dp) break search;
+            }
+    const names = legends[legends.length - 1];
+    dp ??= donutPlan(names, "", last, -FONT * 0.75) ?? donutPlan(names, "", last, -SMALL * 0.25, false) ?? donutPlan([], "", last, -SMALL * 0.25, false);
+    if (!dp) {
+      // A frame too small for any ring: the ring as big as the frame is, alone.
+      const r = Math.max(SMALL * 0.25, Math.min(w, h) / 2);
+      dp = { plotH: h, r, fit: 0, cx: w / 2, cy: h / 2, inner: r * 0.62, leg: null, lines: [], ns: SMALL, noteH: 0, centre: "", under: "", underH: 0 };
+    }
+    const { plotH, r, cx, cy, inner, leg, lines, ns, noteH, centre, under, underH } = dp as NonNullable<typeof dp>;
+    const shareLabels = ringLabels(ring, cx, cy, r, w, Math.max(plotH, 0));
     let a0 = -Math.PI / 2;
     const pt = (rad: number, a: number) => `${n3(cx + rad * Math.cos(a))} ${n3(cy + rad * Math.sin(a))}`;
     ps.forEach((p, i) => {
@@ -42,34 +186,66 @@ export function scopeSplitChart(input: ChartInput): string {
           ? `M${pt(r, 0)}A${n3(r)} ${n3(r)} 0 1 1 ${pt(r, Math.PI)}A${n3(r)} ${n3(r)} 0 1 1 ${pt(r, 0)}ZM${pt(inner, 0)}A${n3(inner)} ${n3(inner)} 0 1 0 ${pt(inner, Math.PI)}A${n3(inner)} ${n3(inner)} 0 1 0 ${pt(inner, 0)}Z`
           : `M${pt(r, a0)}A${n3(r)} ${n3(r)} 0 ${large} 1 ${pt(r, a1)}L${pt(inner, a1)}A${n3(inner)} ${n3(inner)} 0 ${large} 0 ${pt(inner, a0)}Z`;
       body += `<path d="${d}" fill="${colors[i]}" fill-rule="evenodd" stroke="${theme.colors.paper}" stroke-width="1" data-part="${esc(p.key)}"><title>${esc(p.key)}</title></path>`;
-      const share = p.value / sum;
-      if (labelled.has(i) && share >= 0.04) {
-        const mid = (a0 + a1) / 2;
-        body += text(cx + (r + FONT) * Math.cos(mid), cy + (r + FONT) * Math.sin(mid), pct(share), theme.colors.ink, { size: SMALL, anchor: Math.cos(mid) > 0.2 ? "start" : Math.cos(mid) < -0.2 ? "end" : "middle", baseline: "middle" });
-      }
+      const sl = shareLabels[i];
+      if (sl) body += text(sl.x, sl.y, sl.text, theme.colors.ink, { size: SMALL, anchor: sl.anchor, baseline: "middle" });
       a0 = a1;
     });
-    if (value.display) body += text(cx, cy, value.display, theme.colors.ink, { anchor: "middle", baseline: "middle", weight: 700, size: FONT * 1.4 });
-    if (value.unit) body += text(cx, cy + FONT * 1.4, value.unit, theme.colors.muted, { anchor: "middle", baseline: "middle", size: SMALL });
-    body += `<g transform="translate(0 ${n3(plotH)})">${leg.svg}</g>`;
-    if (note) body += text(0, h - SMALL * 0.4, SCOPE2_BASIS_NOTE, theme.colors.muted, { size: SMALL });
+    body += centre + under;
+    if (leg) body += drawLegend(leg, plotH + underH, theme);
+    if (lines.length) body += drawNote(lines, h - noteH, ns, theme);
     return `${svgOpen(w, h, input.label)}<g data-ghg-chart="scope_split" data-variant="donut">${body}</g></svg>`;
   }
 
-  // 100 % bar.
-  const head = headline(value, theme);
+  // 100 % bar. #209 review: what is reported is kept. The bar is never thinner than its share labels need; the legend
+  // (scope and tCO₂e) and the whole Scope 2 basis note keep their place by wrapping onto rows and lines, stepping their text
+  // down to 5.2 pt, then the total line a step down too. Only a frame too small for all of that gives something up, in this
+  // order: the note's second sentence, the note, the legend's figures, the legend. Nothing overlaps or leaves the chart.
+  const gap = SMALL * 0.35;
+  const shares = ps.map((p, i) => labelled.has(i) && p.value / sum >= 0.08);
+  const minBar = shares.some(Boolean) ? SMALL * 1.1 : SMALL * 0.5;
+  // #209 round 4: the last resort is one smaller line, never a cut figure (production drew one line).
+  const heads = [headline(value, theme, "Total", w), headline(value, theme, "Total", w, { steps: HEADLINE_STEPS.slice(-1) }), headline(value, theme, "Total", w, { maxH: 0 })];
+  type Plan = { head: { svg: string; h: number }; leg: ReturnType<typeof legendRows>; lines: string[]; ns: number; room: number };
+  const planFor = (head: Plan["head"], items: Item[], noteText: string, k: number): Plan | null => {
+    const size = SMALL * k;
+    const leg = items.length ? legendRows(items, w, size) : null;
+    if (items.length && !leg) return null;
+    const lines = noteText ? noteLines(noteText, w, size) : [];
+    if (!lines) return null;
+    const below = (leg ? leg.h : 0) + (leg && lines.length ? AIR * size : 0) + noteHeight(lines, size);
+    return { head, leg, lines, ns: size, room: h - head.h - SMALL * 0.4 - (below ? gap + below : 0) };
+  };
+  let plan: Plan | null = null;
+  search: for (const items of legendModes)
+    for (const noteText of noteModes)
+      for (const head of heads)
+        for (const k of SMALL_TEXT_STEPS) {
+          const pl = planFor(head, items, noteText, k);
+          if (pl && pl.room >= minBar) {
+            plan = pl;
+            break search;
+          }
+        }
+  const head = plan?.head ?? heads[heads.length - 1];
   const barY = head.h + SMALL * 0.4;
-  const barH = Math.min(FONT * 3, Math.max(FONT * 1.5, (h - head.h) * 0.35));
+  const want = Math.min(FONT * 3, Math.max(FONT * 1.5, (h - head.h) * 0.35));
+  // A frame too small for even the bar and its share labels: the bar alone, as tall as it can be.
+  const barH = plan ? Math.min(want, plan.room) : Math.max(SMALL * 0.5, Math.min(want, h - barY));
+  const sharesFit = barH >= SMALL * 1.1;
   let x = 0;
   ps.forEach((p, i) => {
     const pw = (p.value / sum) * w;
     body += rect(x, barY, pw, barH, colors[i], ` stroke="${theme.colors.paper}" stroke-width="1" data-part="${esc(p.key)}"`);
-    const share = p.value / sum;
-    if (labelled.has(i) && share >= 0.08) body += text(x + pw / 2, barY + barH / 2, pct(share), "#FFFFFF", { size: SMALL, anchor: "middle", baseline: "middle", weight: 700 });
+    // A share label fits its segment (a size smaller if it must); one that fits nowhere is left out, never drawn over a neighbour.
+    const sz = sharesFit && shares[i] ? [SMALL, SMALL * 0.9, SMALL * 0.8].find((z) => textWidth(pct(p.value / sum), z, true) + z * 0.3 <= pw) : undefined;
+    if (sz) body += text(x + pw / 2, barY + barH / 2, pct(p.value / sum), "#FFFFFF", { size: sz, anchor: "middle", baseline: "middle", weight: 700 });
     x += pw;
   });
-  const leg = options.showLegend === false ? { svg: "", h: 0 } : wrapLegend(legendItems, w, barY + barH + SMALL * 0.6, theme);
-  body += head.svg + leg.svg;
-  if (note) body += text(0, Math.min(h - SMALL * 0.4, barY + barH + SMALL * 0.6 + leg.h + SMALL * 1.2), SCOPE2_BASIS_NOTE, theme.colors.muted, { size: SMALL });
+  body += head.svg;
+  if (plan) {
+    const y0 = barY + barH + gap;
+    if (plan.leg) body += drawLegend(plan.leg, y0, theme);
+    if (plan.lines.length) body += drawNote(plan.lines, y0 + (plan.leg ? plan.leg.h + AIR * plan.ns : 0), plan.ns, theme);
+  }
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="scope_split" data-variant="bar">${body}</g></svg>`;
 }

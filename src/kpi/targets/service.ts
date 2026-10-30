@@ -27,8 +27,10 @@ import { KpiTargetSchema, KpiTargetsQuerySchema } from "../contracts/schemas";
 import type { KpiCaller } from "../guard";
 import { parse } from "../http";
 import { kpiSettings } from "../setup/settings";
+import { TONNES_DP } from "../../services/emissionWrite/round";
 import { yearRange } from "../values/period";
 import { findKpi, isKpiSelected } from "../values/service";
+import { normaliseUnit } from "../values/units";
 import { figureOf, loadValues, type FigureDef, type StoredValue } from "../values/yearly";
 import { progress, type TargetLike } from "./progress";
 
@@ -69,10 +71,21 @@ export function annualPoints(def: Row & FigureDef, values: StoredValue[], byCode
   return out;
 }
 
-/** "−20 % by 2030 from 2024", "+15 % by 2028 from 2025", "Keep at 0 by 2030" (a value change when the baseline is 0). */
+/**
+ * A figure in a target's words. #209: a KPI in tonnes of CO₂e (any spelling the units registry
+ * reads as tco2e) shows `TONNES_DP` (3) decimals with thousands separators, as every tCO₂e
+ * figure in the app: "1,000.000 tCO2e". Other units print the stored number as before.
+ */
+export const targetFigure = (v: number, unit: string | null): string => {
+  if (normaliseUnit(unit) !== "tco2e") return String(v);
+  const text = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: TONNES_DP, maximumFractionDigits: TONNES_DP });
+  return v < 0 && /[1-9]/.test(text) ? `−${text}` : text;
+};
+
+/** "−20 % by 2030 from 2024", "+15 % by 2028 from 2025", "Keep at 1,234.500 tCO2e to 2030", "1,000.000 tCO2e by 2030" (a value when the baseline is 0). */
 export const targetLabel = (t: TargetLike, unit: string | null): string => {
-  if (t.direction === "maintain") return `Keep at ${t.baseline_value}${unit ? ` ${unit}` : ""} to ${t.target_year}`;
-  if (t.baseline_value === 0) return `${t.target_value}${unit ? ` ${unit}` : ""} by ${t.target_year}`;
+  if (t.direction === "maintain") return `Keep at ${targetFigure(t.baseline_value, unit)}${unit ? ` ${unit}` : ""} to ${t.target_year}`;
+  if (t.baseline_value === 0) return `${targetFigure(t.target_value, unit)}${unit ? ` ${unit}` : ""} by ${t.target_year}`;
   const pct = Math.round(((t.target_value - t.baseline_value) / Math.abs(t.baseline_value)) * 1000) / 10;
   return `${pct < 0 ? "−" : "+"}${Math.abs(pct)} % by ${t.target_year} from ${t.baseline_year}`;
 };

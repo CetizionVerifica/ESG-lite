@@ -6,6 +6,7 @@ import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { In, IsNull, Not, Or } from "typeorm";
 import { loadIntensityMonthly } from "../reporting/intensity"; // DS-2
+import { addKg, kgToTonnes, sumKgSql } from "../reporting/kgTotals"; // D14
 import { computeLongTermChart, computeNearTermTables, SbtiInputError } from "../services/sbtiTargets.service"; // IN-1 (moved, unchanged)
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
@@ -254,7 +255,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
       // Build a separate summary query with the same filters
       const summaryQb = repo
         .createQueryBuilder("emission")
-        .select("COALESCE(SUM(emission.total_emission), 0)", "total_emission")
+        .select(sumKgSql("emission"), "total_kg") // D14: the rows' kg, rounded once below
         .addSelect("COUNT(*) FILTER (WHERE emission.status = 'pending')", "pending_count")
         .addSelect(pendingReviewCountSql("emission", "c"), "pending_review_count")
         .addSelect("COUNT(*) FILTER (WHERE emission.status = 'approved')", "approved_count")
@@ -319,7 +320,7 @@ export const getEmissions = async (req: AuthRequest, res: Response) => {
         data,
         total,
         summary: {
-          total_emission: parseFloat(summaryRow?.total_emission) || 0,
+          total_emission: kgToTonnes(summaryRow?.total_kg),
           pending_count: parseInt(summaryRow?.pending_count) || 0,
           // Pending entries as the approvals list shows them (FERA twins of a
           // pending entry fold into it).
@@ -379,7 +380,7 @@ export const getEmissionBreakdown = async (req: AuthRequest, res: Response) => {
 
     const qb = repo
       .createQueryBuilder("emission")
-      .select(["emission.pk_id", "emission.activity_data", "emission.activity_data_unit", "emission.total_emission"])
+      .select(["emission.pk_id", "emission.activity_data", "emission.activity_data_unit", "emission.total_emission", "emission.total_kgco2e"])
       .leftJoin("emission.site", "site")
       .leftJoin("emission.category", "category")
       .leftJoin("emission.created_by", "created_by")
@@ -2193,25 +2194,27 @@ export const getApprovedEmissionsReport = async (req: Request, res: Response) =>
     if (categoryIds?.length) {
       baseQuery.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
     }
+     // D14: kgCO₂e summed, then rounded once to tCO₂e (kgTotals.ts), as the GHG report.
      const totalsRaw = await baseQuery.clone().select([
-      `SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END) AS "scope1"`,
-      `SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END) AS "scope2"`,
-      `SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END) AS "scope3"`,
+      `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+      `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+      `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
     ]).getRawOne();
 
-    const scope1 = Number(totalsRaw.scope1) || 0;
-    const scope2 = Number(totalsRaw.scope2) || 0;
-    const scope3 = Number(totalsRaw.scope3) || 0;
-    const total = scope1 + scope2 + scope3;
+    const scope1 = kgToTonnes(totalsRaw.scope1);
+    const scope2 = kgToTonnes(totalsRaw.scope2);
+    const scope3 = kgToTonnes(totalsRaw.scope3);
+    const totalKg = addKg(totalsRaw.scope1, totalsRaw.scope2, totalsRaw.scope3);
+    const total = kgToTonnes(totalKg);
     
    const bySiteRaw = await baseQuery
       .clone()
       .select([
         `site.site_id AS "siteId"`,
         `site.name AS "siteName"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
       ])
       .groupBy("site.site_id")
       .addGroupBy("site.name")
@@ -2219,19 +2222,16 @@ export const getApprovedEmissionsReport = async (req: Request, res: Response) =>
       .getRawMany();
 
     const bySite = bySiteRaw.map((r) => {
-      const s1 = Number(r.scope1) || 0;
-      const s2 = Number(r.scope2) || 0;
-      const s3 = Number(r.scope3) || 0;
-      const siteTotal = s1 + s2 + s3;
+      const siteKg = addKg(r.scope1, r.scope2, r.scope3);
 
       return {
         siteId: Number(r.siteId),
         siteName: String(r.siteName),
-        scope1: s1,
-        scope2: s2,
-        scope3: s3,
-        total: siteTotal,
-        pctOfTotal: total ? Number(((siteTotal / total) * 100).toFixed(2)) : 0,
+        scope1: kgToTonnes(r.scope1),
+        scope2: kgToTonnes(r.scope2),
+        scope3: kgToTonnes(r.scope3),
+        total: kgToTonnes(siteKg),
+        pctOfTotal: totalKg ? Number(((siteKg / totalKg) * 100).toFixed(2)) : 0,
       };
     });
 
@@ -2239,26 +2239,21 @@ export const getApprovedEmissionsReport = async (req: Request, res: Response) =>
       .clone()
       .select([
         `to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM') AS "month"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
       ])
       .groupBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`)
       .orderBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`, "ASC")
       .getRawMany();
 
-    const monthly = monthlyRaw.map((m) => {
-      const s1 = Number(m.scope1) || 0;
-      const s2 = Number(m.scope2) || 0;
-      const s3 = Number(m.scope3) || 0;
-      return {
-        month: String(m.month),
-        scope1: s1,
-        scope2: s2,
-        scope3: s3,
-        total: s1 + s2 + s3,
-      };
-    });
+    const monthly = monthlyRaw.map((m) => ({
+      month: String(m.month),
+      scope1: kgToTonnes(m.scope1),
+      scope2: kgToTonnes(m.scope2),
+      scope3: kgToTonnes(m.scope3),
+      total: kgToTonnes(addKg(m.scope1, m.scope2, m.scope3)),
+    }));
 
     return res.status(200).json({
       totals: { scope1, scope2, scope3, total },
@@ -2322,23 +2317,30 @@ export const getEdeReport = async(req:Request, res:Response) =>{
       if (categoryIds && categoryIds.length > 0) {
       base.andWhere("category.category_id IN (:...categoryIds)", { categoryIds });
     }
+    // D14: kgCO₂e summed, then rounded once to tCO₂e (kgTotals.ts), as the GHG report.
+    // `saved` (rows with no scope, e.g. renewable electricity) is the selection's
+    // kg rounded once, as Overview's saved: adding savedBySite, each rounded on
+    // its own, can miss it by 0.001 per site.
     const totalsRaw = await base.clone().select([
-      `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
-      `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
-      `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+      `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+      `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+      `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
+      `${sumKgSql("emission", "category.scope IS NULL")} AS "saved"`,
     ]).getRawOne();
 
-    const scope1 = Number(totalsRaw.scope1) || 0;
-    const scope2 = Number(totalsRaw.scope2) || 0;
-    const scope3 = Number(totalsRaw.scope3) || 0;
-    const total = scope1 + scope2 + scope3;
+    const saved = kgToTonnes(totalsRaw.saved);
+    const scope1 = kgToTonnes(totalsRaw.scope1);
+    const scope2 = kgToTonnes(totalsRaw.scope2);
+    const scope3 = kgToTonnes(totalsRaw.scope3);
+    const totalKg = addKg(totalsRaw.scope1, totalsRaw.scope2, totalsRaw.scope3);
+    const total = kgToTonnes(totalKg);
     const bySiteRaw = await base.clone()
       .select([
         `site.site_id AS "siteId"`,
         `site.name AS "siteName"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
       ])
       .groupBy("site.site_id")
       .addGroupBy("site.name")
@@ -2346,19 +2348,16 @@ export const getEdeReport = async(req:Request, res:Response) =>{
       .getRawMany();
 
     const bySite = bySiteRaw.map((r) => {
-      const s1 = Number(r.scope1) || 0;
-      const s2 = Number(r.scope2) || 0;
-      const s3 = Number(r.scope3) || 0;
-      const siteTotal = s1 + s2 + s3;
+      const siteKg = addKg(r.scope1, r.scope2, r.scope3);
 
       return {
         siteId: Number(r.siteId),
         siteName: String(r.siteName),
-        scope1: s1,
-        scope2: s2,
-        scope3: s3,
-        total: siteTotal,
-        pctOfTotal: total ? Number(((siteTotal / total) * 100).toFixed(2)) : 0,
+        scope1: kgToTonnes(r.scope1),
+        scope2: kgToTonnes(r.scope2),
+        scope3: kgToTonnes(r.scope3),
+        total: kgToTonnes(siteKg),
+        pctOfTotal: totalKg ? Number(((siteKg / totalKg) * 100).toFixed(2)) : 0,
       };
     });
      const siteDonut = bySite.map((s) => ({
@@ -2371,7 +2370,7 @@ export const getEdeReport = async(req:Request, res:Response) =>{
         `to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM') AS "month"`,
         `site.site_id AS "siteId"`,
         `site.name AS "siteName"`,
-        `COALESCE(SUM(CASE WHEN category.scope IN ('Scope 1','Scope 2','Scope 3') THEN emission.total_emission ELSE 0 END), 0) AS "total"`,
+        `${sumKgSql("emission", "category.scope IN ('Scope 1','Scope 2','Scope 3')")} AS "kg"`,
       ])
       .groupBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`)
       .addGroupBy("site.site_id")
@@ -2384,14 +2383,14 @@ export const getEdeReport = async(req:Request, res:Response) =>{
       month: String(m.month), 
       siteId: Number(m.siteId),
       siteName: String(m.siteName),
-      total: Number(m.total) || 0,
+      total: kgToTonnes(m.kg),
     }));
 
     const savedBySiteRaw = await base.clone()
       .select([
         `site.site_id AS "siteId"`,
         `site.name AS "siteName"`,
-        `COALESCE(SUM(CASE WHEN category.scope IS NULL THEN emission.total_emission ELSE 0 END), 0) AS "saved"`,
+        `${sumKgSql("emission", "category.scope IS NULL")} AS "saved"`,
       ])
       .groupBy("site.site_id")
       .addGroupBy("site.name")
@@ -2401,7 +2400,7 @@ export const getEdeReport = async(req:Request, res:Response) =>{
     const savedBySite = savedBySiteRaw.map((r) => ({
       siteId: Number(r.siteId),
       siteName: String(r.siteName),
-      saved: Number(r.saved) || 0, 
+      saved: kgToTonnes(r.saved), 
     }));
 
      const renewableKwhBySiteRaw = await base.clone()
@@ -2447,7 +2446,7 @@ export const getEdeReport = async(req:Request, res:Response) =>{
         startDate,
         endDate,
       },
-      totals: { scope1, scope2, scope3, total },
+      totals: { scope1, scope2, scope3, total, saved },
 
       bySite,      
       siteDonut,    
@@ -3318,11 +3317,10 @@ export const getPeriodTotal = async (req: Request, res: Response) => {
       qb.andWhere("emission.year_type = :yearType", { yearType: String(year_type) });
     }
 
-    const { total } = await qb
-      .select("COALESCE(SUM(emission.total_emission), 0)", "total")
-      .getRawOne();
+    // D14: the rows' kg, rounded once, as the dashboard and GHG report.
+    const { kg } = await qb.select(sumKgSql("emission"), "kg").getRawOne();
 
-    return res.json({ total_emission: Number(total) });
+    return res.json({ total_emission: kgToTonnes(kg) });
   } catch (error) {
     console.error("Fetch previous period total error:", error);
     return res.status(500).json({ message: "Failed to fetch previous period total" });

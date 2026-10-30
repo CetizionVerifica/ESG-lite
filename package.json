@@ -58,6 +58,7 @@
     "migrate:kpi-library": "ts-node src/scripts/migrateKpiLibrary.ts",
     "migrate:kpi-pillars": "ts-node src/scripts/migrateKpiPillars.ts",
     "migrate:kpi-library-seed": "ts-node src/scripts/seedKpiLibrary.ts",
+    "migrate:kpi-tonnes-decimals": "ts-node src/scripts/migrateKpiTonnesDecimals.ts",
     "migrate:kpi-values": "ts-node src/scripts/migrateKpiValues.ts",
     "migrate:kpi-setup": "ts-node src/scripts/migrateKpiSetup.ts",
     "migrate:kpi-targets": "ts-node src/scripts/migrateKpiTargets.ts",

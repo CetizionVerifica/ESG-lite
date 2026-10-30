@@ -3,10 +3,12 @@
  * biogenic CO₂, coverage (sites and months with data), the GWP sets used and
  * the newest approval. Each reads APPROVED emission rows with exactly the
  * filters computeGhgTables uses (status approved, the filters' sites, the
- * period from getPeriodRange, the category filter) and sums the same column
- * (`total_emission`, tCO₂e), so every split adds back to the report's totals
- * (ci/api/tests/ds-2-resolve.test.cjs proves months and sites against
- * POST /user/ghg/tables).
+ * period from getPeriodRange, the category filter) and sums the same figure
+ * (each row's kgCO₂e: D14, reporting/kgTotals.ts), so every split comes from
+ * the report's own rows. A month keeps its kg, so a month, a quarter or a
+ * stack of scopes adds kg and rounds once, as /user/ghg/tables does for that
+ * period (ci/api/tests/ds-2-sources.test.cjs and d14-kg-splits.test.cjs prove
+ * months, quarters and sites against POST /user/ghg/tables).
  *
  * Read only. No total is computed here that the report doesn't already have:
  * these are partitions of the same approved rows.
@@ -14,6 +16,7 @@
 import { AppDataSource } from "../../../config/data-source";
 import { getPeriodRange, type GhgFilters } from "../../../reporting/ghg-data";
 import { emissionColumns } from "../../../reporting/ghg-scope3";
+import { kgToTonnes, sumKgSql } from "../../../reporting/kgTotals";
 
 type Row = Record<string, any>;
 
@@ -35,20 +38,23 @@ export type ScopeName = (typeof SCOPES)[number];
 export interface MonthScopeRow {
   month: string; // YYYY-MM
   scope: ScopeName;
+  /** The month's kgCO₂e in this scope: add these, then round once (D14). */
+  kg: number;
+  /** That kg rounded once to tCO₂e: the month and scope on its own. */
   tco2e: number;
 }
 
-/** tCO₂e per calendar month and scope (Scope 1–3 rows only, like the report's totals). */
+/** kgCO₂e and tCO₂e per calendar month and scope (Scope 1–3 rows only, like the report's totals): the kg summed, rounded once. */
 export async function monthlyByScope(filters: GhgFilters): Promise<MonthScopeRow[]> {
   const w = approvedWhere(filters);
   const rows: Row[] = await AppDataSource.query(
-    `SELECT to_char(date_trunc('month', e.date_of_reporting), 'YYYY-MM') AS month, c.scope AS scope, COALESCE(SUM(e.total_emission), 0) AS t
+    `SELECT to_char(date_trunc('month', e.date_of_reporting), 'YYYY-MM') AS month, c.scope AS scope, ${sumKgSql("e")} AS kg
        FROM emission e LEFT JOIN category c ON c.category_id = e.category_id
       WHERE ${w.sql} AND c.scope IN ('Scope 1', 'Scope 2', 'Scope 3')
       GROUP BY 1, 2 ORDER BY 1, 2`,
     w.params,
   );
-  return rows.map((r) => ({ month: String(r.month), scope: r.scope as ScopeName, tco2e: Number(r.t) || 0 }));
+  return rows.map((r) => ({ month: String(r.month), scope: r.scope as ScopeName, kg: Number(r.kg) || 0, tco2e: kgToTonnes(r.kg) }));
 }
 
 export interface GasRow {

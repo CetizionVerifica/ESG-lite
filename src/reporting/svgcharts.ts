@@ -78,15 +78,21 @@ export function hbarSvg(rows: HBarRow[], opts: { color: string; unit?: string; t
 
 export interface SharePart { label: string; value: number; color: string }
 
-/** A single 100% bar; each part is named and labelled above its own segment. */
-export function shareBarSvg(parts: SharePart[], unit?: string): string {
-  const total = parts.reduce((a, p) => a + p.value, 0);
+/**
+ * A single 100% bar; each part is named and labelled above its own segment.
+ * D14: `opts.total` is the whole the "100% =" label and the shares are of (the
+ * report's own total, its kg rounded once), not the rounded parts added up;
+ * the segments still fill the bar by the parts.
+ */
+export function shareBarSvg(parts: SharePart[], unit?: string, opts: { total?: number } = {}): string {
+  const partsSum = parts.reduce((a, p) => a + p.value, 0);
+  const total = opts.total ?? partsSum;
   const shown = parts.filter((p) => p.value > 0);
   const barY = 120, barH = 86;
   const out: string[] = [];
   let x = 0;
   shown.forEach((p, i) => {
-    const w = total > 0 ? (p.value / total) * W : 0;
+    const w = partsSum > 0 ? (p.value / partsSum) * W : 0;
     out.push(`<rect x="${x.toFixed(1)}" y="${barY}" width="${Math.max(w - 4, 2).toFixed(1)}" height="${barH}" fill="${p.color}" rx="5"/>`);
     // The last part's label is right-aligned so a thin end segment keeps its label on the page.
     const last = i === shown.length - 1 && shown.length > 1;
@@ -101,16 +107,21 @@ export function shareBarSvg(parts: SharePart[], unit?: string): string {
   return svg(barY + barH + 64, out.join(""), shown.map((p) => `${p.label} ${share(p.value, total)}`).join(", "));
 }
 
-/** One horizontal stacked bar per row with a legend above; rows end in "total · share". */
+/**
+ * One horizontal stacked bar per row with a legend above; rows end in "total · share".
+ * D14: a row's `total` (its own figure, kg rounded once) is what its label says;
+ * its values added up only size the bar.
+ */
 export function stackedBarsSvg(
   series: { name: string; color: string }[],
-  rows: { label: string; values: number[] }[],
+  rows: { label: string; values: number[]; total?: number }[],
   opts: { total?: number; labelWidth?: number } = {},
 ): string {
   const labelW = opts.labelWidth ?? 560;
   const barH = 74, gap = 50, top = 70;
   const sums = rows.map((r) => r.values.reduce((a, b) => a + b, 0));
-  const total = opts.total ?? sums.reduce((a, b) => a + b, 0);
+  const figures = rows.map((r, i) => r.total ?? sums[i]);
+  const total = opts.total ?? figures.reduce((a, b) => a + b, 0);
   const plot = W - labelW - 360;
   const max = Math.max(1, ...sums);
   const out: string[] = [];
@@ -134,11 +145,11 @@ export function stackedBarsSvg(
       if (w > label.length * 27 * 0.62 + 24) out.push(text(x + w / 2, y + barH / 2 + 10, label, 27, 700, readableOn(color), "middle"));
       x += w;
     });
-    out.push(text(x + 16, y + barH / 2 + 11, `${num(sums[i])}  ·  ${share(sums[i], total)}`, 30, 700, INK));
+    out.push(text(x + 16, y + barH / 2 + 11, `${num(figures[i])}  ·  ${share(figures[i], total)}`, 30, 700, INK));
   });
   const h = top + rows.length * (barH + gap);
   out.push(`<line x1="${labelW}" y1="${top}" x2="${labelW}" y2="${h}" stroke="${AXIS}" stroke-width="2"/>`);
-  return svg(h, out.join(""), rows.map((r, i) => `${r.label} ${num(sums[i])}`).join(", "));
+  return svg(h, out.join(""), rows.map((r, i) => `${r.label} ${num(figures[i])}`).join(", "));
 }
 
 /** White or ink, whichever reads better on a fill (WCAG relative luminance). */

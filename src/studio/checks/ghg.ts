@@ -13,13 +13,19 @@
 import { extractNumbers } from "../../reporting/studio/render/checks/number";
 import { ghgCategory } from "../../scope3/contracts/ghgCategory";
 import type { Check, GhgBinding, ReportInputKey } from "../contracts";
+import { formatNumber, TONNES_UNIT } from "../sources/format";
 import { exclusionFor } from "../sources/inputs";
 import { monthText } from "../docs/readiness";
 import { check, hasInput, type CheckInput, type GhgFacts } from "./types";
 import { visibleCorpus, visibleElements, type BindingPlace } from "./walk";
 
 const categoryName = (n: number) => `Scope 3 Category ${n}: ${ghgCategory(n)?.name ?? ""}`.trim();
-const tons = (n: number) => `${n.toLocaleString("en-US", { maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 })} t`;
+/**
+ * A tonnes figure in a message, with 3 decimals as every tCO₂e figure the page prints (#209
+ * review: sources/format.ts, the `display` formatter). Rounded to whole tonnes, a mismatch
+ * over the 0.5 t tolerance could read "add up to 12,480 t, not the total of 12,480 t".
+ */
+const tons = (n: number) => `${formatNumber(n, "auto", TONNES_UNIT)} t`;
 
 /** Breakdowns whose parts add up to the binding's total (gas is tonnes of each gas; fuel is a subset). */
 const PARTITIONS = new Set(["scope", "site", "month", "quarter", "scope3_category", "source_category"]);
