@@ -135,6 +135,42 @@ test("GHG PDF: the site table, its Total row, the site chart and the site status
   assert.equal(scope1.total, "4.938 tCO₂e · 100.0%", "Scope 1's chart total is Table 1's");
 });
 
+test("GHG PDF: the share bar's 100% and each site bar's label are Table 1's and the site's own figures, not rounded scopes added up", async () => {
+  // CY 2038, site 1: Scope 1 3,703.2 kg → 3.703 t, Scope 2 1,234.4 kg → 1.234 t;
+  // total 4,937.6 kg → 4.938 t (the rounded scopes add to 4.937).
+  // Shares of 4.938: 3.703 / 4.938 = 74.99 % → 75.0 %; 1.234 / 4.938 = 24.99 % → 25.0 %.
+  const { AppDataSource } = require(path.join(ROOT, "dist/config/data-source.js"));
+  const render = require(path.join(ROOT, "dist/reporting/render.js"));
+  const print = require(path.join(ROOT, "dist/reporting/print.js"));
+  const { generateGhgReport } = require(path.join(ROOT, "dist/reporting/ghg.js"));
+  const real = { renderDocument: render.renderDocument, htmlToPdf: print.htmlToPdf };
+  let html = "";
+  // The real HTML (the SVG charts are drawn on the server); no Chromium.
+  render.renderDocument = (...a) => ((html = real.renderDocument(...a)), html);
+  print.htmlToPdf = async () => ({ pageCount: 1 });
+  await AppDataSource.initialize();
+  try {
+    const r = await generateGhgReport({ siteIds: [1], yearType: "CY", year: SPLIT_YEAR, frequency: "yearly" }, 1);
+    assert.equal(r.total, 4.938);
+  } finally {
+    render.renderDocument = real.renderDocument;
+    print.htmlToPdf = real.htmlToPdf;
+    await AppDataSource.destroy();
+  }
+  const figure = (title) => {
+    const at = html.indexOf(`>${title}<`);
+    assert.ok(at >= 0, `figure "${title}"`);
+    const svg = html.slice(html.indexOf("<svg", at), html.indexOf("</svg>", at));
+    return [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1].replace(/&amp;/g, "&"));
+  };
+  const share = figure("Scope 1 drives the footprint");
+  assert.ok(share.includes("100% = 4.938 tCO₂e"), `share bar: ${JSON.stringify(share)}`);
+  assert.ok(share.includes("3.703  ·  75.0%") && share.includes("1.234  ·  25.0%"), `share bar parts: ${JSON.stringify(share)}`);
+  const sites = figure("Emissions by site and scope");
+  assert.ok(sites.includes("4.938  ·  100.0%"), `site bar label: ${JSON.stringify(sites)}`);
+  assert.ok(!sites.some((t) => t.startsWith("4.937")), "no label adds the rounded scopes");
+});
+
 const ghg = (metric, extra = {}) => ({ source: "ghg", metric, years: { last: 1 }, sites: "all", ...extra });
 const resolve = async (year, sites, bindings) =>
   ok(await call("POST", "/studio/resolve", "manager", { kind: "ghg", year, yearType: "CY", sites, bindings, tokens: [] }), "resolve").values;

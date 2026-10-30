@@ -295,7 +295,8 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
     if (scopes.length > 1) {
       B.push({
         type: "shareBar", title: topScope ? `${topScope.scope} drives the footprint` : "Emissions by scope", subtitle: `Share of total emissions by scope, ${unit}`,
-        parts: scopes.map((s) => ({ label: s.scope, value: s.t, color: SCOPE_COLOR[s.scope] })), unit, caption: source,
+        // D14: "100% =" and the shares are of Table 1's total, not the rounded scopes added up.
+        parts: scopes.map((s) => ({ label: s.scope, value: s.t, color: SCOPE_COLOR[s.scope] })), unit, total, caption: source,
       });
     }
     if (prevTotal > 0) {
@@ -326,11 +327,12 @@ export async function generateGhgReport(filters: GhgFilters, companyId: number):
         : `Emissions by site for ${yearLabel}.`,
     });
     // D14: the chart's total and the table's Total row are the report's own
-    // figures (Table 1), not the rounded site figures added up.
+    // figures (Table 1), not the rounded site figures added up; each bar's
+    // label is its site's own figure (siteTotals), not its rounded scopes added up.
     B.push({
       type: "stackedBars", title: "Emissions by site and scope", subtitle: `${unit}; bar labels show each site's total and share`,
       series: scopeNames.map((sc) => ({ name: sc, color: SCOPE_COLOR[sc] ?? theme.colors.primary })),
-      rows: siteNames.map((sn) => ({ label: sn, values: scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0) })),
+      rows: siteNames.map((sn) => ({ label: sn, values: scopeNames.map((sc) => siteScopeMap.get(`${sn}||${sc}`) ?? 0), total: siteTotals.get(sn) ?? 0 })),
       total, caption: source,
     });
     B.push({

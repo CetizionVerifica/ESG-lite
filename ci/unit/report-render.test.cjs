@@ -79,6 +79,23 @@ test("SVG charts label every bar with value, unit and share, at print-legible si
   }
 });
 
+test("D14: the share bar's 100% and a site bar's label are the given figures, not rounded parts added up", () => {
+  const { shareBarSvg, stackedBarsSvg } = require(path.resolve("dist/reporting/svgcharts.js"));
+  // Scopes 3,358.4 + 2,468.4 + 1,815.4 = 7,642.2 kg → 7.642 t; the rounded scopes add to 3.358 + 2.468 + 1.815 = 7.641.
+  const parts = [{ label: "Scope 1", value: 3.358, color: "#0B2E5C" }, { label: "Scope 2", value: 2.468, color: "#2F6FB0" }, { label: "Scope 3", value: 1.815, color: "#9DB8D9" }];
+  const s = shareBarSvg(parts, "tCO₂e", { total: 7.642 });
+  assert.match(s, /100% = 7\.642 tCO₂e/);
+  assert.doesNotMatch(s, /7\.641/);
+  assert.match(s, />3\.358  ·  43\.9%</); // 3.358 / 7.642 = 43.94 %
+  // The segments still fill the bar: the last one ends at the full width (1780) less its 4-unit gap.
+  const widths = [...s.matchAll(/<rect x="([\d.]+)" y="120" width="([\d.]+)"/g)].map((m) => Number(m[1]) + Number(m[2]));
+  assert.ok(Math.abs(widths[widths.length - 1] - 1776) < 0.2, `${widths}`);
+  // A site of 3,354.2 kg → 3.354 t whose rounded scopes add to 3.353; the report total is 7.642.
+  const st = stackedBarsSvg([{ name: "Scope 1", color: "#0B2E5C" }, { name: "Scope 2", color: "#2F6FB0" }], [{ label: "CI Plant A", values: [2.112, 1.241], total: 3.354 }], { total: 7.642 });
+  assert.match(st, />3\.354  ·  43\.9%</); // 3.354 / 7.642 = 43.89 %
+  assert.match(st, /aria-label="CI Plant A 3\.354"/);
+});
+
 test("long bar labels wrap to two lines instead of overflowing", () => {
   const { hbarSvg } = require(path.resolve("dist/reporting/svgcharts.js"));
   const h = hbarSvg([{ label: "Upstream Transportation and Distribution of purchased goods", value: 1 }], { color: "#000000" });
