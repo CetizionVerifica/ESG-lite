@@ -496,7 +496,7 @@ test("round 4: a total line never takes the plot's room: the plot stays upright 
  * viewBox units, plus small and narrow frames down to 40 × 40. `kinds` picks the chart kinds. A fixed LCG, so every run
  * draws the same charts.
  */
-function randomCharts(seed, n, kinds) {
+function randomCharts(seed, n, kinds, frame = null) {
   let s = seed;
   const rnd = () => {
     s = (s * 1103515245 + 12345) % 2147483648;
@@ -514,8 +514,9 @@ function randomCharts(seed, n, kinds) {
   for (let i = 0; i < n; i++) {
     const kind = pick(kinds);
     const small = rnd() < 0.25;
-    const w = Math.round(small ? 40 + rnd() * 120 : 120 + rnd() * 300);
-    const h = Math.round(small ? 40 + rnd() * 80 : 70 + rnd() * 150);
+    let w = Math.round(small ? 40 + rnd() * 120 : 120 + rnd() * 300);
+    let h = Math.round(small ? 40 + rnd() * 80 : 70 + rnd() * 150);
+    if (frame) ({ w, h } = frame(rnd));
     let value;
     let rk = kind;
     const options = {};
@@ -862,4 +863,110 @@ test("round 4: before a row label is left out it moves sideways or rises within 
       for (const t of p.texts.filter((x) => x.fill === muted)) assert.ok(!SVG.boxesMeet(b, boxOf(t)), `${c.kind}: ${vals[i].s} meets "${t.s}"`);
     });
   }
+});
+
+/** A vertical value axis's gridlines alone: the leading run of rising lines (a target's or baseline's lines come after). */
+const axisYs = (c) => {
+  const ys = gridYs(c);
+  let n = 1;
+  while (n < ys.length && ys[n] < ys[n - 1]) n++;
+  return ys.slice(0, n);
+};
+
+/** Item 9 (round 4): the frames of the combined regression test: small, narrow, short and ordinary. */
+const mixedFrames = (rnd) => {
+  const r = rnd();
+  if (r < 0.3) return { w: Math.round(40 + rnd() * 120), h: Math.round(40 + rnd() * 80) };
+  if (r < 0.5) return { w: Math.round(40 + rnd() * 50), h: Math.round(100 + rnd() * 160) };
+  if (r < 0.6) return { w: Math.round(160 + rnd() * 260), h: Math.round(40 + rnd() * 30) };
+  return { w: Math.round(120 + rnd() * 300), h: Math.round(70 + rnd() * 150) };
+};
+
+test("round 4: seeded random charts over small, narrow and short frames keep plots, rings, kept-first labels, tick labels, scope names and tile shares", () => {
+  const ALL_KINDS = ["bar", "hbar", "target_bars", "waterfall", "stacked_bar", "hstacked", "gas_split", "monthly_stack", "monthly_plain", "base_year_waterfall", "bridge_compare", "intensity_line", "category_bars", "category_prior", "site_bars", "treemap", "donut", "scope_split", "scope_donut"];
+  const VERTICAL = new Set(["bar", "target_bars", "waterfall", "stacked_bar", "gas_split", "monthly_stack", "monthly_plain", "base_year_waterfall", "bridge_compare", "intensity_line"]);
+  const HORIZONTAL = new Set(["hbar", "hstacked", "category_bars", "category_prior", "site_bars"]);
+  const muted = R.buildTheme({}).colors.muted;
+  const VAL = /^[+−]?\d[\d,]*(\.\d+)?$/;
+  const trend = require(path.resolve("dist/reporting/studio/render/charts/ghg/trend.js"));
+  const S8 = SVG.SMALL * 0.8;
+  const seen = {};
+  const checks = { plots: 0, rings: 0, rows: 0, axes: 0, scopeDonuts: 0, tiles: 0 };
+  for (const c of randomCharts(9209, 1500, ALL_KINDS, mixedFrames)) {
+    const at = `#${c.i} ${c.kind} ${c.w}×${c.h}`;
+    seen[c.kind] = (seen[c.kind] ?? 0) + 1;
+    // 1. Plots upright and of positive size (vertical axes: at least PLOT_FLOOR), rings of positive radius.
+    if (VERTICAL.has(c.kind)) {
+      const ys = axisYs(c);
+      assert.ok(ys.length >= 2, `${at}: no value axis`);
+      assert.ok(ys[0] - ys[ys.length - 1] >= SVG.PLOT_FLOOR - EPS, `${at}: plot ${ys[0] - ys[ys.length - 1]} (axis ${ys.join(",")})`);
+      checks.plots++;
+    }
+    if (HORIZONTAL.has(c.kind)) {
+      const lines = [...c.body.matchAll(/<line x1="([\d.-]+)" x2="\1" y1="([\d.-]+)" y2="([\d.-]+)"/g)].map((m) => ({ x: num(m[1]), h: num(m[3]) - num(m[2]) }));
+      assert.ok(lines.length >= 2 && lines[lines.length - 1].x > lines[0].x && lines.every((l) => l.h > 0), `${at}: plot`);
+      assert.ok(c.rects.some((r) => r.w > 0 && r.h > 0), `${at}: no bar of positive size`);
+      checks.plots++;
+    }
+    if (c.kind === "donut" || c.kind === "scope_donut") {
+      const ring = ringOf(c);
+      assert.ok(ring && ring.r > 0.5, `${at}: ring ${ring?.r}`);
+      checks.rings++;
+    }
+    // 2. A kept-first label (latest total, waterfall start and end, bridge base and current) is drawn whenever a lower one is
+    //    (in a plot with the room its axis needs).
+    if (["bar", "stacked_bar", "waterfall", "target_bars", "base_year_waterfall", "bridge_compare"].includes(c.kind)) {
+      const ys = axisYs(c);
+      if (ys.length >= 2 && ys[0] - ys[ys.length - 1] >= Math.max(SVG.SMALL * 2, (ys.length - 1) * SVG.SMALL * 0.9)) {
+        const drawn = c.texts.filter((t) => VAL.test(t.s) && t.fill !== muted).map((t) => t.s);
+        let first;
+        if (c.kind === "bar" || c.kind === "stacked_bar") {
+          const keys = c.value.series[0].values.map((p) => p.key);
+          const key = keys[keys.length - 1];
+          first = [RF.formatNumber(c.value.series.reduce((a, s) => a + Math.max(0, s.values.find((p) => p.key === key).value), 0), "auto", "tCO₂e")];
+        } else if (c.kind === "target_bars") {
+          const pts = c.value.series[0].values;
+          first = [RF.formatNumber(pts[pts.length - 1].value, "auto", "tCO₂e")];
+        } else if (c.kind === "waterfall") {
+          const pts = c.value.series[0].values;
+          first = [pts[0].value, pts[pts.length - 1].value].map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
+        } else {
+          const steps = trend.bridgeSteps(c.value);
+          first = [steps[0].to, steps[steps.length - 1].to].map((v) => RF.formatNumber(v, "auto", "tCO₂e"));
+        }
+        const lower = drawn.filter((s) => !first.includes(s));
+        if (lower.length) {
+          checks.rows++;
+          for (const s of first) assert.ok(drawn.includes(s), `${at}: kept-first "${s}" left out while ${lower.join(", ")} drawn`);
+        }
+      }
+    }
+    // 3. No two tick labels of a horizontal value axis meet.
+    if (HORIZONTAL.has(c.kind)) {
+      const ticks = hTicks(c);
+      for (let i = 1; i < ticks.length; i++) assert.ok(!SVG.boxesMeet(boxOf(ticks[i - 1]), boxOf(ticks[i])), `${at}: tick "${ticks[i - 1].s}" meets "${ticks[i].s}"`);
+      checks.axes++;
+    }
+    // 4. A scope donut always names its scopes.
+    if (c.kind === "scope_donut") {
+      for (const sc of ["Scope 1", "Scope 2", "Scope 3"]) assert.ok(c.texts.some((t) => t.s === sc || t.s.startsWith(`${sc} `)), `${at}: ${sc} is not drawn`);
+      checks.scopeDonuts++;
+    }
+    // 5. A named treemap tile tall and wide enough for its share at the smallest step prints at least its share.
+    if (c.kind === "treemap") {
+      const parts = c.value.series[0].values;
+      const sum = parts.reduce((a, p) => a + p.value, 0);
+      for (const r of c.rects.filter((x) => x.part)) {
+        const inTile = c.texts.filter((t) => t.x >= r.x && t.x <= r.x + r.w && t.y >= r.y && t.y <= r.y + r.h);
+        if (!inTile.some((t) => t.bold)) continue;
+        const v = parts.find((p) => p.key === r.part).value / sum;
+        const share = `${RF.formatNumber(v * 100, v * 100 < 10 ? "1dp" : "int")}%`;
+        if (r.h < S8 * (2.6 + 0.05 + 0.3) || SVG.labelWidth(share, S8) > r.w - S8) continue;
+        checks.tiles++;
+        assert.ok(inTile.some((t) => t.s === share || t.s.endsWith(` · ${share}`)), `${at} tile ${r.part} ${r.w.toFixed(1)}×${r.h.toFixed(1)}: ${inTile.map((t) => t.s).join(" | ")} (share ${share})`);
+      }
+    }
+  }
+  assert.equal(Object.keys(seen).length, ALL_KINDS.length, JSON.stringify(seen));
+  for (const [k, n] of Object.entries(checks)) assert.ok(n > (k === "tiles" ? 200 : 40), `${k}: ${n}`);
 });

@@ -44,8 +44,9 @@ function draw(input: ChartInput, stacked: boolean): string {
       return keys.reduce((t, _, kj) => (kj !== ki && Math.abs(kj - ki) * band - band * 0.32 < ((kj < ki ? ink.up : ink.down) + INK_GAP) * size ? Math.max(t, scale.t(totals[kj])) : t), scale.t(totals[ki]));
     };
     // Totals sit after the bar end; a long one (a 3-decimal tCO₂e figure, #209) narrows the plot so it isn't cut.
-    // #209 round 4: never narrower than its tick labels need (barEndsPlot): the totals step down first.
-    const pw0 = w - x0 - SMALL * 3;
+    // #209 round 4: never narrower than its tick labels need (barEndsPlot): the totals step down first. A frame too narrow
+    // for the label gutter keeps a plot of SMALL × 2 (production's went negative there).
+    const pw0 = Math.max(w - x0 - SMALL * 3, Math.min(SMALL * 2, w - x0));
     const steps = LABEL_STEPS.map((k) => SMALL * k);
     const pw = labelled ? barEndsPlot(tickFloorX(scale, pw0), steps, (sz) => fitBarEnds(pw0, x0, w, totals.map((t, ki) => ({ t: reach(ki, sz), label: valueText(t) })), SMALL * 0.4, sz)) : pw0;
     const barRects = (ki: number): { x: number; y: number; w: number; h: number }[] => {

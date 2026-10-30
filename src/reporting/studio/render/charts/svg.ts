@@ -238,8 +238,9 @@ export function fitLabelRow(make: (extraTop: number, size: number) => LabelRow, 
       const bottom = h - ink.down * size;
       let spot: { x: number; y: number; box: LabelBox } | null = null;
       const lw = labelWidth(l.text, size, l.bold);
-      if (lw <= w - x0) {
-        const x = insideX(l.x, l.text, w, size, l.bold, x0);
+      // #209 round 4: in the last pass a label wider than the plot may use the axis gutter too (the tick labels are obstacles).
+      if (lw <= w - x0 || (drop && lw <= w)) {
+        const x = lw <= w - x0 ? insideX(l.x, l.text, w, size, l.bold, x0) : Math.min(Math.max(l.x, lw / 2), w - lw / 2);
         const y0 = Math.min(Math.max(l.y, top), bottom);
         const first = drop && (!!l.bold || (l.priority ?? 0) > 0) && !!l.bold === topBold && (l.priority ?? 0) === topPriority;
         const maxRise = first ? Infinity : MAX_RISE * size;

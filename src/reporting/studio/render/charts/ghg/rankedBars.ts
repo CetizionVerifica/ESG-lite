@@ -56,8 +56,9 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
     const reachesPrior = (inkExtent(valueText(p.value), "middle").down + INK_GAP) * size > mainH / 2 + band * 0.04;
     return prior && pv !== null && reachesPrior ? Math.max(t, scale.t(Math.max(0, pv))) : t;
   };
-  // #209 round 4: never narrower than its tick labels need (barEndsPlot): the labels step down first.
-  const pw0 = w - x0 - (showValues ? SMALL * 4.5 : SMALL);
+  // #209 round 4: never narrower than its tick labels need (barEndsPlot): the labels step down first. A frame too narrow for
+  // the label gutter keeps a plot of SMALL × 2 (production's went negative there).
+  const pw0 = Math.max(w - x0 - (showValues ? SMALL * 4.5 : SMALL), Math.min(SMALL * 2, w - x0));
   const steps = LABEL_STEPS.map((k) => SMALL * k);
   const ends = (sz: number) => ps.map((p, i) => ({ p, i })).filter(({ i }) => labelled.has(i)).map(({ p, i }) => ({ t: endOf(p, sz), label: valueText(p.value), bold: i === 0 }));
   const pw = showValues ? barEndsPlot(tickFloorX(scale, pw0), steps, (sz) => fitBarEnds(pw0, x0, w, ends(sz), SMALL * 0.4, sz)) : pw0;
