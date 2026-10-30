@@ -4,13 +4,13 @@ import { Emission, EmissionStatus } from "../entities/Emission";
 import { EmissionFactor } from "../entities/EmissionFactor";
 import { Site } from "../entities/Site";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import { In, IsNull, Not, Or } from "typeorm";
+import { In, IsNull, Not, Or, type EntityManager, type Repository } from "typeorm";
 import { loadIntensityMonthly } from "../reporting/intensity"; // DS-2
 import { addKg, kgToTonnes, sumKgSql } from "../reporting/kgTotals"; // D14
 import { computeLongTermChart, computeNearTermTables, SbtiInputError } from "../services/sbtiTargets.service"; // IN-1 (moved, unchanged)
 import { EmissionDocument } from "../entities/EmissionDocument";
 import { documentFilesForEmissions, removeDeletedDocumentFiles } from "./document.controller";
-import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, entryFactorSnapshot, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
+import { ContextCache, CheckCache, prepareEntry, insertEntry, modeLockMessage, entryFactorSnapshot, findDuplicate, type PreparedEntry, type PrepareResult } from "../services/emissionWrite";
 import { parseSupplierRef } from "../scope3/suppliers/entryInput";
 import { factorSnapshot, type EngineIssue, type FeraTwin } from "../services/emissionWrite/compute";
 import { syncTdLossTwin } from "../services/emissionWrite/tdLossSync";
@@ -743,7 +743,7 @@ export const createEmission = async (req: AuthRequest, res: Response) => {
 export const updateEmission = async (req: AuthRequest, res: Response) => {
   try {
     const { id }: any = req.params;
-    const { activity_data, activity_data_unit, date_of_reporting, extra_data, reason } = req.body;
+    const { activity_data, activity_data_unit, date_of_reporting, extra_data, reason, expected_updated_at } = req.body;
 
     const emission = await repo.findOne({
       where: { pk_id: parseInt(id) },
@@ -758,22 +758,33 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
 
     // Block edits on approved entries
     if (emission.status === EmissionStatus.APPROVED) {
-      return res.status(403).json({ message: "Cannot edit approved emission data" });
+      // severity "warning": the app shows it as a warning and ends the edit (someone approved it meanwhile).
+      return res.status(403).json({ code: "ENTRY_APPROVED", severity: "warning", message: "This entry has been approved, so it can't be edited." });
     }
 
     // Capture old values for audit trail
     const oldActivityData = emission.activity_data ? JSON.parse(JSON.stringify(emission.activity_data)) : null;
-    // A new date can't move the entry into a period that hasn't started (as the
-    // manager edit and imports refuse).
-    if (date_of_reporting !== undefined) {
-      const notStarted = futurePeriodError(emission.reporting_period === "yearly" ? "yearly" : "monthly", emission.year_type, new Date(date_of_reporting));
-      if (notStarted) {
-        return res.status(400).json({ message: notStarted });
-      }
+    const newDate = date_of_reporting !== undefined ? dateOnly(date_of_reporting) : undefined;
+    if (newDate === null) {
+      return res.status(400).json({ message: "Invalid date of reporting" });
     }
+    // #218: a moved entry gets the checks and the recalculation a new entry gets
+    // (it can't move into a period that hasn't started, as the manager edit and imports refuse).
+    const dateChanged = newDate !== undefined && newDate !== ymd(emission.date_of_reporting);
+    if (dateChanged) {
+      const refused = await moveError(repo, emission, newDate);
+      if (refused) return res.status(refused.status).json(refused.body);
+    }
+    // A date-only edit recalculates from the stored data (the factor year follows
+    // the date), as the manager edit does; a row with no category or unit has no
+    // total to recalculate.
+    const canRecalculate = !!emission.activity_data?.emission_category && !!(activity_data_unit ?? emission.activity_data_unit);
+    const recalcData = activity_data !== undefined ? activity_data : dateChanged && canRecalculate ? { ...emission.activity_data } : undefined;
     const oldDateOfReporting = emission.date_of_reporting;
     const oldActivityDataUnit = emission.activity_data_unit;
     const oldStatus = emission.status;
+    const oldTotal = emission.total_emission;
+    const read = { status: emission.status, updated_at: loadedVersion(emission, expected_updated_at), activity_data: emission.activity_data };
     const priorCheckKeys = await checkKeysFor(AppDataSource.manager, [emission.pk_id]);
 
     // Edits use the engine, as a new entry does (S3-4): factor resolution,
@@ -782,8 +793,8 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
     let feraTwin: FeraTwin | null = null;
     let feraSkipped: string | undefined;
     let preparedExtra: Record<string, any> | null | undefined;
-    if (activity_data !== undefined) {
-      emission.activity_data = activity_data;
+    if (recalcData !== undefined) {
+      emission.activity_data = recalcData;
 
       // Update unit if provided
       if (activity_data_unit !== undefined) {
@@ -798,13 +809,15 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       emission.reviewed_at = null as any;
 
       // The factor year follows the new reporting date when one is sent.
-      const prepared = await recalculateEntry(emission, activity_data, extra_data !== undefined ? extra_data : emission.extra_data, date_of_reporting, req.user?.role === UserRole.USER ? "contributor" : "caller", oldActivityData);
+      const prepared = await recalculateEntry(emission, recalcData, extra_data !== undefined ? extra_data : emission.extra_data, newDate, req.user?.role === UserRole.USER ? "contributor" : "caller", oldActivityData);
       if (!prepared.ok) {
         return res.status(400).json({ message: prepared.issue.message, code: prepared.issue.code, ...(prepared.issue.field ? { field: prepared.issue.field } : {}), ...(prepared.issue.extra ?? {}) });
       }
       if (prepared.entry.computed && !(prepared.entry.computed.activityValue > 0)) {
         return res.status(400).json({
-          message: "No valid activity value found in the provided data",
+          message: activity_data !== undefined
+            ? "No valid activity value found in the provided data"
+            : "This entry has no amount above 0 to recalculate for the new date. Edit its amount too.",
         });
       }
       applyComputed(emission, prepared.entry);
@@ -814,7 +827,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       // SE-2: store what was calculated (hidden defaults, a default currency, the form's @method).
       preparedExtra = prepared.entry.input.extra_data;
     }
-    if (date_of_reporting !== undefined) emission.date_of_reporting = new Date(date_of_reporting);
+    if (newDate !== undefined) emission.date_of_reporting = new Date(newDate);
     const extraBefore = emission.extra_data;
     if (preparedExtra !== undefined) emission.extra_data = preparedExtra as any;
     else if (extra_data !== undefined) emission.extra_data = extra_data;
@@ -822,16 +835,21 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       keepImportProvenance(emission, extraBefore, req.user?.userId);
     }
 
-    await repo.save(emission);
+    // #218: saved only if the row is as it was read, and not onto a duplicate
+    // (checked when the date moves or the activity changes, under the lock a new entry takes).
+    const saved = await saveChecked(emission, read, dateChanged ? "move" : activity_data !== undefined ? "edit" : null, req.user);
+    if (saved.kind !== "saved") return res.status(saved.status).json(saved.body);
     await pcfDataChanged("emission", [emission.pk_id]);
     await kpiSourceChanged("emission", [emission.pk_id]);
 
     // Recalculate linked FERA emission if activity data changed
+    // A moved entry's twins move with it (#218). recalculateLinkedFera finds the
+    // twin by either link (older rows link only from the twin), as the manager edit.
     let updatedFeraEmission: Emission | null = null;
-    if (activity_data !== undefined && emission.fera_linked_id) {
+    if (recalcData !== undefined) {
       updatedFeraEmission = await recalculateLinkedFera(emission, emission.activity_data, feraTwin, feraSkipped);
     }
-    const tdLossTwin = activity_data !== undefined ? await syncTdLossTwin(emission, emission.activity_data) : null;
+    const tdLossTwin = recalcData !== undefined ? await syncTdLossTwin(emission, emission.activity_data) : null;
     // S3-15 part 2: a twin shares its parent's status, so a Draft parent's twins are Drafts.
     if (emission.status === EmissionStatus.DRAFT) await draftTwinsOf(AppDataSource.manager, emission.pk_id);
 
@@ -845,7 +863,7 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       if (activity_data !== undefined && JSON.stringify(oldActivityData) !== JSON.stringify(emission.activity_data)) {
         changedFields["activity_data"] = { old: oldActivityData, new: emission.activity_data };
       }
-      if (date_of_reporting !== undefined && String(oldDateOfReporting) !== String(emission.date_of_reporting)) {
+      if (dateChanged && ymd(oldDateOfReporting) !== ymd(emission.date_of_reporting)) {
         changedFields["date_of_reporting"] = { old: oldDateOfReporting, new: emission.date_of_reporting };
       }
       if (activity_data_unit !== undefined && oldActivityDataUnit !== emission.activity_data_unit) {
@@ -853,6 +871,9 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
       }
       if (oldStatus !== emission.status) {
         changedFields["status"] = { old: oldStatus, new: emission.status };
+      }
+      if (Number(oldTotal) !== Number(emission.total_emission)) {
+        changedFields["total_emission"] = { old: oldTotal, new: emission.total_emission };
       }
 
       if (Object.keys(changedFields).length > 0) {
@@ -892,6 +913,149 @@ export const updateEmission = async (req: AuthRequest, res: Response) => {
 const ymd = (d: unknown): string => (typeof d === "string" ? d.slice(0, 10) : new Date(d as any).toISOString().slice(0, 10));
 
 /**
+ * A requested date as YYYY-MM-DD, or null when it isn't a date. A string's own
+ * calendar date counts ("2025-08-01T02:00+05:30" is 1 Aug), as the period-lock
+ * guard reads it, so both check the same month.
+ */
+const dateOnly = (d: unknown): string | null => {
+  if (typeof d === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+    if (m) return isNaN(new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`).getTime()) ? null : `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  const t = new Date(d as any);
+  return isNaN(t.getTime()) ? null : t.toISOString().slice(0, 10);
+};
+
+/**
+ * The version of the row the person edited: the `updated_at` the app loaded
+ * (sent as expected_updated_at), else the one this request read. A save is
+ * refused when the row changed since (saveChecked), so a change someone else
+ * made while the form was open isn't overwritten.
+ */
+const loadedVersion = (emission: Emission, expected: unknown): Date => {
+  const t = typeof expected === "string" || expected instanceof Date ? new Date(expected) : null;
+  return t && !isNaN(t.getTime()) ? t : emission.updated_at;
+};
+
+/**
+ * Why an entry can't move to `newDate` (YYYY-MM-DD), or null (#218): the period
+ * checks a new entry at that date gets. It can't be in a period that hasn't
+ * started, the period must suit the category and may not be filed the other
+ * way (monthly vs yearly). saveChecked runs it again, with the duplicate check,
+ * under the lock a new entry takes.
+ */
+async function moveError(
+  emissions: Repository<Emission>,
+  emission: Emission,
+  newDate: string,
+): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  const period = emission.reporting_period === "yearly" ? "yearly" : "monthly";
+  const date = new Date(newDate);
+  const notStarted = futurePeriodError(period, emission.year_type, date);
+  if (notStarted) return { status: 400, body: { message: notStarted } };
+  const periodError = validatePeriodFields({ category_id: emission.category.category_id, reporting_period: period, year_type: emission.year_type, date_of_reporting: date });
+  if (periodError) return { status: 400, body: { message: periodError } };
+  const conflict = await findModeLockConflict(emissions, {
+    site_id: emission.site.site_id,
+    category_id: emission.category.category_id,
+    reporting_period: period,
+    year_type: period === "yearly" ? emission.year_type : null,
+    date_of_reporting: date,
+    exclude_pk_id: emission.pk_id,
+  });
+  if (conflict) return { status: 409, body: { message: modeLockMessage(conflict, period), mode_lock: true, conflict, severity: "warning" } };
+  return null;
+}
+
+/**
+ * The saved row an edited monthly entry would duplicate at its date, as a new
+ * entry's check: same activity and identity. The row itself doesn't count, nor
+ * a Draft of anyone but the row's owner (who would see it on their own save).
+ * An `edit` on the same date is checked only when it changes the activity's
+ * identity, so a pair the person chose to keep both of stays editable.
+ */
+async function duplicateAt(m: EntityManager, emission: Emission, check: "move" | "edit", before: Record<string, any> | null): Promise<Emission | null> {
+  if (emission.reporting_period === "yearly") return null;
+  const site_id = emission.site.site_id;
+  const category_id = emission.category.category_id;
+  const ctx = await new ContextCache(m).context(site_id, category_id);
+  const after = emission.activity_data ?? {};
+  if (check === "edit") {
+    if (!after.emission_category) return null;
+    const sameIdentity = before?.emission_category === after.emission_category && (!ctx.spec || specIdentityMatches(ctx.spec, after, before));
+    if (sameIdentity) return null;
+  }
+  const [owner]: Array<{ created_by: number | null }> = await m.query(`SELECT created_by FROM emission WHERE pk_id = $1`, [emission.pk_id]);
+  const existing = await new CheckCache(m).existingRows(site_id, category_id, ymd(emission.date_of_reporting), "date");
+  const others = existing.filter(
+    (e) => e.pk_id !== emission.pk_id && (e.status !== EmissionStatus.DRAFT || Number(e.created_by?.user_id) === Number(owner?.created_by)),
+  );
+  return findDuplicate(others, after, ctx.spec);
+}
+
+type SaveOutcome = { kind: "saved" } | { kind: "refused"; status: number; body: Record<string, unknown> };
+
+/**
+ * Saves an edited row (#218). The whole row is written, so it's saved only if
+ * nobody changed it since it was read (an approval, or another person's edit,
+ * would otherwise be undone): 409 ENTRY_CHANGED. With `checkDuplicate` (a move,
+ * or an edit of the activity) it takes the site + category lock a new entry
+ * takes and refuses a duplicate at the row's date (see duplicateAt), so a move
+ * and a new entry can't both land on one date.
+ */
+async function saveChecked(
+  emission: Emission,
+  read: { status: string; updated_at: Date; activity_data: Record<string, any> | null },
+  checkDuplicate: "move" | "edit" | null,
+  actor: { userId?: number; role?: string } | undefined,
+): Promise<SaveOutcome> {
+  return AppDataSource.transaction(async (m): Promise<SaveOutcome> => {
+    // A move re-checks its period (mode lock) under the lock, monthly or yearly, as a new entry does.
+    if (checkDuplicate === "move" || (checkDuplicate && emission.reporting_period !== "yearly")) {
+      await m.query(`SET LOCAL lock_timeout = '${ENTRY_LOCK_TIMEOUT}'`);
+      await m.query(`SELECT pg_advisory_xact_lock($1, $2)`, [Number(emission.site.site_id), Number(emission.category.category_id)]);
+      await m.query(`SET LOCAL lock_timeout = DEFAULT`);
+    }
+    const [row]: Array<{ status: string; updated_at: Date }> = await m.query(
+      `SELECT status::text AS status, updated_at FROM emission WHERE pk_id = $1 FOR UPDATE`,
+      [emission.pk_id],
+    );
+    if (!row || row.status !== read.status || new Date(row.updated_at).getTime() !== new Date(read.updated_at).getTime()) {
+      // severity "warning": the app shows it as a warning and stops the edit (nothing is wrong with the input).
+      return { kind: "refused", status: 409, body: { code: "ENTRY_CHANGED", severity: "warning", message: "This entry was changed or reviewed by someone else while you were editing it, so your change wasn't saved." } };
+    }
+    if (checkDuplicate === "move") {
+      const refused = await moveError(m.getRepository(Emission), emission, ymd(emission.date_of_reporting));
+      if (refused) return { kind: "refused", ...refused };
+    }
+    if (checkDuplicate) {
+      const dup = await duplicateAt(m, emission, checkDuplicate, read.activity_data);
+      if (dup) {
+        return {
+          kind: "refused",
+          status: 409,
+          body: {
+            message: "An entry for this site, category, date and emission subcategory already exists. Edit that entry instead.",
+            duplicate: true,
+            severity: "warning",
+            existing_emission: duplicateView(dup),
+            ...duplicateOwner(dup, actor?.userId, actor?.role),
+          },
+        };
+      }
+    }
+    await m.getRepository(Emission).save(emission);
+    return { kind: "saved" };
+  }).catch((err): SaveOutcome => {
+    // The lock wait timed out: nothing was written, the person tries again.
+    if ((err as { code?: string })?.code === LOCK_NOT_AVAILABLE) {
+      return { kind: "refused", status: SCOPE3_ERRORS.ENTRY_BUSY.status, body: { code: "ENTRY_BUSY", message: SCOPE3_ERRORS.ENTRY_BUSY.message } };
+    }
+    throw err;
+  });
+}
+
+/**
  * Recalculates an edited row with the engine, as a new entry (S3-4): factor
  * resolution, unit check, kgCO₂e total, snapshot and the FERA twin. A new
  * reporting date counts, since the factor year follows it. Nothing is written.
@@ -914,6 +1078,14 @@ async function recalculateEntry(
   const supplierRow = emission.method === "supplier_specific" || emission.method === "hybrid";
   const [linked] = supplierRow ? await AppDataSource.query(`SELECT supplier_id FROM emission WHERE pk_id = $1`, [emission.pk_id]) : [];
   const snapshotFactorId = Number((emission.emission_factor_snapshot as any)?.supplier_factor_id) || null;
+  // D6a: a row with a FERA twin keeps its WTT there. Older rows link only from
+  // the twin, so look that way too, or the WTT would be counted on both rows.
+  const [reverseTwin] = emission.fera_linked_id
+    ? []
+    : await AppDataSource.query(
+        `SELECT 1 FROM emission e JOIN category c ON c.category_id = e.category_id WHERE e.fera_linked_id = $1 AND lower(c.category_name) = 'fera' LIMIT 1`,
+        [emission.pk_id],
+      );
   // SE-2: a quantity or date edit doesn't move the row to another method (a User's edit on a
   // choice form would otherwise take the choice's over the method an importer gave it).
   const kept = supplierRow
@@ -935,7 +1107,7 @@ async function recalculateEntry(
     // SE-2: the kept method is named as an importer would; else a User's edit takes the method the form decides.
     method_source: kept ? "caller" : methodSource,
     // D6a: a Category 4, 6, 7 or 9 row saved with a FERA twin keeps its WTT there.
-    keep_fera_twin: !!emission.fera_linked_id,
+    keep_fera_twin: !!emission.fera_linked_id || !!reverseTwin,
     ...(supplierRow
       ? {
           method: emission.method,
@@ -1026,6 +1198,8 @@ async function recalculateLinkedFera(emission: Emission, activity_data: any, twi
     const why = skipped ?? `no FERA total could be worked out for "${activity_data.emission_category}"`;
     console.warn(`FERA recalculation skipped for emission ${linkedFera.pk_id}: ${why}.`);
     backToReview(`Not recalculated: ${why}. Check and edit this entry.`);
+    // The twin stays in its parent's period even when its numbers can't follow (#218).
+    linkedFera.date_of_reporting = emission.date_of_reporting;
     await repo.save(linkedFera);
     return Object.assign(linkedFera, { recalcSkipped: true });
   } catch (feraError) {
@@ -2724,7 +2898,7 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
   try {
     const { id }: any = req.params;
     const userId = req.user?.userId;
-    const { activity_data: activityDataInput, date_of_reporting, activity_data_unit, reason } = req.body;
+    const { activity_data: activityDataInput, date_of_reporting, activity_data_unit, reason, expected_updated_at } = req.body;
 
     // Verify the user is a manager
     const userRepo = AppDataSource.getRepository(User);
@@ -2784,37 +2958,15 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
       return res.status(400).json({ message: "An approved entry must keep its emission category and unit" });
     }
     // A new date must not move the entry into a period filed the other way
-    // (monthly vs yearly): the same checks as a contributor's save.
+    // (monthly vs yearly), nor onto a date that already holds the same
+    // activity (#218): the same checks as a contributor's save.
     if (dateChanged) {
-      const newDate = new Date(date_of_reporting);
-      const period = emission.reporting_period === "yearly" ? "yearly" : "monthly";
-      const periodError = validatePeriodFields({
-        category_id: emission.category.category_id,
-        reporting_period: period,
-        year_type: emission.year_type,
-        date_of_reporting: newDate,
-      });
-      if (periodError) {
-        return res.status(400).json({ message: periodError });
-      }
-      // No moving an entry into a period that hasn't started, as imports refuse;
-      // the edit form already stops at this month.
-      const notStarted = futurePeriodError(period, emission.year_type, newDate);
-      if (notStarted) {
-        return res.status(400).json({ message: notStarted });
-      }
-      const conflict = await findModeLockConflict(repo, {
-        site_id: emission.site.site_id,
-        category_id: emission.category.category_id,
-        reporting_period: period,
-        year_type: period === "yearly" ? emission.year_type : null,
-        date_of_reporting: newDate,
-        exclude_pk_id: emission.pk_id,
-      });
-      if (conflict) {
-        return res.status(409).json({ message: modeLockMessage(conflict, period), mode_lock: true, conflict });
-      }
+      // No moving an entry into a period that hasn't started (as imports refuse),
+      // nor into one filed the other way; the edit form already stops at this month.
+      const refused = await moveError(repo, emission, dateOnly(date_of_reporting) as string);
+      if (refused) return res.status(refused.status).json(refused.body);
     }
+    const read = { status: emission.status, updated_at: loadedVersion(emission, expected_updated_at), activity_data: emission.activity_data };
     const oldTotal = emission.total_emission;
 
     // Apply the new date first: the factor year follows the reporting date.
@@ -2856,7 +3008,9 @@ export const managerUpdateEmission = async (req: AuthRequest, res: Response) => 
     }
 
     keepImportProvenance(emission, emission.extra_data, userId);
-    await repo.save(emission);
+    // #218: saved only if the row is as it was read, and not onto a duplicate.
+    const saved = await saveChecked(emission, read, dateChanged ? "move" : activityDataInput !== undefined ? "edit" : null, req.user);
+    if (saved.kind !== "saved") return res.status(saved.status).json(saved.body);
     await pcfDataChanged("emission", [emission.pk_id]);
     await kpiSourceChanged("emission", [emission.pk_id]);
 
