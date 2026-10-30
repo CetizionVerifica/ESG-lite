@@ -6,6 +6,7 @@ import { AppDataSource } from "../config/data-source";
 import { User, USER_APPEARANCES } from "../entities/User";
 import { Site } from "../entities/Site";
 import { signToken } from "../utils/jwt";
+import { passwordStampOf } from "../services/sessionCheck";
 import { UserRole } from "../types/type";
 import { log } from "../utils/logger";
 import { AuthRequest } from "../middlewares/auth.middleware";
@@ -95,6 +96,8 @@ export const completeLogin = async (user: User, res: Response, method: "password
     userId: user.user_id,
     role: user.role,
     siteId: primarySiteId,
+    // A password change ends this session (services/sessionCheck).
+    pw: await passwordStampOf(user.user_id),
   });
 
   // Best effort: a missing column (migration not run yet) must not block login.

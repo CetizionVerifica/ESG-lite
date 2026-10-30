@@ -60,6 +60,28 @@ test("a manager still reads and changes a contributor's category access", async 
   }
 });
 
+test("a manager can't revoke every category (none would read as all), and grants from other sites stay", async () => {
+  const before = await q("SELECT category_id FROM user_categories WHERE user_id = 7 ORDER BY 1");
+  try {
+    // Revoking the last category is refused and changes nothing.
+    const empty = await call("PUT", "/manager/users/7/categories", "manager", { category_ids: [] });
+    assert.equal(empty.status, 400, JSON.stringify(empty.json));
+    assert.equal(empty.json.code, "CATEGORY_ACCESS_EMPTY");
+    assert.deepEqual((await q("SELECT category_id FROM user_categories WHERE user_id = 7 ORDER BY 1")).map((r) => r.category_id), before.map((r) => r.category_id));
+
+    // A grant for a category that isn't on this manager's sites (another manager's) survives the edit.
+    await q("INSERT INTO category (category_id, category_name, scope) VALUES (9091, 'CI Other Site Only', 'Scope 3') ON CONFLICT DO NOTHING");
+    await q("INSERT INTO user_categories (user_id, category_id) VALUES (7, 9091) ON CONFLICT DO NOTHING");
+    const write = await call("PUT", "/manager/users/7/categories", "manager", { category_ids: [1] });
+    assert.equal(write.status, 200, JSON.stringify(write.json));
+    assert.deepEqual((await q("SELECT category_id FROM user_categories WHERE user_id = 7 ORDER BY 1")).map((r) => r.category_id), [1, 9091]);
+  } finally {
+    await q("DELETE FROM user_categories WHERE user_id = 7");
+    for (const r of before) await q("INSERT INTO user_categories (user_id, category_id) VALUES (7, $1)", [r.category_id]);
+    await q("DELETE FROM category WHERE category_id = 9091");
+  }
+});
+
 test("the team's internal accounts are not on a client manager's Team page", async () => {
   // User 7 is a contributor on the manager's sites 1 and 2; mark it internal.
   await q('UPDATE "user" SET is_internal = true WHERE user_id = 7');

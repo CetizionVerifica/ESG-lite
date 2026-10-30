@@ -25,6 +25,7 @@ import type { ImportRow } from "../../imports/contracts";
 import { toStoredPeriod } from "../../services/emissionWrite/period";
 import { ROW_METHOD_COLUMN } from "../../services/calculationSpec";
 import { BoundaryError } from "../boundary/errors";
+import { cancelOtherDrafts, savedYearRows } from "../planDedupe";
 import { COL_SURVEYED, COL_TOTAL_DISTANCE, COL_TOTAL_EMPLOYEES, COMMUTE_OPTIONS, unitOfOption } from "./configs";
 import { ensureTravelForm } from "./forms";
 import { CommutingSurveyBodySchema, type CommutingSurveyBody } from "./schemas";
@@ -217,10 +218,16 @@ export async function planSurvey(companyId: number, user: TokenUser, raw: unknow
 
   const rows = surveyRows(summary, body.site_id, category_id, period, `${body.year_type}${body.year}`);
   if (!rows.length) return { plan: null, summary };
-  const plan = await createPlan(
-    user,
-    { source_name: `Commuting survey ${body.year_type} ${body.year}`, channel: "bulk_upload", company_id: companyId, rows },
-    new Set(),
-  );
-  return { plan, summary };
+  // Older drafts for this site and year are replaced by this one (before the saved-rows check).
+  const source_name = `Commuting survey ${body.year_type} ${body.year}`;
+  await cancelOtherDrafts(companyId, source_name, body.site_id, category_id, null);
+  // A survey is one sample scaled to the headcount: a year that already has rows saved isn't
+  // planned again, in whole or in part (it would count twice, or mix two surveys' scaling).
+  // To re-import, delete the year's rows first.
+  const already_imported = (await savedYearRows(body.site_id, category_id, stored.period)).map((e) => String(e.emission_category ?? ""));
+  if (already_imported.length) return { plan: null, summary, already_imported };
+  const plan = await createPlan(user, { source_name, channel: "bulk_upload", company_id: companyId, rows }, new Set());
+  // A draft another call made meanwhile is replaced too (the newest call's plan stays).
+  await cancelOtherDrafts(companyId, source_name, body.site_id, category_id, plan.plan_id);
+  return { plan, summary, already_imported };
 }

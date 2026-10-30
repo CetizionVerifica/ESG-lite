@@ -158,6 +158,29 @@ test("Category 15 plan: one yearly row per investment, the engine calculates 15,
   // Nothing was saved as an emission row.
   const emissions = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE category_id = $1`, [CAT15]));
   assert.equal(emissions.rows[0].n, 0);
+
+  // The newer plan replaced the older open draft, so only one can be imported.
+  const first = await withDb((db) => db.query(`SELECT status FROM import_plan WHERE plan_id::text = $1`, [r.json.plan.plan_id]));
+  assert.equal(first.rows[0].status, "cancelled");
+
+  // Once the year is committed, a new plan leaves out the investments already saved: the year isn't counted twice.
+  try {
+    const commit = await call("POST", `/imports/plans/${again.json.plan.plan_id}/commit`, "admin", {
+      version: again.json.plan.version,
+      skip_rows_with_issues: false,
+      idempotency_key: `s3-11-${again.json.plan.plan_id}`,
+    });
+    assert.equal(commit.status, 200, JSON.stringify(commit.json));
+    const saved = await withDb((db) => db.query(`SELECT COUNT(*)::int AS n FROM emission WHERE category_id = $1`, [CAT15]));
+    assert.equal(saved.rows[0].n, 2);
+    const third = await call("POST", "/scope3/investments/plan", "admin", { site_id: 1, year: 2025, year_type: "CY", threshold_pct: 1 });
+    assert.equal(third.status, 200, JSON.stringify(third.json));
+    assert.equal(third.json.plan, null);
+    assert.equal(third.json.skipped.filter((s) => s.reason === "already_imported").length, 2, JSON.stringify(third.json.skipped));
+  } finally {
+    // The later tests start from a year with no saved rows.
+    await withDb((db) => db.query(`DELETE FROM emission WHERE category_id = $1`, [CAT15]));
+  }
 });
 
 test("Category 15 plan: a site without Category 15 and a bad body give 400", async () => {

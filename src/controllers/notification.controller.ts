@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
-import { AuthRequest } from "../middlewares/auth.middleware";
+import { AuthRequest, SESSION_ENDED } from "../middlewares/auth.middleware";
 import * as notificationService from "../services/notificationService";
 import { addConnection, pushToUser } from "../services/sseManager";
 import { verifyToken } from "../utils/jwt";
 import { CLIENT_INACTIVE_CODE, CLIENT_INACTIVE_MESSAGE, isUserClientInactive } from "../services/clientStatus";
+import { sessionProblem } from "../services/sessionCheck";
 
 export const getNotifications = async (req: AuthRequest, res: Response) => {
   try {
@@ -118,13 +119,22 @@ export const streamNotifications = async (req: Request, res: Response) => {
 
   let userId: number;
   let role: string | undefined;
+  let decoded: any;
   try {
-    const decoded = verifyToken(token) as any;
+    decoded = verifyToken(token);
     userId = decoded.userId;
     role = decoded.role;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
   } catch {
     return res.status(401).json({ message: "Invalid token" });
+  }
+
+  // Same rule as authenticate: the person must still exist with this role and password.
+  try {
+    if (await sessionProblem(decoded)) return res.status(401).json(SESSION_ENDED);
+  } catch (error) {
+    console.error("Could not check the session for notification stream:", error);
+    return res.status(503).json({ message: "Could not check your session. Please try again." });
   }
 
   // Same rule as authenticate: a deactivated client's people get no stream.

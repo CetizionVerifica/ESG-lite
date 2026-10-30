@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { parseCompanyHeader, withPreferredCompany } from "../utils/activeCompany";
 import { verifyToken } from "../utils/jwt";
 import { CLIENT_INACTIVE_CODE, CLIENT_INACTIVE_MESSAGE, isUserClientInactive } from "../services/clientStatus";
+import { sessionProblem } from "../services/sessionCheck";
 
 
 export interface AuthRequest extends Request {
@@ -27,7 +28,30 @@ export const authenticate = (
     return res.status(401).json({ message: "Invalid token" });
   }
   // M6: the company chosen in the account menu, honoured only where the user belongs to it.
-  return withPreferredCompany(parseCompanyHeader(req.headers["x-company-id"]), () => rejectInactiveClient(req, res, next));
+  return withPreferredCompany(parseCompanyHeader(req.headers["x-company-id"]), () =>
+    requireLiveSession(req, res, () => rejectInactiveClient(req, res, next)),
+  );
+};
+
+export const SESSION_ENDED = { code: "SESSION_ENDED", message: "Your session has ended. Please sign in again." };
+
+/**
+ * The token's person must still exist with the token's role and password
+ * (services/sessionCheck): a deleted person, a role change or a password
+ * change ends the session at once. 401, so the app signs the person out.
+ * Unlike the client-status check this fails closed: a session that can't be
+ * confirmed isn't trusted.
+ */
+export const requireLiveSession = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  let problem;
+  try {
+    problem = await sessionProblem(req.user);
+  } catch (err) {
+    console.error("Could not check the session:", err);
+    return res.status(503).json({ message: "Could not check your session. Please try again." });
+  }
+  if (problem) return res.status(401).json(SESSION_ENDED);
+  next();
 };
 
 /**
