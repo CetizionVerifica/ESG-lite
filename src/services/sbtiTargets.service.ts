@@ -133,7 +133,6 @@ export async function computeNearTermTables(input: unknown) {
     const scope1Target = powTarget(baseTotalsAll.scope1, RATE, n);
     const scope2Target = powTarget(baseTotalsAll.scope2, RATE, n);
     const scope3Target = scope3TargetRequired ? powTarget(baseTotalsAll.scope3, RATE, n) : null;
-    const totalFromScopes = scope1Target + scope2Target + (scope3Target ?? 0);
 
     const prevTotalTarget = n === 0 ? null : powTarget(targetBoundaryBase, RATE, n - 1);
     const reducedBy = prevTotalTarget === null ? null : prevTotalTarget - totalTarget;
@@ -157,7 +156,9 @@ export async function computeNearTermTables(input: unknown) {
       scope1Target: Number(scope1Target.toFixed(3)),
       scope2Target: Number(scope2Target.toFixed(3)),
       scope3Target: scope3Target === null ? null : Number(scope3Target.toFixed(3)),
-      totalTarget: Number(totalFromScopes.toFixed(3)),
+      // D14: the year's target is table1's (from the boundary's kg rounded once), never the
+      // rounded scope targets added up; the scope columns are rounded parts of it.
+      totalTarget: Number(totalTarget.toFixed(3)),
       reducedBy: reducedBy === null ? null : Number(reducedBy.toFixed(3)),
       reducedByPct: reducedByPct === null ? null : Number(reducedByPct.toFixed(3)),
     });

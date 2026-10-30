@@ -171,6 +171,25 @@ test("GHG PDF: the share bar's 100% and each site bar's label are Table 1's and 
   assert.ok(!sites.some((t) => t.startsWith("4.937")), "no label adds the rounded scopes");
 });
 
+test("SBTi targets: the Scope-wise table's total is the Pathway table's in every year", async () => {
+  // Base CY 2038, site 1: Scope 1 3.703 t, Scope 2 1.234 t; Scope 1 + 2 = 4,937.6 kg → 4.938 t
+  // (no Scope 3, so the boundary is Scope 1 + 2). The rounded scopes add to 4.937.
+  // At the default 4.2 %/yr: year 0 4.938; year 1 4.938 × 0.958 = 4.730604 → 4.731
+  // (the scope targets added: 3.703 × 0.958 + 1.234 × 0.958 = 3.547474 + 1.182172 = 4.729646 → 4.730).
+  const r = ok(await call("POST", "/user/targets/tables", "manager", { siteIds: [1], baseYear: SPLIT_YEAR, targetYear: SPLIT_YEAR + 5 }), "targets");
+  assert.equal(r.targetBoundaryBase, 4.938);
+  assert.deepEqual([r.baseTotals.scope1, r.baseTotals.scope2], [3.703, 1.234]);
+  const { table1, table2 } = r.tables;
+  assert.deepEqual(table1.slice(0, 2).map((x) => x.targetEmission), [4.938, 4.731]);
+  assert.deepEqual(table2.map((x) => [x.year, x.totalTarget]), table1.map((x) => [x.year, x.targetEmission]), "Scope-wise total = Pathway target, every year");
+  assert.deepEqual([table2[1].scope1Target, table2[1].scope2Target], [3.547, 1.182], "the scope columns are each rounded on their own");
+
+  // Net zero from the same base: the boundary and year 0 are the same 4.938.
+  const lt = ok(await call("POST", "/user/targets/long-term-chart", "manager", { siteIds: [1], baseYear: SPLIT_YEAR }), "long-term");
+  assert.equal(lt.baseEmissions, 4.938);
+  assert.equal(lt.rows[0].targetEmission, 4.938);
+});
+
 const ghg = (metric, extra = {}) => ({ source: "ghg", metric, years: { last: 1 }, sites: "all", ...extra });
 const resolve = async (year, sites, bindings) =>
   ok(await call("POST", "/studio/resolve", "manager", { kind: "ghg", year, yearType: "CY", sites, bindings, tokens: [] }), "resolve").values;
