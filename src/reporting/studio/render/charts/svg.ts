@@ -126,11 +126,25 @@ export const insideX = (x: number, s: string, w: number, size = SMALL, bold = fa
  * The plot width that keeps value labels drawn after horizontal bar ends
  * (at x0 + t·pw + gap, t the bar's end on the scale) inside the chart: `pw`
  * itself when they fit, else just narrow enough, never below 60 % of `pw`.
+ * #209 round 4: for labels at `size`.
  */
-export const fitBarEnds = (pw: number, x0: number, w: number, ends: { t: number; label: string; bold?: boolean }[], gap = SMALL * 0.4): number => {
+export const fitBarEnds = (pw: number, x0: number, w: number, ends: { t: number; label: string; bold?: boolean }[], gap = SMALL * 0.4, size = SMALL): number => {
   let fit = pw;
-  for (const e of ends) if (e.t > 0) fit = Math.min(fit, (w - x0 - gap - labelWidth(e.label, SMALL, e.bold)) / e.t);
+  for (const e of ends) if (e.t > 0) fit = Math.min(fit, (w - x0 - gap - labelWidth(e.label, size, e.bold)) / e.t);
   return Math.max(pw * 0.6, fit);
+};
+
+/**
+ * #209 round 4: a horizontal bar chart's plot width: fitBarEnds for its value labels at the largest step (`steps`) whose
+ * narrowing keeps the plot at least `floor` wide (the tick labels' tickFloorX), else `floor`, where the labels then step down
+ * or are left out rather than leave the chart.
+ */
+export const barEndsPlot = (floor: number, steps: number[], widthAt: (size: number) => number): number => {
+  for (const size of steps) {
+    const fit = widthAt(size);
+    if (fit >= floor) return fit;
+  }
+  return floor;
 };
 
 /** A value label a chart wants centred over its mark: x, baseline y, text; bold labels and higher priority are kept first. */

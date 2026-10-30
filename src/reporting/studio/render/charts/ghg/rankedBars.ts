@@ -8,9 +8,9 @@
  */
 import { formatNumber, seriesUnit } from "../../format";
 import { esc, n3 } from "../../util";
-import { valueGridX } from "../axis";
+import { tickFloorX, valueGridX } from "../axis";
 import { linearScale } from "../scale";
-import { INK_GAP, LABEL_STEPS, PLOT_FLOOR, SMALL, boxesMeet, emptyChart, fitBarEnds, inkBox, rect, rectBox, svgOpen, text, type ChartInput, type LabelBox, type Obstacle } from "../svg";
+import { INK_GAP, LABEL_STEPS, PLOT_FLOOR, SMALL, barEndsPlot, boxesMeet, emptyChart, fitBarEnds, inkBox, rect, rectBox, svgOpen, text, type ChartInput, type LabelBox, type Obstacle } from "../svg";
 import { biggest, clip, currentSeries, headline, partColor, partsOf, priorSeries, ranked, wrapLegend } from "./common";
 import { mix } from "../../theme";
 import { inkExtent } from "../metrics";
@@ -56,8 +56,11 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
     const reachesPrior = (inkExtent(valueText(p.value), "middle").down + INK_GAP) * size > mainH / 2 + band * 0.04;
     return prior && pv !== null && reachesPrior ? Math.max(t, scale.t(Math.max(0, pv))) : t;
   };
+  // #209 round 4: never narrower than its tick labels need (barEndsPlot): the labels step down first.
   const pw0 = w - x0 - (showValues ? SMALL * 4.5 : SMALL);
-  const pw = showValues ? fitBarEnds(pw0, x0, w, ps.map((p, i) => ({ p, i })).filter(({ i }) => labelled.has(i)).map(({ p, i }) => ({ t: endOf(p), label: valueText(p.value), bold: i === 0 }))) : pw0;
+  const steps = LABEL_STEPS.map((k) => SMALL * k);
+  const ends = (sz: number) => ps.map((p, i) => ({ p, i })).filter(({ i }) => labelled.has(i)).map(({ p, i }) => ({ t: endOf(p, sz), label: valueText(p.value), bold: i === 0 }));
+  const pw = showValues ? barEndsPlot(tickFloorX(scale, pw0), steps, (sz) => fitBarEnds(pw0, x0, w, ends(sz), SMALL * 0.4, sz)) : pw0;
   // #209 review: the labels (after the bar ends, centred on the bars) may not meet each other or a bar other than their own:
   // in thin bands they step down a size, down to 80 %; at that size a label that still meets one is left out, the
   // biggest bars' labels kept first. #209 round 4: decided on the labels' ink (inkBox), so a label production drew clear
@@ -75,7 +78,7 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
     const keep = new Set<number>();
     for (const i of shown) {
       const box = inkBox(x0 + endOf(ps[i], size) * pw + SMALL * 0.4, top + band * i + band * 0.14 + mainH / 2, valueText(ps[i].value), size, { baseline: "middle", bold: i === 0 });
-      const meets = placed.some((b) => boxesMeet(b, box, size * INK_GAP)) || bars.some((b) => b.owner !== i && boxesMeet(b, box, size * INK_GAP));
+      const meets = placed.some((b) => boxesMeet(b, box, size * INK_GAP)) || bars.some((b) => b.owner !== i && boxesMeet(b, box, size * INK_GAP)) || box.x1 > w + 1e-6;
       if (meets && !drop) return null;
       if (meets) continue;
       placed.push(box);
@@ -83,7 +86,6 @@ function rankedBars(input: ChartInput, kind: "category_bars" | "site_bars"): str
     }
     return { size, keep };
   };
-  const steps = LABEL_STEPS.map((k) => SMALL * k);
   const fit = steps.map((sz) => labelFit(sz, false)).find(Boolean) ?? (labelFit(steps[steps.length - 1], true) as { size: number; keep: Set<number> });
   let body = head.svg + valueGridX(scale, x0, top, pw, ph, theme);
   ps.forEach((p, i) => {

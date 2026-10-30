@@ -777,3 +777,48 @@ test("round 4: a scope_split donut gives up the note and the legend's figures be
   }
   assert.ok(n > 100 && namesOnly > 5, `${n} ${namesOnly}`);
 });
+
+/** The tick labels under a horizontal value axis: muted, centred, all on the axis line's baseline (the lowest such row). */
+function hTicks(c) {
+  const muted = R.buildTheme({}).colors.muted;
+  const cand = c.texts.filter((t) => t.fill === muted && t.anchor === "middle" && /^[−-]?\d[\d,.]*(k|m|bn)?$/.test(t.s));
+  if (!cand.length) return [];
+  const y = Math.max(...cand.map((t) => t.y));
+  return cand.filter((t) => Math.abs(t.y - y) < 0.01).sort((a, b) => a.x - b.x);
+}
+
+test("round 4: a horizontal value axis never prints tick labels over each other, and leaves one out only when it has no room", () => {
+  // fitBarEnds narrows the plot for 3-decimal totals after the bar ends; the tick labels step down (to 80 %), the plot narrows
+  // no further than keeps as many of them as production's width did (tickFloorX), and a label is left out only where, at the
+  // size the others take, it would come within SMALL × 0.1 of a neighbour's ink. Every gridline stays.
+  const mult = { k: 1e3, m: 1e6, bn: 1e9 };
+  const valueOf = (s) => { const m = /^([−-]?)([\d,.]+)(k|m|bn)?$/.exec(s); return (m[1] ? -1 : 1) * Number(m[2].replace(/,/g, "")) * (m[3] ? mult[m[3]] : 1); };
+  let charts = 0;
+  let thinned = 0;
+  for (const c of randomCharts(6209, 500, ["hbar", "hstacked", "category_bars", "category_prior", "site_bars"])) {
+    const ticks = hTicks(c);
+    const xs = [...c.body.matchAll(/<line x1="([\d.-]+)" x2="\1" y1="([\d.-]+)" y2="([\d.-]+)"/g)].map((m) => num(m[1])).sort((a, b) => a - b);
+    if (xs.length < 2 || ticks.length < 2) continue;
+    charts++;
+    const at = `#${c.i} ${c.kind} ${c.w}×${c.h}`;
+    for (let i = 1; i < ticks.length; i++) {
+      const a = boxOf(ticks[i - 1]);
+      const b = boxOf(ticks[i]);
+      assert.ok(!SVG.boxesMeet(a, b), `${at}: tick "${ticks[i - 1].s}" ${where(a)} meets "${ticks[i].s}" ${where(b)}`);
+    }
+    if (ticks.length === xs.length) continue;
+    thinned++;
+    // The left-out labels: their value from the drawn ones (evenly spaced ticks), at the drawn labels' size.
+    const idx = ticks.map((t) => xs.findIndex((x) => Math.abs(x - t.x) < 0.01));
+    assert.ok(idx.every((j) => j >= 0), `${at}: a tick label off its gridline`);
+    const step = (valueOf(ticks[1].s) - valueOf(ticks[0].s)) / (idx[1] - idx[0]);
+    xs.forEach((x, j) => {
+      if (idx.includes(j)) return;
+      const label = RF.tickLabel(valueOf(ticks[0].s) + (j - idx[0]) * step);
+      const box = SVG.inkBox(x, ticks[0].y, label, ticks[0].size, { anchor: "middle" });
+      const near = ticks.map(boxOf).some((b) => SVG.boxesMeet(b, box, SVG.SMALL * 0.1 - EPS));
+      assert.ok(near, `${at}: tick "${label}" at ${x.toFixed(2)} is left out with room (${ticks.map((t) => t.s).join(" ")})`);
+    });
+  }
+  assert.ok(charts > 300 && thinned > 0, `${charts} ${thinned}`);
+});

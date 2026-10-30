@@ -5,10 +5,10 @@
  */
 import { formatNumber, sharedUnit } from "../format";
 import { n3 } from "../util";
-import { axisWidth, bandLabels, tickBoxes, tickRoom, valueGridX, valueGridY } from "./axis";
+import { axisWidth, bandLabels, tickBoxes, tickFloorX, tickRoom, valueGridX, valueGridY } from "./axis";
 import { inkExtent } from "./metrics";
 import { linearScale } from "./scale";
-import { FONT, INK_GAP, LABEL_STEPS, SMALL, boxesMeet, emptyChart, fitBarEnds, fitLabelRow, inkBox, isYearKey, keysOf, legend, plotSpan, rect, rectBox, seriesColor, svgOpen, text, valueAt, type ChartInput, type LabelBox, type Obstacle } from "./svg";
+import { FONT, INK_GAP, LABEL_STEPS, SMALL, barEndsPlot, boxesMeet, emptyChart, fitBarEnds, fitLabelRow, inkBox, isYearKey, keysOf, legend, plotSpan, rect, rectBox, seriesColor, svgOpen, text, valueAt, type ChartInput, type LabelBox, type Obstacle } from "./svg";
 
 function draw(input: ChartInput, stacked: boolean): string {
   const { value, w, h, theme, options } = input;
@@ -44,8 +44,10 @@ function draw(input: ChartInput, stacked: boolean): string {
       return keys.reduce((t, _, kj) => (kj !== ki && Math.abs(kj - ki) * band - band * 0.32 < ((kj < ki ? ink.up : ink.down) + INK_GAP) * size ? Math.max(t, scale.t(totals[kj])) : t), scale.t(totals[ki]));
     };
     // Totals sit after the bar end; a long one (a 3-decimal tCO₂e figure, #209) narrows the plot so it isn't cut.
+    // #209 round 4: never narrower than its tick labels need (barEndsPlot): the totals step down first.
     const pw0 = w - x0 - SMALL * 3;
-    const pw = labelled ? fitBarEnds(pw0, x0, w, totals.map((t, ki) => ({ t: reach(ki, SMALL), label: valueText(t) }))) : pw0;
+    const steps = LABEL_STEPS.map((k) => SMALL * k);
+    const pw = labelled ? barEndsPlot(tickFloorX(scale, pw0), steps, (sz) => fitBarEnds(pw0, x0, w, totals.map((t, ki) => ({ t: reach(ki, sz), label: valueText(t) })), SMALL * 0.4, sz)) : pw0;
     const barRects = (ki: number): { x: number; y: number; w: number; h: number }[] => {
       let acc = 0;
       return series.map((s) => {
@@ -56,7 +58,6 @@ function draw(input: ChartInput, stacked: boolean): string {
         return { x: a, y: band * ki + band * 0.18, w: b - a, h: band * 0.64 };
       });
     };
-    const steps = LABEL_STEPS.map((k) => SMALL * k);
     // Totals don't meet each other or another band's bar: the row steps down a size, then a total that would meet its
     // neighbour's moves along after it (inside the chart); only in a band too thin for that are totals left out, the
     // latest year and then the biggest kept first.
@@ -77,7 +78,7 @@ function draw(input: ChartInput, stacked: boolean): string {
           box = inkBox(x, band * ki + band / 2, s, size, { baseline: "middle" });
         }
         const moved = x > x0 + reach(ki, size) * pw + SMALL * 0.4;
-        const meets = placed.some((b) => boxesMeet(b, box, size * INK_GAP)) || bars.some((b) => b.owner !== ki && boxesMeet(b, box, size * INK_GAP)) || (moved && box.x1 > w);
+        const meets = placed.some((b) => boxesMeet(b, box, size * INK_GAP)) || bars.some((b) => b.owner !== ki && boxesMeet(b, box, size * INK_GAP)) || box.x1 > w + (moved ? 0 : 1e-6);
         if (meets && mode !== "drop") return null;
         if (meets) continue;
         placed.push(box);
