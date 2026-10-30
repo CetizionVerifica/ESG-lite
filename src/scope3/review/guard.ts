@@ -18,23 +18,20 @@ import type { AuthRequest } from "../../middlewares/auth.middleware";
 import { lockedSiteMonths, periodLockedError, siteMonthOf, siteMonthsOfBatch, siteMonthsOfRows, type SiteMonth } from "./periodLock";
 import { periodWriteLease } from "./periodLease";
 import { sendScope3Error } from "../contracts/errors";
+import { strictIdsFrom } from "../../utils/ids";
 
 type Source = "create" | "param" | "ids" | "batch";
 
-const toIds = (value: unknown): number[] => {
-  if (value === undefined || value === null || value === "") return [];
-  const list = Array.isArray(value) ? value : String(value).split(",");
-  return list.map((v) => Number(String(v).trim())).filter((n) => Number.isInteger(n) && n > 0);
-};
-
-const periodsFor = async (req: AuthRequest, source: Source): Promise<Array<SiteMonth | null>> => {
+/** The site-months a write touches; null when an id is malformed (utils/ids), so the lock can't be checked. */
+const periodsFor = async (req: AuthRequest, source: Source): Promise<Array<SiteMonth | null> | null> => {
   const m = AppDataSource.manager;
   const body = (req.body ?? {}) as Record<string, any>;
   switch (source) {
     case "create":
       return body.site_id && body.date_of_reporting ? [siteMonthOf(Number(body.site_id), body.date_of_reporting)] : [];
     case "param": {
-      const ids = toIds(req.params.id);
+      const ids = strictIdsFrom(req.params.id, true);
+      if (!ids) return null;
       const items: Array<SiteMonth | null> = await siteMonthsOfRows(m, ids);
       if (ids.length && body.date_of_reporting) {
         const [row]: Array<{ site_id: number }> = await m.query(`SELECT site_id FROM emission WHERE pk_id = $1`, [ids[0]]);
@@ -42,8 +39,10 @@ const periodsFor = async (req: AuthRequest, source: Source): Promise<Array<SiteM
       }
       return items;
     }
-    case "ids":
-      return siteMonthsOfRows(m, toIds(body.ids));
+    case "ids": {
+      const ids = strictIdsFrom(body.ids, false);
+      return ids && siteMonthsOfRows(m, ids);
+    }
     case "batch":
       return siteMonthsOfBatch(m, String(req.params.batchId ?? ""));
   }
@@ -57,6 +56,8 @@ const periodsFor = async (req: AuthRequest, source: Source): Promise<Array<SiteM
 export const guardPeriodOpen = (source: Source) => async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const items = await periodsFor(req, source);
+    // Refuse rather than skip the lock check for rows it couldn't name.
+    if (!items) return res.status(400).json({ message: "Invalid id" });
     const lease = await periodWriteLease(items);
     const release = () => void lease.release();
     res.once("finish", release);

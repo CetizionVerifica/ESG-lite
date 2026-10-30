@@ -3,6 +3,7 @@ import { AppDataSource } from "../config/data-source";
 import { AuthRequest } from "./auth.middleware";
 import { UserRole } from "../types/type";
 import { accessibleSiteIds, SITE_ACCESS_DENIED, userInCompany } from "../utils/companyScope";
+import { strictId, strictIdList, strictIdsFrom } from "../utils/ids";
 
 /**
  * Route guards that keep every /user/* request inside the caller's own
@@ -25,13 +26,11 @@ const REVIEWER_ROLES = new Set<string>([UserRole.MANAGER, UserRole.SUPERADMIN]);
 
 const allowedSites = (req: AuthRequest) => accessibleSiteIds(req.user?.userId, req.user?.role);
 
-const toIds = (value: unknown): number[] => {
-  if (value === undefined || value === null || value === "") return [];
-  const list = Array.isArray(value) ? value : String(value).split(",");
-  return list.map((v) => Number(String(v).trim())).filter((n) => Number.isInteger(n) && n > 0);
-};
+/** null when any id is malformed: the guard answers 400 (see utils/ids). */
+const toIds = strictIdList;
 
 const forbidden = (res: Response) => res.status(403).json(SITE_ACCESS_DENIED);
+const invalidId = (res: Response) => res.status(400).json(INVALID_ID);
 
 /** Replace req.query (a getter in Express 5) with a patched copy. */
 const patchQuery = (req: AuthRequest, patch: Record<string, string>) => {
@@ -57,8 +56,9 @@ export const requireReviewer: Guard = (req, res, next) => {
 /** Site ids in a path parameter (e.g. /site/:siteId) must be the caller's. */
 export const guardSiteParam = (param: string): Guard =>
   wrap(async (req, res, next) => {
+    const id = strictId(req.params[param]);
+    if (id === null) return invalidId(res);
     const allowed = await allowedSites(req);
-    const id = Number(req.params[param]);
     if (allowed && !allowed.has(id)) return forbidden(res);
     next();
   });
@@ -69,10 +69,15 @@ export const guardSiteParam = (param: string): Guard =>
  */
 export const guardBodySites = (field: "siteIds" | "site_id"): Guard =>
   wrap(async (req, res, next) => {
+    req.body = req.body || {};
+    const value = req.body[field];
+    const requested = toIds(value);
+    // site_id names one site ("1,2" is not an id).
+    if (!requested || (field === "site_id" && requested.length > 1)) return invalidId(res);
+    // The handler reads the ids checked here, as numbers, in the shape it was sent.
+    if (requested.length) req.body[field] = field === "site_id" ? requested[0] : Array.isArray(value) ? requested : requested.join(",");
     const allowed = await allowedSites(req);
     if (!allowed) return next();
-    req.body = req.body || {};
-    const requested = toIds(req.body[field]);
     if (requested.some((id) => !allowed.has(id))) return forbidden(res);
     if (!requested.length && field === "siteIds") req.body.siteIds = [...allowed];
     next();
@@ -80,10 +85,18 @@ export const guardBodySites = (field: "siteIds" | "site_id"): Guard =>
 
 /** Every `entries[].site_id` of a bulk body must be the caller's. */
 export const guardBodyEntrySites: Guard = wrap(async (req, res, next) => {
+  const entries: Array<{ site_id?: unknown } | null> = Array.isArray(req.body?.entries) ? req.body.entries : [];
+  // A missing site_id is the handler's to report (403 here for scoped callers); a malformed one is refused.
+  const siteIds: Array<number | undefined> = [];
+  for (const e of entries) {
+    const ids = toIds(e?.site_id);
+    if (!ids || ids.length > 1) return invalidId(res);
+    if (e && ids.length) e.site_id = ids[0]; // the handler reads the id checked here
+    siteIds.push(ids[0]);
+  }
   const allowed = await allowedSites(req);
   if (!allowed) return next();
-  const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
-  if (entries.some((e: { site_id?: unknown }) => !allowed.has(Number(e?.site_id)))) return forbidden(res);
+  if (siteIds.some((id) => id === undefined || !allowed.has(id))) return forbidden(res);
   next();
 });
 
@@ -94,10 +107,19 @@ export const guardBodyEntrySites: Guard = wrap(async (req, res, next) => {
  */
 export const guardQuerySites = (fillAs?: "siteIds" | "siteId"): Guard =>
   wrap(async (req, res, next) => {
+    const q = req.query as Record<string, unknown>;
+    const patch: Record<string, string> = {};
+    const requested: number[] = [];
+    for (const key of ["siteIds", "siteId", "site_id"]) {
+      const ids = toIds(q[key]);
+      // siteId and site_id name one site ("1,2" is not an id).
+      if (!ids || (key !== "siteIds" && ids.length > 1)) return invalidId(res);
+      if (ids.length) patch[key] = ids.join(","); // the handler reads the ids checked here
+      requested.push(...ids);
+    }
+    if (requested.length) patchQuery(req, patch);
     const allowed = await allowedSites(req);
     if (!allowed) return next();
-    const q = req.query as Record<string, unknown>;
-    const requested = [...toIds(q.siteIds), ...toIds(q.siteId), ...toIds(q.site_id)];
     if (requested.some((id) => !allowed.has(id))) return forbidden(res);
     if (!requested.length && fillAs) {
       if (!allowed.size) return res.status(200).json(fillAs === "siteIds" ? [] : { data: [] });
@@ -111,9 +133,11 @@ export const guardQuerySites = (fillAs?: "siteIds" | "siteId"): Guard =>
 /** A company id in a path parameter must be the caller's company. */
 export const guardCompanyParam = (param: string): Guard =>
   wrap(async (req, res, next) => {
+    const companyId = strictId(req.params[param]);
+    if (companyId === null) return invalidId(res);
     if (req.user?.role === UserRole.SUPERADMIN) return next();
     // Any company the caller has a site in, not only their first site's (F-22, 22 Oct 2026).
-    if (!(await userInCompany(req.user?.userId, Number(req.params[param])))) return forbidden(res);
+    if (!(await userInCompany(req.user?.userId, companyId))) return forbidden(res);
     next();
   });
 
@@ -169,17 +193,21 @@ const selfReview = (req: AuthRequest, rows: ReviewFacts[], action: ReviewAction)
  */
 const guardRecords = (t: Table, from: { param?: string; bodyIds?: boolean }, review: ReviewAction | false = false): Guard =>
   wrap(async (req, res, next) => {
-    const ids = from.param ? toIds(req.params[from.param]) : toIds(req.body?.ids);
-    // A path id that isn't a positive whole number (e.g. "undefined") names no
-    // record; stop here instead of letting the handler query with NaN (500).
-    if (!ids.length && from.param) return res.status(400).json(INVALID_ID);
+    // A path names exactly one record ("7,8" is not an id).
+    const ids = from.param ? strictIdsFrom(req.params[from.param], true) : toIds(req.body?.ids);
+    // An id that isn't a positive whole number (e.g. "undefined", or "7x" in a
+    // body list) names no record the guard could check: the handler would read
+    // it differently (parseInt "7x" = 7), so the whole request is refused.
+    if (!ids) return invalidId(res);
     if (!ids.length) return next(); // the handler reports the missing ids
+    // The handler reads the ids checked here, as numbers.
+    if (!from.param && Array.isArray(req.body?.ids)) req.body.ids = ids;
     let rows = await rowsOf(t, ids);
     if (t === EMISSION && rows.some((r) => othersDraft(req, r))) {
       if (from.param) return res.status(404).json(NOT_FOUND);
       // A list drops someone else's Draft as it drops an unknown id; nothing left reads as not found.
       const hidden = new Set(rows.filter((r) => othersDraft(req, r)).map((r) => Number(r.id)));
-      const kept = toIds(req.body?.ids).filter((id) => !hidden.has(id));
+      const kept = ids.filter((id) => !hidden.has(id));
       if (!kept.length) return res.status(404).json(NOT_FOUND);
       req.body.ids = kept;
       rows = rows.filter((r) => !hidden.has(Number(r.id)));
@@ -225,7 +253,10 @@ export const guardAuditEntity: Guard = wrap(async (req, res, next) => {
   const q = req.query as Record<string, unknown>;
   const table = AUDITED[String(q.entity_type)];
   if (!table) return next(); // handler validates entity_type
-  const [row] = await rowsOf(table, toIds(q.entity_id));
+  // One record: the handler reads entity_id with parseInt, so "999,5" must not pass as 5.
+  const entityIds = strictIdsFrom(q.entity_id, true);
+  if (!entityIds) return invalidId(res);
+  const [row] = await rowsOf(table, entityIds);
   const allowed = await allowedSites(req);
   if (allowed && (!row || !allowed.has(Number(row.site_id)))) return res.status(404).json(NOT_FOUND);
   if (table === EMISSION && row && othersDraft(req, row)) return res.status(404).json(NOT_FOUND);
