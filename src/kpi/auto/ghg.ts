@@ -12,9 +12,16 @@
  * No SQL of its own for totals: the only query here counts the approved rows
  * behind the figure and lists their ids for the snapshot (no rows → no value).
  * Results are converted from tCO2e to the KPI's canonical unit (tCO2e for the library).
+ *
+ * D14: the snapshot also keeps `kg`, those rows' exact kgCO₂e (reporting/kgTotals
+ * `rowsKg`), when the KPI is in tCO2e and the kg rounds to the report's figure.
+ * values/yearly.ts adds kg when it rolls sites and periods up, and rounds once,
+ * so a company or year figure is the report's for those sites and that year,
+ * not its rounded parts added up.
  */
 import { computeGhgTables, getPeriodRange, type GhgFilters } from "../../reporting/ghg-data";
 import { computeScope3 } from "../../reporting/ghg-scope3";
+import { kgToTonnes, rowsKg } from "../../reporting/kgTotals";
 import { isScope3Sql } from "../../scope3/taxonomy/service";
 import { convert } from "../values/units";
 import type { KpiPeriod } from "../values/period";
@@ -37,8 +44,8 @@ export function ghgFilters(siteIds: number[], period: KpiPeriod): GhgFilters {
 
 const filtersOut = (f: GhgFilters) => ({ site_ids: f.siteIds, year_type: f.yearType, year: f.year, frequency: f.frequency, month: f.month ?? null, quarter: f.quarter ?? null });
 
-/** Approved emission rows behind a figure: the same status, sites and dates as the report. */
-async function sourceRows(input: AdapterInput, f: GhgFilters, scopeSql: string, params: unknown[] = []): Promise<{ count: number; ids: number[] }> {
+/** Approved emission rows behind a figure: the same status, sites and dates as the report. `all` = every id, `ids` = the snapshot's. */
+async function sourceRows(input: AdapterInput, f: GhgFilters, scopeSql: string, params: unknown[] = []): Promise<{ count: number; ids: number[]; all: number[] }> {
   const range = getPeriodRange(f.yearType, f.year, f.frequency, f.month, f.quarter);
   const rows: Row[] = await input.m.query(
     `SELECT e.pk_id FROM emission e JOIN category c ON c.category_id = e.category_id
@@ -46,7 +53,19 @@ async function sourceRows(input: AdapterInput, f: GhgFilters, scopeSql: string, 
       ORDER BY e.pk_id`,
     [f.siteIds, range.startDate, range.endDate, ...params],
   );
-  return { count: rows.length, ids: rows.slice(0, SNAPSHOT_ROW_LIMIT).map((r) => Number(r.pk_id)) };
+  const all = rows.map((r) => Number(r.pk_id));
+  return { count: rows.length, ids: all.slice(0, SNAPSHOT_ROW_LIMIT), all };
+}
+
+/**
+ * D14: `{kg}` for the snapshot (the rows' exact kgCO₂e) when the KPI is in tCO2e
+ * and that kg rounds to the report's figure, so a roll-up can add kg and round
+ * once; else nothing (the roll-up adds the stored values, as before).
+ */
+async function kgOf(input: AdapterInput, rows: { all: number[] }, tco2e: number): Promise<{ kg?: number }> {
+  if ((input.kpi.canonical_unit ?? "tCO2e") !== "tCO2e") return {};
+  const kg = await rowsKg(input.m, rows.all);
+  return kgToTonnes(kg) === tco2e ? { kg } : {};
 }
 
 const inUnit = (input: AdapterInput, tco2e: number): number | null => {
@@ -75,6 +94,7 @@ const scopeTotal = (scope: "Scope 1" | "Scope 2", field: "scope1" | "scope2"): A
     function: "computeGhgTables",
     field: `totals.${f.year}.${field}`,
     tco2e,
+    ...(await kgOf(input, rows, tco2e)),
     filters: filtersOut(f),
     rows: rows.count,
     row_ids: rows.ids,
@@ -98,6 +118,7 @@ export const ghgScope3Total: Adapter = async (input) => {
     function: "computeScope3",
     field: "total_tco2e",
     tco2e: r.total_tco2e,
+    ...(await kgOf(input, rows, r.total_tco2e)),
     filters: filtersOut(f),
     rows: rows.count,
     row_ids: rows.ids,
@@ -119,6 +140,7 @@ export const ghgScope3Category =
       function: "computeScope3",
       field: `rows[n=${n}].tco2e`,
       tco2e,
+      ...(await kgOf(input, rows, tco2e)),
       filters: filtersOut(f),
       rows: rows.count,
       row_ids: rows.ids,

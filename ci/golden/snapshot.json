@@ -179,7 +179,7 @@
                   "pctOfTotal": 100
                 },
                 "2025": {
-                  "emissions": 37211.129,
+                  "emissions": 37211.13,
                   "pctOfTotal": 100
                 }
               }
@@ -187,6 +187,7 @@
           ],
           "table_overviewByLocations_compareYear": {
             "rows": [],
+            "siteTotals": [],
             "year": 2024
           },
           "table_overviewByLocations_selectedYear": {
@@ -257,6 +258,24 @@
                 "total": 17.466
               }
             ],
+            "siteTotals": [
+              {
+                "scope1": 10039.949,
+                "scope2": 17730.621,
+                "scope3": 3544.559,
+                "siteId": 1,
+                "siteName": "CI Plant A",
+                "total": 31315.13
+              },
+              {
+                "scope1": 5896,
+                "scope2": 0,
+                "scope3": 0,
+                "siteId": 2,
+                "siteName": "CI Plant B",
+                "total": 5896
+              }
+            ],
             "year": 2025
           }
         },
@@ -271,7 +290,7 @@
             "scope1": 15935.949,
             "scope2": 17730.621,
             "scope3": 3544.559,
-            "total": 37211.129
+            "total": 37211.13
           }
         }
       },
@@ -366,6 +385,7 @@
           ],
           "table_overviewByLocations_compareYear": {
             "rows": [],
+            "siteTotals": [],
             "year": 2024
           },
           "table_overviewByLocations_selectedYear": {
@@ -393,6 +413,16 @@
                 "category": "Purchased Electricity",
                 "scope": "Scope 2",
                 "total": 17700
+              }
+            ],
+            "siteTotals": [
+              {
+                "scope1": 10039.949,
+                "scope2": 17700,
+                "scope3": 0,
+                "siteId": 1,
+                "siteName": "CI Plant A",
+                "total": 27739.949
               }
             ],
             "year": 2025
@@ -503,6 +533,7 @@
           ],
           "table_overviewByLocations_compareYear": {
             "rows": [],
+            "siteTotals": [],
             "year": 2024
           },
           "table_overviewByLocations_selectedYear": {
@@ -517,6 +548,16 @@
                 ],
                 "category": "Upstream Transportation and Distribution",
                 "scope": "Scope 3",
+                "total": 1812.902
+              }
+            ],
+            "siteTotals": [
+              {
+                "scope1": 0,
+                "scope2": 0,
+                "scope3": 1812.902,
+                "siteId": 1,
+                "siteName": "CI Plant A",
                 "total": 1812.902
               }
             ],
@@ -732,7 +773,7 @@
             "scope3": 3544.559,
             "siteId": 1,
             "siteName": "CI Plant A",
-            "total": 31315.129
+            "total": 31315.13
           },
           {
             "pctOfTotal": 15.84,
@@ -935,7 +976,7 @@
           {
             "name": "CI Plant A",
             "pct": 84.16,
-            "value": 31315.129
+            "value": 31315.13
           },
           {
             "name": "CI Plant B",
@@ -944,10 +985,11 @@
           }
         ],
         "totals": {
+          "saved": 0,
           "scope1": 15935.949,
           "scope2": 17730.621,
           "scope3": 3544.559,
-          "total": 37211.129
+          "total": 37211.13
         }
       },
       "name": "EDE yearly 2025, both sites (DS-2 intensity extraction)",
@@ -1015,6 +1057,7 @@
           }
         ],
         "totals": {
+          "saved": 0,
           "scope1": 2680,
           "scope2": 17700,
           "scope3": 0,

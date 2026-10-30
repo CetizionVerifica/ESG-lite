@@ -7,6 +7,7 @@
  */
 import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
+import { addKg, kgToTonnes, sumKgSql } from "../reporting/kgTotals";
 
 export class SbtiInputError extends Error {
   constructor(message: string) {
@@ -19,6 +20,26 @@ function yearStartEnd(year: number) {
   const startDate = new Date(year, 0, 1);
   const endDate = new Date(year, 11, 31);
   return { startDate, endDate };
+}
+
+/**
+ * D14: a year's approved figures from the rows' exact kgCO₂e, each rounded once
+ * to tCO₂e: per scope, the total, and Scope 1 + 2 (the target boundary without
+ * Scope 3), so the pathway starts from the GHG report's own figures.
+ */
+const SCOPE_KG_SELECT = [
+  `${sumKgSql("emission", "LOWER(category.scope) = 'scope 1'")} AS "scope1"`,
+  `${sumKgSql("emission", "LOWER(category.scope) = 'scope 2'")} AS "scope2"`,
+  `${sumKgSql("emission", "LOWER(category.scope) = 'scope 3'")} AS "scope3"`,
+];
+function yearFigures(raw: any) {
+  const kg1 = Number(raw?.scope1) || 0;
+  const kg2 = Number(raw?.scope2) || 0;
+  const kg3 = Number(raw?.scope3) || 0;
+  return {
+    totals: { scope1: kgToTonnes(kg1), scope2: kgToTonnes(kg2), scope3: kgToTonnes(kg3), total: kgToTonnes(addKg(kg1, kg2, kg3)) },
+    scope12: kgToTonnes(addKg(kg1, kg2)),
+  };
 }
 
 function powTarget(base: number, rate: number, n: number) {
@@ -65,22 +86,11 @@ export async function computeNearTermTables(input: unknown) {
   const getTotalsForYear = async (year: number) => {
     const { startDate, endDate } = yearStartEnd(year);
 
-    const raw = await buildBaseQuery(startDate, endDate)
-      .select([
-        `SUM(CASE WHEN LOWER(category.scope) = 'scope 1' THEN emission.total_emission ELSE 0 END) AS "scope1"`,
-        `SUM(CASE WHEN LOWER(category.scope) = 'scope 2' THEN emission.total_emission ELSE 0 END) AS "scope2"`,
-        `SUM(CASE WHEN LOWER(category.scope) = 'scope 3' THEN emission.total_emission ELSE 0 END) AS "scope3"`,
-      ])
-      .getRawOne();
-
-    const scope1 = Number(raw?.scope1) || 0;
-    const scope2 = Number(raw?.scope2) || 0;
-    const scope3 = Number(raw?.scope3) || 0;
-
-    return { scope1, scope2, scope3, total: scope1 + scope2 + scope3 };
+    return yearFigures(await buildBaseQuery(startDate, endDate).select(SCOPE_KG_SELECT).getRawOne());
   };
 
-  const baseTotalsAll = await getTotalsForYear(baseYear);
+  const baseFigures = await getTotalsForYear(baseYear);
+  const baseTotalsAll = baseFigures.totals;
 
   if (!baseTotalsAll.total) {
     throw new SbtiInputError(`No approved emissions found for baseYear=${baseYear} with the provided filters.`);
@@ -89,14 +99,12 @@ export async function computeNearTermTables(input: unknown) {
   const scope3Share = baseTotalsAll.total > 0 ? baseTotalsAll.scope3 / baseTotalsAll.total : 0;
   const scope3TargetRequired = scope3Share >= 0.4;
 
-  const scope1And2Total = baseTotalsAll.scope1 + baseTotalsAll.scope2;
+  const scope1And2Total = baseFigures.scope12;
   const scope1And2CoveragePct =
     baseTotalsAll.total > 0 ? (scope1And2Total / baseTotalsAll.total) * 100 : 0;
   const scope1And2CoverageValid = scope1And2CoveragePct >= 95;
 
-  const targetBoundaryBase = scope3TargetRequired
-    ? baseTotalsAll.scope1 + baseTotalsAll.scope2 + baseTotalsAll.scope3
-    : baseTotalsAll.scope1 + baseTotalsAll.scope2;
+  const targetBoundaryBase = scope3TargetRequired ? baseTotalsAll.total : baseFigures.scope12;
 
   const table1: Array<{
     year: number;
@@ -168,12 +176,11 @@ export async function computeNearTermTables(input: unknown) {
   }> = [];
 
   for (let year = baseYear; year <= targetYear; year++) {
-    const actualAll = await getTotalsForYear(year);
+    const actualFigures = await getTotalsForYear(year);
+    const actualAll = actualFigures.totals;
     const targetTotal = table1.find((r) => r.year === year)!.targetEmission;
 
-    const actualBoundaryTotal = scope3TargetRequired
-      ? actualAll.scope1 + actualAll.scope2 + actualAll.scope3
-      : actualAll.scope1 + actualAll.scope2;
+    const actualBoundaryTotal = scope3TargetRequired ? actualAll.total : actualFigures.scope12;
 
     const isBaseYear = year === baseYear;
     const hasBoundaryData = actualBoundaryTotal > 0;
@@ -252,19 +259,7 @@ export async function computeLongTermChart(input: unknown) {
 
   const getTotalsForYear = async (year: number) => {
     const { startDate, endDate } = yearStartEnd(year);
-    const raw = await buildBaseQuery(startDate, endDate)
-      .select([
-        `SUM(CASE WHEN LOWER(category.scope) = 'scope 1' THEN emission.total_emission ELSE 0 END) AS "scope1"`,
-        `SUM(CASE WHEN LOWER(category.scope) = 'scope 2' THEN emission.total_emission ELSE 0 END) AS "scope2"`,
-        `SUM(CASE WHEN LOWER(category.scope) = 'scope 3' THEN emission.total_emission ELSE 0 END) AS "scope3"`,
-      ])
-      .getRawOne();
-
-    const scope1 = Number(raw?.scope1) || 0;
-    const scope2 = Number(raw?.scope2) || 0;
-    const scope3 = Number(raw?.scope3) || 0;
-
-    return { scope1, scope2, scope3, total: scope1 + scope2 + scope3 };
+    return yearFigures(await buildBaseQuery(startDate, endDate).select(SCOPE_KG_SELECT).getRawOne());
   };
 
   const getMaxDataYear = async () => {
@@ -282,7 +277,8 @@ export async function computeLongTermChart(input: unknown) {
     return Number.isFinite(maxYear) ? maxYear : baseYear;
   };
 
-  const baseTotals = await getTotalsForYear(baseYear);
+  const baseFigures = await getTotalsForYear(baseYear);
+  const baseTotals = baseFigures.totals;
 
   if (!baseTotals.total) {
     throw new SbtiInputError(`No approved emissions found for baseYear=${baseYear}.`);
@@ -291,9 +287,7 @@ export async function computeLongTermChart(input: unknown) {
   const scope3Share = baseTotals.total > 0 ? baseTotals.scope3 / baseTotals.total : 0;
   const scope3TargetRequired = scope3Share >= 0.4;
 
-  const baselineBoundary = scope3TargetRequired
-    ? baseTotals.scope1 + baseTotals.scope2 + baseTotals.scope3
-    : baseTotals.scope1 + baseTotals.scope2;
+  const baselineBoundary = scope3TargetRequired ? baseTotals.total : baseFigures.scope12;
 
   const targetEmissions = Number((baselineBoundary * (1 - NET_ZERO_REDUCTION)).toFixed(3));
 
@@ -360,14 +354,13 @@ export async function computeLongTermChart(input: unknown) {
     const targetRow = targetByYear.get(year);
     if (!targetRow) continue;
 
-    const actualTotals = await getTotalsForYear(year);
+    const actualFigures = await getTotalsForYear(year);
+    const actualTotals = actualFigures.totals;
 
     const isBase = year === baseYear;
     const hasData = actualTotals.total > 0;
 
-    const actualBoundaryTotal = scope3TargetRequired
-      ? actualTotals.scope1 + actualTotals.scope2 + actualTotals.scope3
-      : actualTotals.scope1 + actualTotals.scope2;
+    const actualBoundaryTotal = scope3TargetRequired ? actualTotals.total : actualFigures.scope12;
 
     let status: "Base Year" | "Reached" | "Not Reached" | "No Data";
     if (isBase) status = "Base Year";

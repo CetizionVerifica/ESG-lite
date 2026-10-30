@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { log } from "../utils/logger";
+import { addKg, kgToTonnes, rowKg, sumKg } from "../reporting/kgTotals"; // D14
 import { CATEGORY_IDS_ERROR, hasInvalidCategoryIds, parseCategoryIds } from "../utils/parseCategoryIds";
 import { parseSiteIds } from "../utils/parseSiteIds";
 import { scopeSiteIds, SITE_ACCESS_DENIED } from "../utils/companyScope";
@@ -125,8 +126,10 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
     // Parent id → its FERA total: the upstream twin plus, for a Scope 2 row,
     // the T&D-loss twin (S3-7), both linked to the parent.
     const feraMap = new Map<number, number>();
+    const feraKgMap = new Map<number, number>(); // the same twins in kg, for the TOTAL row (D14)
     for (const fe of feraEmissions) {
       if (fe.fera_linked_id) feraMap.set(fe.fera_linked_id, (feraMap.get(fe.fera_linked_id) ?? 0) + Number(fe.total_emission || 0));
+      if (fe.fera_linked_id) feraKgMap.set(fe.fera_linked_id, addKg(feraKgMap.get(fe.fera_linked_id) ?? 0, rowKg(fe)));
     }
 
     // Flatten activity_data keys to find all unique keys across emissions
@@ -204,16 +207,16 @@ export const exportEmissions = async (req: AuthRequest, res: Response) => {
     // Totals row
     const emissionColIdx = headers.indexOf("Emission (tCO2e)");
     const feraColIdx = headers.indexOf("FERA (tCO2e)");
-    const totalEmission = emissions.reduce((sum, e) => sum + Number(e.total_emission || 0), 0);
-    const totalFera = emissions.reduce((sum, e) => {
-      return sum + (feraMap.get(e.pk_id) ?? 0);
-    }, 0);
+    // D14: the TOTAL row adds the rows' exact kgCO₂e and rounds once, as every report;
+    // each row above shows its own stored tCO₂e.
+    const totalEmission = kgToTonnes(sumKg(emissions.map((e) => rowKg(e))));
+    const totalFera = kgToTonnes(sumKg(emissions.map((e) => feraKgMap.get(e.pk_id) ?? 0)));
 
     const totalsRow = new Array(headers.length).fill("");
     totalsRow[0] = "";
     totalsRow[1] = "TOTAL";
-    totalsRow[emissionColIdx] = Math.round(totalEmission * 1000) / 1000; // #209
-    if (totalFera > 0) totalsRow[feraColIdx] = Math.round(totalFera * 1000) / 1000;
+    totalsRow[emissionColIdx] = totalEmission; // #209
+    if (totalFera > 0) totalsRow[feraColIdx] = totalFera;
     totalsRow[headers.indexOf("Status")] = `${emissions.length} entries`;
 
     // Combine all

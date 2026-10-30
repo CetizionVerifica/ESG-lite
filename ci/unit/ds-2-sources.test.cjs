@@ -155,6 +155,55 @@ test("GHG binding years, reporting months and top-N folding", () => {
   assert.equal(ghg.applyTop(folded, 2025, undefined), folded);
 });
 
+// D14 review fix: four approved rows of 1,234.4 kg (1.234 t each) at site 1, CY 2038:
+// Scope 1 in January, February and March, Scope 2 in January. By hand: total
+// 4,937.6 kg → 4.938; Scope 1 3,703.2 kg → 3.703; January 2,468.8 kg → 2.469;
+// Q1 4,937.6 kg → 4.938; site 1 4,937.6 kg → 4.938. Adding parts each rounded
+// first would give January 1.234 + 1.234 = 2.468, Q1 2.468 + 1.234 + 1.234 =
+// 4.936, Scope 1 Q1 3 × 1.234 = 3.702 and site 1 3.703 + 1.234 = 4.937.
+test("GHG splits add kg and round once per site, month, quarter and scope stack (crossing a rounding edge)", async () => {
+  const kg = 1234.4;
+  const t = 1.234;
+  const monthly = [
+    { month: "2038-01", scope: "Scope 1", kg, tco2e: t },
+    { month: "2038-01", scope: "Scope 2", kg, tco2e: t },
+    { month: "2038-02", scope: "Scope 1", kg, tco2e: t },
+    { month: "2038-03", scope: "Scope 1", kg, tco2e: t },
+  ];
+  const view = {
+    year: 2038,
+    rows: [
+      { scope: "Scope 1", category: "Stationary Combustion", bySite: [{ siteId: 1, siteName: "Plant A", value: 3.703 }], total: 3.703 },
+      { scope: "Scope 2", category: "Purchased Electricity", bySite: [{ siteId: 1, siteName: "Plant A", value: 1.234 }], total: 1.234 },
+    ],
+    // computeGhgTables' own per-site figures (each site's kg rounded once)
+    siteTotals: [{ siteId: 1, siteName: "Plant A", scope1: 3.703, scope2: 1.234, scope3: 0, total: 4.938 }],
+  };
+  const L = {
+    monthly: async () => monthly,
+    tables: async () => ({ totals: { 2038: { scope1: 3.703, scope2: 1.234, scope3: 0, total: 4.938 } }, tables: { table_overviewByLocations_selectedYear: view } }),
+    production: async () => [{ siteId: 1, month: "2038-01", production: 2 }],
+  };
+  const ctx = { companyId: 1, kind: "ghg", year: 2038, yearType: "CY", siteIds: [1], allSiteIds: [1], kpiEnabled: false, inputs: {} };
+  const b = (metric, breakdown) => ({ source: "ghg", metric, years: { last: 1 }, sites: "all", breakdown });
+  const pts = async (metric, breakdown) => Object.fromEntries((await ghg.breakdownPoints(L, ctx, b(metric, breakdown), 2038, [1])).map((p) => [p.key, p.value]));
+
+  assert.deepEqual(await pts("total", "site"), { "Plant A": 4.938 });
+  assert.deepEqual(await pts("scope1", "site"), { "Plant A": 3.703 });
+  const m = await pts("total", "month");
+  assert.deepEqual([m["2038-01"], m["2038-02"], m["2038-03"], m["2038-04"]], [2.469, 1.234, 1.234, 0]);
+  assert.deepEqual(await pts("total", "quarter"), { Q1: 4.938, Q2: 0, Q3: 0, Q4: 0 });
+  assert.deepEqual(await pts("scope1", "quarter"), { Q1: 3.703, Q2: 0, Q3: 0, Q4: 0 });
+  // Intensity per unit of output divides the site's or month's own figure: 4.938 / 2 and 2.469 / 2.
+  assert.deepEqual(await pts("intensity_output", "site"), { "Plant A": 2.469 });
+  assert.equal((await pts("intensity_output", "month"))["2038-01"], 1.2345);
+
+  const stacks = await ghg.scopeStacks(L, ctx, b("total", "quarter"), 2038, [1]);
+  assert.deepEqual(stacks.map((s) => [s.label, s.values[0]]), [["Scope 1", { key: "Q1", value: 3.703 }], ["Scope 2", { key: "Q1", value: 1.234 }], ["Scope 3", { key: "Q1", value: 0 }]]);
+  const monthStacks = await ghg.scopeStacks(L, ctx, b("total", "month"), 2038, [1]);
+  assert.deepEqual(monthStacks.map((s) => s.values[0].value), [1.234, 1.234, 0], "January by scope");
+});
+
 test("every GHG metric has a unit and label; breakdowns are listed per metric", () => {
   const { GHG_METRICS, GHG_BREAKDOWNS } = dist("studio/contracts/index.js");
   for (const m of GHG_METRICS) {

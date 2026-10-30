@@ -19,6 +19,7 @@ import { GHG_CATEGORIES, ghgCategory, type GhgCategoryNumber, type Method, METHO
 import { GWP_SETS, isFactorType, type FactorType, type GwpSet } from "../scope3/contracts/factor";
 import { ensureBoundaryRows, isScope3Sql, type Queryable } from "../scope3/taxonomy/service";
 import { getPeriodRange, type GhgFilters } from "./ghg-data";
+import { kgToTonnes, rowKgSql, sumKg } from "./kgTotals";
 import { PROXY_BASIS_LABELS, type Scope3ReportRow as ContractScope3ReportRow } from "../scope3/contracts/schemas";
 import type { Block } from "./types";
 
@@ -99,10 +100,9 @@ const VALUE_CHAIN_METHODS = new Set<string>([
 
 export const UNMAPPED_NAME = "Unmapped";
 
-const round3 = (n: number) => Math.round(n * 1000) / 1000; // #209: tCO₂e to 3 dp
 const round1 = (n: number) => Math.round(n * 10) / 10;
-/** kgCO₂e → tCO₂e, rounded once at the end (D5). */
-export const kgToT = (kg: number) => round3(kg / 1000);
+/** kgCO₂e → tCO₂e, rounded once at the end (D5, D14): the helper every report total uses (kgTotals.ts). */
+export const kgToT = (kg: number) => kgToTonnes(kg);
 const share = (part: number, whole: number) => (whole > 0 ? round1((part / whole) * 100) : 0);
 
 const isMethod = (v: unknown): v is Method => typeof v === "string" && (METHOD_KEYS as readonly string[]).includes(v);
@@ -125,12 +125,12 @@ export function buildScope3Rows(
     const k = keyOf(g.n);
     byKey.set(k, [...(byKey.get(k) ?? []), g]);
   }
-  const totalKg = groups.reduce((a, g) => a + g.kg, 0);
+  const totalKg = sumKg(groups.map((g) => g.kg)); // D14: exact kg, so the total equals the GHG tables' Scope 3
   const allGwp = new Set<GwpSet>();
 
   const rowFor = (n: GhgCategoryNumber | null): Scope3ReportRow => {
     const gs = byKey.get(n) ?? [];
-    const kg = gs.reduce((a, g) => a + g.kg, 0);
+    const kg = sumKg(gs.map((g) => g.kg));
     const sumWhere = (pred: (g: Scope3Group) => boolean) => gs.filter(pred).reduce((a, g) => a + g.kg, 0);
 
     const methodKg = new Map<Method, number>();
@@ -223,8 +223,7 @@ export async function emissionColumns(q: Queryable = AppDataSource): Promise<Set
 }
 
 /** One emission row's kgCO₂e (alias `e`): the stored kg once S3-4 adds it, else tonnes × 1000. Shared with S3-14. */
-export const kgSql = (cols: Set<OptionalColumn>) =>
-  cols.has("total_kgco2e") ? `COALESCE(e.total_kgco2e, e.total_emission::numeric * 1000)` : `e.total_emission::numeric * 1000`;
+export const kgSql = (cols: Set<OptionalColumn>) => (cols.has("total_kgco2e") ? rowKgSql("e") : `e.total_emission::numeric * 1000`);
 
 /** Approved Scope 3 rows in the filters' period, aggregated for buildScope3Rows. */
 async function loadGroups(filters: GhgFilters, cols: Set<OptionalColumn>, q: Queryable): Promise<Scope3Group[]> {

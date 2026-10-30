@@ -6,6 +6,7 @@
 // The controllers call these functions and res.json() the result unchanged.
 import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
+import { addKg, kgToTonnes, sumKgSql } from "./kgTotals";
 
 export type YearType = "CY" | "FY";
 export type Frequency = "monthly" | "quarterly" | "yearly";
@@ -190,21 +191,23 @@ export async function computeGhgTables(filters: GhgFilters) {
     return qb;
   };
 
+  // D14: each figure adds the rows' exact kgCO₂e and rounds once (kgTotals.ts),
+  // as the Scope 3 section does, so its Scope 3 equals this table's.
   const sumByScope = async (range: { startDate: Date; endDate: Date }) => {
     const raw = await baseQB(range)
       .select([
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 1' THEN emission.total_emission ELSE 0 END), 0) AS "scope1"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 2' THEN emission.total_emission ELSE 0 END), 0) AS "scope2"`,
-        `COALESCE(SUM(CASE WHEN category.scope = 'Scope 3' THEN emission.total_emission ELSE 0 END), 0) AS "scope3"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
       ])
       .getRawOne();
 
-    const scope1 = Number(raw.scope1) || 0;
-    const scope2 = Number(raw.scope2) || 0;
-    const scope3 = Number(raw.scope3) || 0;
-    const total = scope1 + scope2 + scope3;
-
-    return { scope1, scope2, scope3, total };
+    return {
+      scope1: kgToTonnes(raw.scope1),
+      scope2: kgToTonnes(raw.scope2),
+      scope3: kgToTonnes(raw.scope3),
+      total: kgToTonnes(addKg(raw.scope1, raw.scope2, raw.scope3)),
+    };
   };
 
   const totalsComp = await sumByScope(rangeComp);
@@ -266,7 +269,7 @@ export async function computeGhgTables(filters: GhgFilters) {
         `category.category_name AS "category"`,
         `site.site_id AS "siteId"`,
         `site.name AS "siteName"`,
-        `COALESCE(SUM(emission.total_emission), 0) AS "value"`,
+        `${sumKgSql("emission")} AS "kg"`,
       ])
       .groupBy(`category.scope`)
       .addGroupBy(`category.category_name`)
@@ -292,7 +295,7 @@ export async function computeGhgTables(filters: GhgFilters) {
       const category = String(r.category || "");
       const siteId = Number(r.siteId);
       const siteName = String(r.siteName || "");
-      const value = Number(r.value) || 0;
+      const value = Number(r.kg) || 0; // kgCO₂e
 
       // Case-insensitive category key so "Natural gas" and "natural gas"
       // collapse into one line (keeps the first-seen casing for display).
@@ -303,27 +306,57 @@ export async function computeGhgTables(filters: GhgFilters) {
 
       const item = map.get(k)!;
       // Merge site rows by siteId (a site can appear under both casings).
-      // Accumulate at FULL precision; round once when building the result so the
-      // per-site breakdown always reconciles with the category total.
+      // Accumulate the exact kg; round once to tCO₂e when building the result (D14).
       const existingSite = item.bySite.find((b) => b.siteId === siteId);
       if (existingSite) {
-        existingSite.value += value;
+        existingSite.value = addKg(existingSite.value, value);
       } else {
         item.bySite.push({ siteId, siteName, value });
       }
-      item.total += value;
+      item.total = addKg(item.total, value);
     }
 
     return Array.from(map.values()).map((x) => ({
       scope: x.scope,
       category: x.category,
-      bySite: x.bySite.map((b) => ({ ...b, value: Number(b.value.toFixed(3)) })), // #209: tCO₂e to 3 dp
-      total: Number(x.total.toFixed(3)),
+      bySite: x.bySite.map((b) => ({ ...b, value: kgToTonnes(b.value) })), // #209, D14: kg → tCO₂e at 3 dp, once
+      total: kgToTonnes(x.total),
+    }));
+  };
+
+  // D14: each site's Scope 1, 2, 3 and total, from the site's own kg, rounded
+  // once. Adding a site's category cells (each rounded on its own) can miss the
+  // site's figure by 0.001 per cell, so the PDF's site table and chart and the
+  // screen's Location tab read these instead (as EDE bySite and Overview do).
+  const siteTotals = async (range: { startDate: Date; endDate: Date }) => {
+    const rows = await baseQB(range)
+      .andWhere(`category.scope IN ('Scope 1', 'Scope 2', 'Scope 3')`)
+      .select([
+        `site.site_id AS "siteId"`,
+        `site.name AS "siteName"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
+      ])
+      .groupBy(`site.site_id`)
+      .addGroupBy(`site.name`)
+      .orderBy(`site.name`, "ASC")
+      .addOrderBy(`site.site_id`, "ASC")
+      .getRawMany();
+    return rows.map((r) => ({
+      siteId: Number(r.siteId),
+      siteName: String(r.siteName || ""),
+      scope1: kgToTonnes(r.scope1),
+      scope2: kgToTonnes(r.scope2),
+      scope3: kgToTonnes(r.scope3),
+      total: kgToTonnes(addKg(r.scope1, r.scope2, r.scope3)),
     }));
   };
 
   const overviewComp = await overviewByLocations(rangeComp);
   const overviewSelected = await overviewByLocations(rangeSelected);
+  const sitesComp = await siteTotals(rangeComp);
+  const sitesSelected = await siteTotals(rangeSelected);
 
   return {
     filters: {
@@ -353,10 +386,12 @@ export async function computeGhgTables(filters: GhgFilters) {
       table_overviewByLocations_compareYear: {
         year: compYear,
         rows: overviewComp,
+        siteTotals: sitesComp,
       },
       table_overviewByLocations_selectedYear: {
         year: selectedYear,
         rows: overviewSelected,
+        siteTotals: sitesSelected,
       },
     },
   };
@@ -440,7 +475,7 @@ export async function computeGhgDetails(filters: GhgFilters) {
         `${unitExpr} AS "unit"`,
 
         `COALESCE(SUM(${consumptionExpr}), 0) AS "consumption"`,
-        `COALESCE(SUM(emission.total_emission), 0) AS "emissions"`,
+        `${sumKgSql("emission")} AS "kg"`,
       ])
       .groupBy(`category.scope`)
       .addGroupBy(`category.category_id`)
@@ -464,7 +499,7 @@ export async function computeGhgDetails(filters: GhgFilters) {
       fuelType: String(r.fuelType ?? "Unknown"),
       unit: String(r.unit ?? ""),
       consumption: Number(r.consumption) || 0,
-      emissions: Number(r.emissions) || 0,
+      emissions: kgToTonnes(r.kg), // D14: the group's kg, rounded once
     }));
 
     return rows;
@@ -510,7 +545,7 @@ export async function computeGhgDetails(filters: GhgFilters) {
     item.compare = {
       consumption: Number(r.consumption.toFixed(2)),
       unit: r.unit,
-      emissions: Number(r.emissions.toFixed(3)),
+      emissions: r.emissions,
     };
   }
 
@@ -532,7 +567,7 @@ export async function computeGhgDetails(filters: GhgFilters) {
     item.selected = {
       consumption: Number(r.consumption.toFixed(2)),
       unit: r.unit,
-      emissions: Number(r.emissions.toFixed(3)),
+      emissions: r.emissions,
     };
     if (!item.compare.unit) item.compare.unit = r.unit;
   }
@@ -607,14 +642,14 @@ export async function computeGhgByFuelType(filters: GhgFilters): Promise<FuelTyp
       `category.scope AS "scope"`,
       `category.category_name AS "category"`,
       `${fuelExpr} AS "fuelType"`,
-      `COALESCE(SUM(emission.total_emission), 0) AS "emissions"`,
+      `${sumKgSql("emission")} AS "kg"`,
     ])
     .groupBy(`category.scope`)
     .addGroupBy(`category.category_name`)
     .addGroupBy(fuelExpr)
     .orderBy(`category.scope`, "ASC")
     .addOrderBy(`category.category_name`, "ASC")
-    .addOrderBy(`"emissions"`, "DESC")
+    .addOrderBy(`"kg"`, "DESC")
     .getRawMany();
 
   // Merge case-variant categories/fuels ("Natural gas" + "natural gas") into one
@@ -625,18 +660,18 @@ export async function computeGhgByFuelType(filters: GhgFilters): Promise<FuelTyp
     const scope = String(r.scope ?? "");
     const category = String(r.category ?? "Unspecified");
     const fuelType = String(r.fuelType ?? "Unknown");
-    const emissions = Number(r.emissions) || 0;
+    const kg = Number(r.kg) || 0;
     const key = `${scope}||${category.toLowerCase()}||${fuelType.toLowerCase()}`;
     const existing = merged.get(key);
     if (existing) {
-      existing.emissions += emissions;
+      existing.emissions = addKg(existing.emissions, kg); // kg until the end
     } else {
-      merged.set(key, { scope, category, fuelType, emissions });
+      merged.set(key, { scope, category, fuelType, emissions: kg });
     }
   }
   return Array.from(merged.values()).map((r) => ({
     ...r,
-    emissions: Number(r.emissions.toFixed(3)),
+    emissions: kgToTonnes(r.emissions), // D14: the merged kg, rounded once
   }));
 }
 
