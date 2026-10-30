@@ -1,0 +1,137 @@
+// D14 review fixes (30 Oct 2026): a report's parts (a site, a site × scope
+// cell, a month, a quarter, a scope in a month, the renewable "saved" figure)
+// each add their own rows' kg and round once, like the totals. Adding parts
+// that were rounded on their own can miss the figure by 0.001 per part, so
+// the GHG PDF, the studio and EDE read per-part figures from the server.
+//
+// Every row here is 1,234.4 kgCO₂e, stored as 1.234 t (1.2344 to 3 dp, #209),
+// unless it says otherwise. Worked by hand:
+//
+//   CY 2038, site 1: Scope 1 rows on 10 Jan, 10 Feb, 10 Mar; a Scope 2 row on 11 Jan.
+//     total     4 × 1,234.4 = 4,937.6 kg → 4.938 t
+//     Scope 1   3 × 1,234.4 = 3,703.2 kg → 3.703 t;  Scope 2 1,234.4 kg → 1.234 t
+//     site 1    4,937.6 kg → 4.938 t   (its category cells 3.703 + 1.234 = 4.937)
+//     January   1,234.4 + 1,234.4 = 2,468.8 kg → 2.469 t   (scopes 1.234 + 1.234 = 2.468)
+//     Feb, Mar  1,234.4 kg → 1.234 t each
+//     Q1        4,937.6 kg → 4.938 t   (months 2.469 + 1.234 + 1.234 = 4.937)
+//     Q1 Scope 1  3,703.2 kg → 3.703 t (months 1.234 × 3 = 3.702);  Q1 Scope 2 1.234 t
+//
+//   CY 2041, sites 1 and 2: one row of Stationary Combustion (category 1) and
+//   one of "D14 Mobile Combustion" (Scope 1, category 9841) at each site, 10 Mar.
+//     each site 2 × 1,234.4 = 2,468.8 kg → 2.469 t   (its cells 1.234 + 1.234 = 2.468)
+//     Scope 1 = total = 4 × 1,234.4 = 4,937.6 kg → 4.938 t
+//     (sites added: 2.469 + 2.469 = 4.938; cells added: 4 × 1.234 = 4.936)
+//
+//   CY 2043, sites 1 and 2: one Renewable Electricity row (no scope, category 4)
+//   of 100.45 kg at each site (0.10045 t → stored 0.1 t).
+//     saved = 2 × 100.45 = 200.9 kg → 0.201 t   (sites 0.1 + 0.1 = 0.2)
+//
+// Rows use pk_id 82100–82119, years no other test writes to.
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("path");
+const { call, withDb } = require("../helpers.cjs");
+const { setStudio } = require("./ds-lib.cjs");
+
+const ROOT = path.resolve(__dirname, "../../..");
+const SPLIT_YEAR = 2038;
+const SITES_YEAR = 2041;
+const SAVED_YEAR = 2043;
+const MOBILE = 9841; // a second Scope 1 category
+
+const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
+const reset = async () => {
+  await q(`DELETE FROM emission WHERE pk_id BETWEEN 82100 AND 82119`);
+  await q(`DELETE FROM category WHERE category_id = $1`, [MOBILE]);
+};
+const insert = (id, category, site, date, tonnes, kg) =>
+  q(
+    `INSERT INTO emission (pk_id, activity_data, total_emission, total_kgco2e, unit, date_of_reporting, status, category_id, site_id, reporting_period)
+     VALUES ($1, '{"activity_value": 1}', $2, $3, 'tCO2e', $4, 'approved', $5, $6, 'monthly')`,
+    [id, tonnes, kg, date, category, site],
+  );
+
+test.before(async () => {
+  await reset();
+  await q(`INSERT INTO category (category_id, category_name, scope) VALUES ($1, 'D14 Mobile Combustion', 'Scope 1')`, [MOBILE]);
+  await insert(82100, 1, 1, `${SPLIT_YEAR}-01-10`, 1.234, "1234.4");
+  await insert(82101, 1, 1, `${SPLIT_YEAR}-02-10`, 1.234, "1234.4");
+  await insert(82102, 1, 1, `${SPLIT_YEAR}-03-10`, 1.234, "1234.4");
+  await insert(82103, 2, 1, `${SPLIT_YEAR}-01-11`, 1.234, "1234.4");
+  await insert(82104, 1, 1, `${SITES_YEAR}-03-10`, 1.234, "1234.4");
+  await insert(82105, MOBILE, 1, `${SITES_YEAR}-03-10`, 1.234, "1234.4");
+  await insert(82106, 1, 2, `${SITES_YEAR}-03-10`, 1.234, "1234.4");
+  await insert(82107, MOBILE, 2, `${SITES_YEAR}-03-10`, 1.234, "1234.4");
+  await insert(82108, 4, 1, `${SAVED_YEAR}-04-10`, 0.1, "100.45");
+  await insert(82109, 4, 2, `${SAVED_YEAR}-04-10`, 0.1, "100.45");
+});
+test.after(async () => {
+  await reset();
+  await setStudio(1, false);
+});
+
+const ok = (r, what) => {
+  assert.equal(r.status, 200, `${what}: ${JSON.stringify(r.json)}`);
+  return r.json;
+};
+const tables = async (body) => ok(await call("POST", "/user/ghg/tables", "manager", { yearType: "CY", ...body }), "ghg tables");
+
+test("GHG tables: each site's Scope 1, 2, 3 and total is its own kg rounded once, as EDE and Overview show it", async () => {
+  const one = await tables({ siteIds: [1], year: SPLIT_YEAR });
+  assert.deepEqual(one.tables.table_overviewByLocations_selectedYear.siteTotals, [
+    { siteId: 1, siteName: "CI Plant A", scope1: 3.703, scope2: 1.234, scope3: 0, total: 4.938 },
+  ]);
+  assert.deepEqual(one.tables.table_overviewByLocations_compareYear.siteTotals, [], "no rows in the compare year");
+
+  const two = await tables({ siteIds: [1, 2], year: SITES_YEAR });
+  const sites = two.tables.table_overviewByLocations_selectedYear.siteTotals;
+  assert.deepEqual(sites, [
+    { siteId: 1, siteName: "CI Plant A", scope1: 2.469, scope2: 0, scope3: 0, total: 2.469 },
+    { siteId: 2, siteName: "CI Plant B", scope1: 2.469, scope2: 0, scope3: 0, total: 2.469 },
+  ]);
+  // The category cells stay as they are (each its own kg rounded once): 1.234 each.
+  for (const r of two.tables.table_overviewByLocations_selectedYear.rows) assert.deepEqual(r.bySite.map((b) => b.value), [1.234, 1.234], r.category);
+
+  const ede = ok(await call("POST", "/user/reports/ede", "manager", { siteIds: [1, 2], frequency: "yearly", year: SITES_YEAR }), "EDE");
+  assert.deepEqual(ede.bySite.map((s) => [s.siteId, s.scope1, s.total]), sites.map((s) => [s.siteId, s.scope1, s.total]), "EDE bySite");
+  const ov = ok(await call("GET", `/manager/overview?period=${SITES_YEAR}&siteIds=1,2`, "manager"), "overview");
+  const bySiteId = [...ov.by_site].sort((a, b) => a.site_id - b.site_id);
+  assert.deepEqual(bySiteId.map((s) => [s.site_id, s.gross]), sites.map((s) => [s.siteId, s.total]), "Overview by_site");
+});
+
+test("GHG PDF: the site table, its Total row, the site chart and the site status agree with Table 1, EDE and Overview", async () => {
+  const { AppDataSource } = require(path.join(ROOT, "dist/config/data-source.js"));
+  const render = require(path.join(ROOT, "dist/reporting/render.js"));
+  const print = require(path.join(ROOT, "dist/reporting/print.js"));
+  const { generateGhgReport } = require(path.join(ROOT, "dist/reporting/ghg.js"));
+  const real = { renderDocument: render.renderDocument, htmlToPdf: print.htmlToPdf };
+  let doc = null;
+  // The blocks are what this test reads: no HTML, no Chromium.
+  render.renderDocument = (d) => ((doc = d), "<html></html>");
+  print.htmlToPdf = async () => ({ pageCount: 1 });
+  await AppDataSource.initialize();
+  try {
+    const r = await generateGhgReport({ siteIds: [1, 2], yearType: "CY", year: SITES_YEAR, frequency: "yearly" }, 1);
+    assert.equal(r.total, 4.938);
+  } finally {
+    render.renderDocument = real.renderDocument;
+    print.htmlToPdf = real.htmlToPdf;
+    await AppDataSource.destroy();
+  }
+  const block = (type, title) => doc.blocks.find((b) => b.type === type && (title === undefined || b.title === title));
+  const tiles = block("kpiRow").tiles;
+  assert.deepEqual(tiles.slice(0, 2).map((t) => t.value), ["4.938", "4.938"], "Total and Scope 1 tiles (Table 1)");
+  assert.deepEqual(block("table", "Site × scope").rows, [
+    ["CI Plant A", "2.469", "2.469", "50.0%"],
+    ["CI Plant B", "2.469", "2.469", "50.0%"],
+    ["Total", "4.938", "4.938", "100.0%"],
+  ]);
+  const bars = block("stackedBars");
+  assert.equal(bars.total, 4.938, "the chart's total is Table 1's");
+  assert.deepEqual(bars.rows.map((r) => [r.label, r.values]), [["CI Plant A", [2.469]], ["CI Plant B", [2.469]]]);
+  const status = block("table", "Site reporting status").rows;
+  assert.deepEqual(status.slice(0, 2).map((r) => [r[0], r[2]]), [["CI Plant A", "2.469"], ["CI Plant B", "2.469"]]);
+  const scope1 = doc.blocks.find((b) => b.type === "groupBars" && b.name === "Scope 1");
+  assert.equal(scope1.total, "4.938 tCO₂e · 100.0%", "Scope 1's chart total is Table 1's");
+});
+

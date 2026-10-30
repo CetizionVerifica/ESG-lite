@@ -187,6 +187,7 @@
           ],
           "table_overviewByLocations_compareYear": {
             "rows": [],
+            "siteTotals": [],
             "year": 2024
           },
           "table_overviewByLocations_selectedYear": {
@@ -255,6 +256,24 @@
                 "category": "Waste Generated in Operations",
                 "scope": "Scope 3",
                 "total": 17.466
+              }
+            ],
+            "siteTotals": [
+              {
+                "scope1": 10039.949,
+                "scope2": 17730.621,
+                "scope3": 3544.559,
+                "siteId": 1,
+                "siteName": "CI Plant A",
+                "total": 31315.13
+              },
+              {
+                "scope1": 5896,
+                "scope2": 0,
+                "scope3": 0,
+                "siteId": 2,
+                "siteName": "CI Plant B",
+                "total": 5896
               }
             ],
             "year": 2025
@@ -366,6 +385,7 @@
           ],
           "table_overviewByLocations_compareYear": {
             "rows": [],
+            "siteTotals": [],
             "year": 2024
           },
           "table_overviewByLocations_selectedYear": {
@@ -393,6 +413,16 @@
                 "category": "Purchased Electricity",
                 "scope": "Scope 2",
                 "total": 17700
+              }
+            ],
+            "siteTotals": [
+              {
+                "scope1": 10039.949,
+                "scope2": 17700,
+                "scope3": 0,
+                "siteId": 1,
+                "siteName": "CI Plant A",
+                "total": 27739.949
               }
             ],
             "year": 2025
@@ -503,6 +533,7 @@
           ],
           "table_overviewByLocations_compareYear": {
             "rows": [],
+            "siteTotals": [],
             "year": 2024
           },
           "table_overviewByLocations_selectedYear": {
@@ -517,6 +548,16 @@
                 ],
                 "category": "Upstream Transportation and Distribution",
                 "scope": "Scope 3",
+                "total": 1812.902
+              }
+            ],
+            "siteTotals": [
+              {
+                "scope1": 0,
+                "scope2": 0,
+                "scope3": 1812.902,
+                "siteId": 1,
+                "siteName": "CI Plant A",
                 "total": 1812.902
               }
             ],

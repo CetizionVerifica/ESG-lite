@@ -324,8 +324,39 @@ export async function computeGhgTables(filters: GhgFilters) {
     }));
   };
 
+  // D14: each site's Scope 1, 2, 3 and total, from the site's own kg, rounded
+  // once. Adding a site's category cells (each rounded on its own) can miss the
+  // site's figure by 0.001 per cell, so the PDF's site table and chart and the
+  // screen's Location tab read these instead (as EDE bySite and Overview do).
+  const siteTotals = async (range: { startDate: Date; endDate: Date }) => {
+    const rows = await baseQB(range)
+      .andWhere(`category.scope IN ('Scope 1', 'Scope 2', 'Scope 3')`)
+      .select([
+        `site.site_id AS "siteId"`,
+        `site.name AS "siteName"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 1'")} AS "scope1"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 2'")} AS "scope2"`,
+        `${sumKgSql("emission", "category.scope = 'Scope 3'")} AS "scope3"`,
+      ])
+      .groupBy(`site.site_id`)
+      .addGroupBy(`site.name`)
+      .orderBy(`site.name`, "ASC")
+      .addOrderBy(`site.site_id`, "ASC")
+      .getRawMany();
+    return rows.map((r) => ({
+      siteId: Number(r.siteId),
+      siteName: String(r.siteName || ""),
+      scope1: kgToTonnes(r.scope1),
+      scope2: kgToTonnes(r.scope2),
+      scope3: kgToTonnes(r.scope3),
+      total: kgToTonnes(addKg(r.scope1, r.scope2, r.scope3)),
+    }));
+  };
+
   const overviewComp = await overviewByLocations(rangeComp);
   const overviewSelected = await overviewByLocations(rangeSelected);
+  const sitesComp = await siteTotals(rangeComp);
+  const sitesSelected = await siteTotals(rangeSelected);
 
   return {
     filters: {
@@ -355,10 +386,12 @@ export async function computeGhgTables(filters: GhgFilters) {
       table_overviewByLocations_compareYear: {
         year: compYear,
         rows: overviewComp,
+        siteTotals: sitesComp,
       },
       table_overviewByLocations_selectedYear: {
         year: selectedYear,
         rows: overviewSelected,
+        siteTotals: sitesSelected,
       },
     },
   };
