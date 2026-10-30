@@ -14,7 +14,7 @@
       "error SCOPE3_CATEGORY_UNADDRESSED @r05-chart [mark_excluded]: Scope 3 Category 12: End-of-life treatment of sold products isn't reported or excluded. Mark it as excluded with a reason, or add its data.",
       "error OUTSIDE_SAFE_AREA @r10-close.band1 [move_inside]: This element is outside the 12 mm page margin and may be trimmed when printed.",
       "warning GAS_BREAKDOWN_MISSING [add_gas_chart]: Emissions aren't shown by gas (CO₂, CH₄, N₂O). Add a per-gas chart, or say why it doesn't apply.",
-      "warning BIOGENIC_NOT_SHOWN [add_biogenic]: Your approved data has 1.25 t of biogenic CO₂, but the report doesn't show it. Report it separately from the scopes.",
+      "warning BIOGENIC_NOT_SHOWN [add_biogenic]: Your approved data has 1.250 t of biogenic CO₂, but the report doesn't show it. Report it separately from the scopes.",
       "warning RESPONSIBLE_PERSON_MISSING [open_inputs]: No responsible person is named for this inventory.",
       "warning VERIFICATION_STATEMENT_MISSING [open_inputs]: The verification status isn't stated. \"Not verified\" counts.",
       "warning SCOPE2_MARKET_MISSING @r04-chart.hero2 [open_inputs]: Market-based Scope 2 isn't recorded, so it shows as Not reported. Describe any contractual instruments in Report details.",

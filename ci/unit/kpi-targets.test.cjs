@@ -87,3 +87,24 @@ test("year figures: company-level values, latest headcount, text answers, LTIFR 
   const byCode = new Map([["LTIFR", ltifr], ["HOURS_WORKED", hours]]);
   assert.equal(figureOf(ltifr, vals, byCode, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 2.75, "(2×3m + 5×1m) / 4m");
 });
+
+// #209 review: the target words print a tCO2e KPI's figure with 3 decimals and thousands
+// separators, as every tCO₂e figure in the app; other units keep the stored number.
+test("target words: a tCO2e figure has 3 decimals and separators; other units as stored", () => {
+  const { targetLabel, targetFigure } = require(path.resolve("dist/kpi/targets/service.js"));
+  const zero = { baseline_year: 2024, baseline_value: 0, target_year: 2030, target_value: 1000, direction: "increase" };
+  const keep = { baseline_year: 2024, baseline_value: 1234.5, target_year: 2030, target_value: 1234.5, direction: "maintain" };
+  assert.equal(targetLabel(zero, "tCO2e"), "1,000.000 tCO2e by 2030");
+  assert.equal(targetLabel(keep, "tCO2e"), "Keep at 1,234.500 tCO2e to 2030");
+  for (const u of ["tCO₂e", "t CO2e", "tonnes CO2e"]) assert.equal(targetLabel(keep, u), `Keep at 1,234.500 ${u} to 2030`, u);
+  assert.equal(targetLabel({ ...keep, baseline_value: 33102.0885, target_value: 33102.0885 }, "tCO2e"), "Keep at 33,102.089 tCO2e to 2030", "half away from zero, as display");
+  // Other units, and no unit, keep the stored number.
+  assert.equal(targetLabel(zero, "kL"), "1000 kL by 2030");
+  assert.equal(targetLabel(keep, "kgCO2e"), "Keep at 1234.5 kgCO2e to 2030");
+  assert.equal(targetLabel(keep, null), "Keep at 1234.5 to 2030");
+  assert.equal(targetLabel({ ...keep, baseline_value: 12.5, target_value: 12.5 }, "tCO2e per INR crore"), "Keep at 12.5 tCO2e per INR crore to 2030");
+  // A percentage target is unchanged.
+  assert.equal(targetLabel(reduce, "tCO2e"), "−20 % by 2030 from 2024");
+  assert.equal(targetFigure(-0.0001, "tCO2e"), "0.000");
+  assert.equal(targetFigure(-12.5, "tCO2e"), "−12.500");
+});

@@ -10,9 +10,13 @@
  *   compact  "1.2K", "3.4M"       indian      Indian grouping ("12,34,567")
  * Negative numbers use a true minus sign (U+2212). Null is "—".
  *
- * #209: a tCO₂e figure (`unit` "tCO₂e") on `auto` shows exactly 3 decimals, as
- * every emission figure in the app does; a format someone picked still wins.
+ * #209: a tCO₂e figure on `auto` shows exactly 3 decimals, as every emission
+ * figure in the app does; a format someone picked still wins. The unit is
+ * matched by the renderer's `isTonnesCo2e`, so "tCO₂e" (GHG source), "tCO2e"
+ * (KPI canonical unit) and their other spellings all count, and the renderer's
+ * chart labels and table cells agree with the figures sent here.
  */
+import { isTonnesCo2e } from "../../reporting/studio/render/format";
 import type { NumberFormat } from "../contracts";
 
 export const MINUS = "−";
@@ -28,7 +32,7 @@ export function formatNumber(value: number | null | undefined, format: NumberFor
   const neg = value < 0;
   const abs = Math.abs(value);
   let text: string;
-  switch (format === "auto" && unit === TONNES_UNIT ? "tonnes" : format) {
+  switch (format === "auto" && isTonnesCo2e(unit) ? "tonnes" : format) {
     case "tonnes":
       text = grouped(abs, 3, 3);
       break;

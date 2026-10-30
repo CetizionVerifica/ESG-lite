@@ -9,11 +9,11 @@
  *                        points labelled and the unit above.
  *                        Binding: ghg · metric intensity_* · years last n.
  */
-import { formatNumber } from "../../format";
+import { formatNumber, seriesUnit, sharedUnit } from "../../format";
 import { esc, n3 } from "../../util";
-import { axisWidth, bandLabels, valueGridY } from "../axis";
+import { axisWidth, bandLabels, tickBoxes, tickRoom, valueGridY } from "../axis";
 import { linearScale } from "../scale";
-import { FONT, SMALL, emptyChart, rect, svgOpen, text, valueAt, type ChartInput } from "../svg";
+import { FONT, SMALL, emptyChart, fitLabelRow, plotSpan, rect, rectBox, svgOpen, text, valueAt, type ChartInput } from "../svg";
 import { clip, partsOf, total, type Part } from "./common";
 
 type Step = { key: string; from: number; to: number; kind: "abs" | "up" | "down" };
@@ -58,32 +58,67 @@ export function bridgeSteps(value: ChartInput["value"]): Step[] | null {
   return null;
 }
 
+/**
+ * #209 review: the unit of the bridge's figures, read from the same data as `bridgeSteps`: by
+ * scope, the unit both years' series share; compare, the bound value's; by year, the series'.
+ */
+export function bridgeUnit(value: ChartInput["value"]): string | null {
+  const series = value.series ?? [];
+  if (series.length >= 2) return sharedUnit([series[0], series[series.length - 1]], value.unit);
+  const c = value.compare;
+  if (c && c.value !== null && c.value !== undefined && value.value !== null) return value.unit ?? null;
+  return seriesUnit(series[0], value.unit);
+}
+
 export function baseYearWaterfallChart(input: ChartInput): string {
   const { value, w, h, theme, options } = input;
   const steps = bridgeSteps(value);
+  const unit = bridgeUnit(value);
   if (!steps) return emptyChart(w, h, "Needs the base year and the current year", theme);
   const scale = linearScale(Math.min(0, ...steps.map((s) => Math.min(s.from, s.to))), Math.max(...steps.map((s) => Math.max(s.from, s.to))), 4);
   const x0 = axisWidth(scale);
   const pw = w - x0;
-  const top = FONT * 1.4;
-  const ph = h - top - FONT * 1.8;
   const band = pw / steps.length;
-  let body = valueGridY(scale, x0, top, pw, ph, theme);
-  steps.forEach((s, i) => {
+  const labels = steps.map((s) => {
+    const d = s.to - s.from;
+    return s.kind === "abs" ? formatNumber(s.to, "auto", unit) : `${d >= 0 ? "+" : "−"}${formatNumber(Math.abs(d), "auto", unit)}`;
+  });
+  // A step's bar over a plot [top, top + ph].
+  const stepRect = (i: number, top: number, ph: number) => {
+    const s = steps[i];
     const y1 = top + ph - scale.t(Math.max(s.from, s.to)) * ph;
     const y2 = top + ph - scale.t(Math.min(s.from, s.to)) * ph;
+    return { x: x0 + band * i + band * 0.15, y: y1, w: band * 0.7, h: Math.max(0.5, y2 - y1) };
+  };
+  // #209 review: step labels may not meet each other, the tick labels or another step (svg.ts fitLabelRow); the bold base and current totals are kept first.
+  const fit = fitLabelRow(
+    (extra) => {
+      if (options.showValues === false) return { labels: [] };
+      const { top: te, ph: phe } = plotSpan(FONT * 1.4 + extra, h - FONT * 1.8);
+      const obstacles = [...tickBoxes(scale, x0, te, phe), ...steps.map((_, i) => {
+        const r = stepRect(i, te, phe);
+        return rectBox(r.x, r.y, r.w, r.h, i);
+      })];
+      return { labels: steps.map((s, i) => ({ x: x0 + band * (i + 0.5), y: te + phe - scale.t(Math.max(s.from, s.to)) * phe - SMALL * 0.5, text: labels[i], bold: s.kind === "abs" })), obstacles };
+    },
+    w,
+    h,
+    // #209 round 4: a staggered row takes only the height the plot can spare; the plot never goes under PLOT_FLOOR.
+    { x0, maxLift: h - FONT * 3.2 - tickRoom(scale) },
+  );
+  const { top, ph } = plotSpan(FONT * 1.4 + fit.extraTop, h - FONT * 1.8);
+  let body = valueGridY(scale, x0, top, pw, ph, theme);
+  steps.forEach((s, i) => {
+    const r = stepRect(i, top, ph);
     const fill = s.kind === "abs" ? (i === 0 ? theme.colors.prior : theme.colors.primary) : s.kind === "up" ? theme.colors.bad : theme.colors.good;
-    body += rect(x0 + band * i + band * 0.15, y1, band * 0.7, Math.max(0.5, y2 - y1), fill, ` data-step="${s.kind}" data-key="${esc(s.key)}"`);
+    body += rect(r.x, r.y, r.w, r.h, fill, ` data-step="${s.kind}" data-key="${esc(s.key)}"`);
     if (i > 0 && i < steps.length - 1) {
       // A connector from the previous step's end.
       const yc = top + ph - scale.t(s.from) * ph;
       body += `<line x1="${n3(x0 + band * (i - 1) + band * 0.85)}" x2="${n3(x0 + band * i + band * 0.15)}" y1="${n3(yc)}" y2="${n3(yc)}" stroke="${theme.colors.muted}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
     }
-    if (options.showValues !== false) {
-      const d = s.to - s.from;
-      const label = s.kind === "abs" ? formatNumber(s.to) : `${d >= 0 ? "+" : "−"}${formatNumber(Math.abs(d))}`;
-      body += text(x0 + band * (i + 0.5), y1 - SMALL * 0.5, label, theme.colors.ink, { size: SMALL, anchor: "middle", weight: s.kind === "abs" ? 700 : undefined });
-    }
+    const at = fit.labels[i];
+    if (options.showValues !== false && at) body += text(at.x, at.y, labels[i], theme.colors.ink, { size: fit.size, anchor: "middle", weight: s.kind === "abs" ? 700 : undefined });
   });
   body += bandLabels(steps.map((s) => s.key), x0, band, top + ph + FONT * 1.2, theme);
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="base_year_waterfall" data-steps="${steps.length}">${body}</g></svg>`;
@@ -99,10 +134,22 @@ export function intensityLineChart(input: ChartInput): string {
   const unitH = value.unit ? SMALL * 1.6 : 0;
   const x0 = axisWidth(scale);
   const pw = w - x0 - SMALL * 2;
-  const top = unitH + FONT * 1.2;
-  const ph = h - top - FONT * 1.8;
   const keys = s.values.map((v) => v.key);
   const band = pw / keys.length;
+  const lineUnit = seriesUnit(s, value.unit);
+  const ends = pts.map((p, i) => ({ p, i })).filter(({ i }) => options.showValues !== false && (i === 0 || i === pts.length - 1));
+  // #209 review: the two end labels may not meet each other or the tick labels, or leave the plot (svg.ts fitLabelRow); the latest is kept first.
+  const fit = fitLabelRow(
+    (extra) => {
+      const { top: te, ph: phe } = plotSpan(unitH + FONT * 1.2 + extra, h - FONT * 1.8, unitH);
+      const labels = ends.map(({ p, i }) => ({ x: x0 + band * (keys.indexOf(p.key) + 0.5), y: te + phe - scale.t(p.value) * phe - SMALL * 0.9, text: formatNumber(p.value, "auto", lineUnit), bold: i === pts.length - 1 }));
+      return { labels, obstacles: tickBoxes(scale, x0, te, phe) };
+    },
+    w,
+    h,
+    { x0, minY: unitH, maxLift: h - unitH - FONT * 3 - tickRoom(scale) },
+  );
+  const { top, ph } = plotSpan(unitH + FONT * 1.2 + fit.extraTop, h - FONT * 1.8, unitH);
   const xy = (k: string, v: number) => [x0 + band * (keys.indexOf(k) + 0.5), top + ph - scale.t(v) * ph] as const;
   let body = value.unit ? text(0, SMALL, clip(value.unit, Math.floor(w / (SMALL * 0.55))), theme.colors.muted, { size: SMALL }) : "";
   body += valueGridY(scale, x0, top, pw, ph, theme);
@@ -113,7 +160,9 @@ export function intensityLineChart(input: ChartInput): string {
     const [x, y] = xy(p.key, p.value);
     const last = i === pts.length - 1;
     body += `<circle cx="${n3(x)}" cy="${n3(y)}" r="${last ? 3 : 2.2}" fill="${last ? theme.colors.accent : color}" data-key="${esc(p.key)}"/>`;
-    if (options.showValues !== false && (i === 0 || last)) body += text(x, y - SMALL * 0.9, formatNumber(p.value), theme.colors.ink, { size: SMALL, anchor: "middle", weight: last ? 700 : undefined });
+    const li = ends.findIndex((e) => e.i === i);
+    const at = li >= 0 ? fit.labels[li] : null;
+    if (at) body += text(at.x, at.y, formatNumber(p.value, "auto", lineUnit), theme.colors.ink, { size: fit.size, anchor: "middle", weight: last ? 700 : undefined });
   });
   body += bandLabels(keys, x0, band, top + ph + FONT * 1.2, theme);
   return `${svgOpen(w, h, input.label)}<g data-ghg-chart="intensity_line" data-points="${pts.length}">${body}</g></svg>`;

@@ -175,23 +175,28 @@ function rows(n, cols) {
   return Array.from({ length: n }, (_, i) => ({ cells: [`Row ${i + 1}`, ...Array.from({ length: cols - 1 }, (_, c) => (i + 1) * 10 + c)] }));
 }
 
-/** Resolved data as DS-2 would return it (values are made up, display strings formatted). */
+/**
+ * Resolved data as DS-2 would return it: values are made up, display strings are what the server sends
+ * (sources/format.ts formatNumber(value, "auto", unit): a tCO₂e figure with 3 decimals, #209;
+ * ci/unit/ds-209-layout.test.cjs checks every one). The KPI target value stands for a progress measure, so it
+ * shows its share ("49%"), as the progress element prints it.
+ */
 function fixtureData(renderData, opts = {}) {
   const v = (display, value, unit, extra = {}) => ({ display, value, unit, source: "ghg", approvedAt: "2026-04-12", ...extra });
   const bindings = [B.total, B.scope1, B.s2m, B.byScope, B.byCat, B.trend, B.renew, B.target, B.water, B.matrix, B.flows, B.bridge];
   const values = [
-    v("12,480", 12480, "tCO₂e", { delta: { display: "−4.2%", direction: "down", good: true }, series: [ser("Total", [[2022, 13900], [2023, 13020], [2024, 13030], [2025, 12480]])] }),
-    v("3,210", 3210, "tCO₂e"),
+    v("12,480.000", 12480, "tCO₂e", { delta: { display: "−4.2%", direction: "down", good: true }, series: [ser("Total", [[2022, 13900], [2023, 13020], [2024, 13030], [2025, 12480]])] }),
+    v("3,210.000", 3210, "tCO₂e"),
     v("Not reported", null, "tCO₂e", { unavailable: { reason: "NOT_RECORDED" } }),
-    v("12,480", 12480, "tCO₂e", { series: [ser("Scope 1", [[2023, 3400], [2024, 3300], [2025, 3210]]), ser("Scope 2", [[2023, 6100], [2024, 6000], [2025, 5800]]), ser("Scope 3", [[2023, 3520], [2024, 3730], [2025, 3470]])] }),
-    v("3,470", 3470, "tCO₂e", { series: [ser("tCO₂e", [["Cat 1 Purchased goods", 1500], ["Cat 4 Upstream transport", 820], ["Cat 6 Business travel", 610], ["Cat 7 Commuting", 340], ["Cat 5 Waste", 200]])] }),
-    v("12,480", 12480, "tCO₂e", { series: [ser("Total", [[2022, 13900], [2023, 13020], [2024, 13030], [2025, 12480]])] }),
+    v("12,480.000", 12480, "tCO₂e", { series: [ser("Scope 1", [[2023, 3400], [2024, 3300], [2025, 3210]]), ser("Scope 2", [[2023, 6100], [2024, 6000], [2025, 5800]]), ser("Scope 3", [[2023, 3520], [2024, 3730], [2025, 3470]])] }),
+    v("3,470.000", 3470, "tCO₂e", { series: [ser("tCO₂e", [["Cat 1 Purchased goods", 1500], ["Cat 4 Upstream transport", 820], ["Cat 6 Business travel", 610], ["Cat 7 Commuting", 340], ["Cat 5 Waste", 200]])] }),
+    v("12,480.000", 12480, "tCO₂e", { series: [ser("Total", [[2022, 13900], [2023, 13020], [2024, 13030], [2025, 12480]])] }),
     { display: "38%", value: 0.38, unit: "%", source: "kpi", progress: 0.38 },
     { display: "49%", value: 9100, unit: "tCO₂e", source: "kpi", progress: 0.49, target: { baseline: 11500, value: 6500, year: 2030 }, series: [ser("Scope 1+2", [[2023, 9500], [2024, 9300], [2025, 9010]])] },
     { display: "41,200", value: 41200, unit: "m³", source: "kpi", series: [ser("Manama", [[2023, 25000], [2024, 24100], [2025, 23900]]), ser("Sitra", [[2023, 18000], [2024, 17500], [2025, 17300]])] },
     { display: "", value: null, unit: null, source: "kpi", points: [{ label: "Climate", x: 8, y: 9 }, { label: "Water", x: 6, y: 4 }, { label: "Safety", x: 3, y: 8 }, { label: "Biodiversity", x: 2, y: 3 }] },
     { display: "", value: null, unit: "GJ", source: "kpi", links: [{ from: "Grid", to: "Process", value: 60 }, { from: "Grid", to: "Buildings", value: 15 }, { from: "Diesel", to: "Fleet", value: 20 }, { from: "Solar", to: "Process", value: 5 }] },
-    v("12,480", 12480, "tCO₂e", { series: [ser("Bridge", [["2020", 14000], ["Growth", 900], ["Efficiency", -1600], ["Renewables", -820], ["2025", 12480]])] }),
+    v("12,480.000", 12480, "tCO₂e", { series: [ser("Bridge", [["2020", 14000], ["Growth", 900], ["Efficiency", -1600], ["Renewables", -820], ["2025", 12480]])] }),
   ];
   const tokens = [{ type: "data", attrs: { binding: B.scope1, measure: "value" } }, { type: "data", attrs: { binding: B.s2m, measure: "value" } }];
   const tokenValues = [values[1], { display: "Not reported", value: null, unit: "tCO₂e", unavailable: { reason: "NOT_RECORDED" } }];
@@ -209,7 +214,7 @@ function fixtureData(renderData, opts = {}) {
   const scope3 = {
     "f-s3": Array.from({ length: 15 }, (_, i) => {
       const n = i + 1;
-      if ([1, 4, 5, 6, 7].includes(n)) return { n, name: `Category ${n}`, status: "reported", display: String(n * 100), method: n === 1 ? "Spend-based" : "Distance-based", dq: "3.2" };
+      if ([1, 4, 5, 6, 7].includes(n)) return { n, name: `Category ${n}`, status: "reported", display: (n * 100).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }), method: n === 1 ? "Spend-based" : "Distance-based", dq: "3.2" };
       if (n === 9) return { n, name: "Downstream transportation and distribution", status: "not_addressed" };
       return { n, name: `Category ${n}`, status: "excluded", reason: "Not relevant: no such activity in the boundary" };
     }),

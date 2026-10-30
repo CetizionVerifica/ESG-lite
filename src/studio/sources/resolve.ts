@@ -138,7 +138,7 @@ export function resolveToken(r: ResolvedBinding, token: DataToken): ResolvedBind
   if (measure === "value" && year !== undefined && year !== "current" && r.series?.length === 1) {
     const key = year === "prior" ? String(Number(r.series[0].values[r.series[0].values.length - 1]?.key) - 1) : year === "base" ? String(r.compare?.year ?? "") : String(year);
     const p = r.series[0].values.find((v) => v.key === key);
-    return { ...base, value: p?.value ?? null, display: formatNumber(p?.value ?? null, fmt, r.unit) };
+    return { ...base, value: p?.value ?? null, display: formatNumber(p?.value ?? null, fmt, r.series[0].unit !== undefined ? r.series[0].unit : r.unit) }; // #209 review: the series' own unit
   }
   switch (measure) {
     case "value":

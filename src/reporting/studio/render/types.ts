@@ -195,6 +195,11 @@ export interface RenderDoc {
 export interface RenderSeries {
   label: string;
   values: { key: string; value: number | null }[];
+  /**
+   * #209 review: the unit of this series' values (a KPI binding mixes units; gas parts are
+   * tonnes of each gas). Absent: the bound value's `unit`. Null: no unit (`auto`).
+   */
+  unit?: string | null;
 }
 
 export interface RenderValue {
@@ -228,6 +233,8 @@ export interface RenderValue {
 /** A row of a flow table (indexes, factor table, data tables). */
 export interface FlowRow {
   cells: (string | number | null)[];
+  /** #209: the unit of the row's number cells ("tCO₂e", "kWh"…); tCO₂e cells print with 3 decimals. None: `auto`. */
+  unit?: string | null;
   /** An element or page id the row points at; the paged renderer prints its page number. */
   ref?: string;
   /** e.g. BRSR Core ◆ */
