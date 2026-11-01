@@ -261,7 +261,7 @@ test("BIOGENIC_NOT_SHOWN: biogenic CO₂ in the data and no biogenic figure", ()
   const c = only(ghgChecks(input(noBio, { ghg: { biogenicT: 12.5 } })), "BIOGENIC_NOT_SHOWN");
   assert.equal(c.length, 1);
   assert.equal(c[0].fix, "add_biogenic");
-  assert.match(c[0].message, /12\.5 t of biogenic CO₂/);
+  assert.match(c[0].message, /has 12\.500 t of biogenic CO₂/, "#209: tonnes with 3 decimals");
   assert.ok(!ids(ghgChecks(input(noBio))).includes("BIOGENIC_NOT_SHOWN"), "no biogenic in the data");
   assert.ok(!ids(ghgChecks(input(completeDoc(), { ghg: { biogenicT: 12.5 } }))).includes("BIOGENIC_NOT_SHOWN"));
 });
@@ -345,6 +345,11 @@ test("TOTAL_MISMATCH: a breakdown that doesn't add up to its total; a typed tabl
   const bad = only(ghgChecks(input(doc, { values: { "p1.split": val(1000, { series: series(400, 300, 200), total: 1000 }) } })), "TOTAL_MISMATCH");
   assert.equal(bad.length, 1);
   assert.equal(bad[0].elementId, "p1.split");
+  assert.equal(bad[0].message, "The parts here add up to 900.000 t, not the total of 1,000.000 t.");
+  // #209 review: a mismatch just over the 0.5 t tolerance still reads as two different figures (3 decimals, never "12,480 t, not 12,480 t").
+  const near = only(ghgChecks(input(doc, { values: { "p1.split": val(12480.2, { series: series(3410.2, 5800.1, 3269.3), total: 12480.2 }) } })), "TOTAL_MISMATCH");
+  assert.equal(near.length, 1);
+  assert.equal(near[0].message, "The parts here add up to 12,479.600 t, not the total of 12,480.200 t.");
   assert.ok(!ids(ghgChecks(input(doc, { values: { "p1.split": val(1000, { series: series(400, 300, 300.2), total: 1000 }) } }))).includes("TOTAL_MISMATCH"), "within rounding");
   const table = completeDoc([el("p1.tab", "table", { columns: ["Site", "tCO₂e"], rows: [["A", 10], ["B", "20"], ["Total", 35]], style: "lined" })]);
   const t = only(ghgChecks(input(table)), "TOTAL_MISMATCH");

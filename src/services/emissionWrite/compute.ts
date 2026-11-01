@@ -72,7 +72,7 @@ export interface EngineIssue {
   extra?: Record<string, unknown>;
 }
 
-export const round2 = (n: number): number => Math.round(n * 100) / 100;
+export { TONNES_DP, roundTonnes } from "./round"; // #209
 
 export interface Computed {
   activityValue: number;

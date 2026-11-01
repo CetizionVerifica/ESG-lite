@@ -1,12 +1,12 @@
 {
   "effect": "custom-font-deleted",
   "fontFace": "@font-face{font-family:\"DS Brand 7\";font-style:normal;font-weight:400;font-display:block;src:url(\"data:font/woff2;base64,d09GMgABAAA=\") format(\"woff2\");}\n@font-face{font-family:\"DS Brand 7\";font-style:normal;font-weight:700;font-display:block;src:url(\"data:font/ttf;base64,AAEAAA==\") format(\"truetype\");}",
-  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.custom-font-deleted\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-font=\"custom:8\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></p></div></div></div>",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.custom-font-deleted\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-font=\"custom:8\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;\"><div class=\"ds-text-in\"><p>Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210.000</span></p></div></div></div>",
   "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
   "props": {
     "align": "left",
     "effects": null,
     "font": "custom:8"
   },
-  "sha256": "8fc21274ff8e7088f039e5d12395ddd281d10405274373daaf06e8dab99e4d7b"
+  "sha256": "115167e0c3bd41d583238fbd1a7d49cff264a3969ada6cf5bd7590e1ca06684c"
 }

@@ -63,7 +63,7 @@ function migrateAll() {
   if (run.status !== 0) throw new Error("migrate-all failed:\n" + run.stdout + run.stderr);
 }
 
-/** Round like the engine stores tCO₂e: kg → t at 2 dp. */
-const tonnes = (kg) => Math.round((kg / 1000) * 100) / 100;
+/** Round like the engine stores tCO₂e: kg → t at 3 dp (#209). */
+const tonnes = (kg) => Math.round((kg / 1000) * 1000) / 1000;
 
 module.exports = { login, call, withDb, hasColumn, migrateAll, tonnes };

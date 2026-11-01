@@ -142,3 +142,16 @@ test("without ADMIN_EMAIL a failed email is logged, not sent to a made-up addres
   }
   assert.ok(warnings.some((w) => /a@x\.test/.test(w) && /ADMIN_EMAIL is not set/.test(w)), warnings.join("\n"));
 });
+
+test("bulk review emails say 1 entry, 2 entries", () => {
+  const cat = (n) => [{ categoryName: "Cat", count: n }];
+  assert.equal(t.bulkApprovedTemplate("A", 1, cat(1)).subject, "1 emission entry approved — ESGLite");
+  assert.equal(t.bulkRejectedTemplate("A", 1, cat(1), "why").subject, "1 emission entry rejected — ESGLite");
+  assert.equal(t.bulkApprovedTemplate("A", 2, cat(2)).subject, "2 emission entries approved — ESGLite");
+  assert.equal(t.bulkProductionApprovedTemplate("A", 1, cat(1)).subject, "1 production entry approved — ESGLite");
+  assert.equal(t.bulkProductionRejectedTemplate("A", 3, cat(3), "why").subject, "3 production entries rejected — ESGLite");
+  assert.match(t.bulkRejectedTemplate("A", 1, cat(1), "why").html, /<strong>1<\/strong> of your emission entries has been/);
+  assert.match(t.bulkApprovedTemplate("A", 2, cat(2)).html, /<strong>2<\/strong> of your emission entries have been/);
+  assert.match(t.bulkProductionApprovedTemplate("A", 1, cat(1)).html, /<strong>1<\/strong> production data entry has been/);
+  assert.match(t.bulkProductionRejectedTemplate("A", 2, cat(2), "why").html, /<strong>2<\/strong> production data entries have been/);
+});

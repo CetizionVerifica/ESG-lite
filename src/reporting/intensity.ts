@@ -21,6 +21,7 @@ import type { SelectQueryBuilder } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import type { Emission } from "../entities/Emission";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
+import { kgToTonnes, sumKgSql } from "./kgTotals";
 
 export interface IntensityMonth {
   siteId: number;
@@ -99,25 +100,18 @@ export async function loadMonthlyProduction(siteIds: number[], range: { startDat
     .getRawMany();
 }
 
-/** Scope 1 + 2 + 3 emissions per site and month from the caller's approved-emission query. */
+/**
+ * Scope 1 + 2 + 3 emissions per site and month from the caller's approved-emission query:
+ * the rows' kgCO₂e summed, then rounded once to tCO₂e (D14, kgTotals.ts), as EDE's other totals.
+ */
 export async function loadMonthlyEmissions(base: SelectQueryBuilder<Emission>): Promise<Row[]> {
-  return base
+  const rows: Row[] = await base
     .clone()
     .select([
       `to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM') AS "month"`,
       `site.site_id AS "siteId"`,
       `site.name AS "siteName"`,
-      `
-      COALESCE(
-        SUM(
-          CASE
-            WHEN category.scope IN ('Scope 1','Scope 2','Scope 3')
-            THEN emission.total_emission
-            ELSE 0
-          END
-        ),
-      0) AS "emissions"
-    `,
+      `${sumKgSql("emission", "category.scope IN ('Scope 1','Scope 2','Scope 3')")} AS "kg"`,
     ])
     .groupBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`)
     .addGroupBy("site.site_id")
@@ -125,6 +119,7 @@ export async function loadMonthlyEmissions(base: SelectQueryBuilder<Emission>): 
     .orderBy(`to_char(date_trunc('month', emission.date_of_reporting), 'YYYY-MM')`, "ASC")
     .addOrderBy("site.name", "ASC")
     .getRawMany();
+  return rows.map(({ kg, ...r }) => ({ ...r, emissions: kgToTonnes(kg) }));
 }
 
 /** The EDE `intensityMonthly` for an approved-emission query and its sites and dates. */

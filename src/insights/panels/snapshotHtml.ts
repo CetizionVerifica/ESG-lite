@@ -38,6 +38,10 @@ export const esc = (v: unknown): string =>
 export const fmt = (v: number | null | undefined, dp = 1): string =>
   v === null || v === undefined || !Number.isFinite(v) ? "—" : v.toLocaleString("en-GB", { maximumFractionDigits: dp });
 
+/** tCO₂e for print: grouped, 3 decimals like every tCO₂e figure (#209); "—" for null. */
+export const fmtT = (v: number | null | undefined): string =>
+  v === null || v === undefined || !Number.isFinite(v) ? "—" : v.toLocaleString("en-GB", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+
 /** A change in words: "down 4.3 %" / "up 2 %" / "no change". */
 export const change = (pct: number | null | undefined): string =>
   pct === null || pct === undefined ? "—" : pct === 0 ? "no change" : `${pct < 0 ? "down" : "up"} ${fmt(Math.abs(pct))} %`;
@@ -119,7 +123,7 @@ export function snapshotHtml(input: SnapshotInput, opts: { withScripts?: boolean
   const s = input.summary;
   const hero = s
     ? `<div class="hero">
-  <div class="cell"><div class="k">Net emissions</div><div class="v">${fmt(s.net.value, 0)} <small>tCO₂e</small></div><div class="m">${esc(change(s.net.change_pct))} on last year · ${esc(s.pathway ? statusWord(s.pathway.status) : "No target")}</div></div>
+  <div class="cell"><div class="k">Net emissions</div><div class="v">${fmtT(s.net.value)} <small>tCO₂e</small></div><div class="m">${esc(change(s.net.change_pct))} on last year · ${esc(s.pathway ? statusWord(s.pathway.status) : "No target")}</div></div>
   <div class="cell"><div class="k">Intensity</div><div class="v">${fmt(s.intensity.value, 3)} <small>tCO₂e per ${esc(s.intensity.unit)}</small></div><div class="m">${esc(change(s.intensity.change_pct))}${s.intensity.combined ? " · combined index" : ""}</div></div>
   <div class="cell"><div class="k">${s.readiness ? "ESG readiness" : "Renewable share"}</div><div class="v">${s.readiness ? `${fmt(s.readiness.pct, 0)} <small>% of KPIs approved</small>` : `${fmt(s.renewable_share_pct, 0)} <small>% of electricity</small>`}</div><div class="m">${
         s.readiness ? `E ${esc(fmt(s.readiness.by_pillar.environment, 0))} % · S ${esc(fmt(s.readiness.by_pillar.social, 0))} % · G ${esc(fmt(s.readiness.by_pillar.governance, 0))} %` : "&nbsp;"
@@ -140,7 +144,7 @@ export function snapshotHtml(input: SnapshotInput, opts: { withScripts?: boolean
   const pw = input.pathway;
   const path = pw
     ? `<section><h2>Pathway to ${esc(pw.target_year)} (${fmt(pw.annual_rate_pct, 1)} % a year)</h2><table><tr><th>Year</th><th>Pathway</th><th>Scope 1</th><th>Scope 2</th><th>Scope 3</th></tr>${pw.years
-        .map((yr, i) => `<tr><td>${esc(yr)}</td><td class="n">${fmt(pw.pathway[i], 0)}</td><td class="n">${fmt(pw.actual.s1[i], 0)}</td><td class="n">${fmt(pw.actual.s2[i], 0)}</td><td class="n">${fmt(pw.actual.s3[i], 0)}</td></tr>`)
+        .map((yr, i) => `<tr><td>${esc(yr)}</td><td class="n">${fmtT(pw.pathway[i])}</td><td class="n">${fmtT(pw.actual.s1[i])}</td><td class="n">${fmtT(pw.actual.s2[i])}</td><td class="n">${fmtT(pw.actual.s3[i])}</td></tr>`)
         .join("")}</table></section>`
     : `<section><h2>Pathway</h2><p class="m">Set a base year in Targets to see your pathway.</p></section>`;
   const w = input.wall;

@@ -1,6 +1,6 @@
 {
   "effect": "curve-up",
-  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.curve-up\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"curve\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ds-text--curve ts-title\" style=\"text-align:center;justify-content:flex-start;\"><svg class=\"ds-curve\" width=\"100%\" height=\"100%\" overflow=\"visible\" aria-hidden=\"true\"><path id=\"ds-curve-pe2_curve-up\" d=\"M 0 149.871 A 397.099 397.099 0 0 1 642.52 149.871\" fill=\"none\" stroke=\"none\"/><text fill=\"currentColor\"><textPath href=\"#ds-curve-pe2_curve-up\" startOffset=\"50%\" text-anchor=\"middle\">Net zero by 2040: <tspan font-weight=\"700\">Scope 1</tspan> <tspan class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</tspan></textPath></text></svg></div></div>",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.curve-up\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"curve\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ds-text--curve ts-title\" style=\"text-align:center;justify-content:flex-start;\"><svg class=\"ds-curve\" width=\"100%\" height=\"100%\" overflow=\"visible\" aria-hidden=\"true\"><path id=\"ds-curve-pe2_curve-up\" d=\"M 0 149.871 A 397.099 397.099 0 0 1 642.52 149.871\" fill=\"none\" stroke=\"none\"/><text fill=\"currentColor\"><textPath href=\"#ds-curve-pe2_curve-up\" startOffset=\"50%\" text-anchor=\"middle\">Net zero by 2040: <tspan font-weight=\"700\">Scope 1</tspan> <tspan class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210.000</tspan></textPath></text></svg></div></div>",
   "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
   "props": {
     "align": "center",
@@ -11,5 +11,5 @@
     },
     "font": null
   },
-  "sha256": "6407d5e7755f47e364b2b9b7280f7650530be0dc00853b8077bb3331a971a8f4"
+  "sha256": "a9ed21291a8111df7e3cab46de652c9822872832cdc97ba5b844be07d30ed42f"
 }

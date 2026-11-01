@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
 import { AuthRequest } from "./auth.middleware";
 import { UserRole } from "../types/type";
+import { strictIdsFrom } from "../utils/ids";
 
 /**
  * Audit trail for approve, reject and delete (audit finding F-06). Handlers
@@ -26,13 +27,9 @@ export const APPROVED_BY_UPLOADER = "Approved by the uploader";
 /** Where the target ids come from: `:id`, body `ids[]` or `:batchId`. */
 type Source = "param" | "ids" | "batch";
 
-const toIds = (value: unknown): number[] =>
-  (Array.isArray(value) ? value : [value])
-    .map((v) => Number(v))
-    .filter((n) => Number.isInteger(n) && n > 0);
-
-async function targetIds(entity: Entity, source: Source, req: AuthRequest): Promise<number[]> {
-  let ids: number[];
+/** null when an id is malformed (utils/ids): the rows can't be named, so they can't be audited. */
+async function targetIds(entity: Entity, source: Source, req: AuthRequest): Promise<number[] | null> {
+  let ids: number[] | null;
   if (source === "batch") {
     const rows: { pk_id: number }[] = await AppDataSource.query(
       `SELECT pk_id FROM emission WHERE upload_batch_id = $1`,
@@ -40,9 +37,10 @@ async function targetIds(entity: Entity, source: Source, req: AuthRequest): Prom
     );
     ids = rows.map((r) => Number(r.pk_id));
   } else {
-    ids = toIds(source === "param" ? req.params.id : req.body?.ids);
+    // Same reading as the scope guards (one id in a path, a list in the body).
+    ids = source === "param" ? strictIdsFrom(req.params.id, true) : strictIdsFrom(req.body?.ids, false);
   }
-  if (entity !== "emission" || !ids.length) return ids;
+  if (!ids || entity !== "emission" || !ids.length) return ids;
   // FERA twins move with their parent (both link directions).
   const twins: { id: number }[] = await AppDataSource.query(
     `SELECT fera_linked_id AS id FROM emission WHERE pk_id = ANY($1::bigint[]) AND fera_linked_id IS NOT NULL
@@ -108,7 +106,10 @@ async function writeAudit(entity: Entity, before: Map<number, Snapshot>, req: Au
 export const auditReview = (entity: Entity, source: Source): Guard => async (req, res, next) => {
   let before: Map<number, Snapshot>;
   try {
-    before = await snapshot(entity, await targetIds(entity, source, req));
+    const ids = await targetIds(entity, source, req);
+    // Refuse rather than let the change through unaudited.
+    if (!ids) return res.status(400).json({ message: "Invalid id" });
+    before = await snapshot(entity, ids);
   } catch (error) {
     console.error("Audit snapshot error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -132,7 +133,10 @@ export const auditReview = (entity: Entity, source: Source): Guard => async (req
 export const guardApprovedDelete = (entity: Entity, source: Source): Guard => async (req, res, next) => {
   try {
     if (req.user?.role === UserRole.MANAGER || req.user?.role === UserRole.SUPERADMIN) return next();
-    const rows = await snapshot(entity, await targetIds(entity, source, req));
+    const ids = await targetIds(entity, source, req);
+    // Refuse rather than skip the check for rows it couldn't name.
+    if (!ids) return res.status(400).json({ message: "Invalid id" });
+    const rows = await snapshot(entity, ids);
     if ([...rows.values()].some((r) => r.status === "approved")) {
       return res.status(409).json({ message: "Approved entries can only be deleted by a manager" });
     }

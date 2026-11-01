@@ -43,8 +43,10 @@ function fromResolved(out: Candidate[], r: ResolvedBinding, label: string, ref: 
   }
   const total = r.total ?? r.value;
   for (const s of [...(r.series ?? []), ...(r.stacks ?? [])]) {
+    // #209 review: a series' own unit (a KPI binding mixes units; gas parts are tonnes of each gas).
+    const su = s.unit !== undefined ? s.unit : unit;
     for (const p of s.values) {
-      push(out, p.value, unit, { label: `${label} · ${p.key}`, ref });
+      push(out, p.value, su, { label: `${label} · ${p.key}`, ref });
       if (total && p.value !== null && (r.series ?? []).includes(s)) push(out, (p.value / total) * 100, "%", { label: `${label} · ${p.key} share`, ref });
     }
   }

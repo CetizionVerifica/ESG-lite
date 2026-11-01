@@ -2,10 +2,10 @@
   "element": "big_number",
   "elements": [
     {
-      "bytes": 548,
+      "bytes": 552,
       "frame": "32.257,137.904,145.157,20.525,0",
       "id": "p-cover.total",
-      "sha256": "e5dd144d2e6c99e8279e9d40753beb878f19936068c2719a3c14ef57cac1915b"
+      "sha256": "a21a16aceafe655e0217a3cc9ac6fbcd7c187994a0c0bc4a81e9f92d290ee76d"
     }
   ],
   "format": "slide_16_9",

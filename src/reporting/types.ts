@@ -151,6 +151,8 @@ export type Block =
       subtitle?: string;
       parts: { label: string; value: number; color: string }[];
       unit?: string;
+      /** D14: the whole the "100% =" label and every share are of (the report's own total); defaults to the parts added up. */
+      total?: number;
       caption?: string;
     }
   | {
@@ -159,7 +161,8 @@ export type Block =
       title?: string;
       subtitle?: string;
       series: { name: string; color: string }[];
-      rows: { label: string; values: number[] }[];
+      /** D14: `total` is the row's own figure, shown at the bar's end (defaults to its values added up). */
+      rows: { label: string; values: number[]; total?: number }[];
       unit?: string;
       /** Each row's share is computed against this (defaults to the sum of all rows). */
       total?: number;

@@ -69,7 +69,7 @@ export const monthsLabel = (months: string[]): string => {
 
 const formatTco2e = (v: number): string => {
   const n = Number.isFinite(v) ? v : 0;
-  return n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); // #209
 };
 
 export const batchLink = (uploadBatchId: string): string =>

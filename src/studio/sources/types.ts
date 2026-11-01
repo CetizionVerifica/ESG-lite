@@ -27,6 +27,14 @@ export interface SeriesPoint {
 export interface Series {
   label: string;
   values: SeriesPoint[];
+  /**
+   * #209 review: the unit of this series' values when the source knows it. A KPI binding
+   * can mix KPIs in different units (one series per KPI, each in its own unit, or in the
+   * binding's `unit`); a GHG `gas` breakdown is tonnes of each gas ("t"), not the binding's
+   * tCO₂e. The renderer formats a series by this unit and falls back to the binding's `unit`
+   * only when it is absent; null means the values have no unit. Not part of `dataHash`.
+   */
+  unit?: string | null;
 }
 
 export interface Comparison {

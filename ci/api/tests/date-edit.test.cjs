@@ -1,0 +1,201 @@
+// #218: an edit that changes only an entry's date gets what a new entry at
+// that date gets. It's recalculated with the new year's factor, refused onto a
+// date that already holds the same activity, and its FERA twin moves with it.
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { call, withDb } = require("../helpers.cjs");
+
+const q = (sql, params) => withDb(async (db) => (await db.query(sql, params)).rows);
+const ids = [9811, 9812, 9813, 9814];
+const factors = [9811, 9812, 9813, 9814];
+const ymd = (d) => new Date(d).toISOString().slice(0, 10);
+
+test.before(async () => {
+  // Site 1: Diesel at 2.68 kg/litre in factor year 2024 and 3.00 in 2025 (factor year = reporting year − 1);
+  // its FERA (category 5) WTT factor 0.61 and 0.70.
+  await q(`INSERT INTO emission_factors (emission_factor_id, emission_category_name, factor_value, denominator_unit, year, site_id, category_id) VALUES
+    (9811, 'Diesel', 2.68, 'litre', 2024, 1, 1), (9812, 'Diesel', 3.00, 'litre', 2025, 1, 1),
+    (9813, 'Diesel', 0.61, 'litre', 2024, 1, 5), (9814, 'Diesel', 0.70, 'litre', 2025, 1, 5)`);
+});
+
+const reset = async () => {
+  await q(`UPDATE emission SET fera_linked_id = NULL WHERE pk_id = ANY($1)`, [ids]);
+  await q(`DELETE FROM emission WHERE pk_id = ANY($1)`, [ids]);
+  await q(`DELETE FROM audit_log WHERE entity_type = 'emission' AND entity_id = ANY($1::bigint[])`, [ids]);
+};
+test.beforeEach(reset);
+test.after(async () => {
+  await reset();
+  await q(`DELETE FROM emission_factors WHERE emission_factor_id = ANY($1)`, [factors]);
+});
+
+/** A pending Diesel entry of User 1 on site 1 (100 litre, June 2025 → 0.268 t), optionally with its FERA twin. */
+async function diesel(pk, date = "2025-06-30", twin = null) {
+  await q(
+    `INSERT INTO emission (pk_id, activity_data, activity_data_unit, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, created_at)
+     VALUES ($1, '{"activity_value": 100, "emission_category": "Diesel"}', 'litre', 0.268, 'tCO2e', $2, 'pending', 1, 1, 1, 'monthly', now())`,
+    [pk, date],
+  );
+  if (twin) {
+    await q(
+      `INSERT INTO emission (pk_id, activity_data, activity_data_unit, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, fera_linked_id, created_at)
+       VALUES ($1, '{"activity_value": 100, "emission_category": "Diesel"}', 'litre', 0.061, 'tCO2e', $2, 'pending', 1, 5, 1, 'monthly', $3, now())`,
+      [twin, date, pk],
+    );
+    await q(`UPDATE emission SET fera_linked_id = $2 WHERE pk_id = $1`, [pk, twin]);
+  }
+}
+
+test("a date-only edit into another year recalculates with that year's factor and logs the new total", async () => {
+  await diesel(9811);
+  const r = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting: "2026-01-31" });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const [row] = await q(`SELECT total_emission, date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(ymd(row.date_of_reporting), "2026-01-31");
+  assert.equal(Number(row.total_emission), 0.3); // 100 litre × 3.00 kg ÷ 1000, not the 2024 factor's 0.268
+  const [audit] = await q(`SELECT changed_fields FROM audit_log WHERE entity_type = 'emission' AND entity_id = 9811 AND action = 'user_edit'`);
+  assert.equal(Number(audit.changed_fields.total_emission.new), 0.3);
+  assert.ok(audit.changed_fields.date_of_reporting);
+});
+
+test("a moved entry's FERA twin moves and is recalculated with it", async () => {
+  await diesel(9811, "2025-06-30", 9812);
+  const r = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting: "2026-01-31" });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const [twin] = await q(`SELECT total_emission, date_of_reporting FROM emission WHERE pk_id = 9812`);
+  assert.equal(ymd(twin.date_of_reporting), "2026-01-31");
+  assert.equal(Number(twin.total_emission), 0.07); // 100 × 0.70 ÷ 1000
+});
+
+test("an entry can't be moved onto a date that already holds the same activity, by a User or a Manager", async () => {
+  await diesel(9811, "2025-06-30");
+  await diesel(9813, "2025-07-31");
+  for (const [route, who, body] of [
+    ["/user/emissions/9811", "user", { date_of_reporting: "2025-07-31" }],
+    ["/user/emissions/manager-edit/9811", "manager", { date_of_reporting: "2025-07-31", reason: "Wrong month" }],
+  ]) {
+    const r = await call("PUT", route, who, body);
+    assert.equal(r.status, 409, `${who}: ${JSON.stringify(r.json)}`);
+    assert.equal(r.json.duplicate, true);
+    assert.equal(Number(r.json.existing_emission.pk_id ?? r.json.existing_emission.id), 9813);
+  }
+  const [row] = await q(`SELECT total_emission, date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(ymd(row.date_of_reporting), "2025-06-30");
+  assert.equal(Number(row.total_emission), 0.268);
+  // A date without that activity still takes the move.
+  const ok = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting: "2025-08-31" });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+});
+
+test("a separate bill can keep both: a move onto a date with the same activity saves with keep_both", async () => {
+  await diesel(9811, "2025-06-30");
+  await diesel(9813, "2025-07-31");
+  await diesel(9814, "2025-06-30");
+  // The User moves a second Diesel bill into July, which already holds one, and keeps both.
+  const user = await call("PUT", "/user/emissions/9811?keep_both=true", "user", { date_of_reporting: "2025-07-31" });
+  assert.equal(user.status, 200, JSON.stringify(user.json));
+  // A Manager does the same for another bill.
+  const mgr = await call("PUT", "/user/emissions/manager-edit/9814?keep_both=true", "manager", { date_of_reporting: "2025-07-31", reason: "Second bill for July" });
+  assert.equal(mgr.status, 200, JSON.stringify(mgr.json));
+  const rows = await q(`SELECT pk_id, date_of_reporting FROM emission WHERE pk_id = ANY($1) ORDER BY pk_id`, [[9811, 9813, 9814]]);
+  assert.deepEqual(rows.map((r) => ymd(r.date_of_reporting)), ["2025-07-31", "2025-07-31", "2025-07-31"]);
+});
+
+test("changing an entry's activity onto one already saved for its date is refused; a kept-both pair stays editable", async () => {
+  await diesel(9811, "2025-07-31");
+  await q(
+    `INSERT INTO emission (pk_id, activity_data, activity_data_unit, total_emission, unit, date_of_reporting, status, created_by, category_id, site_id, reporting_period, created_at)
+     VALUES (9813, '{"activity_value": 50, "emission_category": "Petrol"}', 'litre', 0.1, 'tCO2e', '2025-07-31', 'pending', 1, 1, 1, 'monthly', now())`,
+  );
+  const clash = await call("PUT", "/user/emissions/9813", "user", { activity_data: { activity_value: 50, emission_category: "Diesel" } });
+  assert.equal(clash.status, 409, JSON.stringify(clash.json));
+  assert.equal(clash.json.duplicate, true);
+  assert.equal((await q(`SELECT activity_data FROM emission WHERE pk_id = 9813`))[0].activity_data.emission_category, "Petrol");
+
+  // Two Diesel entries the person chose to keep: editing one's amount isn't a new duplicate.
+  await diesel(9814, "2025-07-31");
+  const amount = await call("PUT", "/user/emissions/9814", "user", { activity_data: { activity_value: 120, emission_category: "Diesel" } });
+  assert.equal(amount.status, 200, JSON.stringify(amount.json));
+});
+
+test("a save over a change someone made since the form opened is refused as a warning; an approved entry too", async () => {
+  await diesel(9811);
+  const [{ updated_at: opened }] = await q(`SELECT updated_at FROM emission WHERE pk_id = 9811`);
+  // A Manager edits the entry while the User's form is open (its status stays pending).
+  const mgr = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { activity_data: { activity_value: 150, emission_category: "Diesel" }, reason: "Meter re-read" });
+  assert.equal(mgr.status, 200, JSON.stringify(mgr.json));
+  const stale = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting: "2025-08-31", expected_updated_at: new Date(opened).toISOString() });
+  assert.equal(stale.status, 409, JSON.stringify(stale.json));
+  assert.equal(stale.json.code, "ENTRY_CHANGED");
+  assert.equal(stale.json.severity, "warning");
+  const [kept] = await q(`SELECT activity_data, date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(Number(kept.activity_data.activity_value), 150);
+  assert.equal(ymd(kept.date_of_reporting), "2025-06-30");
+
+  // Approved meanwhile: refused as a warning that ends the edit.
+  await q(`UPDATE emission SET status = 'approved', reviewed_by = 2 WHERE pk_id = 9811`);
+  const approved = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting: "2025-08-31" });
+  assert.equal(approved.status, 403);
+  assert.equal(approved.json.code, "ENTRY_APPROVED");
+  assert.equal(approved.json.severity, "warning");
+});
+
+test("opening an older entry's factor doesn't count as a change: the form opened before it still saves", async () => {
+  await diesel(9811); // no factor snapshot, as an entry saved before snapshots
+  const [{ updated_at: opened }] = await q(`SELECT updated_at FROM emission WHERE pk_id = 9811`);
+  const factor = await call("GET", "/user/emissions/9811/factor", "manager");
+  assert.equal(factor.status, 200, JSON.stringify(factor.json));
+  assert.equal(factor.json.source, "lookup");
+  const [row] = await q(`SELECT updated_at, emission_factor_snapshot FROM emission WHERE pk_id = 9811`);
+  assert.ok(row.emission_factor_snapshot, "the snapshot is backfilled");
+  assert.equal(new Date(row.updated_at).getTime(), new Date(opened).getTime(), "the entry's version is untouched");
+  const saved = await call("PUT", "/user/emissions/manager-edit/9811", "manager", {
+    activity_data: { activity_value: 150, emission_category: "Diesel" },
+    reason: "Meter re-read",
+    expected_updated_at: new Date(opened).toISOString(),
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+});
+
+test("a manager edit reads a date as its own calendar date, as the user edit does", async () => {
+  await diesel(9811);
+  const r = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting: "2025-08-31T00:00:00+05:30", reason: "Wrong month" });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const [row] = await q(`SELECT date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(ymd(row.date_of_reporting), "2025-08-31"); // not 30 Aug, the UTC date of that instant
+});
+
+test("an invalid date is refused and nothing changes", async () => {
+  await diesel(9811);
+  const r = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting: "not a date" });
+  assert.equal(r.status, 400);
+  const [row] = await q(`SELECT date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(ymd(row.date_of_reporting), "2025-06-30");
+});
+
+test("a day the month doesn't have, or no date, is refused by both edits and nothing changes", async () => {
+  await diesel(9811);
+  // 31 Feb would be stored as 3 Mar, a month the period-lock guard never checked; null would be 1 Jan 1970.
+  for (const date_of_reporting of ["2025-02-31", "2025-06-31T00:00:00Z", null]) {
+    const user = await call("PUT", "/user/emissions/9811", "user", { date_of_reporting });
+    assert.equal(user.status, 400, `User, ${date_of_reporting}: ${JSON.stringify(user.json)}`);
+    const manager = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting, reason: "Wrong month" });
+    assert.equal(manager.status, 400, `Manager, ${date_of_reporting}: ${JSON.stringify(manager.json)}`);
+  }
+  const [row] = await q(`SELECT date_of_reporting FROM emission WHERE pk_id = 9811`);
+  assert.equal(ymd(row.date_of_reporting), "2025-06-30");
+});
+
+test("a manager's move is logged as the calendar date stored; the same date sent again isn't a change", async () => {
+  await diesel(9811);
+  const moved = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting: "2025-08-31T00:00:00+05:30", reason: "Wrong month" });
+  assert.equal(moved.status, 200, JSON.stringify(moved.json));
+  const edits = () => q(`SELECT changed_fields FROM audit_log WHERE entity_type = 'emission' AND entity_id = 9811 AND action = 'manager_edit' ORDER BY id`);
+  const [audit] = await edits();
+  assert.equal(audit.changed_fields.date_of_reporting.new, "2025-08-31");
+
+  const again = await call("PUT", "/user/emissions/manager-edit/9811", "manager", { date_of_reporting: "2025-08-31", reason: "Wrong month" });
+  assert.equal(again.status, 200, JSON.stringify(again.json));
+  assert.equal(again.json.message, "No changes detected");
+  assert.equal((await edits()).length, 1);
+});

@@ -32,6 +32,7 @@ import {
   categoryTotals,
   detectChanges,
   largestCategory,
+  retotalled,
 } from "./detect";
 
 export const SCOPE = "Scope 3";
@@ -100,9 +101,11 @@ function buildSnapshot(state: FrozenState, year: number, yearType: YearType, ver
   return { version, frozen_at: new Date().toISOString(), base_year: year, year_type: yearType, ...totals, ...state };
 }
 
-/** The snapshot without the per-row fingerprints (API and event bodies). */
-const summary = (s: BaseYearSnapshot | null) =>
-  s && {
+/** The snapshot without the per-row fingerprints (API and event bodies); totals from its rows' kg (#209). */
+const summary = (snap: BaseYearSnapshot | null) => {
+  if (!snap) return null;
+  const s = retotalled(snap);
+  return {
     version: s.version,
     frozen_at: s.frozen_at,
     base_year: s.base_year,
@@ -111,6 +114,7 @@ const summary = (s: BaseYearSnapshot | null) =>
     categories: s.categories,
     rows: Object.keys(s.rows ?? {}).length,
   };
+};
 
 const publicRow = (r: any) =>
   r && {
@@ -167,10 +171,10 @@ async function baseYearRow(companyId: number, q: Queryable, lock = false) {
   return row ?? null;
 }
 
-/** The row with the snapshot's totals only (no per-row fingerprints), for the report block. */
+/** The row with the snapshot's totals and rows (no sites or boundary), for the report block. */
 async function baseYearTotals(companyId: number, q: Queryable) {
   const [row]: any[] = await q.query(
-    `SELECT base_year, year_type, rationale, policy_note, significance_pct, snapshot - 'rows' - 'sites' - 'boundary' AS snapshot
+    `SELECT base_year, year_type, rationale, policy_note, significance_pct, snapshot - 'sites' - 'boundary' AS snapshot
        FROM company_base_year WHERE company_id = $1 AND scope = $2`,
     [companyId, SCOPE],
   );
@@ -251,7 +255,7 @@ export async function baseYearSummary(companyId: number, q: Queryable = AppDataS
       ORDER BY COALESCE(decided_at, created_at) DESC, id DESC`,
     [companyId, SCOPE],
   );
-  const s = row.snapshot as BaseYearSnapshot;
+  const s = retotalled(row.snapshot as BaseYearSnapshot); // #209: category totals from the rows' kg, at 3 dp
   return {
     base_year: Number(row.base_year),
     year_type: row.year_type === "FY" ? "FY" : "CY",
@@ -344,7 +348,7 @@ export async function putBaseYear(companyId: number, body: any, userId: number) 
 
     const state = await currentState(companyId, input.base_year, yearType, m);
     if (!Object.keys(state.rows).length) throw new Scope3Error("BASE_YEAR_NO_DATA", { base_year: input.base_year, year_type: yearType });
-    const prev: BaseYearSnapshot | null = existing?.snapshot ?? null;
+    const prev: BaseYearSnapshot | null = existing?.snapshot ? retotalled(existing.snapshot) : null;
     const snapshot = buildSnapshot(state, input.base_year, yearType, (prev?.version ?? 0) + 1);
 
     const [row]: any[] = await m.query(
@@ -437,7 +441,8 @@ export async function checkCompany(companyId: number): Promise<CheckOutcome> {
           ORDER BY id DESC LIMIT 1`,
         [companyId, SCOPE, snapshot.version],
       );
-      if (dismissed?.signature === cmp.signature) return "dismissed_again";
+      // A proposal dismissed before #209 holds the signature of 2-dp deltas.
+      if (dismissed && (dismissed.signature === cmp.signature || dismissed.signature === cmp.legacy_signature)) return "dismissed_again";
     }
     const values = [
       cmp.reason ?? "error",
@@ -510,7 +515,7 @@ export async function approveRecalculation(companyId: number, body: any, userId:
   return AppDataSource.transaction(async (m) => {
     const row = await baseYearRow(companyId, m, true);
     if (!row?.snapshot) throw new BoundaryError("SCOPE3_NOT_FOUND");
-    const prev = row.snapshot as BaseYearSnapshot;
+    const prev = retotalled(row.snapshot as BaseYearSnapshot);
     const state = await currentState(companyId, Number(row.base_year), row.year_type, m);
     const cmp = detectChanges(prev, state, Number(row.significance_pct));
     const open = await openProposal(companyId, m);

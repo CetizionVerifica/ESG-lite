@@ -23,6 +23,7 @@ import type { TokenUser } from "../../imports/plans/scope";
 import type { ImportRow } from "../../imports/contracts";
 import { targetYearFor } from "../../services/emissionWrite/resolve";
 import { toStoredPeriod } from "../../services/emissionWrite/period";
+import { cancelOtherDrafts, savedYearRows } from "../planDedupe";
 import { leaseBoundary, leaseBoundaryNote } from "./boundary";
 import { ensureAssetForm } from "./forms";
 import { COL_EQUITY, COL_INVESTEE_T, COL_INVESTMENT_REF, COL_REVENUE, COL_SECTOR_SHARE, REPORTED_T } from "./configs";
@@ -233,7 +234,7 @@ export const PlanBodySchema = z
   })
   .strict();
 
-export type SkipReason = "below_threshold" | "out_of_scope" | "missing_data";
+export type SkipReason = "below_threshold" | "out_of_scope" | "missing_data" | "already_imported";
 
 export interface PlannedInvestment {
   investment_id: number;
@@ -304,6 +305,31 @@ export function investmentRows(
   return { rows, planned, skipped };
 }
 
+/**
+ * Leaves out every investment that already has a row saved for the year
+ * (`savedRefs`: the saved rows' Investment ref, "#<id>"), listing it as
+ * `already_imported`. By investment, not by row: if its method or sector split
+ * changed since the commit, its new rows match no saved row, yet planning them
+ * would still count it twice.
+ */
+export function withoutImported(
+  out: ReturnType<typeof investmentRows>,
+  investments: InvestmentView[],
+  savedRefs: Set<string>,
+): ReturnType<typeof investmentRows> {
+  const gone = out.planned.filter((p) => savedRefs.has(`#${p.investment_id}`));
+  if (!gone.length) return out;
+  const goneRefs = new Set(gone.flatMap((p) => p.row_refs));
+  return {
+    rows: out.rows.filter((r) => !goneRefs.has(r.row_ref)),
+    planned: out.planned.filter((p) => !gone.includes(p)),
+    skipped: [
+      ...out.skipped,
+      ...gone.map((p) => ({ investment_id: p.investment_id, investee: investments.find((i) => i.id === p.investment_id)?.investee ?? "", reason: "already_imported" as const })),
+    ],
+  };
+}
+
 /** The site's Category 15 category (lowest id when it has several). */
 async function category15Of(siteId: number): Promise<number | null> {
   const rows: any[] = await AppDataSource.query(
@@ -332,13 +358,18 @@ export async function planInvestments(companyId: number, user: TokenUser, body: 
   await ensureAssetForm(AppDataSource.manager, site_id, category_id, 15, [targetYearFor(stored.period.date_of_reporting)]);
 
   const investments = await listInvestments(companyId, year);
-  const { rows, planned, skipped } = investmentRows(investments, site_id, category_id, period, threshold_pct ?? 0);
+  const built = investmentRows(investments, site_id, category_id, period, threshold_pct ?? 0);
+  if (!built.rows.length) return { plan: null, ...built, threshold_pct: threshold_pct ?? 0 };
+  // Older drafts for this site and year are replaced by this one (before the saved-rows check).
+  const source_name = `Category 15 investments ${year_type} ${year}`;
+  await cancelOtherDrafts(companyId, source_name, site_id, category_id, null);
+  const saved = await savedYearRows(site_id, category_id, stored.period);
+  const savedRefs = new Set(saved.map((e) => String(e[COL_INVESTMENT_REF] ?? "")).filter(Boolean));
+  const { rows, planned, skipped } = withoutImported(built, investments, savedRefs);
   if (!rows.length) return { plan: null, planned, skipped, threshold_pct: threshold_pct ?? 0 };
 
-  const plan = await createPlan(
-    user,
-    { source_name: `Category 15 investments ${year_type} ${year}`, channel: "bulk_upload", company_id: companyId, rows },
-    new Set(),
-  );
+  const plan = await createPlan(user, { source_name, channel: "bulk_upload", company_id: companyId, rows }, new Set());
+  // A draft another call made meanwhile is replaced too (the newest call's plan stays).
+  await cancelOtherDrafts(companyId, source_name, site_id, category_id, plan.plan_id);
   return { plan, planned, skipped, threshold_pct: threshold_pct ?? 0 };
 }

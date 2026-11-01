@@ -134,7 +134,7 @@ function renderBlock(block: Block, theme: Theme, charts: unknown[], variety: Var
     case "hbar":
       return figure(block.title, block.subtitle, hbarSvg(block.rows, { color: block.color ?? theme.colors.primary, unit: block.unit, total: block.total, showShare: block.showShare }), block.caption);
     case "shareBar":
-      return figure(block.title, block.subtitle, shareBarSvg(block.parts, block.unit), block.caption);
+      return figure(block.title, block.subtitle, shareBarSvg(block.parts, block.unit, { total: block.total }), block.caption);
     case "stackedBars":
       return figure(block.title, block.subtitle, stackedBarsSvg(block.series, block.rows, { total: block.total }), block.caption);
     case "groupBars":

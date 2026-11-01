@@ -435,7 +435,7 @@ test("attaching evidence lifts reliability, removing it lowers it again, and the
   const pk = row.json.emission.pk_id;
   created.push(pk);
 
-  const before = await withDb(async (db) => (await db.query(`SELECT dq, total_emission FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
+  const before = await withDb(async (db) => (await db.query(`SELECT dq, total_emission, updated_at FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
   assert.equal(before.dq.reliability, 2, "no document yet, so capped at fair");
 
   const form = new FormData();
@@ -445,8 +445,10 @@ test("attaching evidence lifts reliability, removing it lowers it again, and the
   assert.equal(upload.status, 201, JSON.stringify(upload.json));
   const documentId = upload.json.document.document_id;
 
-  const after = await withDb(async (db) => (await db.query(`SELECT dq, total_emission FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
+  const after = await withDb(async (db) => (await db.query(`SELECT dq, total_emission, updated_at FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
   assert.equal(after.dq.reliability, 1, "the document lifts a supplier figure to good");
+  // #218: evidence isn't an edit of the entry, so an edit form opened before the upload still saves.
+  assert.equal(new Date(after.updated_at).getTime(), new Date(before.updated_at).getTime(), "the entry's version is untouched");
   assert.equal(after.dq.overall, 1);
   assert.equal(Number(after.total_emission), Number(before.total_emission), "the total is untouched");
   for (const indicator of ["technology", "geography", "time", "completeness"]) {
@@ -456,8 +458,9 @@ test("attaching evidence lifts reliability, removing it lowers it again, and the
   if (documentId) {
     const removed = await call("DELETE", `/user/documents/${documentId}`, "user");
     assert.ok([200, 204].includes(removed.status), JSON.stringify(removed.json));
-    const back = await withDb(async (db) => (await db.query(`SELECT dq FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
+    const back = await withDb(async (db) => (await db.query(`SELECT dq, updated_at FROM emission WHERE pk_id = $1`, [pk])).rows[0]);
     assert.equal(back.dq.reliability, 2, "with the file gone the score stops claiming it");
+    assert.equal(new Date(back.updated_at).getTime(), new Date(before.updated_at).getTime(), "the entry's version is still untouched");
   }
 });
 

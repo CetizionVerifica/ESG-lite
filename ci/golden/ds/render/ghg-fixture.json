@@ -432,7 +432,7 @@
   "data": {
     "values": {
       "{\"breakdown\":\"scope\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
-        "display": "12,480",
+        "display": "12,480.000",
         "value": 12480,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -459,7 +459,7 @@
         "total": 12480
       },
       "{\"breakdown\":\"scope\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":3}}": {
-        "display": "12,480",
+        "display": "12,480.000",
         "value": 12480,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -519,7 +519,7 @@
         ]
       },
       "{\"breakdown\":\"scope3_category\",\"metric\":\"scope3\",\"sites\":\"all\",\"source\":\"ghg\",\"top\":8,\"years\":{\"last\":1}}": {
-        "display": "3,270",
+        "display": "3,270.000",
         "value": 3270,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -569,7 +569,7 @@
         ]
       },
       "{\"breakdown\":\"scope3_category\",\"metric\":\"scope3\",\"sites\":\"all\",\"source\":\"ghg\",\"top\":5,\"years\":{\"last\":2}}": {
-        "display": "3,270",
+        "display": "3,270.000",
         "value": 3270,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -636,7 +636,7 @@
         ]
       },
       "{\"breakdown\":\"gas\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":2}}": {
-        "display": "12,480",
+        "display": "12,480.000",
         "value": 12480,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -657,7 +657,8 @@
                 "key": "N₂O",
                 "value": 3.1
               }
-            ]
+            ],
+            "unit": "t"
           },
           {
             "label": "2025",
@@ -674,12 +675,13 @@
                 "key": "N₂O",
                 "value": 2.9
               }
-            ]
+            ],
+            "unit": "t"
           }
         ]
       },
       "{\"breakdown\":\"site\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"top\":10,\"years\":{\"last\":1}}": {
-        "display": "12,480",
+        "display": "12,480.000",
         "value": 12480,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -709,7 +711,7 @@
         ]
       },
       "{\"breakdown\":\"month\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
-        "display": "12,480",
+        "display": "12,480.000",
         "value": 12480,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -932,7 +934,7 @@
         ]
       },
       "{\"breakdown\":\"quarter\",\"metric\":\"scope2_location\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
-        "display": "5,800",
+        "display": "5,800.000",
         "value": 5800,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -985,7 +987,7 @@
         ]
       },
       "{\"breakdown\":\"scope\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":[2022,2025]}": {
-        "display": "12,480",
+        "display": "12,480.000",
         "value": 12480,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -1028,7 +1030,7 @@
         ]
       },
       "{\"compare\":\"base\",\"metric\":\"total\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":2}}": {
-        "display": "12,480",
+        "display": "12,480.000",
         "value": 12480,
         "unit": "tCO₂e",
         "source": "ghg",
@@ -1090,7 +1092,7 @@
         ]
       },
       "{\"breakdown\":\"scope3_category\",\"metric\":\"scope3\",\"sites\":\"all\",\"source\":\"ghg\",\"years\":{\"last\":1}}": {
-        "display": "3,270",
+        "display": "3,270.000",
         "value": 3270,
         "unit": "tCO₂e",
         "source": "ghg",

@@ -38,7 +38,7 @@ import { ownerIndex } from "../setup/owners";
 import { todayIso } from "../setup/settings";
 import { figureDefs, targetsWithProgress } from "../targets/service";
 import { periodsFor, yearRange, type KpiPeriod } from "../values/period";
-import { combine, figureOf, loadValues, type FigureDef, type StoredValue } from "../values/yearly";
+import { combineValues, figureOf, loadValues, type FigureDef, type StoredValue } from "../values/yearly";
 import { directionGood, HEADLINES, HEADLINES_PER_PILLAR, isGood, type DirectionGood, type Headline } from "./headlines";
 
 type Row = Record<string, any>;
@@ -202,7 +202,7 @@ export async function esg(caller: KpiCaller, query: unknown) {
     if (p.frequency === "annual") return yearValue(d, reportingYear(p));
     const at = approved.filter((v) => v.kpi_definition_id === d.id && v.period_start === p.start && v.frequency === p.frequency);
     const pick = d.level === "company" ? at.filter((v) => v.site_id === null) : at.filter((v) => v.site_id !== null && (scope.siteFilter === null || v.site_id === scope.siteFilter));
-    return pick.length ? combine(pick.map((v) => v.value), d.aggregation) : null;
+    return pick.length ? combineValues(pick, d.aggregation) /* D14: GHG auto values add kg */ : null;
   };
   const targets = await targetsWithProgress(m, caller, {});
   const targetOf = (d: Def) =>

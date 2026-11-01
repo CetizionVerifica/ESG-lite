@@ -22,12 +22,10 @@ import { UserRole } from "../../types/type";
 import { accessibleSiteIds } from "../../utils/companyScope";
 import { createPlan } from "../../imports/plans/service";
 import type { TokenUser } from "../../imports/plans/scope";
-import { type StoredPeriod, toStoredPeriod } from "../../services/emissionWrite/period";
-import type { ImportRow } from "../../imports/contracts";
-import type { CalculationSpec } from "../../entities/ColumnConfig";
-import { specIdentityMatches } from "../../services/calculationSpec";
+import { toStoredPeriod } from "../../services/emissionWrite/period";
 import type { Queryable } from "../taxonomy/service";
 import { BoundaryError } from "../boundary/errors";
+import { cancelOtherDrafts, importedRows } from "../planDedupe";
 import { bomsFor, massKg } from "./bom";
 import { SOLD_PRODUCT_CATEGORIES, type SoldProductCategory, USE_METHODS, USE_OPTIONS } from "./configs";
 import { ensureSoldProductForm } from "./forms";
@@ -385,45 +383,6 @@ async function categoryOf(siteId: number, n: SoldProductCategory): Promise<numbe
     [siteId, n],
   );
   return rows.length ? Number(rows[0].category_id) : null;
-}
-
-/**
- * The year's saved rows on the site's standard form, as a test for plan rows:
- * same activity (the form's mapping of the row's label chain) and same identity
- * (product name). Any status counts, as emissionWrite's monthly duplicate check.
- */
-async function importedRows(site_id: number, category_id: number, period: StoredPeriod): Promise<(row: ImportRow) => boolean> {
-  const saved: Array<{ activity_data: Record<string, unknown> | null }> = await AppDataSource.query(
-    `SELECT activity_data FROM emission WHERE site_id = $1 AND category_id = $2 AND reporting_period = 'yearly' AND date_of_reporting = $3`,
-    [site_id, category_id, period.date_of_reporting],
-  );
-  if (!saved.length) return () => false;
-  const [config]: Array<{ emission_category_mapping: Record<string, string> | null; calculation: CalculationSpec | null }> = await AppDataSource.query(
-    `SELECT emission_category_mapping, calculation FROM column_config WHERE site_id = $1 AND category_id = $2 ORDER BY config_name LIMIT 1`,
-    [site_id, category_id],
-  );
-  const mapping = config?.emission_category_mapping ?? {};
-  const spec = config?.calculation ?? null;
-  return (row) => {
-    const data = { ...row.fields, emission_category: mapping[row.activity_name ?? ""] ?? row.activity_name };
-    return saved.some((e) => e.activity_data?.emission_category === data.emission_category && (!spec || specIdentityMatches(spec, data, e.activity_data)));
-  };
-}
-
-/**
- * Cancels the open draft plans this endpoint made for the same site, category
- * and year (same source name), other than `keep`, so only one can be imported:
- * two drafts would both pass the duplicate check and count the year twice.
- * A plan being committed holds its row lock, so this waits for that commit and
- * the saved-rows check that follows sees its rows. Returns the number cancelled.
- */
-async function cancelOtherDrafts(companyId: number, sourceName: string, site_id: number, category_id: number, keep: string | null): Promise<number> {
-  // WHERE kept on the UPDATE line for the data-safety check.
-  const [, n]: [unknown, number] = await AppDataSource.query(
-    `UPDATE import_plan p SET status = 'cancelled', version = p.version + 1, updated_at = now() WHERE p.status = 'draft' AND p.company_id = $1 AND p.source_name = $2 AND p.plan_id::text IS DISTINCT FROM $5 AND EXISTS (SELECT 1 FROM import_plan_row r WHERE r.plan_id = p.plan_id AND (r.input->>'site_id')::int = $3 AND (r.input->>'category_id')::int = $4)`,
-    [companyId, sourceName, site_id, category_id, keep],
-  );
-  return Number(n) || 0;
 }
 
 /** POST /scope3/sold-products/plan `{site_id, year, year_type, ghg_category}` → an import plan. */

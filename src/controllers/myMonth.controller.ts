@@ -7,6 +7,7 @@ import { UserRole } from "../types/type";
 import { periodWindow, yearlyCoversDateSql, YearType } from "../services/reportingPeriod";
 import { CONTRIBUTOR_RELATIONS, contributorSiteCategories, monthBounds } from "../services/contributorObligations";
 import { lockedSiteMonths } from "../scope3/review/periodLock";
+import { kgToTonnes, rowKg, sumKg } from "../reporting/kgTotals"; // D14
 
 // S3-15 part 2 adds "draft" (saved, not submitted) and "nothing" ("Nothing
 // this month") for clients with the review workflow v2 switch on.
@@ -110,6 +111,7 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
               "e.category_id AS category_id",
               "e.status AS status",
               "e.total_emission AS total_emission",
+              "e.total_kgco2e AS total_kgco2e",
               "e.reporting_period AS reporting_period",
               "e.year_type AS year_type",
               "to_char(e.date_of_reporting, 'YYYY-MM-DD') AS date_of_reporting",
@@ -219,9 +221,8 @@ export const getMyMonth = async (req: AuthRequest, res: Response) => {
           entries: counts,
           ...(on ? { nothing } : {}),
           // tCO2e of entries that still count (pending + approved; never a Draft)
-          total_emission: counted
-            .filter((r) => r.status !== "rejected" && r.status !== "draft")
-            .reduce((sum, r) => sum + Number(r.total_emission || 0), 0),
+          // D14: the rows' kgCO₂e summed, rounded once, as reports do.
+          total_emission: kgToTonnes(sumKg(counted.filter((r) => r.status !== "rejected" && r.status !== "draft").map((r) => rowKg(r)))),
           last_entry_at: entries.length
             ? entries.map((r) => new Date(r.created_at).toISOString()).sort().pop()
             : null,

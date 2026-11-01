@@ -48,6 +48,16 @@ test("batch review and delete stay on the caller's sites", async () => {
     assert.equal(listed.status, 200);
     assert.ok(!JSON.stringify(listed.json).includes("ci-scope-batch"));
     assert.ok(JSON.stringify((await call("GET", "/user/emissions/batches", "manager")).json).includes("ci-scope-batch"));
+    // A site filter under another key, or a blank or placeholder siteIds, still narrows the list
+    // to the caller's sites (the handler reads siteIds and lists every company's batches without it).
+    for (const q of ["site_id=3", "siteId=3", "siteIds=&siteId=3", "siteIds=null&siteId=3", "siteIds=undefined&site_id=3", "siteIds=%20&siteId=3", "siteIds=NaN&siteId=3"]) {
+      for (const who of ["otherUser", "otherManager"]) {
+        const r = await call("GET", `/user/emissions/batches?${q}`, who);
+        assert.equal(r.status, 200, `${who} ${q}`);
+        assert.ok(!JSON.stringify(r.json).includes("ci-scope-batch"), `${who} ${q}`);
+      }
+    }
+    assert.ok(JSON.stringify((await call("GET", "/user/emissions/batches?site_id=1", "manager")).json).includes("ci-scope-batch"));
   } finally {
     await withDb((db) => db.query("UPDATE emission SET upload_batch_id=NULL WHERE upload_batch_id='ci-scope-batch'"));
   }
@@ -80,6 +90,16 @@ test("production data is scoped and reviewed like emissions", async () => {
     assert.equal(list.status, 200);
     assert.ok(list.json.every((r) => r.site.site_id === 3));
     assert.ok((await call("GET", "/user/production-data/manager", "manager")).json.some((r) => r.production_id === 901));
+    // The handler reads siteId, then siteIds: a site_id (which it never reads) or a blank or
+    // placeholder key must not turn into "every company's records".
+    for (const q of ["site_id=3", "siteId=&site_id=3", "siteIds=&site_id=3", "siteId=null&site_id=3", "siteId=undefined&siteIds=3", "siteIds=null"]) {
+      for (const who of ["otherUser", "otherManager"]) {
+        const r = await call("GET", `/user/production-data/manager?${q}`, who);
+        assert.equal(r.status, 200, `${who} ${q}`);
+        assert.ok(r.json.every((row) => row.site.site_id === 3), `${who} ${q}`);
+      }
+    }
+    assert.ok((await call("GET", "/user/production-data/manager?site_id=1", "manager")).json.some((r) => r.production_id === 901));
     assert.equal((await call("PUT", "/user/production-data/901/approve", "manager", {})).status, 200);
   } finally {
     await withDb((db) => db.query("DELETE FROM production_data WHERE production_id=901; DELETE FROM product WHERE product_id=901"));
@@ -156,7 +176,8 @@ test("someone with sites in two companies reads both companies' mappings and thr
       assert.equal((await call("GET", `/user/category-mappings/company/${company}`, "multiSiteUser")).status !== 403, true, `mappings ${company}`);
     }
     assert.equal((await call("GET", "/user/thresholds/company/99", "multiSiteUser")).status, 403);
-    assert.equal((await call("GET", "/user/category-mappings/company/abc", "multiSiteUser")).status, 403);
+    // A company id that isn't a whole number names no company: 400, like a malformed record id.
+    assert.equal((await call("GET", "/user/category-mappings/company/abc", "multiSiteUser")).status, 400);
   } finally {
     await withDb((db) => db.query("DELETE FROM user_sites WHERE user_id = 7 AND site_id = 3"));
   }

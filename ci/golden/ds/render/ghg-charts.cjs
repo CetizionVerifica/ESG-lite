@@ -4,11 +4,15 @@
 // treemap in brand colours), plus typed data with its badge. The data has the
 // shapes POST /studio/resolve returns for these bindings (DS-2
 // sources/ghg.ts: one series per year keyed by the breakdown, the current
-// year last; `stacks` per scope for months), with the seed company's
-// figures for CY 2025 (made up, formatted as the server formats them).
+// year last; `stacks` per scope for months; a gas breakdown's series carry
+// unit "t", tonnes of each gas, #209 review), with the seed company's
+// figures for CY 2025 (made up; `display` is what the server sends: sources/format.ts
+// formatNumber(value, "auto", unit), a tCO₂e figure with 3 decimals, #209).
 //
 //   build(R)        → { renderHash, elements: {id: html}, modes: {mode: {sha256, bytes}} }
 //   fixtureJson(R)  → { doc, data } for the FE mirror test
+//   doc(format)     → the page laid out on another format, A4 frames scaled (as the DS-1
+//                     fixture does; ci/unit/ds-209-layout.test.cjs); the goldens are A4
 const crypto = require("crypto");
 const path = require("path");
 
@@ -34,8 +38,21 @@ const B = {
 let z = 0;
 const chart = (id, frame, binding, kind, extra = {}) => ({ id, type: "chart", frame: { rotation: 0, ...frame }, z: z++, source: "user", props: { binding, kind, options: {}, ...extra } });
 
-function doc() {
+const { SIZES } = require("./fixture.cjs");
+const scaled = (format) => {
+  const [w, h] = SIZES[format];
+  return (f) => ({ ...f, x: (f.x * w) / 210, y: (f.y * h) / 297, w: (f.w * w) / 210, h: (f.h * h) / 297 });
+};
+
+function doc(format = "a4") {
   z = 0;
+  const d = docA4();
+  if (format === "a4") return d;
+  const sc = scaled(format);
+  return { ...d, format, pages: d.pages.map((p) => ({ ...p, elements: p.elements.map((e) => ({ ...e, frame: sc(e.frame) })) })) };
+}
+
+function docA4() {
   return {
     schemaVersion: 2, kind: "ghg", purpose: "report", format: "a4",
     meta: { title: "Seed Co GHG inventory 2025", year: 2025, yearType: "CY", sites: "all", frameworks: ["GHGP"], language: "en" },
@@ -74,18 +91,18 @@ const s3m = [300, 280, 290, 285, 290, 295, 280, 285, 290, 295, 300, 280];
 
 function data(renderData) {
   const pairs = [
-    [B.scopes, v("12,480", 12480, { series: [ser("2025", [["Scope 1", 3410], ["Scope 2", 5800], ["Scope 3", 3270]])], total: 12480 })],
-    [B.scopes3y, v("12,480", 12480, { series: [ser("2023", [["Scope 1", 3600], ["Scope 2", 6100], ["Scope 3", 3520]]), ser("2024", [["Scope 1", 3500], ["Scope 2", 6000], ["Scope 3", 3530]]), ser("2025", [["Scope 1", 3410], ["Scope 2", 5800], ["Scope 3", 3270]])] })],
-    [B.cats, v("3,270", 3270, { series: [ser("2025", [["1 · Purchased goods and services", 1290], ["4 · Upstream transportation and distribution", 620], ["6 · Business travel", 410], ["7 · Employee commuting", 300], ["5 · Waste generated in operations", 210], ["3 · Fuel- and energy-related activities", 180], ["2 · Capital goods", 140], ["9 · Downstream transportation and distribution", 70], ["Other", 50]])] })],
-    [B.cats2y, v("3,270", 3270, { series: [ser("2024", [["1 · Purchased goods and services", 1400], ["4 · Upstream transportation and distribution", 600], ["6 · Business travel", 380], ["7 · Employee commuting", 310], ["5 · Waste generated in operations", 240], ["Other", 600]]), ser("2025", [["1 · Purchased goods and services", 1290], ["4 · Upstream transportation and distribution", 620], ["6 · Business travel", 410], ["7 · Employee commuting", 300], ["5 · Waste generated in operations", 210], ["Other", 440]])] })],
-    [B.gas, v("12,480", 12480, { series: [ser("2024", [["CO₂", 8600], ["CH₄", 21.4], ["N₂O", 3.1]]), ser("2025", [["CO₂", 8350], ["CH₄", 19.8], ["N₂O", 2.9]])] })],
-    [B.sites, v("12,480", 12480, { series: [ser("2025", [["Manama plant", 6900], ["Sitra warehouse", 2380], ["Head office", 1200], ["Muharraq depot", 2000]])] })],
-    [B.months, v("12,480", 12480, { series: [ser("2025", MONTHS.map((m, i) => [m, s1m[i] + s2m[i] + s3m[i]]))], stacks: [ser("Scope 1", MONTHS.map((m, i) => [m, s1m[i]])), ser("Scope 2", MONTHS.map((m, i) => [m, s2m[i]])), ser("Scope 3", MONTHS.map((m, i) => [m, s3m[i]]))] })],
-    [B.months2, v("5,800", 5800, { series: [ser("2025", [["Q1", 1470], ["Q2", 1435], ["Q3", 1585], ["Q4", 1310]])], stacks: [ser("Scope 2", [["Q1", 1470], ["Q2", 1435], ["Q3", 1585], ["Q4", 1310]])] })],
-    [B.bridge, v("12,480", 12480, { series: [ser("2022", [["Scope 1", 3900], ["Scope 2", 6600], ["Scope 3", 3400]]), ser("2025", [["Scope 1", 3410], ["Scope 2", 5800], ["Scope 3", 3270]])] })],
-    [B.bridgeCmp, v("12,480", 12480, { series: [ser("Total emissions", [["2024", 13030], ["2025", 12480]])], compare: { against: "base", year: 2022, value: 13900, change_abs: -1420, change_pct: -10.2 } })],
+    [B.scopes, v("12,480.000", 12480, { series: [ser("2025", [["Scope 1", 3410], ["Scope 2", 5800], ["Scope 3", 3270]])], total: 12480 })],
+    [B.scopes3y, v("12,480.000", 12480, { series: [ser("2023", [["Scope 1", 3600], ["Scope 2", 6100], ["Scope 3", 3520]]), ser("2024", [["Scope 1", 3500], ["Scope 2", 6000], ["Scope 3", 3530]]), ser("2025", [["Scope 1", 3410], ["Scope 2", 5800], ["Scope 3", 3270]])] })],
+    [B.cats, v("3,270.000", 3270, { series: [ser("2025", [["1 · Purchased goods and services", 1290], ["4 · Upstream transportation and distribution", 620], ["6 · Business travel", 410], ["7 · Employee commuting", 300], ["5 · Waste generated in operations", 210], ["3 · Fuel- and energy-related activities", 180], ["2 · Capital goods", 140], ["9 · Downstream transportation and distribution", 70], ["Other", 50]])] })],
+    [B.cats2y, v("3,270.000", 3270, { series: [ser("2024", [["1 · Purchased goods and services", 1400], ["4 · Upstream transportation and distribution", 600], ["6 · Business travel", 380], ["7 · Employee commuting", 310], ["5 · Waste generated in operations", 240], ["Other", 600]]), ser("2025", [["1 · Purchased goods and services", 1290], ["4 · Upstream transportation and distribution", 620], ["6 · Business travel", 410], ["7 · Employee commuting", 300], ["5 · Waste generated in operations", 210], ["Other", 440]])] })],
+    [B.gas, v("12,480.000", 12480, { series: [{ ...ser("2024", [["CO₂", 8600], ["CH₄", 21.4], ["N₂O", 3.1]]), unit: "t" }, { ...ser("2025", [["CO₂", 8350], ["CH₄", 19.8], ["N₂O", 2.9]]), unit: "t" }] })],
+    [B.sites, v("12,480.000", 12480, { series: [ser("2025", [["Manama plant", 6900], ["Sitra warehouse", 2380], ["Head office", 1200], ["Muharraq depot", 2000]])] })],
+    [B.months, v("12,480.000", 12480, { series: [ser("2025", MONTHS.map((m, i) => [m, s1m[i] + s2m[i] + s3m[i]]))], stacks: [ser("Scope 1", MONTHS.map((m, i) => [m, s1m[i]])), ser("Scope 2", MONTHS.map((m, i) => [m, s2m[i]])), ser("Scope 3", MONTHS.map((m, i) => [m, s3m[i]]))] })],
+    [B.months2, v("5,800.000", 5800, { series: [ser("2025", [["Q1", 1470], ["Q2", 1435], ["Q3", 1585], ["Q4", 1310]])], stacks: [ser("Scope 2", [["Q1", 1470], ["Q2", 1435], ["Q3", 1585], ["Q4", 1310]])] })],
+    [B.bridge, v("12,480.000", 12480, { series: [ser("2022", [["Scope 1", 3900], ["Scope 2", 6600], ["Scope 3", 3400]]), ser("2025", [["Scope 1", 3410], ["Scope 2", 5800], ["Scope 3", 3270]])] })],
+    [B.bridgeCmp, v("12,480.000", 12480, { series: [ser("Total emissions", [["2024", 13030], ["2025", 12480]])], compare: { against: "base", year: 2022, value: 13900, change_abs: -1420, change_pct: -10.2 } })],
     [B.intensity, { display: "41.6", value: 41.6, unit: "tCO₂e per unit of revenue", source: "ghg", series: [ser("Intensity per revenue", [["2021", 52.3], ["2022", 49.8], ["2023", 46.1], ["2024", 44.0], ["2025", 41.6]])] }],
-    [B.treemap, v("3,270", 3270, { series: [ser("2025", [["1 · Purchased goods and services", 1290], ["4 · Upstream transportation and distribution", 620], ["6 · Business travel", 410], ["7 · Employee commuting", 300], ["5 · Waste generated in operations", 210], ["3 · Fuel- and energy-related activities", 180], ["2 · Capital goods", 140], ["9 · Downstream transportation and distribution", 70], ["12 · End-of-life treatment of sold products", 50]])] })],
+    [B.treemap, v("3,270.000", 3270, { series: [ser("2025", [["1 · Purchased goods and services", 1290], ["4 · Upstream transportation and distribution", 620], ["6 · Business travel", 410], ["7 · Employee commuting", 300], ["5 · Waste generated in operations", 210], ["3 · Fuel- and energy-related activities", 180], ["2 · Capital goods", 140], ["9 · Downstream transportation and distribution", 70], ["12 · End-of-life treatment of sold products", 50]])] })],
   ];
   return renderData(pairs.map((p) => p[0]), [], { values: pairs.map((p) => p[1]) });
 }

@@ -175,7 +175,7 @@ async function notifyManagers(caller: Caller, rows: DraftRow[]): Promise<void> {
   const months = [...new Set(rows.map((r) => r.date.slice(0, 7)))].sort();
   const name = `${who?.name ?? ""} ${who?.last_name ?? ""}`.trim() || "A contributor";
   const label = months.map((m) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`).join(", ");
-  const tco2e = Math.round(rows.reduce((sum, r) => sum + (Number(r.total_emission) || 0), 0) * 100) / 100;
+  const tco2e = Math.round(rows.reduce((sum, r) => sum + (Number(r.total_emission) || 0), 0) * 1000) / 1000; // #209
   const message = `${name} submitted ${rows.length} ${rows.length === 1 ? "entry" : "entries"} for ${sites.map((s) => s.name).join(", ")}${label ? ` (${label})` : ""}. They are waiting for your review.`;
   for (const m of managers) {
     await createNotification(m.user_id, DRAFT_SUBMITTED_NOTIFICATION, "Entries submitted for review", message, "/data/approvals", {
@@ -309,6 +309,6 @@ export async function rowHistory(caller: Caller, id: number, months: number): Pr
     category_id: Number(row.category_id),
     emission_category: row.ec,
     unit: "tCO2e",
-    months: series.map((s) => ({ month: s.m, total_tco2e: Math.round((Number(s.total) || 0) * 100) / 100, rows: Number(s.n) })),
+    months: series.map((s) => ({ month: s.m, total_tco2e: Math.round((Number(s.total) || 0) * 1000) / 1000, rows: Number(s.n) })),
   };
 }

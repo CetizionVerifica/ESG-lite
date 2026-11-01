@@ -1,6 +1,6 @@
 {
   "effect": "highlight",
-  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.highlight\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"highlight\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;\"><div class=\"ds-text-in\"><p><span class=\"ds-hl\" style=\"background:#5EEAD4;border-radius:0.2em;\">Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210</span></span></p></div></div></div>",
+  "html": "<div class=\"ds-el ds-el--text\" data-el-id=\"pe2.highlight\" data-type=\"text\" data-frame=\"20,40,170,30,0\" data-text-style=\"title\" data-effects=\"highlight\" style=\"left:20mm;top:40mm;width:170mm;height:30mm;z-index:1;\"><div class=\"ds-text ts-title\" style=\"text-align:left;justify-content:flex-start;\"><div class=\"ds-text-in\"><p><span class=\"ds-hl\" style=\"background:#5EEAD4;border-radius:0.2em;\">Net zero by 2040: <strong>Scope 1</strong> <span class=\"ds-chip\" data-source=\"ghg\" data-binding-hash=\"84f90d15\" data-measure=\"value\">3,210.000</span></span></p></div></div></div>",
   "outlineFallbackCss": "@supports not (-webkit-text-stroke:1px){.ds-fx-outline{text-shadow:var(--ds-ol-fb);}}",
   "props": {
     "align": "left",
@@ -12,5 +12,5 @@
     },
     "font": null
   },
-  "sha256": "4287306bb12b29ada3658448b885292df1b6f1aa0ceb272829828b4fd9d89050"
+  "sha256": "67ad67f3154d649eebe574fe3324efd65f8ef52ace1345e48a8bf859005b9199"
 }

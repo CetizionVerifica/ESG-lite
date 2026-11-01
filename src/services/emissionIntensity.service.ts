@@ -8,6 +8,7 @@
 import { AppDataSource } from "../config/data-source";
 import { Emission, EmissionStatus } from "../entities/Emission";
 import { ProductionData, ProductionDataStatus } from "../entities/ProductionData";
+import { kgToTonnes, sumKgSql } from "../reporting/kgTotals";
 
 export async function emissionIntensityComparison(siteIdArray: number[], dateFilter: { startDate: Date; endDate: Date }) {
   const emissionRepo = AppDataSource.getRepository(Emission);
@@ -18,7 +19,7 @@ export async function emissionIntensityComparison(siteIdArray: number[], dateFil
       const emissionsResult = await emissionRepo
         .createQueryBuilder("e")
         .leftJoin("e.category", "category")
-        .select("SUM(e.total_emission)", "totalEmissions")
+        .select(sumKgSql("e"), "kg") // D14: the rows' kg, rounded once
         .where("e.site_id = :siteId", { siteId })
         .andWhere("e.status = :status", { status: EmissionStatus.APPROVED })
         .andWhere("e.date_of_reporting BETWEEN :startDate AND :endDate", dateFilter)
@@ -34,7 +35,7 @@ export async function emissionIntensityComparison(siteIdArray: number[], dateFil
         .andWhere("pd.start_date <= :endDate AND pd.end_date >= :startDate", dateFilter)
         .getRawOne();
 
-      const emissions = parseFloat(emissionsResult?.totalEmissions || 0);
+      const emissions = kgToTonnes(emissionsResult?.kg);
       const production = parseFloat(productionResult?.totalProduction || 0);
 
       return {

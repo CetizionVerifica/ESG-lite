@@ -87,3 +87,49 @@ test("year figures: company-level values, latest headcount, text answers, LTIFR 
   const byCode = new Map([["LTIFR", ltifr], ["HOURS_WORKED", hours]]);
   assert.equal(figureOf(ltifr, vals, byCode, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 2.75, "(2×3m + 5×1m) / 4m");
 });
+
+// #209 review: the target words print a tCO2e KPI's figure with 3 decimals and thousands
+// separators, as every tCO₂e figure in the app; other units keep the stored number.
+test("target words: a tCO2e figure has 3 decimals and separators; other units as stored", () => {
+  const { targetLabel, targetFigure } = require(path.resolve("dist/kpi/targets/service.js"));
+  const zero = { baseline_year: 2024, baseline_value: 0, target_year: 2030, target_value: 1000, direction: "increase" };
+  const keep = { baseline_year: 2024, baseline_value: 1234.5, target_year: 2030, target_value: 1234.5, direction: "maintain" };
+  assert.equal(targetLabel(zero, "tCO2e"), "1,000.000 tCO2e by 2030");
+  assert.equal(targetLabel(keep, "tCO2e"), "Keep at 1,234.500 tCO2e to 2030");
+  for (const u of ["tCO₂e", "t CO2e", "tonnes CO2e"]) assert.equal(targetLabel(keep, u), `Keep at 1,234.500 ${u} to 2030`, u);
+  assert.equal(targetLabel({ ...keep, baseline_value: 33102.0885, target_value: 33102.0885 }, "tCO2e"), "Keep at 33,102.089 tCO2e to 2030", "half away from zero, as display");
+  // Other units, and no unit, keep the stored number.
+  assert.equal(targetLabel(zero, "kL"), "1000 kL by 2030");
+  assert.equal(targetLabel(keep, "kgCO2e"), "Keep at 1234.5 kgCO2e to 2030");
+  assert.equal(targetLabel(keep, null), "Keep at 1234.5 to 2030");
+  assert.equal(targetLabel({ ...keep, baseline_value: 12.5, target_value: 12.5 }, "tCO2e per INR crore"), "Keep at 12.5 tCO2e per INR crore to 2030");
+  // A percentage target is unchanged.
+  assert.equal(targetLabel(reduce, "tCO2e"), "−20 % by 2030 from 2024");
+  assert.equal(targetFigure(-0.0001, "tCO2e"), "0.000");
+  assert.equal(targetFigure(-12.5, "tCO2e"), "−12.500");
+});
+
+// D14 review fix: GHG auto values keep their rows' kg (auto_snapshot.kg); a sum
+// of them adds the kg and rounds once, as the GHG report does. By hand: Scope 1
+// rows of 1,000.4 kg at site 1 in January and February and at site 2 in
+// January: each site-month 1,000.4 kg → 1.0 t; the company's year 3,001.2 kg
+// → 3.001 t (not 1 + 1 + 1 = 3.0); site 1's year 2,000.8 kg → 2.001 t; January
+// across both sites 2,000.8 kg → 2.001 t.
+test("year figures: GHG auto values add their kg and round once (D14); values without kg add as before", () => {
+  const { combineValues } = require(path.resolve("dist/kpi/values/yearly.js"));
+  const ghg = { id: 7, level: "site", aggregation: "sum", frequency: "monthly" };
+  const kg = (id, site, start) => ({ ...v(id, 7, site, start, 1), kg: 1000.4 });
+  const values = [kg(1, 1, "2026-01-01"), kg(2, 1, "2026-02-01"), kg(3, 2, "2026-01-01")];
+  assert.equal(yearFigure(ghg, values, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 3.001, "3,001.2 kg");
+  assert.equal(yearFigure(ghg, values, { year: 2026, yearType: "CY", sites: [1, 2], site: 1 }).value, 2.001, "2,000.8 kg");
+  assert.equal(combineValues(values.filter((x) => x.period_start === "2026-01-01"), "sum"), 2.001, "January, both sites");
+
+  // A value without kg (written before D14, or not in tCO2e) or whose kg isn't its own: the values are added.
+  const mixed = [values[0], values[1], { ...values[2], kg: null }];
+  assert.equal(yearFigure(ghg, mixed, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 3);
+  assert.equal(yearFigure(ghg, [values[0], { ...values[2], kg: 2000 }], { year: 2026, yearType: "CY", sites: [1, 2] }).value, 2, "kg 2,000 doesn't round to 1");
+  assert.equal(combineValues([values[0], { ...values[2], kg: null }], "sum"), 2);
+  // Other rules never read kg.
+  assert.equal(yearFigure({ ...ghg, aggregation: "max" }, values, { year: 2026, yearType: "CY", sites: [1, 2] }).value, 1);
+  assert.equal(combineValues(values, "average"), 1);
+});

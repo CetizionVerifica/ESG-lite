@@ -46,12 +46,12 @@ test("scope3Rows: 15 categories; reported with computeScope3's tCO₂e, excluded
   assert.deepEqual(rows.map((x) => x.n), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   const c1 = rows.find((x) => x.n === 1);
   assert.equal(c1.status, "reported");
-  assert.equal(c1.display, "12.35", "computeScope3's tCO₂e (12.35), formatted once");
+  assert.equal(c1.display, "12.346", "computeScope3's tCO₂e (12.346), formatted once");
   assert.equal(c1.dq, "2.0");
   assert.match(c1.method, /100%/);
   const c6 = rows.find((x) => x.n === 6);
   assert.equal(c6.status, "reported");
-  assert.equal(c6.display, "1.5");
+  assert.equal(c6.display, "1.500");
   assert.equal(c6.reason, "Flights and hotels.");
   const c8 = rows.find((x) => x.n === 8);
   assert.equal(c8.status, "excluded");

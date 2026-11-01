@@ -111,7 +111,7 @@ test("spend: amount × rate × index[base] ÷ index[spend year] × factor, round
   assert.equal(r.ok, true);
   const kg = (1000000 / 88.9) * (292.655 / 330.2) * 0.42;
   assert.equal(r.computed.total_kgco2e, kg.toFixed(4));
-  assert.equal(r.computed.total, Math.round((kg / 1000) * 100) / 100);
+  assert.equal(r.computed.total, Math.round((kg / 1000) * 1000) / 1000);
   assert.equal(r.computed.method, "spend_based");
   assert.equal(r.computed.activity_unit, "INR");
   assert.equal(r.computed.activityValue, 1000000);

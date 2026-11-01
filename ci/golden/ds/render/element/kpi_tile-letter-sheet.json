@@ -2,16 +2,16 @@
   "element": "kpi_tile",
   "elements": [
     {
-      "bytes": 968,
+      "bytes": 972,
       "frame": "15.421,65.852,57.573,30.104,0",
       "id": "p-summary.tile1",
-      "sha256": "7e645bf23720accf0ed9ff5a0c2676b68d2e3cef7245147449f1c32749203762"
+      "sha256": "fc98ebdffeb4041b213be439a3750d6614d89f4b796926fc941f2c7a7e8e760c"
     },
     {
-      "bytes": 445,
+      "bytes": 449,
       "frame": "79.163,65.852,57.573,30.104,0",
       "id": "p-summary.tile2",
-      "sha256": "fb3d9995cedfb7f1aa77532cd5fe49388bd441faa536063139404e5db76b02ec"
+      "sha256": "a8b8a75a840eddb9e7d14a593f857a435b4bba93a82b35114f1aa1ba1f69482f"
     },
     {
       "bytes": 495,

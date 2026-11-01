@@ -59,7 +59,7 @@ test("managers of the batch's sites get exactly one notification; uploader, admi
   const n = res.json.notifications.find((x) => x.meta?.upload_batch_id === "im4-batch-1");
   assert.ok(n, "listed under the uploads filter");
   assert.equal(n.title, "Entries waiting for your review");
-  assert.equal(n.message, "CI User uploaded 12 entries for CI Plant A, CI Plant B (Mar–Apr 2026). 3.5 tCO₂e waiting for review");
+  assert.equal(n.message, "CI User uploaded 12 entries for CI Plant A, CI Plant B (Mar–Apr 2026). 3.500 tCO₂e waiting for review");
   assert.equal(n.link, "/data/approvals?view=batches&batch=im4-batch-1");
   assert.deepEqual(n.meta.site_ids, [1, 2]);
   assert.equal(n.meta.channel, "mcp");

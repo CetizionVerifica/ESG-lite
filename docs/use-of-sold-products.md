@@ -23,7 +23,7 @@ previously dormant) with all three direct use-phase methods, per the boss's deci
 | Product containing gas | Units Sold × Gas per Product (kg) × % of Gas Released ÷ 100 × GWP | `<Gas> - GWP` (kg CO2e/kg) |
 
 All three divide by 1000 at the end (factors are kg CO2e per unit; totals are stored
-in tCO2e, rounded to 2 dp), same as every other category.
+in tCO2e, rounded to 3 dp since #209), same as every other category.
 
 **Validated against the Luqom answer key** (sheet "Scope 3.11"): Lampenwelt
 6,663,974 × 0.01 × 15,000 × 0.349 = 348,859.04 t; Brumberg 33,681.73 t;

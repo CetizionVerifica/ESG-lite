@@ -22,7 +22,7 @@ import type { BatchInfo, EmissionWriter, InsertResult, WriterContext } from "../
 import { ContextCache, type LoadedContext } from "./context";
 import { CheckCache, findDuplicate, isLowConfidenceAiMatch, modeLockMessage, planIdentity, planModeConflicts } from "./checks";
 import { computeTotal, factorSnapshot, feraGap, feraTwinFor, methodForUnit, type Computed, type EngineIssue, type FeraTwin } from "./compute";
-import { feraFactorTypeWarning, tdLossTwinFor, wttDoubleCountWarning } from "./methods/fera";
+import { feraFactorTypeWarning, tdLossTwinFor, withWtt, wttDoubleCountWarning, wttInRow, wttPartFor, type WttPart } from "./methods/fera";
 import { estimatedDistanceWarning, paidByMismatchWarning } from "./transportWarnings";
 import { planMatchFor, resolveActivity, suggestNames, targetYearFor, type ResolvedActivity } from "./resolve";
 import { toStoredPeriod, type StoredPeriod } from "./period";
@@ -98,6 +98,11 @@ export interface EntryInput {
    * recalculations): a method the row names wins, as before.
    */
   method_source?: MethodSource;
+  /**
+   * D6a: an edit of a row that already has a FERA twin. A Category 4, 6, 7 or 9
+   * row saved before D6a keeps its WTT in that twin instead of its own total.
+   */
+  keep_fera_twin?: boolean;
 }
 
 export interface PreparedEntry {
@@ -108,6 +113,8 @@ export interface PreparedEntry {
   fera: FeraTwin | null;
   /** S3-7: the Category 3 T&D-loss twin of a Scope 2 row (3c), linked to the parent one way. */
   tdLoss: FeraTwin | null;
+  /** D6a: the WTT part a Category 4, 6, 7 or 9 row's total includes (no twin is made for it). */
+  wtt?: WttPart;
   /**
    * Never block (01-contracts §7): FACTOR_FALLBACK_YEAR, FERA_FACTOR_MISSING (S3-4),
    * FACTOR_TYPE_MISMATCH, WTT_ALREADY_IN_FACTOR (S3-7). Typed entries return them too.
@@ -387,7 +394,19 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, rowIn
   let fera: FeraTwin | null = null;
   let feraSkipped: string | undefined;
   let tdLoss: FeraTwin | null = null;
-  if (activity_data.emission_category) {
+  let wttPart: WttPart | null = null;
+  // D6a: a Category 4, 6, 7 or 9 row takes its WTT in its own total and makes no Category 3 twin.
+  // Spend, supplier and hybrid figures are not fuel-based, so they get none. An edit of a row
+  // saved before D6a keeps its twin (old rows are left as they are).
+  const wttHere = wttInRow(ctx) && !input.keep_fera_twin;
+  if (wttHere && activity_data.emission_category && computed && factor && !supplierMethod && !computed.fx && computed.method !== "spend_based" && !factor.includes_wtt) {
+    wttPart = wttPartFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
+    if (wttPart) computed = withWtt(computed, wttPart);
+    else {
+      const gap = feraGap(ctx, activity_data.emission_category, unit, targetYear);
+      if (gap) warnings.push({ code: "FERA_FACTOR_MISSING", message: `No well-to-tank (WTT) part was added to the total: ${gap}.` });
+    }
+  } else if (!wttHere && activity_data.emission_category) {
     fera = feraTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
     tdLoss = tdLossTwinFor(ctx, activity_data.emission_category, activity_data, unit, targetYear);
     const twinCategory = fera?.category_id ?? tdLoss?.category_id;
@@ -429,6 +448,7 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, rowIn
       computed,
       fera,
       tdLoss,
+      ...(wttPart ? { wtt: wttPart } : {}),
       warnings,
       site_country: ctx.site_country ?? null,
       supplier_id: computed?.supplier_id ?? prep.supplier?.supplier_id ?? null,
@@ -442,8 +462,11 @@ export const prepareEntry = async (ctx: LoadedContext, checks: CheckCache, rowIn
  * row's components; S3-6) or the row's emission factor with a spend row's
  * deflator (S3-5), as before.
  */
-export const entryFactorSnapshot = (entry: Pick<PreparedEntry, "factor" | "computed">): Record<string, unknown> | null =>
-  entry.computed?.snapshot ?? (entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null);
+export const entryFactorSnapshot = (entry: Pick<PreparedEntry, "factor" | "computed" | "wtt">): Record<string, unknown> | null => {
+  const snapshot = entry.computed?.snapshot ?? (entry.factor ? factorSnapshot(entry.factor, entry.computed?.deflator) : null);
+  // D6a: the WTT factor and kgCO₂e the total includes, beside the row's own factor.
+  return snapshot && entry.wtt ? { ...snapshot, wtt: { ...factorSnapshot(entry.wtt.factor), kgco2e: entry.wtt.total_kgco2e } } : snapshot;
+};
 
 export interface AuditInfo {
   changed_by: number;

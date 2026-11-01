@@ -7,8 +7,8 @@
 //
 // Rows are dated in 2026, so they use factor year 2025 (targetYearFor), the
 // year the standard Scope 3 seeds carry. The report is calendar year 2026.
-// Rounding rule (D5): a row stores tCO₂e at 2 dp; the Scope 3 report sums kg
-// per category and rounds once.
+// Rounding rule (D5, #209, D14): a row stores tCO₂e at 3 dp and kgCO₂e at 4 dp;
+// every report (the Scope 3 table and the scope totals alike) sums kg and rounds once.
 
 const FACTOR_YEAR = 2025;
 const REPORT_YEAR = 2026;

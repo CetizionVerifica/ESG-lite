@@ -11,6 +11,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { createHash } = require("crypto");
 const { call, withDb } = require("../helpers.cjs");
 
 const ROOT = path.resolve(__dirname, "../../..");
@@ -223,6 +224,68 @@ test("an automatic dismissal is audited and doesn't stop the same changes being 
   assert.notEqual(again.id, first.id);
   await withDb((db) => db.query(`UPDATE emission SET total_emission = 6.8 WHERE pk_id = 81400`));
   assert.deepEqual(await proposed(), []);
+});
+
+test("#209: a base year frozen at 2 dp reads at 3 dp from its rows; a proposal dismissed with a 2-dp signature stays dismissed", async () => {
+  const proposed = async () => (await call("GET", "/scope3/recalculations?status=proposed", "admin")).json.events;
+  const [{ snapshot: saved }] = (await withDb((db) => db.query(`SELECT snapshot FROM company_base_year WHERE company_id = 1 AND scope = 'Scope 3'`))).rows;
+  const [{ design_studio_enabled: studioWas }] = (await withDb((db) => db.query(`SELECT design_studio_enabled FROM company WHERE company_id = 1`))).rows;
+  // As frozen before #209: row 81400 held 6,804.4 kg and Category 6 was stored at 2 dp (10.8 t, not 10.804).
+  const old = {
+    ...saved,
+    rows: { ...saved.rows, 81400: [6, 6804.4, ...saved.rows["81400"].slice(2)] },
+    total_kg: 10804.4,
+    total_tco2e: 10.8,
+    categories: saved.categories.map((c) => (c.n === 6 ? { n: 6, tco2e: 10.8 } : c)),
+  };
+  const events = [];
+  try {
+    await withDb(async (db) => {
+      await db.query(`UPDATE company_base_year SET snapshot = $1 WHERE company_id = 1 AND scope = 'Scope 3'`, [JSON.stringify(old)]);
+      await db.query(`UPDATE emission SET total_emission = 6.8044 WHERE pk_id = 81400`);
+      await db.query(`UPDATE company SET design_studio_enabled = true WHERE company_id = 1`);
+    });
+    const by = (await call("GET", "/scope3/base-year", "manager")).json;
+    assert.equal(by.base_year.snapshot.total_tco2e, 10.804);
+    assert.equal(by.base_year.snapshot.categories.find((c) => c.n === 6).tco2e, 10.804);
+    assert.equal(by.drift.delta_tco2e, 0);
+    assert.deepEqual(by.drift.changes, []);
+    // The report and the studio read the base year through baseYearSummary: 3 dp too.
+    const studio = await call("POST", "/studio/resolve", "manager", {
+      kind: "ghg", year: 2025, yearType: "CY", sites: "all", tokens: [],
+      bindings: [{ source: "ghg", metric: "base_year_total", years: { last: 1 }, sites: "all" }],
+    });
+    assert.equal(studio.status, 200, JSON.stringify(studio.json));
+    assert.equal(studio.json.values[0].value, 10.804);
+
+    // An Admin dismissed this +1,234.4 kg correction before #209, when the signature hashed 1.23 t.
+    await withDb((db) => db.query(`UPDATE emission SET total_emission = 8.0388 WHERE pk_id = 81400`)); // ≈ 11 %
+    const legacy = createHash("sha1").update(JSON.stringify([["error", "edited", 6, 1, 1, 1.23]])).digest("hex").slice(0, 16);
+    const [dismissed] = (
+      await withDb((db) =>
+        db.query(
+          `INSERT INTO recalculation_event (company_id, scope, reason, status, affected_years, delta_tco2e, details, decided_at)
+           VALUES (1, 'Scope 3', 'error', 'dismissed', $1, 1.23, $2, now()) RETURNING id`,
+          [JSON.stringify([BASE]), JSON.stringify({ changes: [], signature: legacy, version: saved.version })],
+        ),
+      )
+    ).rows;
+    events.push(dismissed.id);
+    assert.deepEqual(await proposed(), [], "not raised again");
+    // Control: with another signature on the dismissal, the same changes are proposed.
+    await withDb((db) => db.query(`UPDATE recalculation_event SET details = details || '{"signature": "0000000000000000"}'::jsonb WHERE id = $1`, [dismissed.id]));
+    const [again] = await proposed();
+    assert.ok(again);
+    events.push(again.id);
+    assert.equal(again.delta_tco2e, 1.234);
+  } finally {
+    await withDb(async (db) => {
+      await db.query(`DELETE FROM recalculation_event WHERE id = ANY($1::int[])`, [events]);
+      await db.query(`UPDATE company_base_year SET snapshot = $1 WHERE company_id = 1 AND scope = 'Scope 3'`, [JSON.stringify(saved)]);
+      await db.query(`UPDATE emission SET total_emission = 6.8 WHERE pk_id = 81400`);
+      await db.query(`UPDATE company SET design_studio_enabled = $1 WHERE company_id = 1`, [studioWas]);
+    });
+  }
 });
 
 test("changing the base year needs a note and records an approved methodology event", async () => {

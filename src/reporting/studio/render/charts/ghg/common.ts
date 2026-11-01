@@ -15,6 +15,7 @@
 import { formatNumber } from "../../format";
 import type { Theme } from "../../theme";
 import type { RenderSeries, RenderValue } from "../../types";
+import { textWidth } from "../metrics";
 import { FONT, SMALL, rect, seriesColor, text, type ChartInput } from "../svg";
 
 export interface Part {
@@ -70,16 +71,50 @@ export const shortKey = (k: string): string => {
 /** Shortens a label to about `chars` characters with an ellipsis. */
 export const clip = (s: string, chars: number): string => (s.length > chars ? `${s.slice(0, Math.max(1, chars - 1))}…` : s);
 
+/** Font steps the total line may take to fit the chart's width: 7.5 pt down to 6.4 pt. */
+export const HEADLINE_STEPS = [1, 0.95, 0.9, 0.85];
+
 /**
- * The total line along the top: "Total 12,480 tCO₂e" from the server's display
- * (never re-formatted). Returns the svg and the height it takes.
+ * The total line along the top: "Total 12,480.000 tCO₂e" from the server's display
+ * (never re-formatted). Returns the svg and the height it takes. #209 review: it fits the
+ * chart's width `w` (measured, metrics.ts): one line, a font step smaller if needed; else
+ * the figure and unit on a second line ("Total" / "12,480.000 tCO₂e"); else the unit on a
+ * third. A line it adds costs the plot under it 1.2 lines of height, so a chart passes
+ * `maxH`, the most the total line may take while its plot keeps the room it needs (#209
+ * round 4): a layout of more lines than that is never chosen, and the one line is made
+ * smaller instead. One line never takes more than production's (FONT × 1.6), so the plot is
+ * never shorter than production's for the total line's sake. A figure is made smaller, never
+ * cut. `steps` lets a chart short of height ask for the smaller sizes only (scope_split).
  */
-export function headline(v: RenderValue, theme: Theme, label = "Total"): { svg: string; h: number } {
+export function headline(v: RenderValue, theme: Theme, label = "Total", w = Infinity, opts: { steps?: number[]; maxH?: number } = {}): { svg: string; h: number } {
   if (!v.display) return { svg: "", h: 0 };
   const unit = v.unit ? ` ${v.unit}` : "";
+  const maxH = opts.maxH ?? Infinity;
+  const sizes = (opts.steps ?? HEADLINE_STEPS).map((k) => FONT * k);
+  const height = (lines: string[], size: number) => size * 1.6 + (lines.length - 1) * size * 1.2;
+  const one = [`${label} ${v.display}${unit}`];
+  const layouts = [one, [label, `${v.display}${unit}`], ...(v.unit ? [[label, v.display, v.unit]] : [])];
+  const widest = (lines: string[], size: number) => Math.max(...lines.map((l) => textWidth(l, size, true)));
+  let pick: { lines: string[]; size: number } | null = null;
+  for (const lines of layouts) {
+    const size = sizes.find((sz) => widest(lines, sz) <= w && (lines.length === 1 || height(lines, sz) <= maxH));
+    if (size !== undefined) {
+      pick = { lines, size };
+      break;
+    }
+  }
+  if (!pick) {
+    // Nothing fits at the steps: the layout with the largest type that fits the width (each made smaller to fit) and,
+    // past one line, the height the chart can spare; one line when nothing else does.
+    const last = sizes[sizes.length - 1];
+    const shrunk = layouts.map((lines) => ({ lines, size: Math.min(last, w / widest(lines, 1)) }));
+    pick = shrunk.filter((c, i) => i === 0 || height(c.lines, c.size) <= maxH).reduce((a, b) => (b.size > a.size + 1e-9 ? b : a));
+  }
+  const { lines, size } = pick;
+  const lh = size * 1.2;
   return {
-    svg: text(0, FONT, `${label} ${v.display}${unit}`, theme.colors.ink, { size: FONT, weight: 700 }),
-    h: FONT * 1.6,
+    svg: lines.map((l, i) => text(0, size + i * lh, l, theme.colors.ink, { size, weight: 700 })).join(""),
+    h: height(lines, size),
   };
 }
 

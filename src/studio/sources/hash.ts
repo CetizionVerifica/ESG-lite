@@ -30,12 +30,16 @@ const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
 export const bindingsHash = (bindings: unknown): string => sha(stableStringify(bindings));
 
-/** The part of a resolved binding that is data (not presentation): value, unit, series, approval, availability. */
+/**
+ * The part of a resolved binding that is data (not presentation): value, unit, series, approval, availability.
+ * A series' own `unit` (#209 review) follows from the KPI definitions and the breakdown, so it is left
+ * out: the hashes stored on versions and drift baselines stay valid.
+ */
 const dataPart = (r: ResolvedBinding) => ({
   source: r.source,
   value: r.value,
   unit: r.unit,
-  series: r.series ?? null,
+  series: r.series?.map((s) => ({ label: s.label, values: s.values })) ?? null,
   approvedAt: r.approvedAt ?? null,
   compare: r.compare ? { value: r.compare.value, year: r.compare.year } : null,
   target: r.target ?? null,
