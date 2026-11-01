@@ -32,7 +32,7 @@ The assistant never approves, rejects, edits, deletes or saves anything. A perso
 
 **Frontend (ESG-lite_FE)**:
 - `src/lib/assistant/`: contracts, API hooks, logic (request, small Markdown, error copy, starter questions, the thread in sessionStorage for the tab).
-- `src/features/shell/components/assistant/`: the top bar button and the chat drawer (the shell owns it, like the bell).
+- `src/features/shell/components/assistant/`: the bubble at the bottom right of every page and the chat drawer (the shell owns it, like the bell).
 - `src/features/clients/components/AssistantToggle.tsx`: Clients → client → Overview → **Help assistant**.
 
 ## Decisions needed (boss / Shyam)
