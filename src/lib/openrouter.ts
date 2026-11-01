@@ -30,6 +30,10 @@ export interface OpenRouterBody {
   temperature?: number;
   messages: OpenRouterMessage[];
   response_format?: { type: "json_object" };
+  /** Off: the model answers straight away, without a hidden thinking step. */
+  reasoning?: { enabled: boolean };
+  /** Which hosts OpenRouter may pick for the model, and how it ranks them. */
+  provider?: { data_collection?: "allow" | "deny"; sort?: "price" | "throughput" | "latency" };
 }
 
 export interface OpenRouterOptions {

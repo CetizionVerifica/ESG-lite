@@ -5,18 +5,20 @@
  *   complete({system, user, maxTokens})  → {text, model, tokensIn, tokensOut, costUsd}
  *                                          throws AsError AS_AI_UNAVAILABLE {reason}
  *
- * Model ASSISTANT_AI_MODEL (default the studio's drafting model). Key
+ * Model ASSISTANT_AI_MODEL (default ASSISTANT_DEFAULT_MODEL). Key
  * ASSISTANT_AI_API_KEY, else STUDIO_AI_API_KEY, else OPENROUTER_API_KEY. Endpoint
  * ASSISTANT_AI_BASE_URL, else STUDIO_AI_BASE_URL (tests point it at a recorded
  * stub; never a real model in CI). Cost: OpenRouter's usage.cost, else the
  * studio price table (src/studio/ai/prices.ts, read only, as Insights does).
  */
 import { openRouterChat, openRouterKey } from "../lib/openrouter";
-import { AI_MODELS } from "../studio/contracts/ai";
 import { costUsd } from "../studio/ai/prices";
 import { AsError } from "./http";
 
-export const assistantModel = (): string => process.env.ASSISTANT_AI_MODEL || AI_MODELS.drafting;
+/** Light and fast for how-to answers; an exact release, so answers don't change without us. */
+export const ASSISTANT_DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash-1017";
+
+export const assistantModel = (): string => process.env.ASSISTANT_AI_MODEL || ASSISTANT_DEFAULT_MODEL;
 export const assistantKey = (): string | undefined => process.env.ASSISTANT_AI_API_KEY || process.env.STUDIO_AI_API_KEY || openRouterKey();
 export const assistantConfigured = (): boolean => !!assistantKey();
 
@@ -52,6 +54,10 @@ export async function complete(input: { system: string; user: string; maxTokens:
         { role: "user", content: input.user },
       ],
       response_format: { type: "json_object" },
+      // The answer is in the articles offered, so no thinking step: quicker, and it can't use up max_tokens.
+      reasoning: { enabled: false },
+      // People's words go only to hosts that don't keep or train on them; the fastest of those.
+      provider: { data_collection: "deny", sort: "latency" },
     },
     {
       apiKey,

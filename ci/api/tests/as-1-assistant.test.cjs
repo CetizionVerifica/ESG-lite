@@ -145,6 +145,8 @@ test("a User's question: only User articles offered, the question fenced, the Us
   const user = body.messages.find((m) => m.role === "user").content;
   assert.match(system, /Never mention emission factors/);
   assert.equal(body.response_format.type, "json_object");
+  assert.deepEqual(body.reasoning, { enabled: false });
+  assert.equal(body.provider.data_collection, "deny");
   const ids = offeredIds(body);
   assert.ok(ids.length >= 1 && ids.length <= 4, `offered ${ids}`);
   for (const id of ids) assert.ok(kb.byId.get(id).roles.includes("User"), `${id} is a User article`);
