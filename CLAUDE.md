@@ -73,7 +73,8 @@
 
 ## Help assistant ("Ask ESGLite") — see docs/assistant/
 - Switch: `company.assistant_enabled` (default off, Superadmin only, audited). `POST /assistant/chat` answers 403 `AS_OFF` while off; `GET /assistant/status` always answers. Superadmins can always use it.
-- AS-1 answers only from `src/assistant/kb/*.md` and reads no client data. Users' articles never mention factors, methods, FERA/Category 3, WTT or data quality.
+- AS-1 answers only from `src/assistant/kb/*.md` and reads no client data of its own. Users' articles never mention factors, methods, FERA/Category 3, WTT or data quality.
+- A person may attach a file only with `company.assistant_files_enabled` (default off, Superadmin only, audited; 403 `AS_FILES_OFF`). The browser sends its text or up to 3 pictures. Never store a file or its text; the log keeps `file_type` only. It never says a document is accurate and never calculates from one.
 - The assistant never approves, rejects, edits, deletes or saves, and never computes a number. Log every model call in `assistant_call` (no question or answer text).
-- Questions, earlier turns and page/form details are fenced as untrusted data. Answers are JSON, sources only from the articles offered, links only to app paths.
+- Questions, earlier turns, page/form details and file contents are fenced as untrusted data. Answers are JSON, sources only from the articles offered, links only to app paths.
 - New articles need a question in `kb/evals.json`; `ci/unit/as-1-assistant.test.cjs` checks the search finds them.

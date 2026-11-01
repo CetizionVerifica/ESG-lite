@@ -9,6 +9,7 @@ import type { AuthRequest } from "../middlewares/auth.middleware";
 
 export const AS_ERRORS = {
   AS_OFF: { status: 403, message: "The help assistant isn't turned on for your company." },
+  AS_FILES_OFF: { status: 403, message: "Attaching files to the help assistant isn't turned on for your company." },
   AS_VALIDATION: { status: 400, message: "The request isn't valid." },
   AS_BUDGET: { status: 429, message: "The help assistant has answered as many questions as it can for now. Try again later." },
   AS_AI_UNAVAILABLE: { status: 503, message: "The help assistant can't answer right now. Try again in a moment." },

@@ -62,6 +62,18 @@ export class AssistantCall {
   @Column({ type: "int", nullable: true })
   prompt_version!: number | null;
 
+  /** The kind of file attached (pdf, image, spreadsheet...). Never its name or contents. */
+  @Column({ type: "varchar", length: 20, nullable: true })
+  file_type!: string | null;
+
+  /** The person's thumbs up or down on the answer. */
+  @Column({ type: "boolean", nullable: true })
+  helpful!: boolean | null;
+
+  /** "translate" for the search-words call; empty for an answer. */
+  @Column({ type: "varchar", length: 20, nullable: true })
+  purpose!: string | null;
+
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;
 }

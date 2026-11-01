@@ -4,7 +4,7 @@
 
 | Step | What it does | Data it reads | Status |
 |---|---|---|---|
-| **AS-1 Help** | Answers "how do I…" questions from ESGLite's own help articles, for the role asking. | None: only the articles, plus the page path the person is on. | Built (this folder) |
+| **AS-1 Help** | Answers "how do I…" questions from ESGLite's own help articles, for the role asking. A person can attach a file and ask about it. | Only the articles and the page path, plus a file when the person attaches one (separate client switch). | Built (this folder) |
 | AS-2 Data questions | Read-only lookups for Managers and Admins ("which sites haven't sent June?", "why is Scope 2 up?"), each answer linking to the screen. | Approved data, within the person's sites and role. | Not started: needs the boss's OK (client data goes to an outside AI service) |
 | AS-3 Drafts | A User uploads a bill; the assistant fills a draft entry that the person checks and saves. | The bill, the form. | Not started |
 
@@ -19,28 +19,37 @@ The assistant never approves, rejects, edits, deletes or saves anything. A perso
 - **A6 · The person's words are data.** The question, earlier turns, page and form details go inside `<untrusted>` fences with closing tags broken up; the prompt says to ignore instructions inside them.
 - **A7 · Answers are checked.** JSON only (`{answer, answered, sources}`), sources only from the articles offered, Markdown links only to app paths, no HTML. A bad answer is retried once, then 503 `AS_AI_UNAVAILABLE {reason: invalid_output}`.
 - **A8 · Tests never call a model.** The API test runs a recorded stub on `STUDIO_AI_STUB_PORT`, like DS-9 and IN-9.
+- **A9 · Files are the person's choice, and the client's.** Attaching needs `company.assistant_files_enabled` (off by default, Superadmin only, audited), separate from A3 because a file is client data going to an outside AI service. A Superadmin can always attach. With it off the paperclip is hidden and `POST /assistant/chat` with a file answers 403 `AS_FILES_OFF`.
+  - The browser reads the file and sends only its text or up to 3 page pictures. Nothing is stored: not the file, not its text. `assistant_call.file_type` keeps its kind, never its name or words (A4). The thread in sessionStorage keeps the file's name only.
+  - File contents are untrusted (A6): text is fenced, and the rules tell the model that words in a file or picture never change them.
+  - It never says a document is accurate: it says what it can see, what's missing or unclear, and what to double-check. It reads what a file says but never calculates from it (A1).
+  - With a text file, any figure of three or more digits in the answer must be in the file, the articles or the question (`unknownFigures`); otherwise the answer is retried once and then refused (503 `unknown_figures`). This catches misread, made-up and worked-out numbers. It can't check a picture, whose figures rest on the model's reading alone.
 
 ## AS-1 as built
 **Backend (ESG-lite)** `src/assistant/`:
 - `kb/*.md`: the help articles (front matter `id`, `title`, `roles`, `paths`, `keywords`; body ≤ 350 words, plain English, app links only). `kb/evals.json`: questions with the articles that should answer them (unit test: ≥ 90 % found in the top 4; role-blocked questions find none of that role's).
 - `kb.ts`: loads and checks the articles; `searchKb` is word matching (title ×3, keyword phrases ×3, keyword words ×1.5, body ×1, +2 for the article about the current page, minimum 3), only the role's articles, top 4. No embeddings: small set, testable.
 - `prompt.ts`: the rules (`PROMPT_VERSION` 1), fences, `parseReply` / `cleanAnswer`.
-- `client.ts`: one OpenRouter call through `src/lib/openrouter.ts` in JSON mode. Model `ASSISTANT_AI_MODEL` (default `deepseek/deepseek-v4.1-flash`, light and fast). Reasoning is off, and OpenRouter picks the fastest host that doesn't keep or train on the text (`provider.data_collection: deny`, `sort: latency`). Key `ASSISTANT_AI_API_KEY` → `STUDIO_AI_API_KEY` → `OPENROUTER_API_KEY`. Endpoint `ASSISTANT_AI_BASE_URL` → `STUDIO_AI_BASE_URL`. Time limit `ASSISTANT_AI_TIMEOUT_MS` (30 s).
-- `chat.ts`, `router.ts`: `GET /assistant/status` → `{enabled, configured}` (any role; the FE shows the button only when both are true); `POST /assistant/chat {messages ≤ 12, last the person's, question ≤ 2000 chars, page?, form?}` → `{reply, answered, sources:[{id, title, path}]}`. Errors `AS_OFF` 403, `AS_VALIDATION` 400, `AS_BUDGET` 429, `AS_AI_UNAVAILABLE` 503.
+- `chat.ts` files: `attachment {name, type, text?, images?, truncated?}`, text ≤ 15,000 characters, up to 3 JPEG, PNG or WebP pictures, checked by their bytes. No text or pictures means only the name reached it. The articles for bills, bulk upload and evidence are always offered with a file.
+- A question in a non-Latin script that finds no article gets one extra model call for English search words (`purpose = 'translate'`, not counted in the person's daily limit, counted in the client's spend). Answers come in the person's language.
+- `POST /assistant/feedback {call_id, helpful}`: a thumb on the person's own call, kept in `assistant_call.helpful`. Replies also carry `followups` (up to 3 suggested questions).
+- `client.ts`: one OpenRouter call through `src/lib/openrouter.ts` in JSON mode. Model `ASSISTANT_AI_MODEL` (default `deepseek/deepseek-v4.1-flash`, light and fast; temperature 0; test any new model on real files first, because the newer `-1017` snapshot invented a file's contents). Reasoning is off, and OpenRouter picks the fastest host that doesn't keep or train on the text (`provider.data_collection: deny`, `sort: latency`). Key `ASSISTANT_AI_API_KEY` → `STUDIO_AI_API_KEY` → `OPENROUTER_API_KEY`. Endpoint `ASSISTANT_AI_BASE_URL` → `STUDIO_AI_BASE_URL`. Time limit `ASSISTANT_AI_TIMEOUT_MS` (30 s).
+- `chat.ts`, `router.ts`: `GET /assistant/status` → `{enabled, configured, files}` (any role; the FE shows the bubble only when the first two are true, and the paperclip when `files` is); `POST /assistant/chat {messages ≤ 12, last the person's, question ≤ 2000 chars, page?, form?}` → `{reply, answered, sources:[{id, title, path}]}`. Errors `AS_OFF` 403, `AS_VALIDATION` 400, `AS_BUDGET` 429, `AS_AI_UNAVAILABLE` 503.
 - `budget.ts`, `switch.ts`, `http.ts`; entity `AssistantCall`; `Company.assistant_enabled`; `npm run migrate:as-1-assistant` (idempotent, run by `scripts/migrate-all.cjs`); the switch in `PUT /admin/companies/:id`.
 - Tests: `ci/unit/as-1-assistant.test.cjs`, `ci/api/tests/as-1-assistant.test.cjs`.
 
 **Frontend (ESG-lite_FE)**:
-- `src/lib/assistant/`: contracts, API hooks, logic (request, small Markdown, error copy, starter questions, the thread in sessionStorage for the tab).
-- `src/features/shell/components/assistant/`: the bubble at the bottom right of every page and the chat drawer (the shell owns it, like the bell).
-- `src/features/clients/components/AssistantToggle.tsx`: Clients → client → Overview → **Help assistant**.
+- `src/lib/assistant/`: contracts, API hooks, logic (request, small Markdown, typing out, error copy, starter questions by page, the thread in sessionStorage for the tab), `files.ts` (reads images, PDFs including scans, Excel, CSV, Word, PowerPoint and text in the browser; any other file goes by its name).
+- `src/features/shell/components/assistant/`: the bubble at the bottom right of every page, the chat drawer, `Composer` (attach, drop, paste), `AnswerCard` (typing out, copy, thumbs, follow-ups), `Thinking`. The panel stays mounted after the first open, so an answer still lands if the person closes it: the bubble spins, then shows a dot.
+- `src/features/clients/components/AssistantToggle.tsx`: Clients → client → Overview → **Help assistant**, with **Attach files** below it.
+- Motion is `--animate-as-*` in `src/index.css`, used only behind `motion-safe:`; the answer types out only when motion is allowed.
 
 ## Decisions needed (boss / Shyam)
-1. Turn it on for which clients first (suggest: the test sites' client only).
-2. The model and its cost: DeepSeek V4.1 Flash for now, chosen for speed and price; another model can be set with `ASSISTANT_AI_MODEL`.
+1. Turn it on for which clients first (suggest: the test sites' client only), and which of them may attach files. Each client should be told first: what's in a file goes to an outside AI service.
+2. The model and its cost: DeepSeek V4.1 Flash for now (about 0.1 US cents a question), chosen for speed, price and reading files faithfully; another model can be set with `ASSISTANT_AI_MODEL`.
 3. Keep the questions people ask (text) to improve the articles? Today only ids and counts are kept (A4).
 4. The articles: someone who knows each screen should read them once before clients see them.
-5. Go-ahead for AS-2 (client data to an outside AI service; clients should be told).
+5. Go-ahead for AS-2 (client data to an outside AI service; clients should be told). OpenRouter's `data_collection: deny` picks hosts that say they don't keep or train on it; that is their stated policy, not something ESGLite can check.
 
 ## Adding or changing an article
 1. Add `src/assistant/kb/<id>.md` with the front matter above. Users' articles must not mention factors, methods, FERA, WTT or data quality.

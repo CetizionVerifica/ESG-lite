@@ -117,6 +117,11 @@ export class Company {
   @Column({ default: false })
   assistant_enabled!: boolean;
 
+  // AS-1: people may attach files to the help assistant. Off by default and
+  // separate from the switch above: a file is client data going to an outside AI service.
+  @Column({ default: false })
+  assistant_files_enabled!: boolean;
+
   // DS-13: review settings for Design Studio (migrate:ds-13-collab). With
   // report_require_review on, a final needs an approval for the current rev
   // (Managers set it); brand_controls limits colours and fonts to the brand

@@ -7,7 +7,8 @@
  *                        only the per-person limit applies)
  *   budgetVerdict(u)     the limit reached, or null (pure)
  *   usageFor(userId, companyId)
- *   logCall(row)
+ *   logCall(row)         the row's id
+ *   saveFeedback(callId, userId, helpful)  a thumb on the person's own call
  */
 import { AppDataSource } from "../config/data-source";
 
@@ -30,7 +31,7 @@ export const budgetVerdict = (u: AssistantUsage): BudgetLimit | null => {
 export async function usageFor(userId: number, companyId: number | null): Promise<AssistantUsage> {
   const [day]: Array<{ calls: number | string }> = await AppDataSource.query(
     `SELECT COUNT(*) AS calls FROM assistant_call
-      WHERE user_id = $1 AND created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`,
+      WHERE user_id = $1 AND purpose IS NULL AND created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`,
     [userId],
   );
   let companyMonthUsd = 0;
@@ -60,14 +61,19 @@ export interface CallRow {
   ok: boolean;
   errorCode: string | null;
   promptVersion: number;
+  /** The kind of file attached, never its name or contents. */
+  fileType?: string | null;
+  /** "translate" for the search-words call: it costs money but isn't one of the person's questions. */
+  purpose?: string | null;
 }
 
 const list = (ids: string[]): string | null => (ids.length ? ids.join(",").slice(0, 300) : null);
 
-export async function logCall(r: CallRow): Promise<void> {
-  await AppDataSource.query(
-    `INSERT INTO assistant_call (company_id, user_id, role, page_path, article_ids, sources, answered, model, tokens_in, tokens_out, cost_usd, ok, error_code, prompt_version)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+export async function logCall(r: CallRow): Promise<number> {
+  const rows: Array<{ id: number }> = await AppDataSource.query(
+    `INSERT INTO assistant_call (company_id, user_id, role, page_path, article_ids, sources, answered, model, tokens_in, tokens_out, cost_usd, ok, error_code, prompt_version, file_type, purpose)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+     RETURNING id`,
     [
       r.companyId,
       r.userId,
@@ -83,6 +89,15 @@ export async function logCall(r: CallRow): Promise<void> {
       r.ok,
       r.errorCode ? r.errorCode.slice(0, 40) : null,
       r.promptVersion,
+      r.fileType ?? null,
+      r.purpose ?? null,
     ],
   );
+  return Number(rows[0]?.id);
+}
+
+/** False when the call isn't this person's. */
+export async function saveFeedback(callId: number, userId: number, helpful: boolean): Promise<boolean> {
+  const [, changed]: [unknown, number] = await AppDataSource.query(`UPDATE assistant_call SET helpful = $1 WHERE id = $2::bigint AND user_id = $3`, [helpful, callId, userId]);
+  return changed > 0;
 }

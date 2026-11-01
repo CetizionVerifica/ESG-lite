@@ -38,5 +38,7 @@
   { "q": "what is FERA", "role": "User", "path": null, "expect": [] },
   { "q": "how is the spend based method calculated", "role": "User", "path": null, "expect": [] },
   { "q": "what does well-to-tank mean", "role": "User", "path": null, "expect": [] },
-  { "q": "why is my data quality score poor", "role": "User", "path": "/data/mine", "expect": [] }
+  { "q": "why is my data quality score poor", "role": "User", "path": "/data/mine", "expect": [] },
+  { "q": "can you read a file if i attach it", "role": "User", "path": "/my-month", "expect": ["ask-esglite"] },
+  { "q": "why is there no paperclip in ask esglite", "role": "Manager", "path": "/overview", "expect": ["ask-esglite"] }
 ]
