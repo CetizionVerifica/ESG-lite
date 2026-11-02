@@ -23,7 +23,7 @@ It can't confirm that a document is true or that its figures are right. It tells
 **Your file**
 Your file is sent to an outside AI service to be read, and ESGLite doesn't save it. Attaching it here doesn't enter any data: to add it, use the steps it gives you.
 
-If you don't see the paperclip, attaching files isn't turned on for your company. Ask your Admin.
+If you don't see the paperclip, attaching files isn't turned on for your company. ESGLite turns it on, not your company's settings, so ask your ESGLite contact.
 
 **Other tips**
 - You can ask in your own language.

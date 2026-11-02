@@ -112,6 +112,22 @@ test("a file: fenced with its name, rules only when there is one, pictures passe
   assert.doesNotMatch(pics.user, /only the name reached you/);
 });
 
+test("the role decides the focus and how much is explained", () => {
+  const user = systemPrompt("User");
+  const manager = systemPrompt("Manager");
+  const superadmin = systemPrompt("Superadmin");
+  assert.match(user, /no jargon/);
+  assert.match(manager, /clear their queue/);
+  assert.match(systemPrompt("Admin"), /what an Admin can't do/);
+  assert.match(superadmin, /Skip beginner explanations/);
+  assert.doesNotMatch(superadmin, /no jargon/);
+  assert.match(user, /suggest asking their Manager or Admin/);
+  assert.match(manager, /suggest asking their Admin/);
+  assert.match(superadmin, /say the help articles don't cover it yet/);
+  assert.doesNotMatch(superadmin, /their Manager or Admin\./);
+  assert.match(user, /language of their latest question/);
+});
+
 test("a figure in an answer must come from somewhere", () => {
   const file = "Bill no: SP-20448\nUnits: 12,480 kWh\nTotal payable: INR 1,10,481\nDate: 05 Oct 2026";
   assert.deepEqual(unknownFigures("Bill SP-20448 for 12480 kWh, total INR 110481, dated 5 Oct 2026.", [file]), [], "the same figures, written differently");
@@ -127,6 +143,7 @@ test("follow-ups and translations are read safely", () => {
   assert.deepEqual(parseReply(JSON.stringify({ answer: "Hi", answered: true, sources: [] }), []).followups, []);
   assert.deepEqual(parseReply(reply(["One?", " One? ", "<b>x</b>", "[a](/b)", "`c`", 5, "x".repeat(91)]), []).followups, ["One?"]);
   assert.equal(parseReply(reply(["a", "b", "c", "d"]), []).followups.length, 3);
+  assert.deepEqual(parseReply('{"answer": "Yes.", "answered": true, "sources": [], "followups": ["What does **To do** mean?"]}', []).followups, ["What does To do mean?"]);
   assert.equal(parseTranslation('{"english": " upload bill "}'), "upload bill");
   assert.equal(parseTranslation("no json"), null);
   assert.equal(parseTranslation('{"english": 5}'), null);

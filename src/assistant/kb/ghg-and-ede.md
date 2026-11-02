@@ -5,7 +5,7 @@ roles: [Manager, Admin, Superadmin]
 paths: [/reports/ghg, /reports/ede]
 keywords: [report, reports, GHG report, EDE report, download PDF, branded PDF, export tables, year on year, compare years, findings, by location, quarterly report, annual report, methodology, empty report]
 ---
-ESGLite has two emissions reports, and both use Approved data only. Managers open them from **Reports**. Superadmins open them from **Reports** and pick the client with the client switcher. Admins don't have these reports in their menu.
+ESGLite has two emissions reports, and both use Approved data only. Managers open them from **Reports**. Superadmins open them from **Reports** and pick the client with the client switcher. Admins can't open these reports.
 
 **GHG report**
 [GHG report](/reports/ghg) compares a period with the one before it.

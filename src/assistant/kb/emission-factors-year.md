@@ -13,7 +13,7 @@ An entry uses the factors of the year before its reporting date. Entries for 202
 If there's no factor of the matching name for that year, ESGLite uses the newest factor of that name and adds a note, for example "No 2024 factor for … ; the 2023 factor was used." In [Approvals](/data/approvals) that entry is held under **Needs attention** as "No factor for 2024". If no factor of that name exists at all, the row can't be calculated; contributors see "We can't work this row out yet. Ask your administrator."
 
 **Saved entries keep their factor**
-Each entry stores a copy of the factor it was calculated with. Changing or adding factors later doesn't change saved entries.
+Each entry stores a copy of the factor it was calculated with. Changing or adding factors later doesn't change saved entries, unless someone chooses **Recalculate entries**.
 
 **Where to see the factor**
 Managers: open an entry in Approvals or the Emissions ledger. The **Calculation** section shows the factor used. Contributors never see factor values; they see their fields and the total only.

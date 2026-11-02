@@ -16,7 +16,7 @@ Admins manage their company's people in [Users](/users); the page is called **Pe
 **Invite someone (Admin)**
 1. Choose **Invite person**.
 2. Enter the **Name** and **Email**, choose the **Role** (**Manager** or **User (contributor)**) and one or more **Sites**.
-3. Choose how they get in: **Send a set-password link** (it expires in 1 hour) or a **Temporary password** (at least 8 characters, never shown again).
+3. Set a **Temporary password** (at least 8 characters, never shown again). You can also send them a set-password link, which expires in 1 hour.
 4. Save.
 
 **Change someone**
