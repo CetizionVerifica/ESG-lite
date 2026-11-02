@@ -1,7 +1,6 @@
 // AS-1 · the help assistant: GET /assistant/status and POST /assistant/chat
 // through a recorded model stub on STUDIO_AI_STUB_PORT (ci/api/run.cjs points the
-// server's STUDIO_AI_BASE_URL at it; the assistant reads that when
-// ASSISTANT_AI_BASE_URL isn't set). No real model. Covers: migrate twice, the
+// server's ASSISTANT_AI_BASE_URL at it). No real model. Covers: migrate twice, the
 // Superadmin switch with its audit row, 401 / switch-off / tenant isolation, only
 // the role's articles offered, fenced question, sources and links cleaned, one
 // assistant_call row per call (no text), one retry on a bad answer, provider

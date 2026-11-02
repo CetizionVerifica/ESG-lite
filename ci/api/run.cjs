@@ -63,7 +63,7 @@ async function waitForServer(server, logs) {
   const logs = [];
   const server = spawn(process.execPath, [path.join(ROOT, "dist/index.js")], {
     cwd: ROOT,
-    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY, OCR_SERVICE_URL: `http://127.0.0.1:${AI_STUB_PORT}`, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true", MCP_TEST_TOKENS: "true", FX_JOB_DISABLED: "true", STUDIO_AI_BASE_URL: `http://127.0.0.1:${STUDIO_AI_STUB_PORT}`, STUDIO_AI_API_KEY: "ci-only-studio-ai", STUDIO_AI_TIMEOUT_MS: "5000" /* DS-9 */ },
+    env: { ...process.env, TZ: "UTC", PORT: String(PORT), JWT_SECRET: SECRET, AI_SERVICE_KEY: SERVICE_KEY, OCR_SERVICE_URL: `http://127.0.0.1:${AI_STUB_PORT}`, TYPEORM_SYNC: "false", RABBITMQ_URL: "amqp://127.0.0.1:1", LOCAL_FILE_STORAGE: "true", MCP_TEST_TOKENS: "true", FX_JOB_DISABLED: "true", STUDIO_AI_BASE_URL: `http://127.0.0.1:${STUDIO_AI_STUB_PORT}`, STUDIO_AI_API_KEY: "ci-only-studio-ai", STUDIO_AI_TIMEOUT_MS: "5000" /* DS-9 */, ASSISTANT_AI_BASE_URL: `http://127.0.0.1:${STUDIO_AI_STUB_PORT}`, ASSISTANT_AI_API_KEY: "ci-only-assistant", ASSISTANT_AI_TIMEOUT_MS: "5000" /* AS-1 */ },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (d) => logs.push(d.toString()));

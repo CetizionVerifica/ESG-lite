@@ -73,6 +73,7 @@
 
 ## Help assistant ("Ask ESGLite") — see docs/assistant/
 - Switch: `company.assistant_enabled` (default off, Superadmin only, audited). `POST /assistant/chat` answers 403 `AS_OFF` while off; `GET /assistant/status` always answers. Superadmins can always use it.
+- Its model settings are its own (`ASSISTANT_AI_API_KEY`, `ASSISTANT_AI_MODEL`, `ASSISTANT_AI_BASE_URL`, `ASSISTANT_AI_TIMEOUT_MS`). Never fall back to `OPENROUTER_*` or `STUDIO_AI_*`: reports and the studio use those. Without its key it stays hidden.
 - How ESGLite works comes only from `src/assistant/kb/*.md`. Users' articles never mention factors, methods, FERA/Category 3, WTT or data quality.
 - A person may attach a file only with `company.assistant_files_enabled` (default off, Superadmin only, audited; 403 `AS_FILES_OFF`). The browser sends its text or up to 3 pictures. Never store a file or its text; the log keeps `file_type` only. It never says a document is accurate and never calculates from one.
 - AS-2: with `company.assistant_data_enabled` (default off, Superadmin only, audited), a question about the person's own work gets a summary from `src/assistant/workload.ts`. It reads only `computeMyMonth`, `computeManagerOverview` and `computeConsole`, narrowed to the person's sites and client, and it says so for someone who works for several clients. Never pass raw emission rows: they carry factors and methods Users can't see. Never add a calculation there.

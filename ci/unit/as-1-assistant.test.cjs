@@ -13,8 +13,41 @@ const { buildPrompt, parseReply, parseTranslation, cleanAnswer, fence, systemPro
 const { budgetVerdict, USER_DAY_CALLS, COMPANY_MONTH_USD } = require(path.resolve("dist/assistant/budget.js"));
 const { ChatRequestSchema, searchText } = require(path.resolve("dist/assistant/chat.js"));
 const { wantsWorkload, userFacts, managerFacts, superadminFacts } = require(path.resolve("dist/assistant/workload.js"));
+const { ASSISTANT_DEFAULT_MODEL, assistantConfigured, complete } = require(path.resolve("dist/assistant/client.js"));
 
-const md = (id, roles, extra = "", body = "Some help.") => `---\nid: ${id}\ntitle: ${extra.title ?? id.replace(/-/g, " ")}\nroles: [${roles.join(", ")}]\n${extra.meta ?? ""}---\n${body}\n`;
+test("its key, model and host are its own: never the reports' or the studio's", async () => {
+  const names = ["ASSISTANT_AI_API_KEY", "ASSISTANT_AI_MODEL", "ASSISTANT_AI_BASE_URL", "ASSISTANT_AI_TIMEOUT_MS", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "STUDIO_AI_API_KEY", "STUDIO_AI_BASE_URL"];
+  const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+  const realFetch = global.fetch;
+  const seen = [];
+  global.fetch = async (url, init) => {
+    seen.push({ url, auth: init.headers.authorization, model: JSON.parse(init.body).model });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }], usage: {} }), { status: 200 });
+  };
+  try {
+    for (const n of names) delete process.env[n];
+    process.env.OPENROUTER_API_KEY = "reports-key";
+    process.env.OPENROUTER_MODEL = "google/gemini-3-flash-preview";
+    process.env.STUDIO_AI_API_KEY = "studio-key";
+    process.env.STUDIO_AI_BASE_URL = "http://studio.invalid";
+    assert.equal(assistantConfigured(), false, "their keys don't turn it on");
+    await assert.rejects(complete({ system: "s", user: "u", maxTokens: 10 }));
+    assert.deepEqual(seen, [], "no call without its own key");
+
+    process.env.ASSISTANT_AI_API_KEY = "assistant-key";
+    assert.equal(assistantConfigured(), true);
+    await complete({ system: "s", user: "u", maxTokens: 10 });
+    assert.deepEqual(seen, [{ url: "https://openrouter.ai/api/v1/chat/completions", auth: "Bearer assistant-key", model: ASSISTANT_DEFAULT_MODEL }]);
+  } finally {
+    global.fetch = realFetch;
+    for (const n of names) {
+      if (saved[n] === undefined) delete process.env[n];
+      else process.env[n] = saved[n];
+    }
+  }
+});
+
+const md =(id, roles, extra = "", body = "Some help.") => `---\nid: ${id}\ntitle: ${extra.title ?? id.replace(/-/g, " ")}\nroles: [${roles.join(", ")}]\n${extra.meta ?? ""}---\n${body}\n`;
 
 const sample = () =>
   buildKb([
