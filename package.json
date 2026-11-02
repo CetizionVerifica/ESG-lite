@@ -76,6 +76,7 @@
     "migrate:in-switch": "ts-node src/scripts/migrateInSwitch.ts",
     "migrate:in-events": "ts-node src/scripts/migrateInEvents.ts",
     "migrate:in-ai-calls": "ts-node src/scripts/migrateInAiCalls.ts",
+    "migrate:as-1-assistant": "ts-node src/scripts/migrateAs1Assistant.ts",
     "migrate:ds-pro-pe-1-photo": "ts-node src/scripts/migrateDsProPe1Photo.ts",
     "migrate:ds-pro-pe-2-fonts": "ts-node src/scripts/migrateDsProPe2Fonts.ts",
     "migrate:scope3-row-quality-backfill": "ts-node src/scripts/backfillEmissionRowQuality.ts",

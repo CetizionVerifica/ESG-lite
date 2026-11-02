@@ -14,6 +14,7 @@ import { SUPPORTED_CURRENCIES, supportedCurrency } from "../scope3/spend/currenc
 import { auditKpiSwitch, currentKpiSwitch, notifyKpiEnabled } from "../kpi/switch";
 import { auditStudioSwitch, currentStudioSwitch } from "../studio/switch"; // DS-0
 import { auditInsightsSwitch, currentInsightsSwitch } from "../insights/switch"; // IN-0
+import { auditAssistantSwitch, currentAssistantDataSwitch, currentAssistantFilesSwitch, currentAssistantSwitch } from "../assistant/switch"; // AS-1
 
 const repo = AppDataSource.getRepository(Company);
 
@@ -77,7 +78,23 @@ export const updateCompany = async (req: Request, res: Response) => {
   }
   const insightsSwitchBefore = "insights_enabled" in body ? await currentInsightsSwitch(Number(req.params.id)) : null;
   const insightsSwitchChanged = insightsSwitchBefore !== null && insightsSwitchBefore !== body.insights_enabled;
-  if (kpiSwitchChanged || studioSwitchChanged || insightsSwitchChanged) {
+  // AS-1: the help assistant (Superadmin only, like the KPI switch; audited in the same transaction).
+  if ("assistant_enabled" in body && typeof body.assistant_enabled !== "boolean") {
+    return res.status(400).json({ code: "FIELD_INVALID", field: "assistant_enabled", message: "assistant_enabled must be true or false" });
+  }
+  const assistantSwitchBefore = "assistant_enabled" in body ? await currentAssistantSwitch(Number(req.params.id)) : null;
+  const assistantSwitchChanged = assistantSwitchBefore !== null && assistantSwitchBefore !== body.assistant_enabled;
+  if ("assistant_files_enabled" in body && typeof body.assistant_files_enabled !== "boolean") {
+    return res.status(400).json({ code: "FIELD_INVALID", field: "assistant_files_enabled", message: "assistant_files_enabled must be true or false" });
+  }
+  const assistantFilesBefore = "assistant_files_enabled" in body ? await currentAssistantFilesSwitch(Number(req.params.id)) : null;
+  const assistantFilesChanged = assistantFilesBefore !== null && assistantFilesBefore !== body.assistant_files_enabled;
+  if ("assistant_data_enabled" in body && typeof body.assistant_data_enabled !== "boolean") {
+    return res.status(400).json({ code: "FIELD_INVALID", field: "assistant_data_enabled", message: "assistant_data_enabled must be true or false" });
+  }
+  const assistantDataBefore = "assistant_data_enabled" in body ? await currentAssistantDataSwitch(Number(req.params.id)) : null;
+  const assistantDataChanged = assistantDataBefore !== null && assistantDataBefore !== body.assistant_data_enabled;
+  if (kpiSwitchChanged || studioSwitchChanged || insightsSwitchChanged || assistantSwitchChanged || assistantFilesChanged || assistantDataChanged) {
     // The switch and its audit row commit together; the Admins hear about it only afterwards.
     const actorId = Number((req as AuthRequest).user?.userId) || null;
     await AppDataSource.transaction(async (m) => {
@@ -85,6 +102,9 @@ export const updateCompany = async (req: Request, res: Response) => {
       if (kpiSwitchChanged) await auditKpiSwitch(m, Number(req.params.id), kpiSwitchBefore, body.kpi_tracking_enabled, actorId);
       if (studioSwitchChanged) await auditStudioSwitch(m, Number(req.params.id), studioSwitchBefore, body.design_studio_enabled, actorId); // DS-0
       if (insightsSwitchChanged) await auditInsightsSwitch(m, Number(req.params.id), insightsSwitchBefore, body.insights_enabled, actorId); // IN-0
+      if (assistantSwitchChanged) await auditAssistantSwitch(m, Number(req.params.id), assistantSwitchBefore, body.assistant_enabled, actorId); // AS-1
+      if (assistantFilesChanged) await auditAssistantSwitch(m, Number(req.params.id), assistantFilesBefore, body.assistant_files_enabled, actorId, "assistant_files_enabled"); // AS-1
+      if (assistantDataChanged) await auditAssistantSwitch(m, Number(req.params.id), assistantDataBefore, body.assistant_data_enabled, actorId, "assistant_data_enabled"); // AS-2
     });
     if (kpiSwitchChanged && body.kpi_tracking_enabled) await notifyKpiEnabled(Number(req.params.id));
   } else {

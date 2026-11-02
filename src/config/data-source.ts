@@ -75,6 +75,7 @@ import { StudioReportApproval } from "../entities/StudioReportApproval"; // DS-1
 import { StudioDataBaseline } from "../entities/StudioDataBaseline"; // DS-13
 import { InsightEvent } from "../entities/InsightEvent"; // IN-4
 import { InsightAiCall } from "../entities/InsightAiCall"; // IN-9
+import { AssistantCall } from "../entities/AssistantCall"; // AS-1
 import { RecalculationEvent } from "../entities/RecalculationEvent"; // S3-14
 import { ProductSale } from "../entities/ProductSale";
 import { Supplier } from "../entities/Supplier";
@@ -173,6 +174,7 @@ const entities = [
     BrandFont, BrandFontFile, // PE-2
     InsightEvent, // IN-4
     InsightAiCall, // IN-9
+    AssistantCall, // AS-1
 ];
 
 /**
