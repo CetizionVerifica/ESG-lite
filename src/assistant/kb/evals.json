@@ -46,6 +46,7 @@
   { "q": "how do I onboard a new client", "role": "User", "path": null, "expect": [] },
   { "q": "turn on Design Studio for a client", "role": "Superadmin", "path": "/clients", "expect": ["client-feature-switches"] },
   { "q": "deactivate a client so nobody can sign in", "role": "Superadmin", "path": null, "expect": ["client-feature-switches"] },
+  { "q": "let ask esglite use their work data for a client", "role": "Superadmin", "path": "/clients", "expect": ["client-feature-switches"] },
   { "q": "delete a client", "role": "Admin", "path": "/users", "expect": [] },
   { "q": "copy forms and factors from another client", "role": "Superadmin", "path": "/clients", "expect": ["copy-client-setup"] },
   { "q": "download a setup file for another environment", "role": "Superadmin", "path": null, "expect": ["copy-client-setup"] },

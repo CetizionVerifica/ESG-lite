@@ -2,10 +2,11 @@
 //
 //   company.assistant_enabled   boolean, default false (per-client switch, Superadmin only)
 //   company.assistant_files_enabled  boolean, default false (attaching files, Superadmin only)
+//   company.assistant_data_enabled   boolean, default false (AS-2 work summary, Superadmin only)
 //   assistant_call              one row per model call: who, page, articles, model,
 //                               tokens, cost, ok; never the question or the answer;
 //                               indexes (company_id, created_at) and (user_id, created_at)
-//                               for the budget; file_type, helpful and purpose added later
+//                               for the budget; file_type, helpful, purpose and work_used added later
 //
 //   npm run migrate:as-1-assistant
 //
@@ -24,13 +25,15 @@ export const AS1_STATEMENTS = [
   `ALTER TABLE "assistant_call" ADD COLUMN IF NOT EXISTS "file_type" character varying(20)`,
   `ALTER TABLE "assistant_call" ADD COLUMN IF NOT EXISTS "helpful" boolean`,
   `ALTER TABLE "assistant_call" ADD COLUMN IF NOT EXISTS "purpose" character varying(20)`,
+  `ALTER TABLE "company" ADD COLUMN IF NOT EXISTS "assistant_data_enabled" boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE "assistant_call" ADD COLUMN IF NOT EXISTS "work_used" boolean`,
 ];
 
 async function main() {
   await AppDataSource.initialize();
   try {
     for (const sql of AS1_STATEMENTS) await AppDataSource.query(sql);
-    console.log("AS-1 company.assistant_enabled, assistant_files_enabled and assistant_call present.");
+    console.log("AS-1 company.assistant_enabled, assistant_files_enabled, assistant_data_enabled and assistant_call present.");
   } finally {
     await AppDataSource.destroy();
   }

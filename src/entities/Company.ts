@@ -122,6 +122,11 @@ export class Company {
   @Column({ default: false })
   assistant_files_enabled!: boolean;
 
+  // AS-2: the assistant may use a summary of a person's own work to answer them.
+  // Off by default and separate: that summary is client data going to an outside AI service.
+  @Column({ default: false })
+  assistant_data_enabled!: boolean;
+
   // DS-13: review settings for Design Studio (migrate:ds-13-collab). With
   // report_require_review on, a final needs an approval for the current rev
   // (Managers set it); brand_controls limits colours and fonts to the brand

@@ -73,8 +73,9 @@
 
 ## Help assistant ("Ask ESGLite") — see docs/assistant/
 - Switch: `company.assistant_enabled` (default off, Superadmin only, audited). `POST /assistant/chat` answers 403 `AS_OFF` while off; `GET /assistant/status` always answers. Superadmins can always use it.
-- AS-1 answers only from `src/assistant/kb/*.md` and reads no client data of its own. Users' articles never mention factors, methods, FERA/Category 3, WTT or data quality.
+- How ESGLite works comes only from `src/assistant/kb/*.md`. Users' articles never mention factors, methods, FERA/Category 3, WTT or data quality.
 - A person may attach a file only with `company.assistant_files_enabled` (default off, Superadmin only, audited; 403 `AS_FILES_OFF`). The browser sends its text or up to 3 pictures. Never store a file or its text; the log keeps `file_type` only. It never says a document is accurate and never calculates from one.
+- AS-2: with `company.assistant_data_enabled` (default off, Superadmin only, audited), a question about the person's own work gets a summary from `src/assistant/workload.ts`. It reads only `computeMyMonth`, `computeManagerOverview` and `computeConsole`, narrowed to the person's sites and client, and it says so for someone who works for several clients. Never pass raw emission rows: they carry factors and methods Users can't see. Never add a calculation there.
 - The assistant never approves, rejects, edits, deletes or saves, and never computes a number. Log every model call in `assistant_call` (no question or answer text).
 - Questions, earlier turns, page/form details and file contents are fenced as untrusted data. Answers are JSON, sources only from the articles offered, links only to app paths.
 - New articles need a question in `kb/evals.json`; `ci/unit/as-1-assistant.test.cjs` checks the search finds them.

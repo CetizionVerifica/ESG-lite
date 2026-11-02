@@ -36,11 +36,16 @@ const goodAnswer = (body) => {
 };
 
 const setFiles = (companyId, on) => q(`UPDATE company SET assistant_files_enabled = $1 WHERE company_id = $2`, [on, companyId]);
+const setData = (companyId, on) => q(`UPDATE company SET assistant_data_enabled = $1 WHERE company_id = $2`, [on, companyId]);
+/** The work summary a prompt carried, or null. */
+const workBlock = (body) => /<untrusted name="your-work">\n([\s\S]*?)\n<\/untrusted>/.exec(userText(body))?.[1] ?? null;
 
 const reset = async () => {
   await setAssistant(1, false);
   await setAssistant(2, false);
   await setFiles(1, false);
+  await setData(1, false);
+  await setData(2, false);
   await q(`DELETE FROM assistant_call`);
 };
 
@@ -59,6 +64,7 @@ test.before(async () => {
       } catch {}
       stub.requests.push(body);
       const next = stub.queue.shift() ?? "good";
+      if (next.drop) return req.socket.destroy();
       if (next.status) {
         res.writeHead(next.status, { "content-type": "application/json" });
         return res.end("{}");
@@ -88,7 +94,7 @@ test("migrate:as-1-assistant made the switch (off everywhere) and the call log (
   const col = (await q(`SELECT is_nullable, column_default FROM information_schema.columns WHERE table_name = 'company' AND column_name = 'assistant_enabled'`))[0];
   assert.deepEqual(col, { is_nullable: "NO", column_default: "false" });
   const cols = (await q(`SELECT column_name FROM information_schema.columns WHERE table_name = 'assistant_call' ORDER BY ordinal_position`)).map((r) => r.column_name);
-  assert.deepEqual(cols, ["id", "company_id", "user_id", "role", "page_path", "article_ids", "sources", "answered", "model", "tokens_in", "tokens_out", "cost_usd", "ok", "error_code", "prompt_version", "created_at", "file_type", "helpful", "purpose"]);
+  assert.deepEqual(cols, ["id", "company_id", "user_id", "role", "page_path", "article_ids", "sources", "answered", "model", "tokens_in", "tokens_out", "cost_usd", "ok", "error_code", "prompt_version", "created_at", "file_type", "helpful", "purpose", "work_used"]);
   const id = (await q(`SELECT data_type FROM information_schema.columns WHERE table_name = 'assistant_call' AND column_name = 'id'`))[0];
   assert.equal(id.data_type, "bigint");
 });
@@ -120,12 +126,12 @@ test("status: off by default for a client's people, on for a Superadmin; configu
   for (const who of ["user", "manager", "admin", "otherUser"]) {
     const r = await call("GET", "/assistant/status", who);
     assert.equal(r.status, 200, who);
-    assert.deepEqual(r.json, { enabled: false, configured: true, files: false }, who);
+    assert.deepEqual(r.json, { enabled: false, configured: true, files: false, work: false }, who);
   }
-  assert.deepEqual((await call("GET", "/assistant/status", "superadmin")).json, { enabled: true, configured: true, files: true });
+  assert.deepEqual((await call("GET", "/assistant/status", "superadmin")).json, { enabled: true, configured: true, files: true, work: true });
   await setAssistant(1, true);
-  assert.deepEqual((await call("GET", "/assistant/status", "user")).json, { enabled: true, configured: true, files: false });
-  assert.deepEqual((await call("GET", "/assistant/status", "otherUser")).json, { enabled: false, configured: true, files: false });
+  assert.deepEqual((await call("GET", "/assistant/status", "user")).json, { enabled: true, configured: true, files: false, work: false });
+  assert.deepEqual((await call("GET", "/assistant/status", "otherUser")).json, { enabled: false, configured: true, files: false, work: false });
   await setAssistant(1, false);
 });
 
@@ -328,7 +334,7 @@ test("a figure that isn't in the file is never shown: retried once, then refused
   assert.equal(fixed.status, 200, JSON.stringify(fixed.json));
   assert.match(fixed.json.reply, /12,480/);
   assert.equal(stub.requests.length, 2);
-  assert.match(userText(stub.requests[1]), /figures that aren't in the file/);
+  assert.match(userText(stub.requests[1]), /figures you weren't given/);
   assert.deepEqual((await logRows()).map((r) => [r.ok, r.error_code]), [[false, "unknown_figures"], [true, null]]);
 
   stub.requests.length = 0;
@@ -378,6 +384,199 @@ test("an answer brings follow-up questions and a call id; a thumb lands on the p
   assert.equal((await call("POST", "/assistant/feedback", "user", { call_id: id, helpful: true })).status, 200);
   assert.equal((await q(`SELECT helpful FROM assistant_call WHERE id = $1`, [id]))[0].helpful, true);
   assert.equal((await call("POST", "/assistant/feedback", "user", { call_id: "x", helpful: true })).status, 400);
+  await setAssistant(1, false);
+});
+
+test("the work summary has its own switch: off by default, audited, and with it off nothing goes out", async () => {
+  await setAssistant(1, true);
+  assert.equal((await call("GET", "/assistant/status", "user")).json.work, false);
+  const off = await ask("user", "What's waiting for me?");
+  assert.equal(off.status, 200);
+  assert.equal(off.json.used_work, false);
+  assert.equal(workBlock(stub.requests[0]), null);
+  assert.match(stub.requests[0].messages[0].content, /You can't see the person's data/);
+  assert.equal((await q(`SELECT work_used FROM assistant_call`))[0].work_used, false);
+
+  assert.equal((await call("PUT", "/admin/companies/1", "admin", { assistant_data_enabled: true })).status, 403);
+  assert.equal((await call("PUT", "/admin/companies/1", "superadmin", { assistant_data_enabled: "yes" })).json.field, "assistant_data_enabled");
+  assert.equal((await call("PUT", "/admin/companies/1", "superadmin", { assistant_data_enabled: true })).status, 200);
+  const audit = await q(`SELECT changed_fields FROM audit_log WHERE entity_type = 'assistant' AND entity_id = 1 ORDER BY id DESC LIMIT 1`);
+  assert.deepEqual(audit[0].changed_fields, { assistant_data_enabled: { old: false, new: true } });
+  assert.equal((await call("GET", "/assistant/status", "user")).json.work, true);
+  assert.equal((await call("GET", "/assistant/status", "otherUser")).json.work, false, "another client's switch doesn't open it");
+  await setData(1, false);
+  await setAssistant(1, false);
+});
+
+test("a how-to question sends no data, even with the switch on", async () => {
+  await setAssistant(1, true);
+  await setData(1, true);
+  for (const question of ["How do I add data?", "What does Pending mean?", "How do I fix my rejected entry?"]) {
+    stub.requests.length = 0;
+    const r = await ask("manager", question);
+    assert.equal(r.status, 200);
+    assert.equal(r.json.used_work, false, question);
+    assert.equal(workBlock(stub.requests[0]), null, question);
+  }
+  await setData(1, false);
+  await setAssistant(1, false);
+});
+
+test("a User's summary says what My month says, for their own sites, with no factor detail", async () => {
+  await setAssistant(1, true);
+  await setData(1, true);
+  await setData(2, true);
+  const r = await ask("user", "What do I still need to do this month?");
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.used_work, true);
+  const facts = workBlock(stub.requests[0]);
+  const screen = (await call("GET", "/user/my-month", "user")).json;
+  assert.ok(facts.includes(`Month to report: ${screen.month}. Due ${screen.due_date}.`), facts);
+  assert.ok(facts.includes(`Categories: ${screen.summary.total} in all. To do ${screen.summary.due},`), facts);
+  assert.match(facts, /CI Plant A/);
+  assert.doesNotMatch(facts, /CI Plant B|CI Other Plant|factor|method|snapshot|FERA/i);
+  assert.equal((await q(`SELECT work_used, purpose FROM assistant_call`))[0].work_used, true);
+  assert.doesNotMatch(JSON.stringify(await q(`SELECT * FROM assistant_call`)), /CI Plant/, "the log never keeps the summary");
+  await setData(1, false);
+  await setData(2, false);
+  await setAssistant(1, false);
+});
+
+test("a Manager's summary matches Overview; an Admin's is their company's; each client sees only itself", async () => {
+  await setAssistant(1, true);
+  await setAssistant(2, true);
+  await setData(1, true);
+  await setData(2, true);
+  const allTime = (await call("GET", "/manager/overview", "manager")).json;
+  const r = await ask("manager", "What's waiting for me?");
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const facts = workBlock(stub.requests[0]);
+  assert.ok(facts.includes(`Waiting for approval, all periods: ${allTime.kpis.pending_review_count} `), facts);
+  assert.doesNotMatch(facts, /CI Other/);
+
+  stub.requests.length = 0;
+  assert.equal((await ask("admin", "Who hasn't sent this month's data?")).status, 200);
+  assert.ok(workBlock(stub.requests[0]).includes(`Waiting for approval, all periods: ${allTime.kpis.pending_review_count} `));
+
+  stub.requests.length = 0;
+  assert.equal((await ask("otherManager", "What's waiting for me?")).status, 200);
+  const other = workBlock(stub.requests[0]);
+  assert.ok(other, "company 2's manager has their own summary");
+  assert.doesNotMatch(other, /CI User|CI Multi User|CI Plant/);
+
+  await setData(2, false);
+  stub.requests.length = 0;
+  assert.equal((await ask("otherManager", "What's waiting for me?")).json.used_work, false, "a client's switch covers only that client");
+  await setData(1, false);
+  await setAssistant(1, false);
+  await setAssistant(2, false);
+});
+
+test("with the AI service out of reach the person gets the usual message and the log says why", async () => {
+  await setAssistant(1, true);
+  stub.queue.push({ drop: true });
+  const down = await ask("user", "How do I add data?");
+  assert.equal(down.status, 503);
+  assert.deepEqual(down.json.details, { reason: "network" });
+  assert.equal((await q(`SELECT error_code FROM assistant_call`))[0].error_code, "network");
+  await setAssistant(1, false);
+});
+
+test("someone with no client has no assistant, whatever other clients have switched on", async () => {
+  await setAssistant(1, true);
+  await q(`UPDATE "user" SET site_id = NULL WHERE user_id = 1`);
+  try {
+    const status = await call("GET", "/assistant/status", "user");
+    assert.equal(status.status, 200);
+    assert.equal(status.json.enabled, false);
+    assert.equal((await ask("user", "How do I add data?")).json.code, "AS_OFF");
+    assert.equal(stub.requests.length, 0);
+  } finally {
+    await q(`UPDATE "user" SET site_id = 1 WHERE user_id = 1`);
+    await setAssistant(1, false);
+  }
+});
+
+test("someone with a site at another client gets only their own client's summary, and is told it's only that", async () => {
+  await setAssistant(1, true);
+  await setData(1, true);
+  assert.equal((await ask("user", "What do I still need to do this month?")).status, 200);
+  const alone = workBlock(stub.requests[0]);
+  assert.doesNotMatch(alone, /covers .* only/, "someone at one client doesn't need the note");
+  const counts = /Categories: .*/.exec(alone)[0];
+  await q(`INSERT INTO user_sites (user_id, site_id) VALUES (1, 3), (2, 3)`);
+  try {
+    stub.requests.length = 0;
+    assert.equal((await ask("user", "What do I still need to do this month?")).status, 200);
+    const facts = workBlock(stub.requests[0]);
+    assert.doesNotMatch(facts, /CI Other Plant/);
+    assert.match(facts, /covers .* only/);
+    assert.ok(facts.includes(counts), "the counts don't include the other client's site");
+
+    stub.requests.length = 0;
+    assert.equal((await ask("manager", "What's waiting for me?")).status, 200);
+    const managerFacts = workBlock(stub.requests[0]);
+    assert.match(managerFacts, /covers .* only/);
+    assert.doesNotMatch(managerFacts, /CI Other/);
+  } finally {
+    await q(`DELETE FROM user_sites WHERE site_id = 3 AND user_id IN (1, 2)`);
+    await setData(1, false);
+    await setAssistant(1, false);
+  }
+});
+
+test("a Superadmin sees totals for everyone, but a client's row only if that client allows it", async () => {
+  await setData(1, true);
+  const r = await ask("superadmin", "How are my clients doing?");
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const facts = workBlock(stub.requests[0]);
+  const screen = (await call("GET", "/admin/console", "superadmin")).json;
+  assert.ok(facts.includes(`All clients: ${screen.totals.clients} clients`), facts);
+  assert.ok(facts.includes(`Pending across all clients: ${screen.totals.pending_entries}.`), facts);
+  assert.match(facts, /CI Steel Co/);
+  assert.doesNotMatch(facts, /CI Other Co/);
+  await setData(1, false);
+  stub.requests.length = 0;
+  await ask("superadmin", "How are my clients doing?");
+  assert.match(workBlock(stub.requests[0]), /No client allows a per-client summary yet/);
+  assert.doesNotMatch(workBlock(stub.requests[0]), /CI Steel Co/);
+});
+
+test("a figure that isn't in the summary is never shown", async () => {
+  await setAssistant(1, true);
+  await setData(1, true);
+  stub.queue.push({ answer: "You have 987,654 entries waiting.", answered: true, sources: [] }, { answer: "You have 123,456 entries waiting.", answered: true, sources: [] });
+  const r = await ask("manager", "What's waiting for me?");
+  assert.equal(r.status, 503);
+  assert.deepEqual(r.json.details, { reason: "unknown_figures" });
+  await setData(1, false);
+  await setAssistant(1, false);
+});
+
+test("a question in another script about their own work gets the summary, even after an English how-to", async () => {
+  await setAssistant(1, true);
+  await setData(1, true);
+  const hindi = "मेरा क्या बाकी है?";
+  const earlier = [{ role: "user", content: "How do I add this month's data?" }, { role: "assistant", content: "Open Add data." }];
+  stub.requests.length = 0;
+  stub.queue.push({ english: "pending work", own_work: true }, "good");
+  const r = await call("POST", "/assistant/chat", "user", { messages: [...earlier, { role: "user", content: hindi }] });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.used_work, true);
+  assert.equal(stub.requests.length, 2, "the earlier question found articles, and it's still translated");
+  assert.match(userText(stub.requests[1]), /your-work/);
+
+  stub.requests.length = 0;
+  stub.queue.push({ english: "add data", own_work: false }, "good");
+  const howTo = await ask("user", "मैं डेटा कैसे जोड़ूँ?");
+  assert.equal(howTo.json.used_work, false, "a how-to in Hindi sends none of it");
+  assert.doesNotMatch(userText(stub.requests[1]), /your-work/);
+
+  await setData(1, false);
+  stub.requests.length = 0;
+  stub.queue.push("good");
+  await call("POST", "/assistant/chat", "user", { messages: [...earlier, { role: "user", content: hindi }] });
+  assert.equal(stub.requests.length, 1, "with the switch off and articles found there's nothing to translate for");
   await setAssistant(1, false);
 });
 

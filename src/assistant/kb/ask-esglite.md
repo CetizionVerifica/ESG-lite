@@ -3,9 +3,12 @@ id: ask-esglite
 title: Using Ask ESGLite and attaching a file
 roles: [User, Manager, Admin, Superadmin]
 paths: [/my-month, /overview, /users, /console]
-keywords: [ask esglite, assistant, help assistant, ai assistant, chat, attach, attach a file, paperclip, show a file, read my file, read a file, read my document, is this accurate, is it right, check my file, can you read, can you see my file, language, hindi, thumbs]
+keywords: [ask esglite, what can you see, can you see my data, my data, assistant, help assistant, ai assistant, chat, attach, attach a file, paperclip, show a file, read my file, read a file, read my document, is this accurate, is it right, check my file, can you read, can you see my file, language, hindi, thumbs]
 ---
-**Ask ESGLite** is the small bubble at the bottom right of every page. Ask how to do something and it answers from ESGLite's help articles. It can't see your company's data, and it never saves, approves or changes anything.
+**Ask ESGLite** is the small bubble at the bottom right of every page. Ask how to do something and it answers from ESGLite's help articles. It never saves, approves or changes anything.
+
+**Your work**
+If your company has this turned on, it can also tell you about your own work, such as what's due or what's waiting for you. It uses a short summary of what you can already see on your screens, and only when you ask about your work. If it's off, it can't see your company's data. If you work for more than one client, it covers only the client shown at the top of your screen, so your screens may show more.
 
 **Show it a file**
 If your company has this turned on, you'll see a paperclip next to the question box. To attach a file, choose the paperclip, drop the file on the panel, or paste a picture.

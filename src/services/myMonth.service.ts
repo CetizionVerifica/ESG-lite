@@ -44,13 +44,13 @@ export const previousMonth = (timeZone?: string | null, now: Date = new Date()):
   return `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}`;
 };
 
-/** The checklist for one month ("YYYY-MM"); the caller has checked the month. */
-export async function computeMyMonth(user: User, monthParam: string) {
+/** The checklist for one month ("YYYY-MM"); the caller has checked the month. `onlySites` narrows it, counts included. */
+export async function computeMyMonth(user: User, monthParam: string, onlySites?: Set<number>) {
   const year = parseInt(monthParam.slice(0, 4), 10);
   const monthNum = parseInt(monthParam.slice(5, 7), 10);
   const { monthStart, monthEnd } = monthBounds(year, monthNum);
 
-  const siteCategories = contributorSiteCategories(user);
+  const siteCategories = contributorSiteCategories(user).filter((s) => !onlySites || onlySites.has(s.site.site_id));
 
   const siteIds = siteCategories.map((s) => s.site.site_id);
   const categoryIds = [...new Set(siteCategories.flatMap((s) => s.categories.map((c) => c.category_id)))];

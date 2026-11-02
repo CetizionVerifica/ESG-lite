@@ -2,8 +2,8 @@
  * AS-1 · one help question (docs/assistant/README.md).
  *
  *   POST /assistant/chat  {messages ≤ 12 (last is the person's), page?, form?, attachment?}
- *                         → {reply, answered, sources:[{id, title, path}], followups, call_id}
- *   GET  /assistant/status → {enabled, configured, files}  (any role; answers while off)
+ *                         → {reply, answered, sources:[{id, title, path}], followups, call_id, used_work}
+ *   GET  /assistant/status → {enabled, configured, files, work}  (any role; answers while off)
  *   POST /assistant/feedback {call_id, helpful} → {ok}
  *
  * Order: who is asking and for which client → switch (403 AS_OFF) → file switch
@@ -13,7 +13,9 @@
  * per call. The assistant reads no client data of its own: only the articles,
  * the page and form details the person's screen sends, and a file only when the
  * person attaches one. A file is sent to the model and never stored; the log
- * keeps its kind, not its name or contents.
+ * keeps its kind, not its name or contents. AS-2: a question about the person's
+ * own work also gets a summary from their own screens (workload.ts), when their
+ * client's data switch is on.
  */
 import { z } from "zod";
 import type { AuthRequest } from "../middlewares/auth.middleware";
@@ -23,8 +25,9 @@ import { budgetVerdict, logCall, saveFeedback, usageFor, type CallRow } from "./
 import { assistantConfigured, AssistantCallError, complete } from "./client";
 import { AsError, parse } from "./http";
 import { ASSISTANT_ROLES, loadKb, searchKb, type Article, type AssistantRole, type Kb } from "./kb";
-import { buildPrompt, fence, parseReply, parseTranslation, PROMPT_VERSION, TRANSLATE_SYSTEM, unknownFigures, type Turn } from "./prompt";
-import { currentAssistantFilesSwitch, currentAssistantSwitch } from "./switch";
+import { buildPrompt, fence, parseReply, parseTranslation, PROMPT_VERSION, TRANSLATE_SYSTEM, unknownFigures, type Translation, type Turn } from "./prompt";
+import { currentAssistantDataSwitch, currentAssistantFilesSwitch, currentAssistantSwitch } from "./switch";
+import { wantsWorkload, workloadFacts } from "./workload";
 
 export const MAX_TURNS = 12;
 export const MAX_QUESTION_CHARS = 2000;
@@ -95,6 +98,8 @@ export interface ChatReply {
   followups: string[];
   /** For a thumb up or down on this answer. */
   call_id: number;
+  /** True when the answer used a summary of the person's own work. */
+  used_work: boolean;
 }
 
 interface Caller {
@@ -119,9 +124,12 @@ async function callerOf(req: AuthRequest): Promise<{ caller: Caller | null; enab
 /** A Superadmin has no client switch to wait for. */
 const filesOn = async (caller: Caller): Promise<boolean> => caller.companyId === null || (await currentAssistantFilesSwitch(caller.companyId)) === true;
 
-export async function assistantStatus(req: AuthRequest): Promise<{ enabled: boolean; configured: boolean; files: boolean }> {
+const workOn = async (caller: Caller): Promise<boolean> => caller.companyId === null || (await currentAssistantDataSwitch(caller.companyId)) === true;
+
+export async function assistantStatus(req: AuthRequest): Promise<{ enabled: boolean; configured: boolean; files: boolean; work: boolean }> {
   const { caller, enabled } = await callerOf(req);
-  return { enabled, configured: assistantConfigured(), files: !!caller && enabled && (await filesOn(caller)) };
+  const on = !!caller && enabled;
+  return { enabled, configured: assistantConfigured(), files: on && (await filesOn(caller)), work: on && (await workOn(caller)) };
 }
 
 /** The text a question is searched with: the question and the person's message before it (follow-ups). */
@@ -185,13 +193,18 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
     ...extra,
   });
 
-  // The articles are English: a question in Hindi needs its meaning before the word search can find anything.
-  if (!found.length && NON_LATIN_LETTER.test(question)) {
+  // The articles are English: a question in Hindi needs its meaning before the word search can
+  // find anything, or before it can be told apart from a how-to. Words from an earlier message
+  // can find articles for it, so with the work summary on that isn't enough to skip this.
+  const workAllowed = await workOn(caller);
+  let translated: Translation | null = null;
+  if (NON_LATIN_LETTER.test(question) && (!found.length || workAllowed)) {
     try {
       const c = await complete({ system: TRANSLATE_SYSTEM, user: fence("question", question), maxTokens: 120 });
       await logCall(row({ model: c.model, ok: true, tokensIn: c.tokensIn, tokensOut: c.tokensOut, costUsd: c.costUsd, purpose: "translate" }));
-      const english = parseTranslation(c.text);
-      if (english) found = search(english);
+      translated = parseTranslation(c.text);
+      const hits = translated ? search(translated.english) : [];
+      if (hits.length) found = hits;
     } catch (err) {
       // No search words is no worse than before: the answer says it doesn't know.
       if (err instanceof AssistantCallError) await logCall(row({ model: err.model, ok: false, errorCode: err.reason, purpose: "translate" }));
@@ -201,6 +214,17 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
 
   const articles = attachment ? [...found, ...fileArticles(kb, caller.role, found)] : found;
   const offered = articles.map((a) => a.id);
+
+  // AS-2: only a question about their own work sends any of it, and a failure here costs only the summary.
+  let work: string | null = null;
+  if (workAllowed && (translated?.ownWork || wantsWorkload(`${searchText(messages)}\n${translated?.english ?? ""}`))) {
+    try {
+      work = await workloadFacts(caller);
+    } catch (err) {
+      console.error(`[assistant] work summary failed (user ${caller.userId}):`, (err as Error)?.message);
+    }
+  }
+
   const prompt = buildPrompt({
     role: caller.role,
     articles,
@@ -209,6 +233,7 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
     page: body.page ? { path: pagePath as string, title: body.page.title } : null,
     form: body.form ?? null,
     attachment,
+    work,
   });
 
   let retryNote = "Your last reply wasn't the JSON object asked for. Reply with that JSON object only.";
@@ -221,7 +246,7 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
       if (err instanceof AssistantCallError) await logCall(row({ model: err.model, ok: false, errorCode: err.reason, articleIds: offered }));
       throw err;
     }
-    const spent = { model: completion.model, tokensIn: completion.tokensIn, tokensOut: completion.tokensOut, costUsd: completion.costUsd };
+    const spent = { model: completion.model, tokensIn: completion.tokensIn, tokensOut: completion.tokensOut, costUsd: completion.costUsd, workUsed: !!work };
     let reply;
     try {
       reply = parseReply(completion.text, offered);
@@ -230,11 +255,12 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
       if (attempt === 2) throw new AsError("AS_AI_UNAVAILABLE", { reason: "invalid_output" });
       continue;
     }
-    // A1: with a text file, every figure must come from somewhere. A misread, made-up or worked-out one is never shown.
-    if (attachment?.text && unknownFigures(reply.answer, [attachment.text, ...messages.map((m) => m.content), ...articles.map((a) => a.body)]).length) {
+    // A1: every figure must come from somewhere. A misread, made-up or worked-out one is never shown.
+    // A picture has no text to check against.
+    if (!prompt.images.length && (attachment?.text || work) && unknownFigures(reply.answer, [attachment?.text ?? "", work ?? "", ...messages.map((m) => m.content), ...articles.map((a) => a.body)]).length) {
       await logCall(row({ ...spent, ok: false, errorCode: "unknown_figures", articleIds: offered }));
       if (attempt === 2) throw new AsError("AS_AI_UNAVAILABLE", { reason: "unknown_figures" });
-      retryNote = "Your last reply had figures that aren't in the file. Reply again, copying every figure exactly as the file writes it, and don't work out any of your own.";
+      retryNote = "Your last reply had figures you weren't given. Reply again, copying every figure exactly as written, and don't work out any of your own.";
       continue;
     }
     const callId = await logCall(row({ ...spent, ok: true, sources: reply.sources, answered: reply.answered, articleIds: offered }));
@@ -243,6 +269,7 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
       answered: reply.answered,
       followups: reply.followups,
       call_id: callId,
+      used_work: !!work,
       sources: reply.sources.map((id) => {
         const a = kb.byId.get(id)!;
         return { id, title: a.title, path: a.paths[0] ?? null };

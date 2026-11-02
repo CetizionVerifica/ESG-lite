@@ -66,6 +66,10 @@ export class AssistantCall {
   @Column({ type: "varchar", length: 20, nullable: true })
   file_type!: string | null;
 
+  /** True when a summary of the person's own work went to the model. Never the summary itself. */
+  @Column({ type: "boolean", nullable: true })
+  work_used!: boolean | null;
+
   /** The person's thumbs up or down on the answer. */
   @Column({ type: "boolean", nullable: true })
   helpful!: boolean | null;

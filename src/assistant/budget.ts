@@ -65,14 +65,16 @@ export interface CallRow {
   fileType?: string | null;
   /** "translate" for the search-words call: it costs money but isn't one of the person's questions. */
   purpose?: string | null;
+  /** True when a summary of the person's own work went to the model. */
+  workUsed?: boolean;
 }
 
 const list = (ids: string[]): string | null => (ids.length ? ids.join(",").slice(0, 300) : null);
 
 export async function logCall(r: CallRow): Promise<number> {
   const rows: Array<{ id: number }> = await AppDataSource.query(
-    `INSERT INTO assistant_call (company_id, user_id, role, page_path, article_ids, sources, answered, model, tokens_in, tokens_out, cost_usd, ok, error_code, prompt_version, file_type, purpose)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+    `INSERT INTO assistant_call (company_id, user_id, role, page_path, article_ids, sources, answered, model, tokens_in, tokens_out, cost_usd, ok, error_code, prompt_version, file_type, purpose, work_used)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
      RETURNING id`,
     [
       r.companyId,
@@ -91,6 +93,7 @@ export async function logCall(r: CallRow): Promise<number> {
       r.promptVersion,
       r.fileType ?? null,
       r.purpose ?? null,
+      r.workUsed ?? null,
     ],
   );
   return Number(rows[0]?.id);

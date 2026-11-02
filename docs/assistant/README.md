@@ -5,7 +5,7 @@
 | Step | What it does | Data it reads | Status |
 |---|---|---|---|
 | **AS-1 Help** | Answers "how do I…" questions from ESGLite's own help articles, for the role asking. A person can attach a file and ask about it. | Only the articles and the page path, plus a file when the person attaches one (separate client switch). | Built (this folder) |
-| AS-2 Data questions | Read-only lookups for Managers and Admins ("which sites haven't sent June?", "why is Scope 2 up?"), each answer linking to the screen. | Approved data, within the person's sites and role. | Not started: needs the boss's OK (client data goes to an outside AI service) |
+| **AS-2 Your work** | Questions about the person's own work, for every role: what's due, what's waiting, who's missing, how clients are doing. | A short summary from the person's own screen, within their sites and role, only when they ask about their work (separate client switch). | Built (`src/assistant/workload.ts`) |
 | AS-3 Drafts | A User uploads a bill; the assistant fills a draft entry that the person checks and saves. | The bill, the form. | Not started |
 
 The assistant never approves, rejects, edits, deletes or saves anything. A person does every change.
@@ -23,7 +23,11 @@ The assistant never approves, rejects, edits, deletes or saves anything. A perso
   - The browser reads the file and sends only its text or up to 3 page pictures. Nothing is stored: not the file, not its text. `assistant_call.file_type` keeps its kind, never its name or words (A4). The thread in sessionStorage keeps the file's name only.
   - File contents are untrusted (A6): text is fenced, and the rules tell the model that words in a file or picture never change them.
   - It never says a document is accurate: it says what it can see, what's missing or unclear, and what to double-check. It reads what a file says but never calculates from it (A1).
-  - With a text file, any figure of three or more digits in the answer must be in the file, the articles or the question (`unknownFigures`); otherwise the answer is retried once and then refused (503 `unknown_figures`). This catches misread, made-up and worked-out numbers. It can't check a picture, whose figures rest on the model's reading alone.
+  - With a text file or a work summary, any figure of three or more digits in the answer must be in the file, the summary, the articles or the question (`unknownFigures`); otherwise the answer is retried once and then refused (503 `unknown_figures`). This catches misread, made-up and worked-out numbers. It can't check a picture, whose figures rest on the model's reading alone.
+- **A10 · A summary of the person's own work, nothing more.** Needs `company.assistant_data_enabled` (off by default, Superadmin only, audited). A Superadmin can always use it, but sees per-client rows only for clients with it on; other clients count only in the totals. Someone who works for several clients follows one client (`resolveUserCompanyId`, the one at the top of their screen): that client's switches decide, the summary and its counts cover only that client, and it says so, because their own screens can show more.
+  - Figures come from the service behind the person's own screen: `computeMyMonth` (User), `computeManagerOverview` (Manager, Admin), `computeConsole` (Superadmin). Nothing is calculated for the assistant, and it can't do sums of its own (A1), so it gives a due date, not "8 days left".
+  - Same sites as those screens, narrowed to the person's client. Raw entry rows never reach it: they carry factors and methods Users can't see.
+  - A how-to question sends no data (`wantsWorkload`). `assistant_call.work_used` records when a summary went out, never the summary. Replies carry `used_work`, and the answer says it came from their data.
 
 ## AS-1 as built
 **Backend (ESG-lite)** `src/assistant/`:
@@ -49,7 +53,7 @@ The assistant never approves, rejects, edits, deletes or saves anything. A perso
 2. The model and its cost: DeepSeek V4.1 Flash for now (about 0.1 US cents a question), chosen for speed, price and reading files faithfully; another model can be set with `ASSISTANT_AI_MODEL`.
 3. Keep the questions people ask (text) to improve the articles? Today only ids and counts are kept (A4).
 4. The articles: someone who knows each screen should read them once before clients see them.
-5. Go-ahead for AS-2 (client data to an outside AI service; clients should be told). OpenRouter's `data_collection: deny` picks hosts that say they don't keep or train on it; that is their stated policy, not something ESGLite can check.
+5. Which clients get the work summary (AS-2): the boss has approved building it, and each client should be told before their switch goes on. OpenRouter's `data_collection: deny` picks hosts that say they don't keep or train on it; that is their stated policy, not something ESGLite can check.
 
 ## Adding or changing an article
 1. Add `src/assistant/kb/<id>.md` with the front matter above. Users' articles must not mention factors, methods, FERA, WTT or data quality.
