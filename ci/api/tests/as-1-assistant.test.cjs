@@ -92,8 +92,9 @@ const logRows = () => q(`SELECT company_id, user_id, role, page_path, article_id
 test("migrate:as-1-assistant made the switch (off everywhere) and the call log (ran twice in before)", async () => {
   const col = (await q(`SELECT is_nullable, column_default FROM information_schema.columns WHERE table_name = 'company' AND column_name = 'assistant_enabled'`))[0];
   assert.deepEqual(col, { is_nullable: "NO", column_default: "false" });
-  const cols = (await q(`SELECT column_name FROM information_schema.columns WHERE table_name = 'assistant_call' ORDER BY ordinal_position`)).map((r) => r.column_name);
-  assert.deepEqual(cols, ["id", "company_id", "user_id", "role", "page_path", "article_ids", "sources", "answered", "model", "tokens_in", "tokens_out", "cost_usd", "ok", "error_code", "prompt_version", "created_at", "file_type", "helpful", "purpose", "work_used"]);
+  // The order depends on whether the schema came from the entities or the script.
+  const cols = (await q(`SELECT column_name FROM information_schema.columns WHERE table_name = 'assistant_call'`)).map((r) => r.column_name).sort();
+  assert.deepEqual(cols, ["id", "company_id", "user_id", "role", "page_path", "article_ids", "sources", "answered", "model", "tokens_in", "tokens_out", "cost_usd", "ok", "error_code", "prompt_version", "created_at", "file_type", "helpful", "purpose", "work_used"].sort());
   const id = (await q(`SELECT data_type FROM information_schema.columns WHERE table_name = 'assistant_call' AND column_name = 'id'`))[0];
   assert.equal(id.data_type, "bigint");
 });
