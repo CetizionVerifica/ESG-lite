@@ -1,8 +1,8 @@
 /**
- * AS-1 · the help assistant's model call: one completion through
+ * AS-1 Â· the help assistant's model call: one completion through
  * src/lib/openrouter.ts in JSON mode, as the studio's client.ts does.
  *
- *   complete({system, user, maxTokens})  → {text, model, tokensIn, tokensOut, costUsd}
+ *   complete({system, user, maxTokens})  â†’ {text, model, tokensIn, tokensOut, costUsd}
  *                                          throws AsError AS_AI_UNAVAILABLE {reason}
  *
  * Model ASSISTANT_AI_MODEL (default ASSISTANT_DEFAULT_MODEL). Key
@@ -15,8 +15,8 @@ import { openRouterChat, openRouterKey } from "../lib/openrouter";
 import { costUsd } from "../studio/ai/prices";
 import { AsError } from "./http";
 
-/** Light and fast for how-to answers; an exact release, so answers don't change without us. */
-export const ASSISTANT_DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash-1017";
+/** Light and fast for how-to answers. Check any change of model against real answers first. */
+export const ASSISTANT_DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash";
 
 export const assistantModel = (): string => process.env.ASSISTANT_AI_MODEL || ASSISTANT_DEFAULT_MODEL;
 export const assistantKey = (): string | undefined => process.env.ASSISTANT_AI_API_KEY || process.env.STUDIO_AI_API_KEY || openRouterKey();
@@ -48,7 +48,7 @@ export async function complete(input: { system: string; user: string; maxTokens:
     {
       model,
       max_tokens: input.maxTokens,
-      temperature: 0.2,
+      temperature: 0,
       messages: [
         { role: "system", content: input.system },
         { role: "user", content: input.user },
