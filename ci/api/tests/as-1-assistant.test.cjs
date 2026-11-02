@@ -174,7 +174,7 @@ test("a User's question: only User articles offered, the question fenced, the Us
   assert.equal(rows.length, 1);
   assert.deepEqual(
     { ...rows[0], article_ids: rows[0].article_ids.split(",") },
-    { company_id: 1, user_id: 1, role: "User", page_path: "/data/new", article_ids: ids, sources: ids[0], answered: true, model: body.model, tokens_in: 1200, tokens_out: 120, cost: rows[0].cost, ok: true, error_code: null, prompt_version: 3 },
+    { company_id: 1, user_id: 1, role: "User", page_path: "/data/new", article_ids: ids, sources: ids[0], answered: true, model: body.model, tokens_in: 1200, tokens_out: 120, cost: rows[0].cost, ok: true, error_code: null, prompt_version: 4 },
   );
   assert.ok(rows[0].cost > 0);
   await setAssistant(1, false);
@@ -324,7 +324,7 @@ test("a file's text is fenced, its articles are offered, and the log keeps its k
   await setAssistant(1, false);
 });
 
-test("a figure that isn't in the file is never shown: retried once, then refused", async () => {
+test("a figure that isn't in the file is never shown: retried once, then a plain reply", async () => {
   await setAssistant(1, true);
   await setFiles(1, true);
   const made = (figure) => ({ answer: `The bill shows ${figure} kWh.`, answered: true, sources: [] });
@@ -340,8 +340,9 @@ test("a figure that isn't in the file is never shown: retried once, then refused
   stub.requests.length = 0;
   stub.queue.push(made("99,999"), made("88,888"));
   const refused = await ask("user", "What does this say?", { attachment: bill });
-  assert.equal(refused.status, 503);
-  assert.deepEqual(refused.json.details, { reason: "unknown_figures" });
+  assert.equal(refused.status, 200, JSON.stringify(refused.json));
+  assert.equal(refused.json.answered, false);
+  assert.match(refused.json.reply, /I can't work that out from the file/);
   assert.doesNotMatch(JSON.stringify(refused.json), /99,999|88,888/);
   await setFiles(1, false);
   await setAssistant(1, false);
@@ -431,7 +432,10 @@ test("a User's summary says what My month says, for their own sites, with no fac
   assert.equal(r.json.used_work, true);
   const facts = workBlock(stub.requests[0]);
   const screen = (await call("GET", "/user/my-month", "user")).json;
-  assert.ok(facts.includes(`Month to report: ${screen.month}. Due ${screen.due_date}.`), facts);
+  const label = new Date(`${screen.due_date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const reportLabel = new Date(`${screen.month}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const [dueYear, , dueDay] = screen.due_date.split("-");
+  assert.ok(facts.includes(`Month to report: ${reportLabel} ${screen.month.slice(0, 4)}. Due ${Number(dueDay)} ${label} ${dueYear}.`), facts);
   assert.ok(facts.includes(`Categories: ${screen.summary.total} in all. To do ${screen.summary.due},`), facts);
   assert.match(facts, /CI Plant A/);
   assert.doesNotMatch(facts, /CI Plant B|CI Other Plant|factor|method|snapshot|FERA/i);

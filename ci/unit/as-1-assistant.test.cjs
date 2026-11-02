@@ -11,7 +11,7 @@ const kbMod = require(path.resolve("dist/assistant/kb.js"));
 const { buildKb, parseArticle, parseFrontMatter, searchKb, words, loadKb, kbDir } = kbMod;
 const { buildPrompt, parseReply, parseTranslation, cleanAnswer, fence, systemPrompt, unknownFigures } = require(path.resolve("dist/assistant/prompt.js"));
 const { budgetVerdict, USER_DAY_CALLS, COMPANY_MONTH_USD } = require(path.resolve("dist/assistant/budget.js"));
-const { ChatRequestSchema, searchText } = require(path.resolve("dist/assistant/chat.js"));
+const { ChatRequestSchema, searchText, workText } = require(path.resolve("dist/assistant/chat.js"));
 const { wantsWorkload, userFacts, managerFacts, superadminFacts } = require(path.resolve("dist/assistant/workload.js"));
 const { ASSISTANT_DEFAULT_MODEL, assistantConfigured, complete } = require(path.resolve("dist/assistant/client.js"));
 
@@ -173,6 +173,31 @@ test("only a question about the person's own work asks for it", () => {
   assert.equal(wantsWorkload("How do I add data?\nwhat's left?"), true, "the earlier question counts for a follow-up");
 });
 
+test("the question after a work question sends nothing unless it follows on", () => {
+  const after = (next) => wantsWorkload(workText([{ role: "user", content: "What's waiting for me?" }, { role: "assistant", content: "Six entries." }, { role: "user", content: next }]));
+  for (const q of ["What's the weather in Delhi today?", "How do I add a user?", "Write me a poem", "Tell me about Scope 3"]) assert.equal(after(q), false, q);
+  for (const q of ["And the due date?", "what about last month?", "which ones?", "How many are left?"]) assert.equal(after(q), true, q);
+  assert.equal(after(`and ${"also tell me something else entirely ".repeat(4)}`), false, "too long to be a follow-up");
+});
+
+test("an unread file says why, a cut-down picture says so, and an off feature is named", () => {
+  const ask = (attachment, features) => buildPrompt({ role: "User", articles: [], history: [], question: "What does this say?", attachment, features });
+  assert.match(ask({ name: "a.pdf", type: "pdf", unread: "password" }).user, /only the name reached you\. It has a password/);
+  assert.match(ask({ name: "a.txt", type: "text", unread: "empty" }).user, /The file is empty/);
+  assert.match(ask({ name: "a.zip", type: "other", unread: "type" }).user, /can't read inside this kind of file/);
+  assert.match(ask({ name: "a.pdf", type: "pdf", unread: "too_big" }).user, /over 25 MB/);
+  assert.match(ask({ name: "a.pdf", type: "pdf", unread: "damaged" }).user, /save a fresh copy/);
+  assert.equal(ChatRequestSchema.safeParse({ messages: [{ role: "user", content: "x" }], attachment: { name: "a", type: "pdf", unread: "nonsense" } }).success, false);
+  const big = ask({ name: "a.jpg", type: "image", images: ["data:image/jpeg;base64,AA"], shrunk: true });
+  assert.match(big.user, /shrunk to fit, so it can't be read reliably\. Quote no figure/);
+  assert.match(big.system, /Never guess or fill in a word, name, date or number/);
+  assert.match(big.system, /Never tell them to attach the same file again/);
+  const on = ask(null, "Design Studio: off");
+  assert.match(on.user, /<client-features>\nDesign Studio: off/);
+  assert.match(on.system, /isn't turned on for their company and suggest asking their Manager or Admin/);
+  assert.doesNotMatch(ask(null, null).system, /client-features/);
+});
+
 test("the role decides the focus and how much is explained", () => {
   const user = systemPrompt("User");
   const manager = systemPrompt("Manager");
@@ -220,7 +245,7 @@ const myMonth = (over = {}) => ({
 
 test("a User's facts read like My month, and an empty account says so", () => {
   const facts = userFacts(myMonth());
-  assert.match(facts, /Month to report: 2026-10\. Due 2026-11-10\./);
+  assert.match(facts, /Month to report: Oct 2026\. Due 10 Nov 2026\./);
   assert.match(facts, /Diesel: To do/);
   assert.match(facts, /Power: Approved, 12\.500 tCO2e/);
   assert.match(facts, /Sent back by Asha: Wrong unit/);
@@ -240,7 +265,7 @@ test("a Manager's facts name who's missing, up to a limit", () => {
   assert.doesNotMatch(facts, /P16/);
   assert.match(facts, /net 5\.000 tCO2e/);
   const none = managerFacts("2026-10", { kpis: { ...kpis, approved_count: 0, net: 0 }, submission: { month: "2026-10", submitted: 1, missing: 0, users: [] } }, { kpis });
-  assert.match(none, /Nothing is approved for 2026-10 yet/);
+  assert.match(none, /Nothing is approved for Oct 2026 yet/);
   assert.doesNotMatch(none, /0\.000/);
 });
 
@@ -259,6 +284,7 @@ test("a Superadmin's facts leave out the clients who haven't allowed it", () => 
   };
   const facts = superadminFacts(c, new Map([[1, "Acme"]]));
   assert.match(facts, /All clients: 2 clients/);
+  assert.match(superadminFacts({ ...c, totals: { ...c.totals, pending_entries: 263432 } }, new Map()), /Entries entered in Nov 2026: 5\. Pending across all clients: 263,432\./);
   assert.match(facts, /Acme: 2 entered/);
   assert.match(facts, /factor upload for Acme, 1 row/);
   assert.doesNotMatch(facts, /bulk upload/);

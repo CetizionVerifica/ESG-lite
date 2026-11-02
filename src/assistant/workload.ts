@@ -40,7 +40,18 @@ export function wantsWorkload(text: string): boolean {
 }
 
 const tonnes = (n: number): string => `${Number(n).toFixed(3)} tCO2e`;
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+/** Written as the screens write it, so the answer reads the same: 263,432, 10 Nov 2026, Oct 2026. */
+const count = (n: number): string => Number(n).toLocaleString("en");
+const plural = (n: number, one: string, many = `${one}s`): string => `${count(n)} ${n === 1 ? one : many}`;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const monthLabel = (iso: string): string => {
+  const [year, month] = iso.split("-");
+  return MONTHS[Number(month) - 1] ? `${MONTHS[Number(month) - 1]} ${year}` : iso;
+};
+const dayLabel = (iso: string): string => {
+  const day = Number(iso.slice(8, 10));
+  return day ? `${day} ${monthLabel(iso)}` : iso;
+};
 
 const STATUS_WORDS: Record<string, string> = {
   todo: "To do",
@@ -56,7 +67,7 @@ const STATUS_WORDS: Record<string, string> = {
 export function userFacts(m: MyMonth): string {
   const s = m.summary;
   const lines = [
-    `Month to report: ${m.month}. Due ${m.due_date}.`,
+    `Month to report: ${monthLabel(m.month)}. Due ${dayLabel(m.due_date)}.`,
     `Categories: ${s.total} in all. To do ${s.due}, Pending ${s.pending}, Rejected ${s.rejected}, Done ${s.done}${s.draft !== undefined ? `, Draft ${s.draft}` : ""}.`,
   ];
   if (!m.sites.length) lines.push("They have no sites assigned.");
@@ -77,7 +88,8 @@ export function userFacts(m: MyMonth): string {
 type Overview = Awaited<ReturnType<typeof computeManagerOverview>>;
 
 /** A Manager's or Admin's queue and month, as Overview shows them. */
-export function managerFacts(month: string, monthly: Overview, allTime: Overview): string {
+export function managerFacts(reportMonth: string, monthly: Overview, allTime: Overview): string {
+  const month = monthLabel(reportMonth);
   const k = monthly.kpis;
   const sub = monthly.submission;
   const missing = sub.users.filter((u) => u.status === "missing");
@@ -85,10 +97,10 @@ export function managerFacts(month: string, monthly: Overview, allTime: Overview
   const lines = [
     `Waiting for approval, all periods: ${plural(allTime.kpis.pending_review_count, "entry", "entries")}.`,
     `Month to report: ${month}.`,
-    `People for ${sub.month}: ${sub.submitted} submitted, ${sub.missing} missing.`,
+    `People for ${monthLabel(sub.month)}: ${count(sub.submitted)} submitted, ${count(sub.missing)} missing.`,
   ];
   if (names.length) lines.push(`Missing: ${names.join(", ")}${missing.length > names.length ? `, and ${missing.length - names.length} more` : ""}.`);
-  lines.push(`Entries for ${month}: ${k.approved_count} approved, ${k.pending_count} pending, ${k.rejected_count} rejected.`);
+  lines.push(`Entries for ${month}: ${count(k.approved_count)} approved, ${count(k.pending_count)} pending, ${count(k.rejected_count)} rejected.`);
   lines.push(
     k.approved_count
       ? `Approved figures for ${month} (approved entries only): net ${tonnes(k.net)}, gross ${tonnes(k.gross)}, saved ${tonnes(k.saved)}; Scope 1 ${tonnes(k.scope_1)}, Scope 2 ${tonnes(k.scope_2)}, Scope 3 ${tonnes(k.scope_3)}.`
@@ -102,15 +114,16 @@ type ClientRow = { company_id: number; entries_this_month: number; pending: numb
 /** Every client's totals, and the rows of only the clients who allow it (A10). */
 export function superadminFacts(c: ConsoleSummary, allowed: Map<number, string>): string {
   const t = c.totals;
+  const month = monthLabel(c.month);
   const rows = (c.clients as ClientRow[]).filter((r) => allowed.has(r.company_id));
-  const shown = rows.slice(0, MAX_CLIENTS).map((r) => `- ${allowed.get(r.company_id)}: ${r.entries_this_month} entered in ${c.month}, ${r.pending} pending`);
+  const shown = rows.slice(0, MAX_CLIENTS).map((r) => `- ${allowed.get(r.company_id)}: ${count(r.entries_this_month)} entered in ${month}, ${count(r.pending)} pending`);
   const recent = c.activity
     .filter((a) => a.company_id !== null && allowed.has(a.company_id))
     .slice(0, 5)
-    .map((a) => `- ${a.at.slice(0, 10)}: ${a.kind.replace("_", " ")} for ${allowed.get(a.company_id as number)}${a.rows ? `, ${plural(a.rows, "row")}` : ""}`);
+    .map((a) => `- ${dayLabel(a.at)}: ${a.kind.replace("_", " ")} for ${allowed.get(a.company_id as number)}${a.rows ? `, ${plural(a.rows, "row")}` : ""}`);
   return [
-    `All clients: ${t.clients} clients (${t.active_clients} active), ${t.sites} sites, ${t.users} users.`,
-    `Entries entered in ${c.month}: ${t.entries_this_month}. Pending across all clients: ${t.pending_entries}.`,
+    `All clients: ${count(t.clients)} clients (${count(t.active_clients)} active), ${count(t.sites)} sites, ${count(t.users)} users.`,
+    `Entries entered in ${month}: ${count(t.entries_this_month)}. Pending across all clients: ${count(t.pending_entries)}.`,
     ...(shown.length ? ["Clients who allow this summary:", ...shown] : ["No client allows a per-client summary yet."]),
     ...(rows.length > shown.length ? [`(${rows.length - shown.length} more on the Console.)`] : []),
     ...(recent.length ? ["Recent activity:", ...recent] : []),
