@@ -1,0 +1,199 @@
+/**
+ * The GET /user/my-month computation (AS-2 extraction, refactor only): moved
+ * here from controllers/myMonth.controller.ts unchanged, so the help assistant
+ * can read the same figures. The controller validates the request and calls
+ * computeMyMonth; behaviour and tests are unchanged.
+ */
+import { AppDataSource } from "../config/data-source";
+import { User } from "../entities/User";
+import { Emission } from "../entities/Emission";
+import { periodWindow, yearlyCoversDateSql, YearType } from "./reportingPeriod";
+import { contributorSiteCategories, monthBounds } from "./contributorObligations";
+import { lockedSiteMonths } from "../scope3/review/periodLock";
+import { kgToTonnes, rowKg, sumKg } from "../reporting/kgTotals"; // D14
+
+// S3-15 part 2 adds "draft" (saved, not submitted) and "nothing" ("Nothing
+// this month") for clients with the review workflow v2 switch on.
+type CategoryStatus = "todo" | "draft" | "pending" | "approved" | "rejected" | "covered" | "nothing";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// Data for month M is due on the 10th of M+1 and escalated on the 15th
+// (workers/deadlineScheduler.ts).
+export const deadlines = (year: number, month: number) => {
+  const next = new Date(Date.UTC(year, month, 1));
+  const ym = `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}`;
+  return { due_date: `${ym}-10`, escalation_date: `${ym}-15` };
+};
+
+// The month before "now" in the user's IANA timezone (UTC when unset or
+// unknown), so a user in Asia/Dubai sees the new month at their midnight.
+export const previousMonth = (timeZone?: string | null, now: Date = new Date()): string => {
+  let y = now.getUTCFullYear();
+  let m = now.getUTCMonth() + 1;
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(now);
+      y = Number(parts.find((p) => p.type === "year")?.value);
+      m = Number(parts.find((p) => p.type === "month")?.value);
+    } catch {
+      // invalid timezone: keep UTC
+    }
+  }
+  const prev = new Date(Date.UTC(y, m - 2, 1));
+  return `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}`;
+};
+
+/** The checklist for one month ("YYYY-MM"); the caller has checked the month. */
+export async function computeMyMonth(user: User, monthParam: string) {
+  const year = parseInt(monthParam.slice(0, 4), 10);
+  const monthNum = parseInt(monthParam.slice(5, 7), 10);
+  const { monthStart, monthEnd } = monthBounds(year, monthNum);
+
+  const siteCategories = contributorSiteCategories(user);
+
+  const siteIds = siteCategories.map((s) => s.site.site_id);
+  const categoryIds = [...new Set(siteCategories.flatMap((s) => s.categories.map((c) => c.category_id)))];
+
+  const rows =
+    siteIds.length && categoryIds.length
+      ? await AppDataSource.getRepository(Emission)
+          .createQueryBuilder("e")
+          .leftJoin("e.reviewed_by", "rb")
+          .select([
+            "e.pk_id AS pk_id",
+            "e.site_id AS site_id",
+            "e.category_id AS category_id",
+            "e.status AS status",
+            "e.total_emission AS total_emission",
+            "e.total_kgco2e AS total_kgco2e",
+            "e.reporting_period AS reporting_period",
+            "e.year_type AS year_type",
+            "to_char(e.date_of_reporting, 'YYYY-MM-DD') AS date_of_reporting",
+            "e.created_at AS created_at",
+            "e.review_comment AS review_comment",
+            "e.reviewed_at AS reviewed_at",
+            "rb.name AS reviewed_by_name",
+          ])
+          .where("e.site_id IN (:...siteIds)", { siteIds })
+          .andWhere("e.category_id IN (:...categoryIds)", { categoryIds })
+          .andWhere(
+            `((e.reporting_period <> 'yearly' AND e.date_of_reporting BETWEEN :monthStart AND :monthEnd)
+              OR ${yearlyCoversDateSql("e")})`,
+            { monthStart, monthEnd, coveredDate: monthStart },
+          )
+          .orderBy("e.pk_id", "ASC")
+          .getRawMany()
+      : [];
+
+  const summary: Record<string, number> = { total: 0, due: 0, done: 0, pending: 0, rejected: 0 };
+
+  // S3-15 part 2: the switch, "Nothing this month" markers and closed months, for the sites of
+  // companies with review workflow v2 on (none of it shows otherwise).
+  const v2Sites = new Set<number>(
+    siteIds.length
+      ? (
+          (await AppDataSource.query(
+            `SELECT s.site_id FROM site s JOIN company c ON c.company_id = s.company_id WHERE s.site_id = ANY($1::int[]) AND c.review_workflow_v2 = true`,
+            [siteIds],
+          )) as Array<{ site_id: number }>
+        ).map((r) => Number(r.site_id))
+      : [],
+  );
+  const v2 = v2Sites.size > 0;
+  const nothingMarks = new Set<string>(
+    v2
+      ? (
+          (await AppDataSource.query(`SELECT site_id, category_id FROM nothing_this_month WHERE site_id = ANY($1::int[]) AND period = $2::date`, [
+            [...v2Sites],
+            monthStart,
+          ])) as Array<{ site_id: number; category_id: number }>
+        ).map((r) => `${r.site_id}:${r.category_id}`)
+      : [],
+  );
+  const lockedSites = new Set<number>(
+    v2 ? (await lockedSiteMonths(AppDataSource.manager, [...v2Sites].map((site_id) => ({ site_id, year, month: monthNum })))).map((l) => l.site_id) : [],
+  );
+  if (v2) summary.draft = 0;
+
+  const result = siteCategories.map(({ site, categories }) => ({
+    site_id: site.site_id,
+    name: site.name,
+    ...(v2Sites.has(site.site_id) ? { locked: lockedSites.has(site.site_id) } : {}),
+    categories: categories.map((category) => {
+      const on = v2Sites.has(site.site_id);
+      const nothing = on && nothingMarks.has(`${site.site_id}:${category.category_id}`);
+      const mine = rows.filter((r) => r.site_id === site.site_id && r.category_id === category.category_id);
+      const monthly = mine.filter((r) => r.reporting_period !== "yearly");
+      const yearly = mine.filter((r) => r.reporting_period === "yearly");
+      // A yearly batch is "this month's" data in its period-end month. In
+      // the other months it covers, only a fully approved batch means
+      // "covered"; a pending or rejected one shows its real status.
+      const yearlyDueNow = yearly.filter((r) => r.date_of_reporting >= monthStart && r.date_of_reporting <= monthEnd);
+      const yearlyOpen = yearly.some((r) => r.status !== "approved");
+      const entries = monthly.length ? monthly : yearlyDueNow.length ? yearlyDueNow : yearlyOpen ? yearly : [];
+      // tCO2e of a yearly batch belongs to its period-end month only.
+      const counted = monthly.length ? monthly : yearlyDueNow;
+
+      const counts: Record<string, number> = {
+        total: entries.length,
+        pending: entries.filter((r) => r.status === "pending").length,
+        approved: entries.filter((r) => r.status === "approved").length,
+        rejected: entries.filter((r) => r.status === "rejected").length,
+      };
+      const drafts = entries.filter((r) => r.status === "draft").length;
+      if (on) counts.draft = drafts;
+
+      let status: CategoryStatus;
+      if (counts.rejected) status = "rejected";
+      else if (on && drafts) status = "draft";
+      else if (counts.pending) status = "pending";
+      else if (counts.approved) status = "approved";
+      else if (!monthly.length && yearly.length) status = "covered";
+      else if (nothing) status = "nothing";
+      else status = "todo";
+
+      const yearlyRow = !monthly.length ? yearly[0] : undefined;
+      const filing = monthly.length ? "monthly" : yearly.length ? "yearly" : null;
+
+      summary.total++;
+      if (status === "todo") summary.due++;
+      else if (status === "approved" || status === "covered" || status === "nothing") summary.done++;
+      else if (status === "pending") summary.pending++;
+      else if (status === "draft") summary.draft++;
+      else summary.rejected++;
+
+      return {
+        category_id: category.category_id,
+        category_name: category.category_name,
+        scope: category.scope,
+        status,
+        filing,
+        year_type: yearlyRow ? (yearlyRow.year_type as YearType) : null,
+        period: yearlyRow
+          ? periodWindow(yearlyRow.year_type as YearType, new Date(`${yearlyRow.date_of_reporting}T00:00:00Z`))
+          : null,
+        entries: counts,
+        ...(on ? { nothing } : {}),
+        // tCO2e of entries that still count (pending + approved; never a Draft)
+        // D14: the rows' kgCO₂e summed, rounded once, as reports do.
+        total_emission: kgToTonnes(sumKg(counted.filter((r) => r.status !== "rejected" && r.status !== "draft").map((r) => rowKg(r)))),
+        last_entry_at: entries.length
+          ? entries.map((r) => new Date(r.created_at).toISOString()).sort().pop()
+          : null,
+        rejections: entries
+          .filter((r) => r.status === "rejected")
+          .map((r) => ({
+            pk_id: r.pk_id,
+            review_comment: r.review_comment,
+            reviewed_by: r.reviewed_by_name,
+            reviewed_at: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : null,
+          })),
+      };
+    }),
+  }));
+
+  return { month: monthParam, ...deadlines(year, monthNum), ...(v2 ? { review_workflow_v2: true } : {}), summary, sites: result };
+}
+
+export type MyMonth = Awaited<ReturnType<typeof computeMyMonth>>;
