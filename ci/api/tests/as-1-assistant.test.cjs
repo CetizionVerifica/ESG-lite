@@ -174,7 +174,7 @@ test("a User's question: only User articles offered, the question fenced, the Us
   assert.equal(rows.length, 1);
   assert.deepEqual(
     { ...rows[0], article_ids: rows[0].article_ids.split(",") },
-    { company_id: 1, user_id: 1, role: "User", page_path: "/data/new", article_ids: ids, sources: ids[0], answered: true, model: body.model, tokens_in: 1200, tokens_out: 120, cost: rows[0].cost, ok: true, error_code: null, prompt_version: 4 },
+    { company_id: 1, user_id: 1, role: "User", page_path: "/data/new", article_ids: ids, sources: ids[0], answered: true, model: body.model, tokens_in: 1200, tokens_out: 120, cost: rows[0].cost, ok: true, error_code: null, prompt_version: 5 },
   );
   assert.ok(rows[0].cost > 0);
   await setAssistant(1, false);

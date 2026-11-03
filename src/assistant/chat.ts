@@ -25,7 +25,7 @@ import { budgetVerdict, logCall, saveFeedback, usageFor, type CallRow } from "./
 import { assistantConfigured, AssistantCallError, complete } from "./client";
 import { AsError, parse } from "./http";
 import { AppDataSource } from "../config/data-source";
-import { ASSISTANT_ROLES, loadKb, searchKb, type Article, type AssistantRole, type Kb } from "./kb";
+import { ASSISTANT_ROLES, canRead, loadKb, searchKb, type Article, type AssistantRole, type Kb } from "./kb";
 import { buildPrompt, fence, parseReply, parseTranslation, PROMPT_VERSION, TRANSLATE_SYSTEM, UNREAD_REASONS, unknownFigures, type Translation, type Turn } from "./prompt";
 import { currentAssistantDataSwitch, currentAssistantFilesSwitch, currentAssistantSwitch } from "./switch";
 import { wantsWorkload, workloadFacts } from "./workload";
@@ -182,7 +182,7 @@ const FILE_ARTICLES = ["add-data-from-bill", "bulk-upload", "smart-excel-import"
 const fileArticles = (kb: Kb, role: AssistantRole, found: Article[]): Article[] =>
   FILE_ARTICLES.flatMap((id) => {
     const a = kb.byId.get(id);
-    return a && a.roles.includes(role) && !found.includes(a) ? [a] : [];
+    return a && canRead(a, role) && !found.includes(a) ? [a] : [];
   });
 
 export async function rememberFeedback(req: AuthRequest): Promise<{ ok: true }> {
@@ -269,6 +269,7 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
     form: body.form ?? null,
     attachment,
     work,
+    workOn: workAllowed,
     features: await clientFeatures(caller.companyId),
   });
 
