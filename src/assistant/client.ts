@@ -6,13 +6,16 @@
  *                     → {text, model, tokensIn, tokensOut, costUsd}
  *                       throws AsError AS_AI_UNAVAILABLE {reason}
  *
- * Model ASSISTANT_AI_MODEL (default ASSISTANT_DEFAULT_MODEL). Key
- * ASSISTANT_AI_API_KEY, else STUDIO_AI_API_KEY, else OPENROUTER_API_KEY. Endpoint
- * ASSISTANT_AI_BASE_URL, else STUDIO_AI_BASE_URL (tests point it at a recorded
- * stub; never a real model in CI). Cost: OpenRouter's usage.cost, else the
- * studio price table (src/studio/ai/prices.ts, read only, as Insights does).
+ * Model ASSISTANT_AI_MODEL (default ASSISTANT_DEFAULT_MODEL), key
+ * ASSISTANT_AI_API_KEY, endpoint ASSISTANT_AI_BASE_URL (tests point it at a
+ * recorded stub; never a real model in CI), time limit ASSISTANT_AI_TIMEOUT_MS.
+ * These are the assistant's own: it never borrows OPENROUTER_* or STUDIO_AI_*,
+ * which carry the reports' and the studio's key and Gemini models, so a change or
+ * a bill on one never touches the other. Without its key it stays hidden.
+ * Cost: OpenRouter's usage.cost, else the studio price table
+ * (src/studio/ai/prices.ts, read only, as Insights does).
  */
-import { openRouterChat, openRouterKey } from "../lib/openrouter";
+import { openRouterChat } from "../lib/openrouter";
 import { costUsd } from "../studio/ai/prices";
 import { AsError } from "./http";
 
@@ -24,7 +27,7 @@ import { AsError } from "./http";
 export const ASSISTANT_DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash";
 
 export const assistantModel = (): string => process.env.ASSISTANT_AI_MODEL || ASSISTANT_DEFAULT_MODEL;
-export const assistantKey = (): string | undefined => process.env.ASSISTANT_AI_API_KEY || process.env.STUDIO_AI_API_KEY || openRouterKey();
+export const assistantKey = (): string | undefined => process.env.ASSISTANT_AI_API_KEY || undefined;
 export const assistantConfigured = (): boolean => !!assistantKey();
 
 export interface Completion {
@@ -72,8 +75,8 @@ export async function complete(input: { system: string; user: string; images?: s
     {
       apiKey,
       title: "ESGLite Help Assistant",
-      baseUrl: process.env.ASSISTANT_AI_BASE_URL || process.env.STUDIO_AI_BASE_URL || undefined,
-      timeoutMs: Number(process.env.ASSISTANT_AI_TIMEOUT_MS || process.env.STUDIO_AI_TIMEOUT_MS) || (pictures.length ? FILE_TIMEOUT_MS : 30_000),
+      baseUrl: process.env.ASSISTANT_AI_BASE_URL || undefined,
+      timeoutMs: Number(process.env.ASSISTANT_AI_TIMEOUT_MS) || (pictures.length ? FILE_TIMEOUT_MS : 30_000),
     },
   );
   if (!r.ok) throw new AssistantCallError(model, r.reason);

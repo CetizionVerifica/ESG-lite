@@ -148,13 +148,16 @@ export interface Hit {
   score: number;
 }
 
+/** A Superadmin supports every role, so they can read every article ("what is a period lock?" is a Manager's). */
+export const canRead = (article: Article, role: AssistantRole): boolean => role === "Superadmin" || article.roles.includes(role);
+
 export function searchKb(kb: Kb, text: string, ctx: { role: AssistantRole; path?: string | null }, limit = 4): Hit[] {
   const q = new Set(words(text));
   const phraseText = ` ${normalise(text)} `;
   const pagePath = ctx.path ? ctx.path.split(/[?#]/)[0] : null;
   const hits: Hit[] = [];
   for (const ix of kb.index) {
-    if (!ix.article.roles.includes(ctx.role)) continue;
+    if (!canRead(ix.article, ctx.role)) continue;
     let score = 0;
     for (const w of q) {
       if (ix.title.has(w)) score += 3;
@@ -164,7 +167,8 @@ export function searchKb(kb: Kb, text: string, ctx: { role: AssistantRole; path?
     for (const p of ix.phrases) if (phraseText.includes(` ${p} `)) score += 3;
     const here = !!pagePath && ix.article.paths.some((p) => onPath(pagePath, p));
     if (here) score += 2;
-    if (score >= MIN_SCORE) hits.push({ article: ix.article, score });
+    // Their own articles win a close call, without lifting one over the bar.
+    if (score >= MIN_SCORE) hits.push({ article: ix.article, score: score + (ix.article.roles.includes(ctx.role) ? 1 : 0) });
   }
   return hits.sort((a, b) => b.score - a.score || a.article.id.localeCompare(b.article.id)).slice(0, limit);
 }

@@ -63,5 +63,11 @@
   { "q": "what can a company admin do", "role": "User", "path": null, "expect": [] },
   { "q": "choose which frameworks and KPIs we report", "role": "Admin", "path": "/kpi/setup", "expect": ["kpi-setup"] },
   { "q": "who enters each KPI topic at each site", "role": "Superadmin", "path": null, "expect": ["kpi-setup"] },
-  { "q": "set up KPI frameworks for the company", "role": "User", "path": null, "expect": [] }
+  { "q": "set up KPI frameworks for the company", "role": "User", "path": null, "expect": [] },
+  { "q": "how do I start a carbon footprint for a product", "role": "Manager", "path": "/products", "expect": ["products-pcf"] },
+  { "q": "set the declared unit on a product", "role": "Superadmin", "path": null, "expect": ["products-pcf"] },
+  { "q": "set a science based target", "role": "Manager", "path": "/targets", "expect": ["targets-sbti"] },
+  { "q": "are we on track for our net zero pathway", "role": "Manager", "path": null, "expect": ["targets-sbti"] },
+  { "q": "add a new country", "role": "Superadmin", "path": "/setup/reference", "expect": ["reference-data"] },
+  { "q": "add a unit for a site and category", "role": "Superadmin", "path": null, "expect": ["reference-data"] }
 ]

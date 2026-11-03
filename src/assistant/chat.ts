@@ -24,8 +24,9 @@ import { resolveUserCompanyId } from "../utils/companyScope";
 import { budgetVerdict, logCall, saveFeedback, usageFor, type CallRow } from "./budget";
 import { assistantConfigured, AssistantCallError, complete } from "./client";
 import { AsError, parse } from "./http";
-import { ASSISTANT_ROLES, loadKb, searchKb, type Article, type AssistantRole, type Kb } from "./kb";
-import { buildPrompt, fence, parseReply, parseTranslation, PROMPT_VERSION, TRANSLATE_SYSTEM, unknownFigures, type Translation, type Turn } from "./prompt";
+import { AppDataSource } from "../config/data-source";
+import { ASSISTANT_ROLES, canRead, loadKb, searchKb, type Article, type AssistantRole, type Kb } from "./kb";
+import { buildPrompt, fence, parseReply, parseTranslation, PROMPT_VERSION, TRANSLATE_SYSTEM, UNREAD_REASONS, unknownFigures, type Translation, type Turn } from "./prompt";
 import { currentAssistantDataSwitch, currentAssistantFilesSwitch, currentAssistantSwitch } from "./switch";
 import { wantsWorkload, workloadFacts } from "./workload";
 
@@ -63,6 +64,8 @@ const AttachmentSchema = z.object({
     .max(MAX_FILE_IMAGES)
     .optional(),
   truncated: z.boolean().optional(),
+  shrunk: z.boolean().optional(),
+  unread: z.enum(UNREAD_REASONS).optional(),
 });
 
 const TurnSchema = z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(4000) });
@@ -140,6 +143,36 @@ export const searchText = (messages: Turn[]): string =>
     .map((m) => m.content)
     .join("\n");
 
+/** Said instead of an answer whose figures can't be trusted: a file's question still gets a reply. */
+const PICTURE_TOO_BIG = "That picture is very large, so its small print comes out too blurred for me to read reliably, and I won't guess at it. Please crop it to the part you need, or send a PDF.";
+const NO_SUMS_FROM_FILES = "I can't work that out from the file: I only read what it says, and I don't count or calculate. Open the file to check that figure yourself.";
+
+const OWN_WORDS = /\b(my|our|me|us|i|we)\b/i;
+
+/** "And the due date?" leans on the question before it. */
+const FOLLOW_UP = /^\s*(and|also|what about|how about|same for|which (one|ones)|why|when|those|these|that|them)\b/i;
+
+/** What decides whether the work summary goes out: this question, and the one before only for a follow-up, so nothing goes with an unrelated question. */
+export const workText = (messages: Turn[]): string => {
+  const asked = messages.filter((m) => m.role === "user").map((m) => m.content);
+  const last = asked[asked.length - 1] ?? "";
+  return FOLLOW_UP.test(last) && last.length <= 80 ? asked.slice(-2).join("\n") : last;
+};
+
+const CLIENT_FEATURES: Array<[string, string]> = [
+  ["kpi_tracking_enabled", "KPI tracking"],
+  ["design_studio_enabled", "Design Studio"],
+  ["insights_enabled", "Insights"],
+  ["ai_import_enabled", "Smart Excel import"],
+];
+
+/** So an answer doesn't walk someone through a screen their company doesn't have. A Superadmin has no client. */
+async function clientFeatures(companyId: number | null): Promise<string | null> {
+  if (companyId === null) return null;
+  const [row] = (await AppDataSource.query(`SELECT ${CLIENT_FEATURES.map(([column]) => column).join(", ")} FROM company WHERE company_id = $1`, [companyId])) as Array<Record<string, boolean>>;
+  return row ? CLIENT_FEATURES.map(([column, name]) => `${name}: ${row[column] ? "on" : "off"}`).join("\n") : null;
+}
+
 /** Letters outside the Latin script (Hindi, Arabic...). The articles are English, so word search finds nothing. */
 const NON_LATIN_LETTER = /(?!\p{Script=Latin})\p{L}/u;
 
@@ -149,7 +182,7 @@ const FILE_ARTICLES = ["add-data-from-bill", "bulk-upload", "smart-excel-import"
 const fileArticles = (kb: Kb, role: AssistantRole, found: Article[]): Article[] =>
   FILE_ARTICLES.flatMap((id) => {
     const a = kb.byId.get(id);
-    return a && a.roles.includes(role) && !found.includes(a) ? [a] : [];
+    return a && canRead(a, role) && !found.includes(a) ? [a] : [];
   });
 
 export async function rememberFeedback(req: AuthRequest): Promise<{ ok: true }> {
@@ -217,7 +250,9 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
 
   // AS-2: only a question about their own work sends any of it, and a failure here costs only the summary.
   let work: string | null = null;
-  if (workAllowed && (translated?.ownWork || wantsWorkload(`${searchText(messages)}\n${translated?.english ?? ""}`))) {
+  // With a file, "how many litres is this?" is about the file: the summary needs them to say it's theirs.
+  const mine = !attachment || OWN_WORDS.test(question);
+  if (workAllowed && mine && (translated?.ownWork || wantsWorkload(`${workText(messages)}\n${translated?.english ?? ""}`))) {
     try {
       work = await workloadFacts(caller);
     } catch (err) {
@@ -234,6 +269,8 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
     form: body.form ?? null,
     attachment,
     work,
+    workOn: workAllowed,
+    features: await clientFeatures(caller.companyId),
   });
 
   let retryNote = "Your last reply wasn't the JSON object asked for. Reply with that JSON object only.";
@@ -256,11 +293,17 @@ export async function answerQuestion(req: AuthRequest): Promise<ChatReply> {
       continue;
     }
     // A1: every figure must come from somewhere. A misread, made-up or worked-out one is never shown.
-    // A picture has no text to check against.
-    if (!prompt.images.length && (attachment?.text || work) && unknownFigures(reply.answer, [attachment?.text ?? "", work ?? "", ...messages.map((m) => m.content), ...articles.map((a) => a.body)]).length) {
-      await logCall(row({ ...spent, ok: false, errorCode: "unknown_figures", articleIds: offered }));
-      if (attempt === 2) throw new AsError("AS_AI_UNAVAILABLE", { reason: "unknown_figures" });
-      retryNote = "Your last reply had figures you weren't given. Reply again, copying every figure exactly as written, and don't work out any of your own.";
+    // A picture has no text to check against, but one shrunk this far is unreadable, so no figure from it stands.
+    const readable = prompt.images.length ? "" : (attachment?.text ?? "");
+    if ((attachment?.shrunk || (!prompt.images.length && (attachment?.text || work))) && unknownFigures(reply.answer, [readable, work ?? "", ...messages.map((m) => m.content), ...articles.map((a) => a.body)]).length) {
+      const refused = await logCall(row({ ...spent, ok: false, errorCode: "unknown_figures", articleIds: offered }));
+      if (attempt === 2) {
+        if (!attachment) throw new AsError("AS_AI_UNAVAILABLE", { reason: "unknown_figures" });
+        return { reply: attachment.shrunk ? PICTURE_TOO_BIG : NO_SUMS_FROM_FILES, answered: false, followups: [], call_id: refused, used_work: !!work, sources: [] };
+      }
+      retryNote = attachment?.shrunk
+        ? "That picture is too large to read reliably. Reply again without quoting any figure or reference from it."
+        : "Your last reply had figures you weren't given. Reply again, copying every figure exactly as written, and don't work out any of your own.";
       continue;
     }
     const callId = await logCall(row({ ...spent, ok: true, sources: reply.sources, answered: reply.answered, articleIds: offered }));
